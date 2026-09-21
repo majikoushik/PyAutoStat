@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 1 architecture: `ResearchAssistant(df).profile()` delegates to existing profiling, and typed research configuration and future result contracts serialize to JSON-compatible dictionaries. See `docs/ARCHITECTURE.md`.
+
 - Initial packaging as `pyautostat` (src layout, pyproject.toml, tests, CI).
 - `PyAutoStatError` and friendly, specific error messages for invalid data,
   unknown columns, unknown `test_type`, and too few groups in `hypothesis_tests()`.

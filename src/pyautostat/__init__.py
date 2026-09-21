@@ -13,12 +13,26 @@ from .exceptions import (
 )
 from .insights import InsightEngine
 from .report import ReportGenerator
+from .research_assistant import ResearchAssistant
+from .specifications import (
+    AnalysisOptions,
+    AnalysisSpecification,
+    Objective,
+    ResearchQuestion,
+    StudyDesign,
+)
 
 __version__ = "0.1.0"
 __author__ = "Koushik Chandra Maji"
 
 __all__ = [
     "StatisticalAnalyzer",
+    "ResearchAssistant",
+    "ResearchQuestion",
+    "StudyDesign",
+    "Objective",
+    "AnalysisOptions",
+    "AnalysisSpecification",
     "ReportGenerator",
     "InsightEngine",
     "PyAutoStatError",

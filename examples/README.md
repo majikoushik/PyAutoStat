@@ -1,5 +1,18 @@
 # Run the complete example
 
+For a minimal profile using the Phase 1 facade:
+
+```python
+import pandas as pd
+from pyautostat import ResearchAssistant
+
+df = pd.DataFrame({"group": ["A", "A", "B", "B"], "score": [10, 12, 15, 17]})
+profile = ResearchAssistant(df).profile()
+print(profile["overview"])
+```
+
+This only profiles the DataFrame. It does not recommend or execute a group test.
+
 From the repository root, install the package and run the showcase:
 
 ```bash

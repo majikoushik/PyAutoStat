@@ -6,15 +6,45 @@ This page describes the public API in `pyautostat`. The [README](README.md) has 
 
 ```python
 from pyautostat import (
+    AnalysisOptions,
+    AnalysisSpecification,
     InsightEngine,
+    Objective,
     ReportGenerator,
+    ResearchAssistant,
+    ResearchQuestion,
     StatisticalAnalyzer,
+    StudyDesign,
     detect_column_types,
     suggest_column_roles,
 )
 ```
 
 All documented exception classes are also exported from `pyautostat`.
+
+## `ResearchAssistant` and research configuration
+
+```python
+assistant = ResearchAssistant(df)
+profile = assistant.profile()
+
+spec = AnalysisSpecification(
+    question=ResearchQuestion(
+        objective=Objective.COMPARE_GROUPS,
+        outcome="score",
+        predictor="group",
+        estimand="difference in means",
+    ),
+    design=StudyDesign.UNKNOWN,
+    options=AnalysisOptions(alpha=0.05, confidence_level=0.95),
+)
+payload = spec.to_dict()
+restored = AnalysisSpecification.from_dict(payload)
+```
+
+The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns its existing `analyze_all()` dictionary. It does not run group tests or use the research specification. `ResearchQuestion` fields may remain `None` while information is gathered. `StudyDesign.UNKNOWN` is explicit and never converted to independent. Invalid values raise `InvalidDataError` with the affected field. Data-dependent column and design checks are not part of these records yet.
+
+`to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1`; see [the architecture document](docs/ARCHITECTURE.md) for fields, status values, and the future result contracts. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records, but no Phase 1 workflow produces them. They have `to_dict()` only. No recommendation, inferential result, or report is manufactured from these records.
 
 ## `StatisticalAnalyzer`
 

@@ -16,3 +16,5 @@ PyAutoStat's long-term aim is a single Python library for reliable, understandab
 | 10. Documentation and reproducibility | The README, API reference, runnable example and tests describe current behavior. | Add methodology references and more end-to-end research workflows. |
 
 The [README](README.md) and [API reference](API_REFERENCE.md) describe shipped features. New work should include edge-case tests and update the [examples](examples/README.md) when it changes the public API.
+
+The Phase 1 `ResearchAssistant(df).profile()` facade and serializable research contracts are now available. They do not add guided method selection or research execution. The [development roadmap](DEVELOPMENT_ROADMAP.md) defines the current phase sequence; this older table remains a high-level summary.

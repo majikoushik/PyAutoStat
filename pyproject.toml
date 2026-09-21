@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,6 +8,7 @@ dynamic = ["version"]
 description = "Automated statistical analysis for research data: normality, hypothesis testing, correlation, outliers, and actionable insights."
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [
     { name = "Koushik Chandra Maji", email = "koushiknsec34@gmail.com" },

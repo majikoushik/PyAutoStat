@@ -31,6 +31,20 @@ python -m pip install "pyautostat[report]"
 
 ## Quick start
 
+For a dataset profile without a research question:
+
+```python
+import pandas as pd
+
+from pyautostat import ResearchAssistant
+
+df = pd.DataFrame({"group": ["A", "A", "B", "B"], "score": [10, 12, 15, 17]})
+profile = ResearchAssistant(df).profile()
+print(profile["overview"])
+```
+
+`profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Research configuration records are available for storing a question and an explicitly unknown study design; guided recommendations and research execution are planned for later phases. See the [architecture and contracts](docs/ARCHITECTURE.md).
+
 This example runs without an input file:
 
 ```python

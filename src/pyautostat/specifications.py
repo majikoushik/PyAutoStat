@@ -1,0 +1,187 @@
+"""Typed, data-independent research configuration contracts."""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from .exceptions import InvalidDataError
+
+SCHEMA_VERSION = 1
+
+
+class Objective(str, Enum):
+    DESCRIPTIVE = "descriptive"
+    COMPARE_GROUPS = "compare_groups"
+    ASSOCIATION = "association"
+
+
+class StudyDesign(str, Enum):
+    UNKNOWN = "unknown"
+    INDEPENDENT = "independent"
+    PAIRED = "paired"
+    REPEATED = "repeated"
+    CLUSTERED = "clustered"
+
+
+def _enum(value: Any, kind: type[Enum], field_name: str) -> Any:
+    try:
+        return kind(value)
+    except (ValueError, TypeError) as exc:
+        choices = ", ".join(item.value for item in kind)
+        raise InvalidDataError(
+            f"{field_name} must be one of: {choices}. Choose a supported value."
+        ) from exc
+
+
+def _name(value: Any, field_name: str) -> None:
+    if value is not None and (not isinstance(value, str) or not value.strip()):
+        raise InvalidDataError(f"{field_name} must be a non-empty string when provided.")
+
+
+def _probability(value: Any, field_name: str) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or not 0 < value < 1
+    ):
+        raise InvalidDataError(f"{field_name} must be a finite number strictly between 0 and 1.")
+
+
+def _json_value(value: Any, field_name: str = "value") -> Any:
+    """Copy a plain JSON value, rejecting unsupported and non-finite values."""
+    if isinstance(value, Enum):
+        return value.value
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise InvalidDataError(f"{field_name} must be finite or None for JSON serialization.")
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item, field_name) for item in value]
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise InvalidDataError(f"{field_name} must have string keys for JSON serialization.")
+        return {key: _json_value(item, f"{field_name}.{key}") for key, item in value.items()}
+    raise InvalidDataError(f"{field_name} must contain only JSON-compatible values.")
+
+
+@dataclass(frozen=True)
+class ResearchQuestion:
+    """Question and variable roles; absent fields remain explicitly unresolved."""
+
+    objective: Objective | None = None
+    outcome: str | None = None
+    predictor: str | None = None
+    estimand: str | None = None
+    description: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.objective is not None:
+            object.__setattr__(self, "objective", _enum(self.objective, Objective, "objective"))
+        for name in ("outcome", "predictor", "estimand", "description"):
+            _name(getattr(self, name), name)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "objective": self.objective.value if self.objective is not None else None,
+            "outcome": self.outcome,
+            "predictor": self.predictor,
+            "estimand": self.estimand,
+            "description": self.description,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ResearchQuestion:
+        return cls(**data)
+
+
+@dataclass(frozen=True)
+class AnalysisOptions:
+    """Cross-cutting optional settings; defaults are disclosed on serialization."""
+
+    alpha: float = 0.05
+    confidence_level: float = 0.95
+    random_seed: int | None = None
+
+    def __post_init__(self) -> None:
+        _probability(self.alpha, "alpha")
+        _probability(self.confidence_level, "confidence_level")
+        if self.random_seed is not None and (
+            isinstance(self.random_seed, bool) or not isinstance(self.random_seed, int)
+        ):
+            raise InvalidDataError("random_seed must be an integer or None.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "alpha": self.alpha,
+            "confidence_level": self.confidence_level,
+            "random_seed": self.random_seed,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AnalysisOptions:
+        return cls(**data)
+
+
+@dataclass(frozen=True)
+class AnalysisSpecification:
+    """Serializable specification; DataFrame-specific validation comes later."""
+
+    question: ResearchQuestion = field(default_factory=ResearchQuestion)
+    design: StudyDesign = StudyDesign.UNKNOWN
+    options: AnalysisOptions = field(default_factory=AnalysisOptions)
+    variable_metadata: dict[str, str] | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.question, ResearchQuestion):
+            raise InvalidDataError("question must be a ResearchQuestion instance.")
+        object.__setattr__(self, "design", _enum(self.design, StudyDesign, "design"))
+        if not isinstance(self.options, AnalysisOptions):
+            raise InvalidDataError("options must be an AnalysisOptions instance.")
+        if self.variable_metadata is not None:
+            if not isinstance(self.variable_metadata, dict):
+                raise InvalidDataError(
+                    "variable_metadata must be a mapping of column names to text."
+                )
+            for key, value in self.variable_metadata.items():
+                _name(key, "variable_metadata column")
+                _name(value, f"variable_metadata[{key!r}]")
+                if value is None:
+                    raise InvalidDataError("variable_metadata values must be non-empty strings.")
+            object.__setattr__(self, "variable_metadata", self.variable_metadata.copy())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "question": self.question.to_dict(),
+            "design": self.design.value,
+            "options": self.options.to_dict(),
+            "variable_metadata": _json_value(self.variable_metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AnalysisSpecification:
+        if (
+            not isinstance(data, dict)
+            or type(data.get("schema_version")) is not int
+            or data["schema_version"] != SCHEMA_VERSION
+        ):
+            raise InvalidDataError(
+                f"schema_version must be {SCHEMA_VERSION} for this specification."
+            )
+        try:
+            return cls(
+                question=ResearchQuestion.from_dict(data["question"]),
+                design=data["design"],
+                options=AnalysisOptions.from_dict(data["options"]),
+                variable_metadata=data.get("variable_metadata"),
+            )
+        except (KeyError, TypeError) as exc:
+            raise InvalidDataError(
+                "AnalysisSpecification has missing or invalid question, design, or options fields."
+            ) from exc
