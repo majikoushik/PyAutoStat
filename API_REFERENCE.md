@@ -83,19 +83,20 @@ result = analyzer.hypothesis_tests(
     group_col="group",
     value_col="outcome",
     test_type="auto",
+    estimand="mean",
     confidence_level=0.95,
     bootstrap_samples=499,
     random_state=0,
 )
 ```
 
-`test_type` can be `auto`, `ttest`, `mannwhitney`, `anova` or `kruskal`. Automatic selection uses per-group normality and Levene variance screens. It chooses a t-test or Mann-Whitney U for two groups, and one-way ANOVA or Kruskal-Wallis for three or more groups. Explicitly selected tests are retained, with assumption warnings where appropriate.
+`test_type` can be `auto`, `ttest`, `mannwhitney`, `anova` or `kruskal`. `auto` now requires the keyword-only `estimand="mean"` or `"distribution"`. For two groups, `mean` selects Welch's t-test and `distribution` selects Mann-Whitney U. For three or more groups, `distribution` selects Kruskal-Wallis; `mean` raises `InvalidTestError` because automatic Welch ANOVA is not available. Diagnostics never switch the estimand. Explicit methods remain available. For an explicit `ttest`, `equal_var=False` (default) uses Welch; `equal_var=True` requests Student's equal-variance version. Supplying an incompatible estimand with an explicit method raises `InvalidTestError`. The library cannot verify independence or decide whether a research design justifies a chosen test.
 
-The result contains `test`, `statistic`, `p_value`, `groups`, `assumptions` and `effect_size`. The assumptions include per-group normality, Levene results, selection reason and warnings. The effect-size record contains its name, value, interpretation and a percentile bootstrap confidence interval. T-tests also return an analytical `confidence_interval` for the first minus second group's mean; a t-test result includes `equal_variance`.
+The result retains `test`, `statistic`, `p_value`, `groups`, `assumptions` and `effect_size`. Additions are `sample_size`, `excluded_rows`, `group_sizes`, degrees of freedom where applicable, and `mean_difference` for t-tests. Assumption diagnostics include `not_rejected`, `rejected` or `unknown` at the documented reference alpha 0.05; they do not certify population assumptions. The effect-size record contains its name, value, interpretation when supported, and a percentile bootstrap confidence interval or `None`. Rank-biserial correlation and rank epsilon-squared have no qualitative magnitude label. T-tests return an analytical `confidence_interval` for first minus second group's mean and a Boolean `equal_variance` indicating the method used.
 
-Rows missing a group or outcome are excluded. Every group needs at least two usable numeric values. Kruskal-Wallis requires at least five per group for its approximation. Use `bootstrap_samples=0` to omit effect-size intervals, or an integer of at least 100 for resampling. `random_state` controls a local random generator.
+Rows missing a group or outcome are excluded. Every group needs at least two usable numeric values. The Kruskal-Wallis minimum of five per group is this library's conservative chi-square approximation policy. Use `bootstrap_samples=0` to omit effect-size intervals, or an integer of at least 100 for resampling. `random_state` controls a local random generator. Bootstrap metadata records the requested and valid counts and seed; an interval is `None` with a warning if fewer than `max(50, floor(requested/2))` resamples are valid.
 
-These tests assume independent observations. The automatic screens cannot verify study design, and bootstrap intervals do not adjust for multiple testing.
+Mann-Whitney U tests a distributional null for independent samples; it is not universally a median test or a fallback for a rejected normality diagnostic. Its statistic is the first-group U, and rank-biserial equals `2U/(n1*n2)-1`. Small tied samples rely on an asymptotic p-value and receive a warning. The reported Cohen's d uses a pooled standard deviation even when Welch's t-test is used. Standard ANOVA assumes equal population variances; a nonrejected Levene result does not prove that assumption. Kruskal-Wallis uses a chi-square approximation and reports a zero-truncated rank epsilon-squared estimate. Bootstrap intervals do not adjust for multiple comparisons. See [statistical validation](docs/STATISTICAL_VALIDATION.md).
 
 ### Categorical association
 
@@ -110,9 +111,9 @@ association = analyzer.categorical_association(
 )
 ```
 
-This method runs a Pearson chi-square test of independence without continuity correction. It excludes rows missing either selected value, preserves first-appearance category order, and requires every expected cell count to be at least five.
+This method runs a Pearson chi-square test of independence without continuity correction. It excludes rows missing either selected value, preserves first-appearance category order, and applies this library's conservative policy requiring every expected cell count to be at least five.
 
-The result includes `test`, `statistic`, `p_value`, `degrees_of_freedom`, `groups`, `outcomes`, `observed_counts`, `expected_counts`, `sample_size`, `assumptions` and Cramér's V in `effect_size`. For a two-by-two table with an explicit `success_value`, it also includes `cohens_h`. Positive Cohen's h means the first group has the higher success proportion. Set `bootstrap_samples=0` to omit bootstrap intervals.
+The result includes `test`, `statistic`, `p_value`, `degrees_of_freedom`, `groups`, `outcomes`, `observed_counts`, `expected_counts`, `sample_size`, `excluded_rows`, `assumptions` and Cramér's V in `effect_size`. For a two-by-two table with an explicit `success_value`, it also includes `cohens_h`. Positive Cohen's h means the first group has the higher success proportion. Bootstrap intervals resample complete observed group/outcome rows; interval and assumption metadata report valid resample counts and seed. Set `bootstrap_samples=0` to omit intervals.
 
 ## Column detection
 

@@ -11,7 +11,7 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 - **Explore data:** descriptive statistics, missing values, duplicates, distributions, histograms, and advisory column type and role detection.
 - **Check assumptions:** Shapiro-Wilk, D'Agostino-Pearson, and Anderson-Darling normality results; IQR, Z-score, and MAD outlier summaries.
 - **Study relationships:** Pearson, Spearman, and Kendall correlations, with p-values for Pearson pairs.
-- **Compare independent groups:** automatic or explicit t-test, Mann-Whitney U, one-way ANOVA, and Kruskal-Wallis; assumption checks, effect sizes, and confidence intervals.
+- **Compare independent groups:** Welch or explicit Student t-test, Mann-Whitney U, one-way ANOVA, and Kruskal-Wallis; assumption diagnostics, effect sizes, and confidence intervals. Automatic selection requires a stated target quantity.
 - **Test categorical association:** Pearson chi-square, Cramér's V, and Cohen's h for a two-by-two table with a named success outcome.
 - **Share results:** severity-rated insights and dictionary, JSON, CSV, static HTML, or optional Plotly HTML reports.
 
@@ -62,7 +62,7 @@ df = pd.DataFrame(
 analyzer = StatisticalAnalyzer(df)
 analysis = analyzer.analyze_all()
 comparison = analyzer.hypothesis_tests(
-    "group", "outcome", test_type="auto", bootstrap_samples=0
+    "group", "outcome", test_type="auto", estimand="mean", bootstrap_samples=0
 )
 insights = InsightEngine(analysis).get_summary()
 
@@ -91,8 +91,10 @@ Add `--skip-interactive` if you want only JSON, CSV, and static HTML. For your o
 
 - Input must be a nonempty DataFrame with unique, nonempty string column names. Missing values are allowed; unsupported nested, complex, or non-finite numeric values raise `InvalidDataError`.
 - The analyzer copies its input. Undefined or skipped analyses appear as `None` or in `analysis_warnings`. Review these warnings before interpreting output.
-- Group tests are for **independent observations**. The automatic choice uses normality and variance screens; it cannot establish that a study design or statistical model is appropriate.
-- Chi-square association requires expected counts of at least five in every cell. Bootstrap intervals are exploratory and do not adjust for multiple comparisons.
+- Group tests require **independent observations**, which the library cannot verify from values. `auto` requires `estimand="mean"` or `"distribution"`; it never changes that target because of a diagnostic p-value. Automatic multi-group mean comparison is unavailable until a suitable procedure is implemented. An explicit `ttest` uses Welch by default; `equal_var=True` requests Student's pooled-variance test.
+- Normality and Levene results say `rejected`, `not_rejected`, or `unknown` at an advisory 0.05 threshold. A failure to reject does not establish an assumption. The legacy `is_normal` flag is retained as a screening flag, not a distribution classification.
+- Constant data and unrepresentable statistics return unavailable values or package errors. Z-score and modified Z-score outlier counts are unavailable when their denominators are zero; no observations are removed.
+- The chi-square method applies a conservative policy requiring expected counts of at least five in every cell. Bootstrap intervals are exploratory and do not adjust for multiple comparisons.
 - Column type and role suggestions are advisory; they do not alter the input or choose analysis columns.
 - Processing is in memory. The interactive HTML loads Plotly JavaScript from a CDN when opened in a browser.
 

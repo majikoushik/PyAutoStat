@@ -12,6 +12,10 @@ def test_normality_reports_all_three_tests(numeric_df):
         for name in ("shapiro_wilk", "d_agostino_pearson"):
             assert 0.0 <= tests[name]["p_value"] <= 1.0
             assert tests[name]["is_normal"] in (True, False)
+            assert tests[name]["status"] == (
+                "not_rejected" if tests[name]["is_normal"] else "rejected"
+            )
+            assert tests[name]["reference_alpha"] == 0.05
         assert len(tests["anderson_darling"]["critical_values"]) == len(
             tests["anderson_darling"]["significance_levels"]
         )

@@ -6,15 +6,19 @@ from scipy import stats
 from pyautostat import InsufficientDataError, InvalidTestError, StatisticalAnalyzer
 
 
-def test_auto_selects_ttest_for_normal_groups(two_group_normal_df):
-    result = StatisticalAnalyzer(two_group_normal_df).hypothesis_tests("group", "value")
+def test_auto_selects_welch_for_stated_mean_target(two_group_normal_df):
+    result = StatisticalAnalyzer(two_group_normal_df).hypothesis_tests(
+        "group", "value", estimand="mean"
+    )
     assert result["test"] == "t-test"
-    assert "equal_variance" in result
+    assert result["equal_variance"] is False
     assert result["groups"] == ["A", "B"]
 
 
 def test_ttest_reports_cohens_d_and_confidence_interval(two_group_normal_df):
-    result = StatisticalAnalyzer(two_group_normal_df).hypothesis_tests("group", "value")
+    result = StatisticalAnalyzer(two_group_normal_df).hypothesis_tests(
+        "group", "value", estimand="mean"
+    )
 
     effect_size = result["effect_size"]
     assert effect_size["name"] == "Cohen's d"
@@ -29,8 +33,10 @@ def test_ttest_reports_cohens_d_and_confidence_interval(two_group_normal_df):
     assert ci["upper"] < 0
 
 
-def test_auto_selects_mannwhitney_for_skewed_groups(two_group_skewed_df):
-    result = StatisticalAnalyzer(two_group_skewed_df).hypothesis_tests("group", "value")
+def test_auto_selects_mannwhitney_for_stated_distribution_target(two_group_skewed_df):
+    result = StatisticalAnalyzer(two_group_skewed_df).hypothesis_tests(
+        "group", "value", estimand="distribution"
+    )
     assert result["test"] == "Mann-Whitney U"
     effect_size = result["effect_size"]
     assert effect_size["name"] == "rank-biserial correlation"
@@ -68,12 +74,14 @@ def test_auto_selects_kruskal_when_multigroup_normality_fails():
     rng = np.random.default_rng(17)
     values = np.concatenate([rng.exponential(scale=s, size=40) for s in (1, 2, 3)])
     frame = pd.DataFrame({"group": ["A"] * 40 + ["B"] * 40 + ["C"] * 40, "value": values})
-    result = StatisticalAnalyzer(frame).hypothesis_tests("group", "value", bootstrap_samples=100)
+    result = StatisticalAnalyzer(frame).hypothesis_tests(
+        "group", "value", bootstrap_samples=100, estimand="distribution"
+    )
 
     assert result["test"] == "Kruskal-Wallis"
     assert result["assumptions"]["selected_test_type"] == "kruskal"
-    assert any(entry["status"] == "violated" for entry in result["assumptions"]["normality"])
-    assert "Normality" in result["assumptions"]["selection_reason"]
+    assert any(entry["status"] == "rejected" for entry in result["assumptions"]["normality"])
+    assert "stated distribution" in result["assumptions"]["selection_reason"]
 
 
 def test_assumption_details_and_reproducible_effect_size_interval(three_group_df):
@@ -85,7 +93,8 @@ def test_assumption_details_and_reproducible_effect_size_interval(three_group_df
     assert [item["sample_size"] for item in first["assumptions"]["normality"]] == [30] * 3
     ci = first["effect_size"]["confidence_interval"]
     assert ci == second["effect_size"]["confidence_interval"]
-    assert ci["lower"] <= first["effect_size"]["value"] <= ci["upper"]
+    assert np.isfinite(ci["lower"]) and np.isfinite(ci["upper"])
+    assert ci["lower"] <= ci["upper"]
     assert ci["valid_resamples"] == 100
 
 

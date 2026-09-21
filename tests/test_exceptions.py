@@ -52,5 +52,8 @@ def test_group_column_with_missing_values_ignores_nan_group():
             "value": [1, 2, 3, 10, 11, 12, 99],
         }
     )
-    result = StatisticalAnalyzer(df).hypothesis_tests("group", "value")
+    result = StatisticalAnalyzer(df).hypothesis_tests("group", "value", estimand="mean")
     assert set(result["groups"]) == {"A", "B"}
+    assert result["sample_size"] == 6
+    assert result["excluded_rows"] == 1
+    assert [entry["size"] for entry in result["group_sizes"]] == [3, 3]

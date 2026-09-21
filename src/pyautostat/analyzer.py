@@ -138,23 +138,19 @@ class StatisticalAnalyzer:
     def analyze_all(self):
         """Run complete analysis suite"""
         self.analysis_warnings = []
-        with warnings.catch_warnings():
-            # Undefined numeric outputs are recorded in analysis_warnings.
-            # Keep expected NumPy/SciPy arithmetic warnings local to this call.
-            warnings.filterwarnings("ignore", category=RuntimeWarning)
-            results = {
-                "overview": self._overview(),
-                "descriptive": self._descriptive_stats(),
-                "normality": self._normality_tests(),
-                "outliers": self._outlier_detection(),
-                "correlation": self._correlation_analysis(),
-                "missing_data": self._missing_data_analysis(),
-                "data_quality": self._data_quality_metrics(),
-                "distributions": self._distribution_analysis(),
-                "column_roles": suggest_column_roles(self.df),
-                "column_types": detect_column_types(self.df),
-                "histograms": self._histogram_analysis(),
-            }
+        results = {
+            "overview": self._overview(),
+            "descriptive": self._descriptive_stats(),
+            "normality": self._normality_tests(),
+            "outliers": self._outlier_detection(),
+            "correlation": self._correlation_analysis(),
+            "missing_data": self._missing_data_analysis(),
+            "data_quality": self._data_quality_metrics(),
+            "distributions": self._distribution_analysis(),
+            "column_roles": suggest_column_roles(self.df),
+            "column_types": detect_column_types(self.df),
+            "histograms": self._histogram_analysis(),
+        }
         results["analysis_warnings"] = self.analysis_warnings.copy()
         self.all_results = results
         return results
@@ -273,35 +269,43 @@ class StatisticalAnalyzer:
 
             # Shapiro-Wilk Test (best for sample size < 5000)
             if len(col_data) <= 5000:
-                stat, p_value = shapiro(col_data)
-                if np.isfinite(stat) and np.isfinite(p_value):
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", RuntimeWarning)
+                    stat, p_value = shapiro(col_data)
+                if not caught and np.isfinite(stat) and np.isfinite(p_value):
                     tests["shapiro_wilk"] = {
                         "statistic": float(stat),
                         "p_value": float(p_value),
-                        "is_normal": bool(p_value > 0.05),
+                        "is_normal": bool(p_value > 0.05),  # Legacy screening flag.
+                        "status": "not_rejected" if p_value > 0.05 else "rejected",
+                        "reference_alpha": 0.05,
                     }
                 else:
                     self._add_warning(
                         "undefined_result",
                         "normality",
                         col,
-                        "Shapiro-Wilk returned no finite result.",
+                        "Shapiro-Wilk was unavailable or issued a numerical warning.",
                     )
 
             if len(col_data) >= 8:
-                stat, p_value = normaltest(col_data)
-                if np.isfinite(stat) and np.isfinite(p_value):
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", RuntimeWarning)
+                    stat, p_value = normaltest(col_data)
+                if not caught and np.isfinite(stat) and np.isfinite(p_value):
                     tests["d_agostino_pearson"] = {
                         "statistic": float(stat),
                         "p_value": float(p_value),
-                        "is_normal": bool(p_value > 0.05),
+                        "is_normal": bool(p_value > 0.05),  # Legacy screening flag.
+                        "status": "not_rejected" if p_value > 0.05 else "rejected",
+                        "reference_alpha": 0.05,
                     }
                 else:
                     self._add_warning(
                         "undefined_result",
                         "normality",
                         col,
-                        "D'Agostino-Pearson returned no finite result.",
+                        "D'Agostino-Pearson was unavailable or issued a numerical warning.",
                     )
             else:
                 self._add_warning(
@@ -319,7 +323,11 @@ class StatisticalAnalyzer:
                 result = stats.anderson(col_data)
                 critical_values = getattr(result, "critical_values", [])
                 significance_levels = getattr(result, "significance_level", [])
-            if np.isfinite(result.statistic):
+            if (
+                np.isfinite(result.statistic)
+                and np.isfinite(critical_values).all()
+                and np.isfinite(significance_levels).all()
+            ):
                 tests["anderson_darling"] = {
                     "statistic": float(result.statistic),
                     "critical_values": [float(x) for x in critical_values],
@@ -374,8 +382,19 @@ class StatisticalAnalyzer:
                         and valid_data[col1].nunique() > 1
                         and valid_data[col2].nunique() > 1
                     ):
-                        _, p_val = pearson_test(valid_data[col1], valid_data[col2])
-                        p_values[col1][col2] = _finite_or_none(p_val)
+                        with warnings.catch_warnings(record=True) as caught:
+                            warnings.simplefilter("always")
+                            _, p_val = pearson_test(valid_data[col1], valid_data[col2])
+                        p_values[col1][col2] = None if caught else _finite_or_none(p_val)
+                        if caught:
+                            correlations["pearson"]["matrix"][col1][col2] = None
+                            correlations["pearson"]["matrix"][col2][col1] = None
+                            self._add_warning(
+                                "numerical_warning",
+                                "correlation",
+                                col1,
+                                f"Pearson inference for '{col1}' and '{col2}' was unreliable.",
+                            )
                     else:
                         p_values[col1][col2] = None
 
@@ -394,13 +413,13 @@ class StatisticalAnalyzer:
             if col_data.empty:
                 outliers[col] = {
                     "iqr": {
-                        "count": 0,
+                        "count": None,
                         "percentage": None,
                         "lower_bound": None,
                         "upper_bound": None,
                     },
-                    "z_score": {"count": 0, "percentage": None, "threshold": 3.0},
-                    "mad": {"count": 0, "percentage": None, "threshold": 3.5},
+                    "z_score": {"count": None, "percentage": None, "threshold": 3.0},
+                    "mad": {"count": None, "percentage": None, "threshold": 3.5},
                 }
                 self._add_warning(
                     "all_missing", "outliers", col, "Outlier detection needs numeric values."
@@ -429,12 +448,14 @@ class StatisticalAnalyzer:
             }
 
             # Z-score Method
-            z_scores = (
-                np.abs(stats.zscore(col_data))
-                if col_data.nunique() > 1
-                else np.zeros(len(col_data))
-            )
-            z_valid = bool(np.isfinite(z_scores).all())
+            z_scores = None
+            z_warning = False
+            if col_data.nunique() > 1:
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", RuntimeWarning)
+                    z_scores = np.abs(stats.zscore(col_data))
+                z_warning = bool(caught)
+            z_valid = not z_warning and z_scores is not None and bool(np.isfinite(z_scores).all())
             z_outliers = int(np.sum(z_scores > 3)) if z_valid else None
             if not z_valid:
                 self._add_warning(
@@ -449,15 +470,15 @@ class StatisticalAnalyzer:
             # Modified Z-score (using MAD)
             median = col_data.median()
             mad = np.median(np.abs(col_data - median))
-            mad_valid = mad != 0 or col_data.nunique() == 1
-            modified_z = 0.6745 * (col_data - median) / mad if mad != 0 else np.zeros_like(col_data)
+            mad_valid = mad != 0 and np.isfinite(mad)
+            modified_z = 0.6745 * (col_data - median) / mad if mad_valid else None
             mad_outliers = int((np.abs(modified_z) > 3.5).sum()) if mad_valid else None
             if not mad_valid:
                 self._add_warning(
                     "undefined_result",
                     "outliers",
                     col,
-                    "MAD is zero despite differing values; modified Z-scores are unavailable.",
+                    "MAD is zero or non-finite; modified Z-scores are unavailable.",
                 )
             methods["mad"] = {
                 "count": mad_outliers,
@@ -628,6 +649,9 @@ class StatisticalAnalyzer:
         confidence_level: float = 0.95,
         bootstrap_samples: int = 499,
         random_state: int | None = 0,
+        *,
+        estimand: str | None = None,
+        equal_var: bool = False,
     ) -> dict:
         """
         Perform hypothesis tests comparing groups.
@@ -647,15 +671,33 @@ class StatisticalAnalyzer:
             Use 0 to omit these intervals, or at least 100 resamples.
         random_state : int or None
             Local random seed for reproducible bootstrap intervals.
+        estimand : str or None
+            Required for 'auto': 'mean' or 'distribution'. Never inferred from diagnostics.
+        equal_var : bool
+            For explicit 'ttest', use Student's pooled-variance test when True;
+            otherwise use Welch's unequal-variance test. Defaults to False.
         """
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning)
-            return self._hypothesis_tests_impl(
-                group_col, value_col, test_type, confidence_level, bootstrap_samples, random_state
-            )
+        return self._hypothesis_tests_impl(
+            group_col,
+            value_col,
+            test_type,
+            confidence_level,
+            bootstrap_samples,
+            random_state,
+            estimand,
+            equal_var,
+        )
 
     def _hypothesis_tests_impl(
-        self, group_col, value_col, test_type, confidence_level, bootstrap_samples, random_state
+        self,
+        group_col,
+        value_col,
+        test_type,
+        confidence_level,
+        bootstrap_samples,
+        random_state,
+        estimand,
+        equal_var,
     ):
         if not isinstance(group_col, str) or not group_col.strip():
             raise InvalidTestError("group_col must be a non-empty column name string.")
@@ -666,6 +708,28 @@ class StatisticalAnalyzer:
         if test_type not in _VALID_TEST_TYPES:
             raise InvalidTestError(
                 f"Unknown test_type '{test_type}'. Choose one of: {', '.join(_VALID_TEST_TYPES)}."
+            )
+        if estimand not in (None, "mean", "distribution"):
+            raise InvalidTestError("estimand must be 'mean', 'distribution', or None.")
+        if not isinstance(equal_var, bool):
+            raise InvalidTestError("equal_var must be a boolean.")
+        if equal_var and test_type != "ttest":
+            raise InvalidTestError("equal_var=True applies only to explicit test_type='ttest'.")
+        expected_estimand = {
+            "ttest": "mean",
+            "anova": "mean",
+            "mannwhitney": "distribution",
+            "kruskal": "distribution",
+        }
+        if (
+            test_type != "auto"
+            and estimand is not None
+            and estimand != expected_estimand[test_type]
+        ):
+            raise InvalidTestError(
+                f"test_type='{test_type}' does not target estimand='{estimand}'. "
+                f"Use estimand='{expected_estimand[test_type]}' or omit estimand "
+                "for an explicit test."
             )
         if (
             isinstance(confidence_level, bool)
@@ -723,19 +787,30 @@ class StatisticalAnalyzer:
                 "Each group needs at least 2 non-missing numeric values. "
                 "Check group labels and missing outcome values."
             )
+        if test_type == "auto" and estimand is None:
+            raise InvalidTestError(
+                "test_type='auto' needs estimand='mean' or 'distribution'. "
+                "Normality results cannot determine the research target."
+            )
 
         def normality_p(values):
             if len(values) < 3 or np.unique(values).size < 2:
                 return None, None
-            if len(values) <= 5000:
-                return "Shapiro-Wilk", _finite_or_none(shapiro(values).pvalue)
-            return "D'Agostino-Pearson", _finite_or_none(normaltest(values).pvalue)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", RuntimeWarning)
+                if len(values) <= 5000:
+                    name, p = "Shapiro-Wilk", _finite_or_none(shapiro(values).pvalue)
+                else:
+                    name, p = "D'Agostino-Pearson", _finite_or_none(normaltest(values).pvalue)
+            return name, None if caught else p
 
         normality_results = [normality_p(values) for values in group_data]
         normality_p_values = [p for _, p in normality_results]
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning, module="scipy")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", RuntimeWarning)
             p_levene = _finite_or_none(levene(*group_data).pvalue)
+        if caught:
+            p_levene = None
         assumptions = {
             "normality_p_values": dict(
                 zip((str(g) for g in groups), normality_p_values, strict=True)
@@ -747,16 +822,22 @@ class StatisticalAnalyzer:
                     "sample_size": len(values),
                     "test": test_name,
                     "p_value": p,
-                    "status": "unknown" if p is None else ("met" if p > 0.05 else "violated"),
+                    "status": "unknown"
+                    if p is None
+                    else ("not_rejected" if p > 0.05 else "rejected"),
                 }
                 for group, values, (test_name, p) in zip(
                     groups, group_data, normality_results, strict=True
                 )
             ],
             "equal_variance_status": (
-                "unknown" if p_levene is None else ("met" if p_levene > 0.05 else "violated")
+                "unknown"
+                if p_levene is None
+                else ("not_rejected" if p_levene > 0.05 else "rejected")
             ),
-            "warnings": [],
+            "diagnostic_alpha": 0.05,
+            "independent_observations": "Required; cannot be verified from numerical values.",
+            "warnings": ["Independence must be confirmed from the study design."],
         }
         requested_test_type = test_type
         selection_reason = "Selected explicitly by the caller."
@@ -770,17 +851,11 @@ class StatisticalAnalyzer:
             group1, group2 = group_data
 
             if test_type == "auto":
-                if all(p is not None and p > 0.05 for p in normality_p_values):
-                    test_type = "ttest"
-                    selection_reason = (
-                        "Both groups passed the normality screen; the t-test uses "
-                        "Welch's correction when equal variance is not supported."
-                    )
-                else:
-                    test_type = "mannwhitney"
-                    selection_reason = (
-                        "At least one group failed or could not complete the normality screen."
-                    )
+                test_type = "ttest" if estimand == "mean" else "mannwhitney"
+                selection_reason = (
+                    "Selected for the caller's stated target quantity; diagnostics did not "
+                    "change the estimand."
+                )
 
             if test_type == "ttest":
                 if np.var(group1) == 0 and np.var(group2) == 0:
@@ -788,27 +863,41 @@ class StatisticalAnalyzer:
                         "A t-test needs numerically representable within-group variation. "
                         "Review constant or extremely small-scale observations."
                     )
-                equal_var = p_levene is not None and p_levene > 0.05
-                stat, p_val = ttest_ind(group1, group2, equal_var=equal_var)
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", RuntimeWarning)
+                    stat, p_val = ttest_ind(group1, group2, equal_var=equal_var)
+                if caught:
+                    assumptions["warnings"].append(
+                        "The t-test backend reported numerical precision loss; verify this result."
+                    )
                 effect_size = self._cohens_d(group1, group2)
+                mean_interval = self._mean_difference_ci(
+                    group1, group2, equal_var, confidence_level
+                )
                 results = {
                     "test": "t-test",
                     "statistic": float(stat),
                     "p_value": float(p_val),
                     "groups": [groups[0], groups[1]],
                     "equal_variance": bool(equal_var),
+                    "degrees_of_freedom": mean_interval["degrees_of_freedom"],
+                    "mean_difference": float(np.mean(group1) - np.mean(group2)),
                     "assumptions": assumptions,
                     "effect_size": {
                         "name": "Cohen's d",
                         "value": effect_size,
                         "interpretation": self._interpret_effect_size("cohens_d", effect_size),
                     },
-                    "confidence_interval": self._mean_difference_ci(
-                        group1, group2, equal_var, confidence_level
-                    ),
+                    "confidence_interval": mean_interval,
                 }
+                if equal_var and (p_levene is None or p_levene <= 0.05):
+                    assumptions["warnings"].append(
+                        "Student's t-test assumes equal population variances; Levene's "
+                        "diagnostic rejected this or was unavailable."
+                    )
             else:
-                stat, p_val = mannwhitneyu(group1, group2)
+                _, p_val = mannwhitneyu(group1, group2, alternative="two-sided")
+                stat = self._mann_whitney_u1(group1, group2)
                 effect_size = self._rank_biserial(stat, len(group1), len(group2))
                 results = {
                     "test": "Mann-Whitney U",
@@ -819,9 +908,16 @@ class StatisticalAnalyzer:
                     "effect_size": {
                         "name": "rank-biserial correlation",
                         "value": effect_size,
-                        "interpretation": self._interpret_effect_size("correlation", effect_size),
+                        "interpretation": None,
                     },
                 }
+                if min(len(group1), len(group2)) < 10 and (
+                    np.unique(np.concatenate(group_data)).size < len(usable)
+                ):
+                    assumptions["warnings"].append(
+                        "Small tied samples use an asymptotic Mann-Whitney p-value; "
+                        "the approximation may be unreliable."
+                    )
 
         else:
             if test_type in ("ttest", "mannwhitney"):
@@ -832,16 +928,14 @@ class StatisticalAnalyzer:
             n_total = sum(len(g) for g in group_data)
 
             if test_type == "auto":
-                if all(p is not None and p > 0.05 for p in normality_p_values) and (
-                    p_levene is not None and p_levene > 0.05
-                ):
-                    test_type = "anova"
-                    selection_reason = "Normality and equal-variance screens passed."
-                else:
-                    test_type = "kruskal"
-                    selection_reason = (
-                        "Normality or equal variance failed or could not be established."
+                if estimand == "mean":
+                    raise InvalidTestError(
+                        "Automatic multi-group mean comparison is unsupported: Welch ANOVA is not "
+                        "available. Choose test_type='anova' only when its assumptions "
+                        "are justified."
                     )
+                test_type = "kruskal"
+                selection_reason = "Selected for the caller's stated distribution comparison."
 
             if test_type == "anova":
                 if all(np.var(values) == 0 for values in group_data):
@@ -849,13 +943,20 @@ class StatisticalAnalyzer:
                         "ANOVA needs numerically representable within-group variation. "
                         "Review constant or extremely small-scale observations."
                     )
-                stat, p_val = f_oneway(*group_data)
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", RuntimeWarning)
+                    stat, p_val = f_oneway(*group_data)
+                if caught:
+                    assumptions["warnings"].append(
+                        "ANOVA reported numerical precision loss; verify this result."
+                    )
                 effect_size = self._eta_squared_anova(group_data)
                 results = {
                     "test": "One-way ANOVA",
                     "statistic": float(stat),
                     "p_value": float(p_val),
                     "groups": list(groups),
+                    "degrees_of_freedom": [len(groups) - 1, n_total - len(groups)],
                     "assumptions": assumptions,
                     "effect_size": {
                         "name": "eta-squared",
@@ -882,11 +983,12 @@ class StatisticalAnalyzer:
                     "statistic": float(stat),
                     "p_value": float(p_val),
                     "groups": list(groups),
+                    "degrees_of_freedom": len(groups) - 1,
                     "assumptions": assumptions,
                     "effect_size": {
                         "name": "epsilon-squared (rank)",
                         "value": effect_size,
-                        "interpretation": self._interpret_effect_size("correlation", effect_size),
+                        "interpretation": None,
                     },
                 }
 
@@ -908,22 +1010,38 @@ class StatisticalAnalyzer:
         assumptions["requested_test_type"] = requested_test_type
         assumptions["selected_test_type"] = test_type
         assumptions["selection_reason"] = selection_reason
+        assumptions["estimand"] = estimand or expected_estimand[test_type]
+        results["sample_size"] = len(usable)
+        results["excluded_rows"] = len(self.df) - len(usable)
+        results["group_sizes"] = [
+            {"group": group, "size": len(values)}
+            for group, values in zip(groups, group_data, strict=True)
+        ]
         if test_type in ("ttest", "anova"):
             if any(p is None or p <= 0.05 for p in normality_p_values):
                 assumptions["warnings"].append(
-                    "Normality was not established for every group; interpret the parametric "
-                    "test with care."
+                    "A normality diagnostic was rejected or unavailable for at least one group; "
+                    "review the parametric model."
                 )
             if test_type == "anova" and (p_levene is None or p_levene <= 0.05):
                 assumptions["warnings"].append(
-                    "Equal variance was not established; standard ANOVA may be unsuitable."
+                    "Levene's test rejected equal variance or was unavailable; standard ANOVA "
+                    "may be unsuitable."
                 )
-        results["effect_size"]["confidence_interval"] = self._effect_size_ci(
+        effect_interval, valid_resamples = self._effect_size_ci(
             group_data, test_type, float(confidence_level), int(bootstrap_samples), random_state
         )
-        if bootstrap_samples and results["effect_size"]["confidence_interval"] is None:
+        results["effect_size"]["confidence_interval"] = effect_interval
+        assumptions["bootstrap"] = {
+            "method": "independent within-group percentile bootstrap",
+            "requested_resamples": int(bootstrap_samples),
+            "valid_resamples": valid_resamples,
+            "random_seed": random_state,
+        }
+        if bootstrap_samples and effect_interval is None:
             assumptions["warnings"].append(
-                "An effect-size bootstrap interval could not be estimated from these groups."
+                "Effect-size interval unavailable: fewer than half of requested bootstrap "
+                "resamples were valid (minimum 50)."
             )
         return results
 
@@ -941,7 +1059,7 @@ class StatisticalAnalyzer:
     def _effect_size_ci(cls, group_data, test_type, confidence_level, samples, random_state):
         """Percentile bootstrap interval, resampling independently within each group."""
         if samples == 0:
-            return None
+            return None, 0
         rng = np.random.default_rng(random_state)
         estimates = []
         for _ in range(samples):
@@ -949,7 +1067,7 @@ class StatisticalAnalyzer:
             if test_type == "ttest":
                 estimate = cls._cohens_d(*draw)
             elif test_type == "mannwhitney":
-                u_stat = mannwhitneyu(*draw).statistic
+                u_stat = cls._mann_whitney_u1(*draw)
                 estimate = cls._rank_biserial(u_stat, len(draw[0]), len(draw[1]))
             elif test_type == "anova":
                 estimate = cls._eta_squared_anova(draw)
@@ -961,16 +1079,20 @@ class StatisticalAnalyzer:
             if np.isfinite(estimate):
                 estimates.append(float(estimate))
         if len(estimates) < max(50, samples // 2):
-            return None
+            return None, len(estimates)
         alpha = (1 - confidence_level) / 2
         lower, upper = np.quantile(estimates, [alpha, 1 - alpha])
+        if not np.isfinite(lower) or not np.isfinite(upper):
+            return None, len(estimates)
         return {
             "level": confidence_level,
             "lower": float(lower),
             "upper": float(upper),
-            "method": "within-group percentile bootstrap",
+            "method": "independent within-group percentile bootstrap",
+            "requested_resamples": samples,
+            "random_seed": random_state,
             "valid_resamples": len(estimates),
-        }
+        }, len(estimates)
 
     @staticmethod
     def _mean_difference_ci(group1, group2, equal_var, confidence=0.95):
@@ -995,10 +1117,18 @@ class StatisticalAnalyzer:
             "level": confidence,
             "lower": float(mean_diff - margin),
             "upper": float(mean_diff + margin),
+            "degrees_of_freedom": float(df),
             "description": (
                 f"{int(confidence * 100)}% CI for the difference in means (group1 - group2)"
             ),
         }
+
+    @staticmethod
+    def _mann_whitney_u1(group1, group2):
+        """First-group U from average ranks, stable across supported SciPy versions."""
+        n1 = len(group1)
+        ranks = stats.rankdata(np.concatenate((group1, group2)))
+        return float(np.sum(ranks[:n1]) - n1 * (n1 + 1) / 2)
 
     @staticmethod
     def _rank_biserial(u_statistic, n1, n2):
@@ -1012,7 +1142,7 @@ class StatisticalAnalyzer:
         grand_mean = all_values.mean()
         ss_total = float(np.sum((all_values - grand_mean) ** 2))
         if ss_total == 0:
-            return 0.0
+            return float("nan")
         ss_between = float(sum(len(g) * (np.mean(g) - grand_mean) ** 2 for g in group_data))
         return ss_between / ss_total
 
@@ -1021,7 +1151,7 @@ class StatisticalAnalyzer:
         """Rank epsilon-squared: non-parametric effect size for Kruskal-Wallis."""
         denominator = n_total - n_groups
         if denominator <= 0:
-            return 0.0
+            return float("nan")
         return float(max(0.0, (h_statistic - n_groups + 1) / denominator))
 
     @staticmethod

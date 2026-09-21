@@ -46,30 +46,32 @@ class InsightEngine:
             return
 
         normality = self.results["normality"]
-        non_normal = []
+        rejected = []
 
         for col, tests in normality.items():
             # Check multiple tests
             failed_tests = sum(
                 1
                 for test, result in tests.items()
-                if isinstance(result, dict) and not result.get("is_normal", True)
+                if isinstance(result, dict)
+                and (
+                    result.get("status") == "rejected"
+                    or ("status" not in result and result.get("is_normal") is False)
+                )
             )
 
             if failed_tests >= 2:
-                non_normal.append(col)
+                rejected.append(col)
 
-        if non_normal:
+        if rejected:
             self.insights.append(
                 {
                     "category": "Normality",
                     "severity": "medium",
-                    "finding": f"Columns {non_normal} show non-normal distributions",
+                    "finding": f"Multiple normality diagnostics reject for columns {rejected}",
                     "recommendation": [
-                        "Consider using non-parametric tests (Mann-Whitney U, Kruskal-Wallis)",
-                        "Explore data transformations (log, sqrt, Box-Cox) to achieve normality",
-                        "Use bootstrapping methods for confidence intervals",
-                        "Consider robust statistical methods",
+                        "Review distribution shape, outliers, sample size, and the estimand",
+                        "Choose a method that matches the research target and study design",
                     ],
                 }
             )

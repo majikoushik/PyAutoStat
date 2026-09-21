@@ -168,15 +168,15 @@ def show_hypothesis_tests(analyzer: StatisticalAnalyzer) -> list[dict]:
     """Demonstrate automatic and explicit independent-group comparisons."""
     heading("4. hypothesis_tests(): selection, assumptions, effect sizes, intervals")
     requests = (
-        ("Two groups, auto", "group", "outcome", "auto"),
-        ("Two groups, t-test", "group", "outcome", "ttest"),
-        ("Two groups, Mann-Whitney U", "group", "measurement_1", "mannwhitney"),
-        ("Three groups, auto", "arm", "measurement_1", "auto"),
-        ("Three groups, ANOVA", "arm", "outcome", "anova"),
-        ("Three groups, Kruskal-Wallis", "arm", "measurement_1", "kruskal"),
+        ("Two groups, auto mean", "group", "outcome", "auto", "mean"),
+        ("Two groups, Welch t-test", "group", "outcome", "ttest", None),
+        ("Two groups, Mann-Whitney U", "group", "measurement_1", "mannwhitney", None),
+        ("Three groups, auto distribution", "arm", "measurement_1", "auto", "distribution"),
+        ("Three groups, ANOVA", "arm", "outcome", "anova", None),
+        ("Three groups, Kruskal-Wallis", "arm", "measurement_1", "kruskal", None),
     )
     comparisons = []
-    for label, group_col, value_col, test_type in requests:
+    for label, group_col, value_col, test_type, estimand in requests:
         result = analyzer.hypothesis_tests(
             group_col,
             value_col,
@@ -184,6 +184,7 @@ def show_hypothesis_tests(analyzer: StatisticalAnalyzer) -> list[dict]:
             confidence_level=0.95,
             bootstrap_samples=BOOTSTRAP_SAMPLES,
             random_state=RANDOM_SEED,
+            estimand=estimand,
         )
         comparisons.append(result)
         print(f"\n{label}: {result['test']}")

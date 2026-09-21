@@ -9,7 +9,7 @@ from scipy.stats import chi2_contingency
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidTestError
 
 
-def _interval(estimates, level, requested):
+def _interval(estimates, level, requested, random_state):
     if len(estimates) < max(50, requested // 2):
         return None
     alpha = (1 - level) / 2
@@ -18,7 +18,9 @@ def _interval(estimates, level, requested):
         "level": level,
         "lower": float(lower),
         "upper": float(upper),
-        "method": "paired-row percentile bootstrap",
+        "method": "observation-row percentile bootstrap",
+        "requested_resamples": requested,
+        "random_seed": random_state,
         "valid_resamples": len(estimates),
     }
 
@@ -90,15 +92,20 @@ def categorical_association(
     observed = np.zeros((len(groups), len(outcomes)), dtype=int)
     np.add.at(observed, (group_codes, outcome_codes), 1)
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=RuntimeWarning)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", RuntimeWarning)
         chi2, p_value, degrees_of_freedom, expected = chi2_contingency(observed, correction=False)
-    if not np.isfinite(chi2) or not np.isfinite(p_value):
+    if (
+        caught
+        or not np.isfinite(chi2)
+        or not np.isfinite(p_value)
+        or not np.isfinite(expected).all()
+    ):
         raise InsufficientDataError("Chi-square returned an undefined result; review the table.")
     if np.any(expected < 5):
         raise InsufficientDataError(
-            "Chi-square needs expected counts of at least 5 in every cell for its "
-            "approximation. Combine sparse categories or use an exact method."
+            "This library requires expected counts of at least 5 in every cell as a "
+            "conservative chi-square approximation policy. Use a justified method for sparse data."
         )
     n = int(observed.sum())
     cramer_v = float(np.sqrt(chi2 / (n * min(len(groups) - 1, len(outcomes) - 1))))
@@ -122,13 +129,19 @@ def categorical_association(
             ).reshape(observed.shape)
             if np.any(sampled.sum(axis=0) == 0) or np.any(sampled.sum(axis=1) == 0):
                 continue
-            sampled_chi2 = chi2_contingency(sampled, correction=False).statistic
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", RuntimeWarning)
+                sampled_chi2 = chi2_contingency(sampled, correction=False).statistic
+            if caught or not np.isfinite(sampled_chi2):
+                continue
             estimate = np.sqrt(sampled_chi2 / (n * min(len(groups) - 1, len(outcomes) - 1)))
             if np.isfinite(estimate):
                 v_estimates.append(float(estimate))
             if success_index is not None:
                 rates = sampled[:, success_index] / sampled.sum(axis=1)
-                h_estimates.append(_cohens_h(*rates))
+                h_estimate = _cohens_h(*rates)
+                if np.isfinite(h_estimate):
+                    h_estimates.append(h_estimate)
 
     result = {
         "test": "Pearson chi-square independence",
@@ -140,16 +153,27 @@ def categorical_association(
         "observed_counts": observed.tolist(),
         "expected_counts": expected.tolist(),
         "sample_size": n,
+        "excluded_rows": len(df) - n,
         "assumptions": {
             "independent_observations": "Required by study design; cannot be verified from values.",
             "minimum_expected_count": float(expected.min()),
             "expected_count_status": "met",
+            "bootstrap": {
+                "method": "observation-row percentile bootstrap",
+                "requested_resamples": int(bootstrap_samples),
+                "valid_resamples_cramers_v": len(v_estimates),
+                "valid_resamples_cohens_h": len(h_estimates) if success_index is not None else None,
+                "random_seed": random_state,
+            },
+            "warnings": [],
         },
         "effect_size": {
             "name": "Cramer's V",
             "value": cramer_v,
             "confidence_interval": (
-                _interval(v_estimates, float(confidence_level), int(bootstrap_samples))
+                _interval(
+                    v_estimates, float(confidence_level), int(bootstrap_samples), random_state
+                )
                 if bootstrap_samples
                 else None
             ),
@@ -162,9 +186,23 @@ def categorical_association(
             "group_proportions": [float(value) for value in rates],
             "value": _cohens_h(*rates),
             "confidence_interval": (
-                _interval(h_estimates, float(confidence_level), int(bootstrap_samples))
+                _interval(
+                    h_estimates, float(confidence_level), int(bootstrap_samples), random_state
+                )
                 if bootstrap_samples
                 else None
             ),
         }
+    if bootstrap_samples and result["effect_size"]["confidence_interval"] is None:
+        result["assumptions"]["warnings"].append(
+            "Cramer's V interval unavailable: too few valid bootstrap resamples."
+        )
+    if (
+        success_index is not None
+        and bootstrap_samples
+        and result["cohens_h"]["confidence_interval"] is None
+    ):
+        result["assumptions"]["warnings"].append(
+            "Cohen's h interval unavailable: too few valid bootstrap resamples."
+        )
     return result

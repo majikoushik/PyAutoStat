@@ -65,17 +65,20 @@ def test_to_html_writes_file(sample_report, tmp_path):
 
 def test_hypothesis_results_appear_in_every_report_format(two_group_normal_df, tmp_path):
     analyzer = StatisticalAnalyzer(two_group_normal_df)
-    hypothesis = analyzer.hypothesis_tests("group", "value", bootstrap_samples=100)
+    hypothesis = analyzer.hypothesis_tests("group", "value", bootstrap_samples=100, estimand="mean")
     report = ReportGenerator(analyzer.analyze_all(), hypothesis_results=hypothesis)
 
     assert report.to_dict()["hypothesis_tests"] == [hypothesis]
     assert json.loads(report.to_json())["hypothesis_tests"][0]["test"] == hypothesis["test"]
     for html in (report.to_html(), report.to_interactive_html()):
         assert "Hypothesis Tests" in html
+        assert "Usable N: 80; excluded rows: 0" in html
         assert "Levene equal variance" in html
         assert "Effect size interval" in html
     report.to_csv(tmp_path)
     assert (tmp_path / "hypothesis_tests.csv").exists()
+    csv = (tmp_path / "hypothesis_tests.csv").read_text(encoding="utf-8")
+    assert "sample_size" in csv and "excluded_rows" in csv
 
 
 def test_report_rejects_malformed_hypothesis_container():

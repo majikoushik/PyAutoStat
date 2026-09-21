@@ -45,6 +45,7 @@ def test_all_missing_numeric_column_is_explicit_and_exportable():
     assert result["descriptive"]["x"]["mean"] is None
     assert result["data_quality"]["uniqueness"]["x"] is None
     assert result["outliers"]["x"]["iqr"]["percentage"] is None
+    assert result["outliers"]["x"]["iqr"]["count"] is None
     assert result["normality"] == {}
     assert any(w["code"] == "all_missing" for w in result["analysis_warnings"])
 
@@ -60,7 +61,8 @@ def test_small_and_constant_samples_do_not_emit_undefined_normality_results():
 
     assert set(result["normality"]["short"]) == {"shapiro_wilk", "anderson_darling"}
     assert "constant" not in result["normality"]
-    assert result["outliers"]["constant"]["z_score"]["count"] == 0
+    assert result["outliers"]["constant"]["z_score"]["count"] is None
+    assert result["outliers"]["constant"]["mad"]["count"] is None
     assert result["distributions"]["constant"]["skewness_interpretation"] == "Unavailable"
     assert any("at least 8" in w["message"] for w in result["analysis_warnings"])
 

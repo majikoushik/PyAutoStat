@@ -38,6 +38,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Phase 2: automatic group-test selection requires a stated estimand and no longer switches from mean to rank methods after normality or variance screens. Welch is the default two-group mean method; automatic multi-group mean comparison reports unsupported.
+- Normality and Levene diagnostics now distinguish rejected, not rejected, and unknown states; reports and insights no longer call a nonrejection proof of normality.
+- Explicitly request two-sided Mann-Whitney p-values and calculate first-group U consistently across supported SciPy versions. Undefined Z-score/MAD counts and all-missing outlier counts are unavailable rather than zero.
+- Report bootstrap valid/requested counts and seed, including unavailable intervals; add sample and excluded-row counts to group and categorical results.
+
 - `hypothesis_tests()` no longer treats a missing-value row as its own group.
 - Validate DataFrame labels, scalar values, finite real numeric input, hypothesis
   test compatibility, usable group sizes, and constant or undefined test data.
@@ -56,8 +61,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Renamed the package from `autostat` to `pyautostat` everywhere (import
   path, PyPI distribution name, docs). `AutoStatError` is now `PyAutoStatError`.
 - Dropped Python 3.9 support (EOL); the package now requires Python >=3.10.
-- Three-or-more-group `auto` comparisons now choose ANOVA only when normality
-  and equal-variance screens pass; otherwise they choose Kruskal-Wallis.
+- Earlier alpha behavior (superseded by Phase 2): three-or-more-group `auto`
+  comparisons chose ANOVA after normality and variance screens, or Kruskal-Wallis
+  otherwise.
 - Rank-biserial correlation now follows the first-versus-second group direction;
   negative sample epsilon-squared estimates are truncated at zero.
 

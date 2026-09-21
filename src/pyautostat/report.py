@@ -377,6 +377,9 @@ class ReportGenerator:
                         "statistic": item.get("statistic"),
                         "p_value": item.get("p_value"),
                         "degrees_of_freedom": item.get("degrees_of_freedom"),
+                        "sample_size": item.get("sample_size"),
+                        "excluded_rows": item.get("excluded_rows"),
+                        "mean_difference": item.get("mean_difference"),
                         "effect_size": item.get("effect_size", {}).get("value"),
                         "cohens_h": item.get("cohens_h", {}).get("value"),
                         "selection_reason": item.get("assumptions", {}).get("selection_reason"),
@@ -664,6 +667,11 @@ class ReportGenerator:
             effect = result.get("effect_size", {})
             groups = ", ".join(map(str, result.get("groups", [])))
             html += f"<h3>{_html(result.get('test'))}: {_html(groups)}</h3>"
+            if "sample_size" in result:
+                html += (
+                    f"<p>Usable N: {_html(result['sample_size'])}; "
+                    f"excluded rows: {_html(result.get('excluded_rows'))}</p>"
+                )
             html += (
                 f"<p>Statistic: {_number(result.get('statistic'))}; "
                 f"p-value: {_number(result.get('p_value'))}; "
@@ -767,20 +775,23 @@ class ReportGenerator:
         html += "<table><thead>"
         html += (
             "<tr><th>Variable</th><th>Test</th><th>Statistic</th>"
-            "<th>P-Value</th><th>Normal?</th></tr></thead><tbody>"
+            "<th>P-Value</th><th>Diagnostic status</th></tr></thead><tbody>"
         )
 
         for col, tests in normality.items():
             for test_name, test_result in tests.items():
                 if isinstance(test_result, dict):
-                    is_normal = test_result.get("is_normal")
-                    status = "N/A" if is_normal is None else ("✓" if is_normal else "✗")
+                    status = test_result.get("status")
+                    if status is None and "is_normal" in test_result:
+                        status = "not_rejected" if test_result["is_normal"] else "rejected"
+                    if status is None:
+                        status = "not_applicable"
                     html += f"""<tr>
                         <td>{_html(col)}</td>
                         <td>{_html(test_name)}</td>
                         <td>{_number(test_result.get("statistic"))}</td>
                         <td>{_number(test_result.get("p_value"))}</td>
-                        <td>{status}</td>
+                        <td>{_html(status)}</td>
                     </tr>"""
 
         html += "</tbody></table>"

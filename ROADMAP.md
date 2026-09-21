@@ -6,7 +6,7 @@ PyAutoStat's long-term aim is a single Python library for reliable, understandab
 | --- | --- | --- |
 | 1. Statistical rigor | Normality and variance screens, independent group tests, effect sizes and intervals are available. | Add study-design guidance, post-hoc comparisons and multiple-testing controls. |
 | 2. Actionable insights | `InsightEngine` rates findings and returns recommendations for several data quality and analysis issues. | Make recommendations more specific and document their evidence and limits. |
-| 3. Automatic test selection | `hypothesis_tests(test_type="auto")` chooses among two-group and multi-group tests. | Expand carefully to other designs after adding design validation. |
+| 3. Automatic test selection | `hypothesis_tests(test_type="auto", estimand=...)` requires a stated mean or distribution target and selects only supported independent-group methods. | Add design validation and justified multi-group mean support in later phases. |
 | 4. Multiple outlier methods | IQR, Z-score and MAD summaries are available. | Expose configuration and clarify behavior for highly skewed data. |
 | 5. Correlation analysis | Pearson, Spearman and Kendall matrices are available; Pearson pairs have p-values. | Add clearly defined inference for other correlation methods where appropriate. |
 | 6. Shareable analysis output | Dictionary, JSON, CSV, static HTML and optional interactive HTML exports are available. | Improve report customization and assess requirements for publication formats. |

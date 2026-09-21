@@ -41,7 +41,7 @@ from a real study.
 | 1. Analysis | DataFrame copying; overview and dtypes; descriptive statistics; three normality methods; IQR, Z-score and MAD outliers; Pearson, Spearman and Kendall correlations with Pearson p-values; missing data; quality metrics; distributions; column roles and types; histogram bins; analysis warnings |
 | 2. Column intelligence | `detect_column_types()` for numeric categories, continuous numbers, booleans, datetimes, date-like strings, email, URL, phone, text and empty columns; `suggest_column_roles()` for identifier, target, datetime, economic, measurement and unknown roles |
 | 3. Insights | `InsightEngine.generate_insights()` and `get_summary()` with severity counts, findings and recommendations |
-| 4. Group comparisons | Automatic and explicit t-test, Mann-Whitney U, ANOVA and Kruskal-Wallis; assumption checks; selection reasons; effect sizes; bootstrap intervals; analytical t-test interval; configuration to omit bootstrap intervals |
+| 4. Group comparisons | Automatic selection with an explicit mean or distribution target, plus explicit Welch t-test, Mann-Whitney U, ANOVA and Kruskal-Wallis; diagnostic statuses; effect sizes; bootstrap intervals; analytical t-test interval |
 | 5. Categorical association | Chi-square, observed and expected counts, Cramér's V, Cohen's h for a named success outcome, and a multi-category table |
 | 6. Reports | `to_dict()`, in-memory and file JSON, in-memory and written CSV, in-memory and file static HTML, and in-memory and file optional interactive HTML; hypothesis results included in exports |
 | 7. Bad data | Unavailable results and warnings for missing, short and constant columns; examples of every public package exception subclass |
