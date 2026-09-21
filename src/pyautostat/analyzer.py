@@ -38,6 +38,15 @@ def _finite_or_none(value):
     return number if np.isfinite(number) else None
 
 
+def _advisory_normaltest_warning(item, sample_size):
+    """Recognize SciPy's small-sample kurtosis approximation warning only."""
+    return (
+        8 <= sample_size < 20
+        and issubclass(item.category, UserWarning)
+        and str(item.message).lower().startswith("kurtosistest only valid for n>=20")
+    )
+
+
 class StatisticalAnalyzer:
     """
     Comprehensive statistical analyzer for academic research data.
@@ -290,9 +299,12 @@ class StatisticalAnalyzer:
 
             if len(col_data) >= 8:
                 with warnings.catch_warnings(record=True) as caught:
-                    warnings.simplefilter("always", RuntimeWarning)
+                    warnings.simplefilter("always")
                     stat, p_value = normaltest(col_data)
-                if not caught and np.isfinite(stat) and np.isfinite(p_value):
+                unreliable_warning = any(
+                    not _advisory_normaltest_warning(item, len(col_data)) for item in caught
+                )
+                if not unreliable_warning and np.isfinite(stat) and np.isfinite(p_value):
                     tests["d_agostino_pearson"] = {
                         "statistic": float(stat),
                         "p_value": float(p_value),
@@ -300,12 +312,21 @@ class StatisticalAnalyzer:
                         "status": "not_rejected" if p_value > 0.05 else "rejected",
                         "reference_alpha": 0.05,
                     }
+                    if len(col_data) < 20:
+                        self._add_warning(
+                            "small_sample_approximation",
+                            "normality",
+                            col,
+                            "D'Agostino-Pearson's p-value uses a chi-square approximation "
+                            "that may be inaccurate with fewer than 20 observations.",
+                        )
                 else:
                     self._add_warning(
                         "undefined_result",
                         "normality",
                         col,
-                        "D'Agostino-Pearson was unavailable or issued a numerical warning.",
+                        "D'Agostino-Pearson returned a nonfinite result or an "
+                        "unrecognized numerical warning; its result is unavailable.",
                     )
             else:
                 self._add_warning(
@@ -316,17 +337,33 @@ class StatisticalAnalyzer:
                 )
 
             # Anderson-Darling Test
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore", message="As of SciPy 1.17", category=FutureWarning
-                )
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
                 result = stats.anderson(col_data)
-                critical_values = getattr(result, "critical_values", [])
-                significance_levels = getattr(result, "significance_level", [])
+                critical_values = np.asarray(getattr(result, "critical_values", []), dtype=float)
+                significance_levels = np.asarray(
+                    getattr(result, "significance_level", []), dtype=float
+                )
+            unreliable_warning = any(
+                not (
+                    issubclass(item.category, FutureWarning)
+                    and str(item.message).startswith("As of SciPy 1.17")
+                )
+                for item in caught
+            )
             if (
-                np.isfinite(result.statistic)
+                not unreliable_warning
+                and np.isfinite(result.statistic)
+                and result.statistic >= 0
+                and critical_values.ndim == 1
+                and significance_levels.ndim == 1
+                and len(critical_values) == len(significance_levels) > 0
                 and np.isfinite(critical_values).all()
+                and (critical_values > 0).all()
                 and np.isfinite(significance_levels).all()
+                and ((significance_levels > 0) & (significance_levels < 100)).all()
+                and (np.diff(significance_levels) < 0).all()
+                and (np.diff(critical_values) > 0).all()
             ):
                 tests["anderson_darling"] = {
                     "statistic": float(result.statistic),
@@ -338,7 +375,9 @@ class StatisticalAnalyzer:
                     "undefined_result",
                     "normality",
                     col,
-                    "Anderson-Darling returned no finite result.",
+                    "Anderson-Darling returned an unreliable statistic or unusable "
+                    "critical-value grid (which can occur with very small samples); "
+                    "its result is unavailable.",
                 )
 
             normality_results[col] = tests

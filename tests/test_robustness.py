@@ -80,6 +80,18 @@ def test_extreme_finite_values_do_not_abort_analysis_or_return_invalid_intervals
     result = StatisticalAnalyzer(frame).analyze_all()
     assert result["distributions"]["value"]["is_bimodal"] is None
     assert any(w["section"] == "distributions" for w in result["analysis_warnings"])
+    assert result["descriptive"]["value"]["std"] is None
+    assert result["descriptive"]["value"]["iqr"] is None
+    assert result["normality"]["value"] == {}
+    assert result["outliers"]["value"]["iqr"]["count"] is None
+    assert result["histograms"] == {}
+    assert {w["section"] for w in result["analysis_warnings"]} >= {
+        "descriptive",
+        "normality",
+        "outliers",
+        "distributions",
+        "histograms",
+    }
 
     with pytest.raises(InsufficientDataError, match="confidence interval"):
         StatisticalAnalyzer(frame).hypothesis_tests("group", "value", "ttest")

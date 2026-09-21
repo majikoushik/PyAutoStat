@@ -74,7 +74,7 @@ analysis = analyzer.analyze_all()
 | `histograms` | Precomputed bin edges and counts for numeric columns |
 | `analysis_warnings` | Records with `code`, `section`, `column` and `message` for skipped or undefined calculations |
 
-An unavailable numeric result is `None`. Some tests are skipped for all-missing, constant or short columns; inspect `analysis_warnings`. Correlation uses pairwise nonmissing observations. Only Pearson pairs include p-values.
+An unavailable numeric result is `None`. Some tests are skipped for all-missing, constant or short columns; inspect `analysis_warnings`. For D'Agostino-Pearson at 8-19 observations, a finite result is retained with a small-sample approximation warning; other numerical warnings or nonfinite output make it unavailable. Anderson-Darling is omitted if SciPy supplies an unusable critical-value grid, including nonpositive values sometimes returned for very small samples. Correlation uses pairwise nonmissing observations. Only Pearson pairs include p-values.
 
 ### Independent group comparisons
 
