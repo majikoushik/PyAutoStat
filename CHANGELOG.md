@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+
 - Initial packaging as `pyautostat` (src layout, pyproject.toml, tests, CI).
 - `PyAutoStatError` and friendly, specific error messages for invalid data,
   unknown columns, unknown `test_type`, and too few groups in `hypothesis_tests()`.
@@ -34,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   chart rendering when a section is opened.
 
 ### Fixed
+
 - `hypothesis_tests()` no longer treats a missing-value row as its own group.
 - Validate DataFrame labels, scalar values, finite real numeric input, hypothesis
   test compatibility, usable group sizes, and constant or undefined test data.
@@ -48,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `ReportError`. Removed global warning suppression.
 
 ### Changed
+
 - Renamed the package from `autostat` to `pyautostat` everywhere (import
   path, PyPI distribution name, docs). `AutoStatError` is now `PyAutoStatError`.
 - Dropped Python 3.9 support (EOL); the package now requires Python >=3.10.
@@ -57,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   negative sample epsilon-squared estimates are truncated at zero.
 
 ### Chore
+
 - Prepared the README for PyPI and removed generated report files from version
   control; the example script recreates them on demand.
 - Consolidated repository documentation into a focused README, API reference,
@@ -70,7 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   type-checks, runs the test suite on Python 3.10-3.13 across Linux and
   Windows, and builds/validates the sdist and wheel with `twine check`.
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-09-21
 
 - Statistical analysis (descriptive stats, normality, outliers, correlation, hypothesis testing).
 - Automated insights engine.
