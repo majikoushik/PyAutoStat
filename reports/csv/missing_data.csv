@@ -1,0 +1,13 @@
+,count,percentage,data_type
+record_id,0,0.0,str
+group,0,0.0,str
+arm,0,0.0,str
+age,0,0.0,float64
+outcome,0,0.0,float64
+measurement_1,15,5.0,float64
+measurement_2,0,0.0,float64
+variable_a,9,3.0,float64
+variable_b,0,0.0,float64
+category,0,0.0,str
+response,0,0.0,str
+signup_date,0,0.0,str

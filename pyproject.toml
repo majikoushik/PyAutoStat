@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyautostat"
+dynamic = ["version"]
+description = "Automated statistical analysis for research data: normality, hypothesis testing, correlation, outliers, and actionable insights."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Koushik Chandra Maji", email = "koushiknsec34@gmail.com" },
+]
+keywords = [
+    "statistics",
+    "data-analysis",
+    "hypothesis-testing",
+    "eda",
+    "research",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pandas>=1.0",
+    "numpy>=1.19",
+    "scipy>=1.5",
+]
+
+[project.optional-dependencies]
+report = ["plotly>=5"]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "build",
+    "twine",
+    "plotly>=5",
+    "pre-commit",
+]
+
+[project.urls]
+Homepage = "https://github.com/majikoushik/pyautostat"
+Issues = "https://github.com/majikoushik/pyautostat/issues"
+Changelog = "https://github.com/majikoushik/pyautostat/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/pyautostat/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyautostat"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+# Pinned to 3.12 because current numpy stubs use PEP 695 `type` aliases,
+# which mypy can only parse when the target is >=3.12 -- independent of
+# the actual Python running mypy or this package's supported floor (3.10+).
+python_version = "3.12"
+ignore_missing_imports = true

@@ -1,0 +1,412 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PyAutoStat showcase</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+            border-left: 4px solid #007bff;
+            padding-left: 10px;
+        }
+        h3 {
+            color: #777;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .insight {
+            margin: 15px 0;
+            padding: 15px;
+            border-left: 4px solid #dc3545;
+            background-color: #fff3cd;
+        }
+        .insight.high {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .insight.medium {
+            border-left-color: #ffc107;
+            background-color: #fff3cd;
+        }
+        .insight.low {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .metric {
+            display: inline-block;
+            margin: 10px 20px 10px 0;
+            padding: 10px;
+            background-color: #e7f3ff;
+            border-radius: 4px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .recommendation {
+            margin: 10px 0;
+            padding: 8px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        .timestamp {
+            color: #999;
+            font-size: 12px;
+            margin-top: 20px;
+            text-align: right;
+        }
+</style>
+</head>
+<body>
+    <div class="container">
+        <h1>PyAutoStat showcase</h1>
+
+        <h2>Dataset Overview</h2><div><div class="metric"><div class="metric-value">300</div><div class="metric-label">Rows</div></div><div class="metric"><div class="metric-value">12</div><div class="metric-label">Columns</div></div><div class="metric"><div class="metric-value">6</div><div class="metric-label">Numeric</div></div><div class="metric"><div class="metric-value">6</div><div class="metric-label">Categorical</div></div></div>
+        <h2>Key Insights & Recommendations</h2><div class="metric"><div class="metric-value">4</div><div class="metric-label">Total Issues</div></div><div class="metric"><div class="metric-value">0</div><div class="metric-label">High Severity</div></div><div class="metric"><div class="metric-value">3</div><div class="metric-label">Medium Severity</div></div><div class="insight medium"><strong>Normality</strong> (MEDIUM)<br>Columns [&#x27;measurement_1&#x27;, &#x27;variable_b&#x27;] show non-normal distributions<br><div style="margin-top: 10px;"><strong>Recommendations:</strong><div class="recommendation">• Consider using non-parametric tests (Mann-Whitney U, Kruskal-Wallis)</div><div class="recommendation">• Explore data transformations (log, sqrt, Box-Cox) to achieve normality</div><div class="recommendation">• Use bootstrapping methods for confidence intervals</div><div class="recommendation">• Consider robust statistical methods</div></div></div><div class="insight medium"><strong>Outliers</strong> (MEDIUM)<br>High outlier presence detected in 1 columns<br><div style="margin-top: 10px;"><strong>Recommendations:</strong><div class="recommendation">• Review outliers for data entry errors or legitimate extreme values</div><div class="recommendation">• Consider robust statistical methods (median, IQR-based)</div><div class="recommendation">• Document and potentially exclude confirmed errors</div><div class="recommendation">• Use Winsorization to cap extreme values</div></div></div><div class="insight medium"><strong>Multicollinearity</strong> (MEDIUM)<br>High correlations detected between 1 variable pairs<br><div style="margin-top: 10px;"><strong>Recommendations:</strong><div class="recommendation">• Consider removing one variable from highly correlated pairs for modeling</div><div class="recommendation">• Use dimension reduction (PCA) if many correlated variables exist</div><div class="recommendation">• Check for variable redundancy</div><div class="recommendation">• Document relationships for interpretation</div></div></div><div class="insight low"><strong>Distribution Shape</strong> (LOW)<br>Skewed distributions detected in 1 columns<br><div style="margin-top: 10px;"><strong>Recommendations:</strong><div class="recommendation">• Explore log or power transformations</div><div class="recommendation">• Consider Box-Cox transformation for optimization</div><div class="recommendation">• Use non-parametric methods if parametric assumptions needed</div><div class="recommendation">• Document domain knowledge about skewness</div></div></div>
+        <h2>Hypothesis Tests</h2><h3>t-test: Control, Treatment</h3><p>Statistic: -7.8380; p-value: 0.0000; effect size (Cohen&#x27;s d): -0.9050</p><p>Selection: Both groups passed the normality screen; the t-test uses Welch&#x27;s correction when equal variance is not supported.</p><table><thead><tr><th>Assumption</th><th>Group</th><th>N</th><th>p-value</th><th>Status</th></tr></thead><tbody><tr><td>Shapiro-Wilk</td><td>Control</td><td>150</td><td>0.7914</td><td>met</td></tr><tr><td>Shapiro-Wilk</td><td>Treatment</td><td>150</td><td>0.7286</td><td>met</td></tr><tr><td>Levene equal variance</td><td>All groups</td><td></td><td>0.4440</td><td>met</td></tr></tbody></table><p>Mean difference interval (95%): [-6.8968, -4.1286]; </p><p>Effect size interval (95%): [-1.1771, -0.6596]; within-group percentile bootstrap</p><h3>t-test: Control, Treatment</h3><p>Statistic: -7.8380; p-value: 0.0000; effect size (Cohen&#x27;s d): -0.9050</p><p>Selection: Selected explicitly by the caller.</p><table><thead><tr><th>Assumption</th><th>Group</th><th>N</th><th>p-value</th><th>Status</th></tr></thead><tbody><tr><td>Shapiro-Wilk</td><td>Control</td><td>150</td><td>0.7914</td><td>met</td></tr><tr><td>Shapiro-Wilk</td><td>Treatment</td><td>150</td><td>0.7286</td><td>met</td></tr><tr><td>Levene equal variance</td><td>All groups</td><td></td><td>0.4440</td><td>met</td></tr></tbody></table><p>Mean difference interval (95%): [-6.8968, -4.1286]; </p><p>Effect size interval (95%): [-1.1771, -0.6596]; within-group percentile bootstrap</p><h3>Mann-Whitney U: Control, Treatment</h3><p>Statistic: 10610.0000; p-value: 0.5117; effect size (rank-biserial correlation): 0.0450</p><p>Selection: Selected explicitly by the caller.</p><table><thead><tr><th>Assumption</th><th>Group</th><th>N</th><th>p-value</th><th>Status</th></tr></thead><tbody><tr><td>Shapiro-Wilk</td><td>Control</td><td>143</td><td>0.0000</td><td>violated</td></tr><tr><td>Shapiro-Wilk</td><td>Treatment</td><td>142</td><td>0.0000</td><td>violated</td></tr><tr><td>Levene equal variance</td><td>All groups</td><td></td><td>0.3462</td><td>met</td></tr></tbody></table><p>Effect size interval (95%): [-0.1143, 0.1845]; within-group percentile bootstrap</p><h3>Kruskal-Wallis: Control, Standard, New</h3><p>Statistic: 4.5161; p-value: 0.1046; effect size (epsilon-squared (rank)): 0.0089</p><p>Selection: Normality or equal variance failed or could not be established.</p><table><thead><tr><th>Assumption</th><th>Group</th><th>N</th><th>p-value</th><th>Status</th></tr></thead><tbody><tr><td>Shapiro-Wilk</td><td>Control</td><td>95</td><td>0.0000</td><td>violated</td></tr><tr><td>Shapiro-Wilk</td><td>Standard</td><td>95</td><td>0.0000</td><td>violated</td></tr><tr><td>Shapiro-Wilk</td><td>New</td><td>95</td><td>0.0000</td><td>violated</td></tr><tr><td>Levene equal variance</td><td>All groups</td><td></td><td>0.0624</td><td>met</td></tr></tbody></table><p>Effect size interval (95%): [0.0000, 0.0519]; within-group percentile bootstrap</p><h3>One-way ANOVA: Control, Standard, New</h3><p>Statistic: 0.5187; p-value: 0.5958; effect size (eta-squared): 0.0035</p><p>Selection: Selected explicitly by the caller.</p><table><thead><tr><th>Assumption</th><th>Group</th><th>N</th><th>p-value</th><th>Status</th></tr></thead><tbody><tr><td>Shapiro-Wilk</td><td>Control</td><td>100</td><td>0.5571</td><td>met</td></tr><tr><td>Shapiro-Wilk</td><td>Standard</td><td>100</td><td>0.5671</td><td>met</td></tr><tr><td>Shapiro-Wilk</td><td>New</td><td>100</td><td>0.7678</td><td>met</td></tr><tr><td>Levene equal variance</td><td>All groups</td><td></td><td>0.8473</td><td>met</td></tr></tbody></table><p>Effect size interval (95%): [0.0002, 0.0328]; within-group percentile bootstrap</p><h3>Kruskal-Wallis: Control, Standard, New</h3><p>Statistic: 4.5161; p-value: 0.1046; effect size (epsilon-squared (rank)): 0.0089</p><p>Selection: Selected explicitly by the caller.</p><table><thead><tr><th>Assumption</th><th>Group</th><th>N</th><th>p-value</th><th>Status</th></tr></thead><tbody><tr><td>Shapiro-Wilk</td><td>Control</td><td>95</td><td>0.0000</td><td>violated</td></tr><tr><td>Shapiro-Wilk</td><td>Standard</td><td>95</td><td>0.0000</td><td>violated</td></tr><tr><td>Shapiro-Wilk</td><td>New</td><td>95</td><td>0.0000</td><td>violated</td></tr><tr><td>Levene equal variance</td><td>All groups</td><td></td><td>0.0624</td><td>met</td></tr></tbody></table><p>Effect size interval (95%): [0.0000, 0.0519]; within-group percentile bootstrap</p><h3>Pearson chi-square independence: Control, Treatment</h3><p>Statistic: 48.0000; p-value: 0.0000; effect size (Cramer&#x27;s V): 0.4000</p><p>Minimum expected cell count: 75.0000 (met). Required by study design; cannot be verified from values.</p><p>Effect size interval (95%): [0.2997, 0.4950]; paired-row percentile bootstrap</p><p>Cohen's h for yes: -0.8230</p><p>Cohen's h interval (95%): [-1.0371, -0.6087]</p><h3>Pearson chi-square independence: Control, Standard, New</h3><p>Statistic: 0.0000; p-value: 1.0000; effect size (Cramer&#x27;s V): 0.0000</p><p>Minimum expected cell count: 50.0000 (met). Required by study design; cannot be verified from values.</p><p>Effect size interval (95%): [0.0153, 0.1464]; paired-row percentile bootstrap</p>
+        <h2>Descriptive Statistics</h2><table><thead><tr><th>Variable</th><th>Mean</th><th>Median</th><th>Std Dev</th><th>Min</th><th>Max</th><th>Skewness</th></tr></thead><tbody><tr>
+                <td>age</td>
+                <td>44.8875</td>
+                <td>45.6045</td>
+                <td>10.1681</td>
+                <td>15.3547</td>
+                <td>70.9767</td>
+                <td>-0.1271</td>
+            </tr><tr>
+                <td>outcome</td>
+                <td>52.0246</td>
+                <td>52.5732</td>
+                <td>6.6783</td>
+                <td>34.6115</td>
+                <td>74.0731</td>
+                <td>-0.0341</td>
+            </tr><tr>
+                <td>measurement_1</td>
+                <td>7.5422</td>
+                <td>5.1750</td>
+                <td>7.4044</td>
+                <td>0.0006</td>
+                <td>57.6478</td>
+                <td>2.2670</td>
+            </tr><tr>
+                <td>measurement_2</td>
+                <td>99.9305</td>
+                <td>100.5121</td>
+                <td>15.8672</td>
+                <td>55.6657</td>
+                <td>140.6612</td>
+                <td>-0.1819</td>
+            </tr><tr>
+                <td>variable_a</td>
+                <td>99.5584</td>
+                <td>99.3546</td>
+                <td>11.1353</td>
+                <td>69.2001</td>
+                <td>134.9663</td>
+                <td>0.2654</td>
+            </tr><tr>
+                <td>variable_b</td>
+                <td>78.9431</td>
+                <td>78.1130</td>
+                <td>9.9496</td>
+                <td>47.6764</td>
+                <td>113.0646</td>
+                <td>0.3485</td>
+            </tr></tbody></table>
+        <h2>Normality Tests</h2><table><thead><tr><th>Variable</th><th>Test</th><th>Statistic</th><th>P-Value</th><th>Normal?</th></tr></thead><tbody><tr>
+                        <td>age</td>
+                        <td>shapiro_wilk</td>
+                        <td>0.9963</td>
+                        <td>0.7138</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>age</td>
+                        <td>d_agostino_pearson</td>
+                        <td>1.5917</td>
+                        <td>0.4512</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>age</td>
+                        <td>anderson_darling</td>
+                        <td>0.2963</td>
+                        <td>N/A</td>
+                        <td>N/A</td>
+                    </tr><tr>
+                        <td>outcome</td>
+                        <td>shapiro_wilk</td>
+                        <td>0.9956</td>
+                        <td>0.5653</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>outcome</td>
+                        <td>d_agostino_pearson</td>
+                        <td>0.0781</td>
+                        <td>0.9617</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>outcome</td>
+                        <td>anderson_darling</td>
+                        <td>0.3967</td>
+                        <td>N/A</td>
+                        <td>N/A</td>
+                    </tr><tr>
+                        <td>measurement_1</td>
+                        <td>shapiro_wilk</td>
+                        <td>0.8023</td>
+                        <td>0.0000</td>
+                        <td>✗</td>
+                    </tr><tr>
+                        <td>measurement_1</td>
+                        <td>d_agostino_pearson</td>
+                        <td>160.5256</td>
+                        <td>0.0000</td>
+                        <td>✗</td>
+                    </tr><tr>
+                        <td>measurement_1</td>
+                        <td>anderson_darling</td>
+                        <td>13.4341</td>
+                        <td>N/A</td>
+                        <td>N/A</td>
+                    </tr><tr>
+                        <td>measurement_2</td>
+                        <td>shapiro_wilk</td>
+                        <td>0.9955</td>
+                        <td>0.5401</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>measurement_2</td>
+                        <td>d_agostino_pearson</td>
+                        <td>1.7209</td>
+                        <td>0.4230</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>measurement_2</td>
+                        <td>anderson_darling</td>
+                        <td>0.3120</td>
+                        <td>N/A</td>
+                        <td>N/A</td>
+                    </tr><tr>
+                        <td>variable_a</td>
+                        <td>shapiro_wilk</td>
+                        <td>0.9934</td>
+                        <td>0.2347</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>variable_a</td>
+                        <td>d_agostino_pearson</td>
+                        <td>4.3768</td>
+                        <td>0.1121</td>
+                        <td>✓</td>
+                    </tr><tr>
+                        <td>variable_a</td>
+                        <td>anderson_darling</td>
+                        <td>0.4513</td>
+                        <td>N/A</td>
+                        <td>N/A</td>
+                    </tr><tr>
+                        <td>variable_b</td>
+                        <td>shapiro_wilk</td>
+                        <td>0.9905</td>
+                        <td>0.0490</td>
+                        <td>✗</td>
+                    </tr><tr>
+                        <td>variable_b</td>
+                        <td>d_agostino_pearson</td>
+                        <td>7.8722</td>
+                        <td>0.0195</td>
+                        <td>✗</td>
+                    </tr><tr>
+                        <td>variable_b</td>
+                        <td>anderson_darling</td>
+                        <td>0.8519</td>
+                        <td>N/A</td>
+                        <td>N/A</td>
+                    </tr></tbody></table>
+        <h2>Outlier Detection</h2><table><thead><tr><th>Variable</th><th>Method</th><th>Count</th><th>Percentage</th></tr></thead><tbody><tr>
+                    <td>age</td>
+                    <td>iqr</td>
+                    <td>1</td>
+                    <td>0.33%</td>
+                </tr><tr>
+                    <td>age</td>
+                    <td>z_score</td>
+                    <td>0</td>
+                    <td>0.00%</td>
+                </tr><tr>
+                    <td>age</td>
+                    <td>mad</td>
+                    <td>0</td>
+                    <td>0.00%</td>
+                </tr><tr>
+                    <td>outcome</td>
+                    <td>iqr</td>
+                    <td>1</td>
+                    <td>0.33%</td>
+                </tr><tr>
+                    <td>outcome</td>
+                    <td>z_score</td>
+                    <td>1</td>
+                    <td>0.33%</td>
+                </tr><tr>
+                    <td>outcome</td>
+                    <td>mad</td>
+                    <td>0</td>
+                    <td>0.00%</td>
+                </tr><tr>
+                    <td>measurement_1</td>
+                    <td>iqr</td>
+                    <td>17</td>
+                    <td>5.96%</td>
+                </tr><tr>
+                    <td>measurement_1</td>
+                    <td>z_score</td>
+                    <td>3</td>
+                    <td>1.05%</td>
+                </tr><tr>
+                    <td>measurement_1</td>
+                    <td>mad</td>
+                    <td>17</td>
+                    <td>5.96%</td>
+                </tr><tr>
+                    <td>measurement_2</td>
+                    <td>iqr</td>
+                    <td>4</td>
+                    <td>1.33%</td>
+                </tr><tr>
+                    <td>measurement_2</td>
+                    <td>z_score</td>
+                    <td>0</td>
+                    <td>0.00%</td>
+                </tr><tr>
+                    <td>measurement_2</td>
+                    <td>mad</td>
+                    <td>0</td>
+                    <td>0.00%</td>
+                </tr><tr>
+                    <td>variable_a</td>
+                    <td>iqr</td>
+                    <td>4</td>
+                    <td>1.37%</td>
+                </tr><tr>
+                    <td>variable_a</td>
+                    <td>z_score</td>
+                    <td>2</td>
+                    <td>0.69%</td>
+                </tr><tr>
+                    <td>variable_a</td>
+                    <td>mad</td>
+                    <td>0</td>
+                    <td>0.00%</td>
+                </tr><tr>
+                    <td>variable_b</td>
+                    <td>iqr</td>
+                    <td>4</td>
+                    <td>1.33%</td>
+                </tr><tr>
+                    <td>variable_b</td>
+                    <td>z_score</td>
+                    <td>2</td>
+                    <td>0.67%</td>
+                </tr><tr>
+                    <td>variable_b</td>
+                    <td>mad</td>
+                    <td>1</td>
+                    <td>0.33%</td>
+                </tr></tbody></table>
+        <h2>Correlations</h2><p>Multiple correlation methods calculated: Pearson, Spearman, Kendall</p><p><em>See detailed JSON export for correlation matrices</em></p>
+        <h2>Missing Data Analysis</h2><div class="metric"><div class="metric-value">0.67%</div><div class="metric-label">Overall Missing</div></div><table><thead><tr><th>Variable</th><th>Missing Count</th><th>Missing %</th></tr></thead><tbody><tr>
+                <td>record_id</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>group</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>arm</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>age</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>outcome</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>measurement_1</td>
+                <td>15</td>
+                <td>5.00%</td>
+            </tr><tr>
+                <td>measurement_2</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>variable_a</td>
+                <td>9</td>
+                <td>3.00%</td>
+            </tr><tr>
+                <td>variable_b</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>category</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>response</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td>signup_date</td>
+                <td>0</td>
+                <td>0.00%</td>
+            </tr></tbody></table>
+        
+
+        <div class="timestamp">Generated: 2026-09-21T19:54:13.801842</div>
+    </div>
+</body>
+</html>
+        
