@@ -57,6 +57,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   negative sample epsilon-squared estimates are truncated at zero.
 
 ### Chore
+- Prepared the README for PyPI and removed generated report files from version
+  control; the example script recreates them on demand.
 - Consolidated repository documentation into a focused README, API reference,
   roadmap, changelog, contributor guide, and examples guide; removed redundant
   and unverified marketing documents.

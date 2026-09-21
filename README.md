@@ -1,8 +1,8 @@
 # PyAutoStat
 
 [![CI](https://github.com/majikoushik/pyautostat/actions/workflows/ci.yml/badge.svg)](https://github.com/majikoushik/pyautostat/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/majikoushik/PyAutoStat/blob/main/pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/majikoushik/PyAutoStat/blob/main/LICENSE)
 
 PyAutoStat analyzes pandas DataFrames and returns structured statistical results, data quality findings, and reports. It supports exploratory analysis and independent group comparisons. The package is in **alpha**; review assumptions and results before using them in research or decisions.
 
@@ -17,16 +17,16 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 
 ## Installation
 
-Requires Python 3.10 or newer. From a checkout of this repository:
+Requires Python 3.10 or newer:
 
 ```bash
-python -m pip install .
+python -m pip install pyautostat
 ```
 
 For interactive HTML reports, install the optional Plotly dependency:
 
 ```bash
-python -m pip install ".[report]"
+python -m pip install "pyautostat[report]"
 ```
 
 ## Quick start
@@ -65,7 +65,7 @@ report.to_html("analysis.html")
 
 ## More examples
 
-Run the [complete feature showcase](examples/README.md) to see printed output for every public workflow and generated report files:
+From a repository checkout, run the [complete feature showcase](https://github.com/majikoushik/PyAutoStat/blob/main/examples/README.md) to see printed output for every public workflow and generated report files:
 
 ```bash
 python examples/example_usage.py --output-dir reports
@@ -84,10 +84,10 @@ Add `--skip-interactive` if you want only JSON, CSV, and static HTML. For your o
 
 ## Documentation
 
-- [API reference](API_REFERENCE.md): public methods, parameters, return values, and errors.
-- [Examples guide](examples/README.md): complete runnable showcase and output files.
-- [Changelog](CHANGELOG.md): shipped changes.
-- [Roadmap](ROADMAP.md): product goals and current status.
+- [API reference](https://github.com/majikoushik/PyAutoStat/blob/main/API_REFERENCE.md): public methods, parameters, return values, and errors.
+- [Examples guide](https://github.com/majikoushik/PyAutoStat/blob/main/examples/README.md): complete runnable showcase and output files.
+- [Changelog](https://github.com/majikoushik/PyAutoStat/blob/main/CHANGELOG.md): shipped changes.
+- [Roadmap](https://github.com/majikoushik/PyAutoStat/blob/main/ROADMAP.md): product goals and current status.
 
 ## Development
 
@@ -105,4 +105,4 @@ Issues and contributions are welcome through the [GitHub issue tracker](https://
 
 ## License
 
-PyAutoStat is distributed under the [MIT License](LICENSE).
+PyAutoStat is distributed under the [MIT License](https://github.com/majikoushik/PyAutoStat/blob/main/LICENSE).

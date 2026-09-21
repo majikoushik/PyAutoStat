@@ -1,9 +1,0 @@
-test,groups,statistic,p_value,degrees_of_freedom,effect_size,cohens_h,selection_reason
-t-test,"Control, Treatment",-7.837960775728363,8.17239206173167e-14,,-0.9050497527528998,,Both groups passed the normality screen; the t-test uses Welch's correction when equal variance is not supported.
-t-test,"Control, Treatment",-7.837960775728363,8.17239206173167e-14,,-0.9050497527528998,,Selected explicitly by the caller.
-Mann-Whitney U,"Control, Treatment",10610.0,0.5116954767338094,,0.04501132670146757,,Selected explicitly by the caller.
-Kruskal-Wallis,"Control, Standard, New",4.516098638203857,0.10455423791617117,,0.008922335596467578,,Normality or equal variance failed or could not be established.
-One-way ANOVA,"Control, Standard, New",0.5186929753314098,0.595836360499991,,0.0034807242297935667,,Selected explicitly by the caller.
-Kruskal-Wallis,"Control, Standard, New",4.516098638203857,0.10455423791617117,,0.008922335596467578,,Selected explicitly by the caller.
-Pearson chi-square independence,"Control, Treatment",48.0,4.262191597843651e-12,1.0,0.4,-0.8230336921349761,
-Pearson chi-square independence,"Control, Standard, New",0.0,1.0,2.0,0.0,,

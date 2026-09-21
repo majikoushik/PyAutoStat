@@ -1,13 +1,4 @@
-"""
-PyAutoStat: Comprehensive Automated Statistical Analysis Library
-
-A Python library for automatic statistical analysis of research data with:
-- Comprehensive statistical tests
-- Mixed data type handling
-- Advanced analytics (outliers, time series, etc.)
-- Actionable insights and recommendations
-- Flexible output formats (JSON, HTML, Dict, CSV)
-"""
+"""Statistical analysis, insights, and reports for pandas DataFrames."""
 
 from .analyzer import StatisticalAnalyzer
 from .detection import detect_column_types, suggest_column_roles
