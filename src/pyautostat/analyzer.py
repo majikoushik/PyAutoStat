@@ -359,7 +359,10 @@ class StatisticalAnalyzer:
                     getattr(result, "significance_level", []), dtype=float
                 )
             unreliable_warning = any(
-                not issubclass(item.category, (FutureWarning, DeprecationWarning, PendingDeprecationWarning))
+                not issubclass(
+                    item.category,
+                    (FutureWarning, DeprecationWarning, PendingDeprecationWarning),
+                )
                 for item in caught
             )
             if (
