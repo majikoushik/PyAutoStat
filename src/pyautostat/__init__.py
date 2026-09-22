@@ -22,6 +22,7 @@ from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStat
 from .recommendation import MethodCapability
 from .report import ReportGenerator
 from .research_assistant import ResearchAssistant
+from .research_report import ResearchReport
 from .results import AnalysisResult, AnalysisStatus, Recommendation, RecommendationStatus
 from .specifications import (
     AnalysisOptions,
@@ -37,6 +38,7 @@ __author__ = "Koushik Chandra Maji"
 __all__ = [
     "StatisticalAnalyzer",
     "ResearchAssistant",
+    "ResearchReport",
     "QuestionDraft",
     "QuestionStatus",
     "ClarificationQuestion",

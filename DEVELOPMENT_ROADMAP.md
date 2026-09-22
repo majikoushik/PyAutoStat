@@ -117,6 +117,8 @@
 
 **Goal:** Deliver a clear, consistent report from a validated analysis.
 
+**Local completion record (2026-09-22):** `ResearchAssistant.report(result)` builds a canonical `ResearchReport` from the recorded Phase 6 analysis and matching Phase 7 interpretation. It provides structured sections and four in-memory export formats with explicit save methods, escaping, formula-text protection, and no new statistical calculations. This local work has not been committed or validated by CI.
+
 **Implement:** One canonical analysis object feeds structured Methods/Results, dataset and inclusion/exclusion accounting, diagnostics, estimates, CIs, figures/tables, interpretation, limitations and warnings. General research style first; HTML, Markdown, JSON and CSV exports, with safe escaping and format-specific validation. Provide optional tables/figures by method and data availability; no invented study metadata. Keep legacy `ReportGenerator` working where practical.
 
 **Acceptance:** Output numbers agree across JSON, tables and prose; HTML injection/spreadsheet-formula cases tested; unsupported/unknown information remains explicit; reference research example renders correctly.

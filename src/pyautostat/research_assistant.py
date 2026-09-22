@@ -14,6 +14,7 @@ from .interpretation import InterpretationEngine, InterpretationResult
 from .profiling import complete_case_count
 from .question_builder import QuestionDraft, prepare_question
 from .recommendation import recommend_from_draft
+from .research_report import ResearchReport, build_research_report
 from .results import AnalysisResult, Recommendation
 from .specifications import (
     AnalysisOptions,
@@ -188,3 +189,16 @@ class ResearchAssistant:
     def interpret(self, result: AnalysisResult) -> InterpretationResult:
         """Explain a completed analysis from its recorded values and specification."""
         return InterpretationEngine().interpret(result)
+
+    def report(
+        self,
+        result: AnalysisResult,
+        *,
+        interpretation: InterpretationResult | None = None,
+        title: str | None = None,
+        include_figures: bool = False,
+    ) -> ResearchReport:
+        """Assemble a general research report from recorded analysis and interpretation."""
+        return build_research_report(
+            result, interpretation=interpretation, title=title, include_figures=include_figures
+        )

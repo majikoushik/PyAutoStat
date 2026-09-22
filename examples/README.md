@@ -42,6 +42,8 @@ print([finding.code for finding in interpretation.findings])
 
 `recommend_test()` checks design and method compatibility without running a hypothesis test. `analyze()` revalidates that decision and calls an existing backend, returning a structured Phase 6 result tied to the original specification. `interpret()` turns its recorded evidence into deterministic coded findings and qualified text without recalculating. An available result still requires researcher review of assumptions. The runnable showcase below also covers the existing analyzer and report API.
 
+For the Phase 8 canonical research report, run `python examples/research_report_example.py`. It executes a Welch comparison and a Pearson association, then obtains HTML, Markdown, JSON, and CSV content in memory. The Pearson report is partial because the current backend has no correlation confidence interval. The example writes no files. Use explicit `report.save_html(path)` or the other save methods when a file is wanted. This new `ResearchReport` workflow is separate from the legacy `ReportGenerator` showcase.
+
 The showcase also demonstrates an optional data dictionary, row-level missingness,
 categorical summaries, and pairwise correlation sample sizes.
 

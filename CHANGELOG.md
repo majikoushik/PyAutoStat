@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 8 `ResearchAssistant.report(result)` and canonical `ResearchReport` with structured Methods, Results, sample accounting, diagnostics, interpretation, limitations, optional histogram bin specifications, and deterministic HTML, Markdown, JSON, and CSV table exports. The legacy `ReportGenerator` API is retained.
 - Phase 7 deterministic `ResearchAssistant.interpret(result)`, with structured `InterpretationResult` and coded findings for executable Phase 6 methods. It reads recorded numbers, qualification flags, and intervals without recalculating or changing the original result.
 
 - Phase 6 `ResearchAssistant.analyze()` revalidates a question and executes ready recommended methods through existing numerical backends. Additive `AnalysisResult` links the specification and recommendation to exact statistics, effect measures, interval quantities, sample accounting, group order, diagnostics and warnings; known failures remain unavailable.
