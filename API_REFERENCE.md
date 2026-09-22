@@ -7,7 +7,9 @@ This page describes the public API in `pyautostat`. The [README](README.md) has 
 ```python
 from pyautostat import (
     AnalysisOptions,
+    AnalysisResult,
     AnalysisSpecification,
+    AnalysisStatus,
     InsightEngine,
     Objective,
     QuestionDraft,
@@ -99,6 +101,33 @@ print(recommendation.status, recommendation.method_id, recommendation.rationale)
 Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. Paired, repeated, and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
 
 `Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), and `questions` (Phase 4-compatible clarification dictionaries). `required_assumptions` and `context.assumption_checks` disclose researcher-confirmed facts, checkable feasibility, and conditions requiring review. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the Phase 4 specification schema; existing explicit analyzer calls remain available to experts.
+
+### Phase 6 statistical execution
+
+```python
+result = assistant.analyze(draft)
+# Or: result = assistant.analyze(specification=draft.specification)
+print(result.status, result.method_id)
+print(result.values["primary_estimate"], result.values["p_value"])
+print(result.metadata["sample"], result.metadata["group_order"])
+```
+
+`analyze(draft=None, *, specification=None)` accepts exactly one completed `QuestionDraft` or `AnalysisSpecification`. It rebuilds the question against the assistant's copied DataFrame and obtains a fresh Phase 5 recommendation. Only `ready` and `runnable` selections dispatch. Incomplete, unsupported, or known backend numerical failures return `AnalysisResult(status="unavailable")` with a reason and no fabricated values. Invalid specification fields or nonexistent columns raise the existing package exceptions. Unexpected programming errors are not hidden.
+
+| Selected method ID | Existing numerical source | Main outputs |
+| --- | --- | --- |
+| `dataset_profile` | `StatisticalAnalyzer.analyze_all()` | JSON-safe profile; no hypothesis statistic or p-value |
+| `welch_t` | `hypothesis_tests(test_type="ttest", equal_var=False)` | Mean difference, Welch statistic/df/p, Cohen's d, analytical mean-difference CI, optional bootstrap d CI |
+| `mann_whitney_u` | `hypothesis_tests(test_type="mannwhitney")` | First-group U, two-sided p, rank-biserial effect and optional bootstrap CI |
+| `kruskal_wallis` | `hypothesis_tests(test_type="kruskal")` | H, df, p, rank epsilon-squared and optional bootstrap CI |
+| `pearson_correlation` | Pair-only `analyze_all()` correlation profile | Pearson r and its pairwise p-value; no CI |
+| `pearson_chi_square` | `categorical_association()` | Chi-square, df, p, observed/expected table, Cramer's V and optional bootstrap CI |
+
+The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable **legacy explicit calculations**, but Phase 5 does not select them automatically. They remain available through `StatisticalAnalyzer.hypothesis_tests()`; `analyze()` never substitutes them for a Welch or unsupported multi-group mean request. Spearman/Kendall inference, paired or clustered methods, Welch ANOVA, and sparse-table exact tests are unavailable in this guided path.
+
+`AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
+
+Group and categorical effect intervals use the existing 499-resample bootstrap with effective seed 0 when no seed was specified; this default and any explicit seed are recorded in metadata and diagnostics. The specification's alpha and confidence level remain available through `result.specification.options`; alpha is not used to alter the numerical p-value. No missing rows are imputed, no outliers are removed, and declared missing codes still block execution until normalized externally. JSON export is `json.dumps(result.to_dict(), allow_nan=False)`. Phase 7 interpretation and Phase 8 report assembly are separate future work.
 
 `to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no Phase 3 data dictionary and `schema_version: 2` when `data_dictionary` is present. Version 1 payloads round-trip unchanged; version 2 adds that field without overloading version 1's text-only `variable_metadata`. A legacy caller can keep using `variable_metadata` for descriptions. The Phase 3 dictionary is authoritative for analytical types and roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records. No recommendation, inferential result, or report is manufactured by question preparation.
 

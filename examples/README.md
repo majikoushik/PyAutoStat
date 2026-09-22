@@ -6,7 +6,11 @@ For a minimal profile:
 import pandas as pd
 from pyautostat import ResearchAssistant
 
-df = pd.DataFrame({"group": ["A", "A", "B", "B"], "score": [10, 12, 15, 17]})
+df = pd.DataFrame({
+    "group": ["A"] * 8 + ["B"] * 8,
+    "score": [10.1, 11.2, 12.3, 13.4, 14.5, 15.6, 16.7, 17.8,
+              14.1, 15.2, 16.3, 17.4, 18.5, 19.6, 20.7, 21.8],
+})
 profile = ResearchAssistant(df).profile()
 print(profile["overview"])
 ```
@@ -27,9 +31,13 @@ recommendation = assistant.recommend_test(draft)
 print(recommendation.status, recommendation.method_id)  # ready, welch_t
 print(recommendation.rationale)
 print(recommendation.to_dict()["decision_trace"])
+result = assistant.analyze(draft)
+print(result.method_id, result.status)
+print(result.values["primary_estimate"], result.values["p_value"])
+print(result.metadata["sample"], result.metadata["contrast"])
 ```
 
-`recommend_test()` checks design and method compatibility without running a hypothesis test. Its `ready` result still requires researcher review of assumptions. The runnable showcase below covers the existing analyzer and report API; the short snippet above covers the Phase 5 recommendation API.
+`recommend_test()` checks design and method compatibility without running a hypothesis test. `analyze()` revalidates that decision and calls an existing backend, returning a structured Phase 6 result tied to the original specification. An available result still requires researcher review of assumptions. The runnable showcase below also covers the existing analyzer and report API.
 
 The showcase also demonstrates an optional data dictionary, row-level missingness,
 categorical summaries, and pairwise correlation sample sizes.
@@ -62,7 +70,7 @@ from a real study.
 | 1. Analysis | DataFrame copying; overview and dtypes; numerical and categorical summaries; normality methods when available; IQR, Z-score and MAD outliers; Pearson, Spearman and Kendall correlations with pairwise sample sizes and Pearson p-values; missing rows and cells; duplicate diagnostics; distributions; column roles and types; histogram bins; analysis warnings |
 | 2. Column intelligence | `detect_column_types()` for numeric categories, continuous numbers, booleans, datetimes, date-like strings, email, URL, phone, text and empty columns; `suggest_column_roles()` for identifier, target, datetime, economic, measurement and unknown roles; optional validated score metadata |
 | 3. Insights | `InsightEngine.generate_insights()` and `get_summary()` with severity counts, findings and recommendations |
-| 3a. Method recommendation | Phase 5 question intake and a structured Welch recommendation with rationale and decision trace; no test executed by this section |
+| 3a. Method recommendation and execution | Phase 5 question intake and structured Welch recommendation, then Phase 6 execution with estimate, p-value and sample accounting |
 | 4. Group comparisons | Automatic selection with an explicit mean or distribution target, plus explicit Welch t-test, Mann-Whitney U, ANOVA and Kruskal-Wallis; diagnostic statuses; effect sizes; bootstrap intervals; analytical t-test interval |
 | 5. Categorical association | Chi-square, observed and expected counts, Cramér's V, Cohen's h for a named success outcome, and a multi-category table |
 | 6. Reports | `to_dict()`, in-memory and file JSON, in-memory and written CSV, in-memory and file static HTML, and in-memory and file optional interactive HTML; hypothesis results included in exports |

@@ -9,10 +9,11 @@ import pandas as pd
 
 from .analyzer import StatisticalAnalyzer
 from .exceptions import InvalidDataError
+from .execution import execute_specification
 from .profiling import complete_case_count
 from .question_builder import QuestionDraft, prepare_question
 from .recommendation import recommend_from_draft
-from .results import Recommendation
+from .results import AnalysisResult, Recommendation
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -167,3 +168,18 @@ class ResearchAssistant:
         selected_spec = draft.specification if draft is not None else specification
         validated = self.prepare_question(specification=selected_spec)
         return recommend_from_draft(self._analyzer.df, validated)
+
+    def analyze(
+        self,
+        draft: QuestionDraft | None = None,
+        *,
+        specification: AnalysisSpecification | None = None,
+    ) -> AnalysisResult:
+        """Execute a freshly validated question using its selected existing backend."""
+        if (draft is None) == (specification is None):
+            raise InvalidDataError("Provide either one QuestionDraft or specification.")
+        if draft is not None and not isinstance(draft, QuestionDraft):
+            raise InvalidDataError("draft must be a QuestionDraft.")
+        selected_spec = draft.specification if draft is not None else specification
+        assert selected_spec is not None
+        return execute_specification(self._analyzer, selected_spec)

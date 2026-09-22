@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any
 
 from .exceptions import InvalidDataError
-from .specifications import SCHEMA_VERSION, _json_value
+from .specifications import SCHEMA_VERSION, AnalysisSpecification, _json_value
 
 
 class RecommendationStatus(str, Enum):
@@ -136,6 +136,8 @@ class AnalysisResult:
     assumptions: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
+    specification: AnalysisSpecification | None = None
+    recommendation: Recommendation | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.method_id, str) or not self.method_id.strip():
@@ -150,6 +152,12 @@ class AnalysisResult:
                 isinstance(value, bool) or not isinstance(value, int) or value < 0
             ):
                 raise InvalidDataError(f"{name} must be a nonnegative integer or None.")
+        if self.specification is not None and not isinstance(
+            self.specification, AnalysisSpecification
+        ):
+            raise InvalidDataError("specification must be an AnalysisSpecification or None.")
+        if self.recommendation is not None and not isinstance(self.recommendation, Recommendation):
+            raise InvalidDataError("recommendation must be a Recommendation or None.")
 
     def to_dict(self) -> dict[str, Any]:
         return _json_value(
@@ -163,5 +171,11 @@ class AnalysisResult:
                 "assumptions": self.assumptions,
                 "warnings": self.warnings,
                 "metadata": self.metadata,
+                "specification": self.specification.to_dict()
+                if self.specification is not None
+                else None,
+                "recommendation": self.recommendation.to_dict()
+                if self.recommendation is not None
+                else None,
             }
         )

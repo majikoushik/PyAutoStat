@@ -16,7 +16,7 @@ from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStat
 from .recommendation import MethodCapability
 from .report import ReportGenerator
 from .research_assistant import ResearchAssistant
-from .results import Recommendation, RecommendationStatus
+from .results import AnalysisResult, AnalysisStatus, Recommendation, RecommendationStatus
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -37,6 +37,8 @@ __all__ = [
     "Recommendation",
     "RecommendationStatus",
     "MethodCapability",
+    "AnalysisResult",
+    "AnalysisStatus",
     "ResearchQuestion",
     "StudyDesign",
     "Objective",

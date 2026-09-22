@@ -195,6 +195,11 @@ def show_recommendation(frame: pd.DataFrame) -> None:
     print("Method:", recommendation.method_name)
     print("Reason:", recommendation.rationale)
     print("Decision trace:", recommendation.to_dict()["decision_trace"])
+    result = assistant.analyze(draft)
+    print("Executed method:", result.method_id, "status:", result.status.value)
+    print("Estimate:", result.values.get("primary_estimate"))
+    print("P-value:", result.values.get("p_value"))
+    print("Sample:", result.metadata["sample"])
 
 
 def show_hypothesis_tests(analyzer: StatisticalAnalyzer) -> list[dict]:

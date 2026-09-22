@@ -93,6 +93,8 @@
 
 **Goal:** Implement the prioritized, recommended methods correctly under common result contracts.
 
+**Local completion record (2026-09-22):** `ResearchAssistant.analyze()` now executes freshly validated runnable recommendations and returns a populated `AnalysisResult` linked to the specification and recommendation. It adapts the existing profile, independent-group, Pearson and chi-square backends; no new statistical algorithm or interpretation was added. See `API_REFERENCE.md` and `docs/STATISTICAL_VALIDATION.md`. Local implementation does not imply a release or CI validation.
+
 **Implement:** Independent and paired comparisons, supported multi-group comparisons, justified rank-based methods, correlation inference and categorical association, selected post-hoc tests and multiple-comparison controls **only when their method contracts and backends are validated**. Use established scientific libraries and check support across declared dependency versions; add dependencies deliberately. Include primary estimate, effect measure, CI where valid, test statistic/df/p-value, group ordering, per-analysis sample sizes and assumptions. Clearly reject unsupported designs. Preserve existing public API via wrappers where sensible.
 
 **Acceptance:** Numerical reference tests, effect-direction/CI tests, multiplicity tests, small/unbalanced/tied/missing cases, and end-to-end result-schema tests pass; same seed yields reproducible stochastic intervals; undefined results are explicit.
