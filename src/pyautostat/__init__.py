@@ -12,6 +12,12 @@ from .exceptions import (
     ReportError,
 )
 from .insights import InsightEngine
+from .interpretation import (
+    InterpretationEngine,
+    InterpretationFinding,
+    InterpretationResult,
+    InterpretationStatus,
+)
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
 from .report import ReportGenerator
@@ -39,6 +45,10 @@ __all__ = [
     "MethodCapability",
     "AnalysisResult",
     "AnalysisStatus",
+    "InterpretationEngine",
+    "InterpretationFinding",
+    "InterpretationResult",
+    "InterpretationStatus",
     "ResearchQuestion",
     "StudyDesign",
     "Objective",

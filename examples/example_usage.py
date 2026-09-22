@@ -200,6 +200,9 @@ def show_recommendation(frame: pd.DataFrame) -> None:
     print("Estimate:", result.values.get("primary_estimate"))
     print("P-value:", result.values.get("p_value"))
     print("Sample:", result.metadata["sample"])
+    interpretation = assistant.interpret(result)
+    print("Interpretation:", interpretation.summary)
+    print("Finding codes:", [finding.code for finding in interpretation.findings])
 
 
 def show_hypothesis_tests(analyzer: StatisticalAnalyzer) -> list[dict]:

@@ -105,6 +105,8 @@
 
 **Goal:** Explain validated results without inventing scientific meaning.
 
+**Local completion record (2026-09-22):** `ResearchAssistant.interpret(result)` now produces deterministic, JSON-safe findings from Phase 6 results for currently executable methods. Missing or contradictory essential fields are partial or unavailable; no statistical backend, report writer, or generative service runs. This local work is uncommitted and has not been validated by CI.
+
 **Implement:** Test-specific narrative rules for question, methods, null/alternative, numeric finding, effect direction/magnitude, CI/uncertainty, assumption flags and limits. Keep current `InsightEngine` data-quality role distinct from inferential interpretation; both may contribute to reports. Structure narrative components before formatting into natural language. Allow style variants without changing statistical meaning.
 
 **Acceptance:** Golden example tests for each method and p-value/CI/undefined branches; no “accept null,” p-value-as-probability, automatic causality, or fabricated practical importance; every displayed number matches canonical result values.

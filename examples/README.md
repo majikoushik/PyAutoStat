@@ -35,9 +35,12 @@ result = assistant.analyze(draft)
 print(result.method_id, result.status)
 print(result.values["primary_estimate"], result.values["p_value"])
 print(result.metadata["sample"], result.metadata["contrast"])
+interpretation = assistant.interpret(result)
+print(interpretation.summary)
+print([finding.code for finding in interpretation.findings])
 ```
 
-`recommend_test()` checks design and method compatibility without running a hypothesis test. `analyze()` revalidates that decision and calls an existing backend, returning a structured Phase 6 result tied to the original specification. An available result still requires researcher review of assumptions. The runnable showcase below also covers the existing analyzer and report API.
+`recommend_test()` checks design and method compatibility without running a hypothesis test. `analyze()` revalidates that decision and calls an existing backend, returning a structured Phase 6 result tied to the original specification. `interpret()` turns its recorded evidence into deterministic coded findings and qualified text without recalculating. An available result still requires researcher review of assumptions. The runnable showcase below also covers the existing analyzer and report API.
 
 The showcase also demonstrates an optional data dictionary, row-level missingness,
 categorical summaries, and pairwise correlation sample sizes.

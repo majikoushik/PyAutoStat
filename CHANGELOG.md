@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 7 deterministic `ResearchAssistant.interpret(result)`, with structured `InterpretationResult` and coded findings for executable Phase 6 methods. It reads recorded numbers, qualification flags, and intervals without recalculating or changing the original result.
+
 - Phase 6 `ResearchAssistant.analyze()` revalidates a question and executes ready recommended methods through existing numerical backends. Additive `AnalysisResult` links the specification and recommendation to exact statistics, effect measures, interval quantities, sample accounting, group order, diagnostics and warnings; known failures remain unavailable.
 - Phase 5 deterministic `ResearchAssistant.recommend_test()` with a small method capability registry, design checks, data-feasibility rules, structured decision traces, alternatives, assumptions and GUI-ready clarification records. It recommends existing calculations without executing them or changing the declared target; unimplemented inference stays unavailable.
 - Phase 4 research question intake with `ResearchAssistant.prepare_question()` and `update_question()`, a typed `QuestionDraft`, structured clarification questions, selected-variable availability counts, and Phase 3 metadata reuse. The builder records objectives, roles, targets, and design without selecting or executing a method.

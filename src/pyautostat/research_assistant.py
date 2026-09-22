@@ -10,6 +10,7 @@ import pandas as pd
 from .analyzer import StatisticalAnalyzer
 from .exceptions import InvalidDataError
 from .execution import execute_specification
+from .interpretation import InterpretationEngine, InterpretationResult
 from .profiling import complete_case_count
 from .question_builder import QuestionDraft, prepare_question
 from .recommendation import recommend_from_draft
@@ -183,3 +184,7 @@ class ResearchAssistant:
         selected_spec = draft.specification if draft is not None else specification
         assert selected_spec is not None
         return execute_specification(self._analyzer, selected_spec)
+
+    def interpret(self, result: AnalysisResult) -> InterpretationResult:
+        """Explain a completed analysis from its recorded values and specification."""
+        return InterpretationEngine().interpret(result)

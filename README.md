@@ -15,6 +15,7 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 - **Test categorical association:** Pearson chi-square, Cramér's V, and Cohen's h for a two-by-two table with a named success outcome.
 - **Plan an analysis:** turn a completed research question into a traceable method recommendation, clarification request, or unsupported result without running a test.
 - **Execute a supported plan:** `ResearchAssistant.analyze()` rechecks the design and recommendation, calls the existing numerical backend, and returns a structured result tied to the research specification.
+- **Interpret a result:** `ResearchAssistant.interpret(result)` explains evidence, effect estimates, intervals, assumptions, and limitations using deterministic rules and coded findings.
 - **Share results:** severity-rated insights and dictionary, JSON, CSV, static HTML, or optional Plotly HTML reports.
 
 ## Installation
@@ -49,7 +50,7 @@ profile = ResearchAssistant(df).profile()
 print(profile["overview"])
 ```
 
-`profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Guided question preparation, recommendation, and execution of supported methods are available. Interpretation and research-report assembly remain future work. See the [architecture and contracts](docs/ARCHITECTURE.md).
+`profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Guided question preparation, recommendation, execution, and interpretation of supported methods are available. Research-report assembly remains future work. See the [architecture and contracts](docs/ARCHITECTURE.md).
 
 ### Prepare a research question
 
@@ -68,6 +69,9 @@ print(recommendation.rationale)
 result = assistant.analyze(draft)
 print(result.status, result.method_id, result.values["p_value"])
 print(result.values["primary_estimate"], result.metadata["contrast"])
+interpretation = assistant.interpret(result)
+print(interpretation.summary)
+print([finding.code for finding in interpretation.findings])
 ```
 
 `descriptive` needs no design or target. `compare_groups` requires an outcome, group column, target (`mean` or `distribution` for the common path), and confirmed design. `association` requires two columns and the relationship between observations across rows; two values in one row do not establish a paired-group design. Unknown facts stay as `needs_input` questions with stable option values; unusable selected data produce `data_limited` blockers. A `ready` draft means only that Phase 4 intake is complete and the selected data pass basic availability checks. `recommend_test()` adds method and design checks. Its `ready` status means a compatible calculation exists, not that the study's assumptions have been proven or a test has run. Use `data_dictionary={"score": {"type": "continuous"}}` or `variable_types={"score": "continuous"}` to correct an ambiguous type suggestion. No source values are recoded.
@@ -75,6 +79,8 @@ print(result.values["primary_estimate"], result.metadata["contrast"])
 For two independent quantitative groups targeting means, the recommendation is Welch's t-test. For ordered distribution comparisons it can recommend Mann-Whitney or Kruskal-Wallis. Linear numerical association can receive Pearson; adequate categorical tables can receive chi-square. Descriptive questions receive `dataset_profile`. A multi-group mean question remains unsupported without a justified explicit standard ANOVA choice. Paired, repeated, and clustered designs are unsupported by the current recommendation path. Spearman and Kendall have descriptive coefficients only, with no inferential p-values. The result records a structured decision trace, assumptions requiring review, relevant alternatives, and any missing information. [The API reference](API_REFERENCE.md) details the rules.
 
 `analyze()` executes only a fresh, ready, runnable recommendation. It records the original specification, method ID, analyzed and excluded rows, numerical values, confidence-interval quantity, group order, diagnostics, and warnings in `AnalysisResult`. Incomplete or unsupported requests return `status="unavailable"` without running a test; invalid column names still raise a package error. A successful calculation does not verify the scientific design. The existing `StatisticalAnalyzer` and `ReportGenerator` APIs remain available separately.
+
+`interpret()` uses the recorded alpha and unrounded p-value. Its `InterpretationResult` has `available`, `partial`, or `unavailable` status, short text, coded findings, warnings, limitations, and JSON-safe metadata. A nonsignificant result does not prove no effect; significance does not establish practical importance. An interval is described for its named quantity, and unavailable intervals are never invented. Associations do not establish causation. Current guided interpretation covers the guided execution methods; Student t and standard ANOVA have templates for valid Phase 6 adapter results but are not automatically selected. Spearman/Kendall inference and Phase 8 report assembly are still unavailable.
 
 The profile includes categorical frequencies and tied modes, missing rows and patterns, exact-duplicate overlap, advisory analytical types, outlier and distribution metadata, and pairwise observation counts for Pearson, Spearman, and Kendall. The DataFrame remains unchanged. Optional declarations and row positions stay out of the one-argument path:
 
