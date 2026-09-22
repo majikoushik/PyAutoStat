@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 3 dataset intelligence through both profiling entry points: categorical frequencies and tied modes, analytical type/role evidence, optional validated data dictionary, row and pattern missingness, duplicate overlap, structured quality findings, per-pair correlation sample sizes, and explicit outlier/distribution metadata. Optional row positions and histogram bin count support future visual interfaces without changing source data.
+- `ResearchAssistant.complete_case_count(columns)` reports available and excluded rows for specified columns without applying a missing-data treatment.
 - Phase 1 architecture: `ResearchAssistant(df).profile()` delegates to existing profiling, and typed research configuration and future result contracts serialize to JSON-compatible dictionaries. See `docs/ARCHITECTURE.md`.
 
 - Initial packaging as `pyautostat` (src layout, pyproject.toml, tests, CI).

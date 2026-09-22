@@ -57,6 +57,8 @@
 
 **Goal:** Produce a useful general profile from a DataFrame alone.
 
+**Implementation record (2026-09-22):** Dataset-only profiling additions are implemented on the `phase3-dataset-intelligence` branch; see [Phase 3 development record](docs/PHASE3_DEVELOPMENT_REPORT.md). Local validation and the documented Python 3.10 CI baseline must be considered separately before merge or release.
+
 **Implement:** Consolidate dataset overview, descriptive statistics, missingness, duplicates, distribution summaries, histograms, outlier flags and correlations. Return advisory type/role hints including integer-coded categories, identifiers and dates; per-pair correlation sample sizes and method-appropriate diagnostics; optional data dictionary for names, types, units, valid ranges and missing codes. Track overlaps in quality flags and avoid misleading sample counts. Keep original input unchanged.
 
 **Acceptance:** One-call profiling returns coherent structured results; all-missing, mixed-type, constant and nonstandard numeric columns are tested; no automatic outlier removal, imputation or variable reclassification; profile works without a research objective.

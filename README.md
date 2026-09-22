@@ -45,6 +45,19 @@ print(profile["overview"])
 
 `profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Research configuration records are available for storing a question and an explicitly unknown study design; guided recommendations and research execution are planned for later phases. See the [architecture and contracts](docs/ARCHITECTURE.md).
 
+The profile includes categorical frequencies and tied modes, missing rows and patterns, exact-duplicate overlap, advisory analytical types, outlier and distribution metadata, and pairwise observation counts for Pearson, Spearman, and Kendall. The DataFrame remains unchanged. Optional declarations and row positions stay out of the one-argument path:
+
+```python
+profile = ResearchAssistant(df).profile(
+    data_dictionary={"score": {"type": "continuous", "valid_range": [0, 100]}},
+    histogram_bins=20,
+    include_row_positions=True,
+)
+print(profile["correlation"].get("pearson", {}).get("sample_sizes"))
+```
+
+Declared missing codes are counted and flagged but are not recoded or excluded. A reported outlier or duplicate is a review cue, not an automatic deletion or error verdict. Export with `ReportGenerator(profile).to_json()` for JSON-safe values such as dtype names.
+
 This example runs without an input file:
 
 ```python
@@ -75,7 +88,7 @@ report.to_json("analysis.json")
 report.to_html("analysis.html")
 ```
 
-`analyze_all()` returns sections named `overview`, `descriptive`, `normality`, `outliers`, `correlation`, `missing_data`, `data_quality`, `distributions`, `column_roles`, `column_types`, `histograms`, and `analysis_warnings`. Group comparisons are requested separately; pass their results to `ReportGenerator` to include them in reports.
+`analyze_all()` preserves `overview`, `descriptive`, `normality`, `outliers`, `correlation`, `missing_data`, `data_quality`, `distributions`, `column_roles`, `column_types`, `histograms`, and `analysis_warnings`. Phase 3 adds `categorical_summary`, `variable_intelligence`, `data_dictionary`, and `profile_metadata`. Group comparisons are requested separately; pass their results to `ReportGenerator` to include them in reports.
 
 ## More examples
 
@@ -95,7 +108,7 @@ Add `--skip-interactive` if you want only JSON, CSV, and static HTML. For your o
 - Normality and Levene results say `rejected`, `not_rejected`, or `unknown` at an advisory 0.05 threshold. A failure to reject does not establish an assumption. The legacy `is_normal` flag is retained as a screening flag, not a distribution classification.
 - Constant data and unrepresentable statistics return unavailable values or package errors. Z-score and modified Z-score outlier counts are unavailable when their denominators are zero; no observations are removed.
 - The chi-square method applies a conservative policy requiring expected counts of at least five in every cell. Bootstrap intervals are exploratory and do not adjust for multiple comparisons.
-- Column type and role suggestions are advisory; they do not alter the input or choose analysis columns.
+- Column type and role suggestions are advisory and never alter the input. A numeric column suggested to be an identifier from both its name and observed uniqueness is excluded from numerical profiling; a declared measurement type and role can override this selection. Low-cardinality integer hints alone do not recode values or remove numeric analyses.
 - Processing is in memory. The interactive HTML loads Plotly JavaScript from a CDN when opened in a browser.
 
 ## Documentation

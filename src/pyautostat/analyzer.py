@@ -138,14 +138,22 @@ class StatisticalAnalyzer:
         ]
         self.all_results = {}
         self.analysis_warnings = []
+        self._profile_numeric_cols = self.numeric_cols
+        self._profile_include_positions = False
 
     def _add_warning(self, code, section, column, message):
         warning = {"code": code, "section": section, "column": column, "message": message}
         if warning not in self.analysis_warnings:
             self.analysis_warnings.append(warning)
 
-    def analyze_all(self):
-        """Run complete analysis suite"""
+    def analyze_all(self, *, data_dictionary=None, histogram_bins=20, include_row_positions=False):
+        """Profile the DataFrame with optional declared metadata and histogram bins."""
+        from .profiling import DatasetProfiler
+
+        return DatasetProfiler(self, data_dictionary, histogram_bins, include_row_positions).run()
+
+    def _base_profile(self, histogram_bins):
+        """Run established profiling calculations for the selected numeric columns."""
         self.analysis_warnings = []
         results = {
             "overview": self._overview(),
@@ -158,7 +166,7 @@ class StatisticalAnalyzer:
             "distributions": self._distribution_analysis(),
             "column_roles": suggest_column_roles(self.df),
             "column_types": detect_column_types(self.df),
-            "histograms": self._histogram_analysis(),
+            "histograms": self._histogram_analysis(bins=histogram_bins),
         }
         results["analysis_warnings"] = self.analysis_warnings.copy()
         self.all_results = results
@@ -167,7 +175,7 @@ class StatisticalAnalyzer:
     def _histogram_analysis(self, bins=20):
         """Precompute histogram bins for each numeric column (used by interactive reports)."""
         histograms = {}
-        for col in self.numeric_cols:
+        for col in self._profile_numeric_cols:
             col_data = self.df[col].dropna()
             if col_data.empty:
                 continue
@@ -204,7 +212,7 @@ class StatisticalAnalyzer:
         """Comprehensive descriptive statistics"""
         stats_dict = {}
 
-        for col in self.numeric_cols:
+        for col in self._profile_numeric_cols:
             col_data = self.df[col].dropna()
             mean = _finite_or_none(col_data.mean())
             std = _finite_or_none(col_data.std())
@@ -257,7 +265,7 @@ class StatisticalAnalyzer:
         """Test for normality using multiple methods"""
         normality_results = {}
 
-        for col in self.numeric_cols:
+        for col in self._profile_numeric_cols:
             col_data = self.df[col].dropna()
 
             if len(col_data) < 3:
@@ -385,67 +393,117 @@ class StatisticalAnalyzer:
         return normality_results
 
     def _correlation_analysis(self):
-        """Multiple correlation analysis methods"""
-        if len(self.numeric_cols) < 2:
+        """Pairwise-complete correlations with aligned counts and availability."""
+        if len(self._profile_numeric_cols) < 2:
             return {}
 
-        correlation_data = self.df[self.numeric_cols]
-
-        correlations = {}
-
-        for method, description in (
-            ("pearson", "Linear correlation coefficient"),
-            ("spearman", "Rank-based correlation"),
-            ("kendall", "Ordinal correlation"),
-        ):
-            matrix = correlation_data.corr(method=method)
-            correlations[method] = {
-                "matrix": {
-                    col: {other: _finite_or_none(value) for other, value in values.items()}
-                    for col, values in matrix.to_dict().items()
-                },
+        columns = self._profile_numeric_cols
+        observed = self.df[columns].notna().astype("int64")
+        count_matrix = observed.T.dot(observed)
+        pair_counts = {
+            col: {other: int(value) for other, value in values.items()}
+            for col, values in count_matrix.to_dict().items()
+        }
+        descriptions = (
+            ("pearson", "Pearson linear association; correlation does not establish causation."),
+            ("spearman", "Spearman rank association for monotonic relationships."),
+            ("kendall", "Kendall concordance of observation pairs, adjusted for ties."),
+        )
+        correlations = {
+            method: {
+                "matrix": {col: {other: None for other in columns} for col in columns},
                 "description": description,
+                "sample_sizes": pair_counts,
+                "undefined_pairs": [],
             }
+            for method, description in descriptions
+        }
+        p_values = {col: {other: None for other in columns if other != col} for col in columns}
 
-        # P-values for Pearson
         from scipy.stats import pearsonr as pearson_test
 
-        p_values = {}
-        for col1 in self.numeric_cols:
-            p_values[col1] = {}
-            for col2 in self.numeric_cols:
-                if col1 != col2:
-                    valid_data = self.df[[col1, col2]].dropna()
-                    if (
-                        len(valid_data) > 2
-                        and valid_data[col1].nunique() > 1
-                        and valid_data[col2].nunique() > 1
-                    ):
+        for col in columns:
+            values = self.df[col].dropna()
+            if len(values) >= 2 and values.nunique() > 1:
+                for method, _ in descriptions:
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always")
+                        raw = values.corr(values, method=method)
+                    if not caught:
+                        correlations[method]["matrix"][col][col] = _finite_or_none(raw)
+                    if correlations[method]["matrix"][col][col] is None:
+                        self._add_warning(
+                            "numerical_warning",
+                            "correlation",
+                            col,
+                            f"{method} self-correlation for '{col}' is unavailable.",
+                        )
+        for index, left in enumerate(columns):
+            for right in columns[index + 1 :]:
+                pair = self.df[[left, right]].dropna()
+                size = len(pair)
+                if size < 2:
+                    reason = "Fewer than two pairwise-complete observations."
+                elif pair[left].nunique() < 2 or pair[right].nunique() < 2:
+                    reason = "A paired column is constant."
+                else:
+                    reason = None
+                for method, _ in descriptions:
+                    coefficient = None
+                    method_reason = reason
+                    if reason is None:
                         with warnings.catch_warnings(record=True) as caught:
                             warnings.simplefilter("always")
-                            _, p_val = pearson_test(valid_data[col1], valid_data[col2])
-                        p_values[col1][col2] = None if caught else _finite_or_none(p_val)
+                            raw = pair[left].corr(pair[right], method=method)
+                        if not caught:
+                            coefficient = _finite_or_none(raw)
+                        if coefficient is None:
+                            method_reason = "Numerical warning or nonfinite coefficient."
+                    if method == "pearson" and coefficient is not None and size >= 3:
+                        with warnings.catch_warnings(record=True) as caught:
+                            warnings.simplefilter("always")
+                            _, raw_p = pearson_test(pair[left], pair[right])
                         if caught:
-                            correlations["pearson"]["matrix"][col1][col2] = None
-                            correlations["pearson"]["matrix"][col2][col1] = None
-                            self._add_warning(
-                                "numerical_warning",
-                                "correlation",
-                                col1,
-                                f"Pearson inference for '{col1}' and '{col2}' was unreliable.",
+                            coefficient = None
+                            method_reason = "Pearson inference raised a numerical warning."
+                        else:
+                            p_values[left][right] = _finite_or_none(raw_p)
+                            p_values[right][left] = p_values[left][right]
+                            if p_values[left][right] is None:
+                                coefficient = None
+                                method_reason = "Pearson inference returned a nonfinite p-value."
+                    correlations[method]["matrix"][left][right] = coefficient
+                    correlations[method]["matrix"][right][left] = coefficient
+                    if coefficient is None:
+                        correlations[method]["undefined_pairs"].append(
+                            {
+                                "columns": [left, right],
+                                "sample_size": size,
+                                "reason": method_reason,
+                            }
+                        )
+                        warning_code = (
+                            "numerical_warning"
+                            if method_reason is not None
+                            and (
+                                "numerical" in method_reason.lower() or "nonfinite" in method_reason
                             )
-                    else:
-                        p_values[col1][col2] = None
-
+                            else "unavailable_correlation"
+                        )
+                        self._add_warning(
+                            warning_code,
+                            "correlation",
+                            left,
+                            f"{method} for '{left}' and '{right}' is unavailable: {method_reason}",
+                        )
         correlations["p_values"] = p_values
-
         return correlations
 
     def _outlier_detection(self):
         """Multiple outlier detection methods"""
         outliers = {}
 
-        for col in self.numeric_cols:
+        for col in self._profile_numeric_cols:
             col_data = self.df[col].dropna()
 
             methods = {}
@@ -463,7 +521,12 @@ class StatisticalAnalyzer:
                 self._add_warning(
                     "all_missing", "outliers", col, "Outlier detection needs numeric values."
                 )
+                if self._profile_include_positions:
+                    for detail in outliers[col].values():
+                        detail["flagged_positions"] = None
                 continue
+
+            positions = np.flatnonzero(self.df[col].notna().to_numpy())
 
             # IQR Method
             Q1 = col_data.quantile(0.25)
@@ -485,6 +548,14 @@ class StatisticalAnalyzer:
                 "lower_bound": _finite_or_none(lower_bound),
                 "upper_bound": _finite_or_none(upper_bound),
             }
+            if self._profile_include_positions:
+                methods["iqr"]["flagged_positions"] = (
+                    positions[
+                        ((col_data < lower_bound) | (col_data > upper_bound)).to_numpy()
+                    ].tolist()
+                    if bounds_valid
+                    else None
+                )
 
             # Z-score Method
             z_scores = None
@@ -505,6 +576,10 @@ class StatisticalAnalyzer:
                 "percentage": float(z_outliers / len(col_data) * 100) if z_valid else None,
                 "threshold": 3.0,
             }
+            if self._profile_include_positions:
+                methods["z_score"]["flagged_positions"] = (
+                    positions[np.asarray(z_scores > 3)].tolist() if z_valid else None
+                )
 
             # Modified Z-score (using MAD)
             median = col_data.median()
@@ -524,6 +599,10 @@ class StatisticalAnalyzer:
                 "percentage": float(mad_outliers / len(col_data) * 100) if mad_valid else None,
                 "threshold": 3.5,
             }
+            if self._profile_include_positions:
+                methods["mad"]["flagged_positions"] = (
+                    positions[np.asarray(np.abs(modified_z) > 3.5)].tolist() if mad_valid else None
+                )
 
             outliers[col] = methods
 
@@ -581,7 +660,7 @@ class StatisticalAnalyzer:
         """Analyze distribution characteristics"""
         distributions = {}
 
-        for col in self.numeric_cols:
+        for col in self._profile_numeric_cols:
             col_data = self.df[col].dropna()
             if col_data.empty:
                 distributions[col] = {
