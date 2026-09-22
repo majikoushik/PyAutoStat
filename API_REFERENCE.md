@@ -42,7 +42,7 @@ payload = spec.to_dict()
 restored = AnalysisSpecification.from_dict(payload)
 ```
 
-The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns its existing `analyze_all()` dictionary. It does not run group tests or use the research specification. `ResearchQuestion` fields may remain `None` while information is gathered. `StudyDesign.UNKNOWN` is explicit and never converted to independent. Invalid values raise `InvalidDataError` with the affected field. Data-dependent column and design checks are not part of these records yet.
+The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns the same dictionary as `analyze_all()`. It does not run group tests or use the research specification. `ResearchQuestion` fields may remain `None` while information is gathered. `StudyDesign.UNKNOWN` is explicit and never converted to independent. Invalid values raise `InvalidDataError` with the affected field. Data-dependent column and design checks are not part of these records yet.
 
 `to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1`; see [the architecture document](docs/ARCHITECTURE.md) for fields, status values, and the future result contracts. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records, but no Phase 1 workflow produces them. They have `to_dict()` only. No recommendation, inferential result, or report is manufactured from these records.
 
@@ -53,6 +53,8 @@ The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `p
 ```python
 analyzer = StatisticalAnalyzer(df)
 analysis = analyzer.analyze_all()
+# Both entry points also accept data_dictionary=..., histogram_bins=20,
+# and include_row_positions=False as optional keyword arguments.
 ```
 
 `df` must be a nonempty pandas DataFrame with unique, nonempty string column names and scalar values. Numeric values must be finite and real; missing values are allowed. The analyzer copies the DataFrame and exposes `df`, `numeric_cols`, `categorical_cols`, and `all_results`.
@@ -73,8 +75,24 @@ analysis = analyzer.analyze_all()
 | `column_types` | Advisory types and missingness hints |
 | `histograms` | Precomputed bin edges and counts for numeric columns |
 | `analysis_warnings` | Records with `code`, `section`, `column` and `message` for skipped or undefined calculations |
+| `categorical_summary` | Nonmissing/missing counts, observed categories, tied modes, top 20 frequencies and percentages of nonmissing observations |
+| `variable_intelligence` | Observed dtype, advisory analytical type and role, evidence, declaration sources and warnings |
+| `data_dictionary` | Validated, copied column declarations supplied by the caller; empty by default |
+| `profile_metadata` | Schema version and disclosed binning, missingness, row-position and outlier defaults |
 
 An unavailable numeric result is `None`. Some tests are skipped for all-missing, constant or short columns; inspect `analysis_warnings`. For D'Agostino-Pearson at 8-19 observations, a finite result is retained with a small-sample approximation warning; other numerical warnings or nonfinite output make it unavailable. Anderson-Darling is omitted if SciPy supplies an unusable critical-value grid, including nonpositive values sometimes returned for very small samples. Correlation uses pairwise nonmissing observations. Only Pearson pairs include p-values.
+
+### Phase 3 profile details and optional declarations
+
+`overview` retains original pandas dtype objects for Python callers and adds suggested-type counts, datetime/Boolean counts, memory bytes, missing cells and exact duplicates. Use `ReportGenerator(profile).to_json()` for JSON-safe export; it converts dtype objects and unavailable values. `missing_data` adds `rows_with_missing`, `completely_missing_rows`, `complete_rows`, top 10 `common_patterns`, column `available_count`, and co-missing pair counts. Cell counts and affected-row counts are distinct. `ResearchAssistant(df).complete_case_count(["score", "group"])` returns selected columns, available rows, excluded rows and total rows without changing stored data.
+
+`data_quality.duplicate_rows` retains the count of rows that repeat an earlier entire row. `duplicate_group_rows` counts every row in a repeated group; `missing_duplicate_overlap_rows` counts rows with both flags. These are overlapping observations, not counts to subtract from a denominator. Repeated identifiers are reported separately when an identifier role is declared or suggested. `data_quality.issues` contains `code`, `severity`, `section`, `column`, `message`, `evidence`, and `recommendation`. Severity is a review priority, not a dataset-quality score.
+
+Outlier methods retain their existing values and add `method`, `definition`, `threshold`, `usable_count`, `status`, and a limitation. A constant column may have an available IQR count of zero, while Z-score and MAD are unavailable when their denominators are zero. Optional `include_row_positions=True` adds zero-based `flagged_positions` to available outlier methods and `duplicate_group_positions`/`repeated_row_positions` to data quality; these are row offsets, regardless of DataFrame index labels. No rows are removed. `histogram_bins` defaults to 20 (valid 1-1000); histograms record binning method, requested bins, edges, counts, and sample size. `distributions.peak_heuristic` identifies the legacy 30-bin `is_bimodal` flag as an informal histogram cue, not proof of population bimodality.
+
+Each of `correlation.pearson`, `.spearman`, and `.kendall` retains its coefficient `matrix` and adds a symmetric `sample_sizes` matrix and `undefined_pairs`. Counts use the rows where both variables are observed, separately for every pair. Only Pearson has `p_values`; an unavailable coefficient has no p-value. Pearson describes linear association, Spearman rank-based monotonic association, and Kendall pairwise concordance. None establishes causation. Identifier-like numeric columns supported by both a name hint and unique observed values are omitted from numerical profiling; low-cardinality integer suggestions alone do not change analysis selection.
+
+`data_dictionary` maps existing column names to optional `label`, `description`, `type`, `role`, `unit`, `valid_range`, `allowed_values`, `missing_codes`, and `ordinal_order`. Types are `continuous`, `discrete`, `nominal`, `ordinal`, `datetime`, `boolean`, `identifier`, or `unknown`. Declarations are validated and inspectable in `variable_intelligence`; categorical and identifier declarations select descriptive methods, without recoding values. Valid-range and allowed-value violations become data-quality issues. **Declared missing codes are counted but not applied**: raw missingness and numerical denominators remain unchanged, and a structured issue calls out this limit. Numbers such as 0, 99, and 999 remain observed values even when declared as missing codes in this phase. No missing mechanism is inferred.
 
 ### Independent group comparisons
 

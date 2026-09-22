@@ -3,6 +3,7 @@
 import pandas as pd
 
 from .analyzer import StatisticalAnalyzer
+from .profiling import complete_case_count
 
 
 class ResearchAssistant:
@@ -15,6 +16,16 @@ class ResearchAssistant:
     def __init__(self, df: pd.DataFrame) -> None:
         self._analyzer = StatisticalAnalyzer(df)
 
-    def profile(self) -> dict:
-        """Return the existing ``StatisticalAnalyzer.analyze_all()`` dictionary."""
-        return self._analyzer.analyze_all()
+    def profile(
+        self, *, data_dictionary=None, histogram_bins: int = 20, include_row_positions: bool = False
+    ) -> dict:
+        """Profile a DataFrame; optional declarations never mutate source values."""
+        return self._analyzer.analyze_all(
+            data_dictionary=data_dictionary,
+            histogram_bins=histogram_bins,
+            include_row_positions=include_row_positions,
+        )
+
+    def complete_case_count(self, columns: list[str]) -> dict:
+        """Count rows available for a specified set of columns."""
+        return complete_case_count(self._analyzer.df, columns)

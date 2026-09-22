@@ -26,6 +26,7 @@ from pyautostat import (
     InsightEngine,
     PyAutoStatError,
     ReportGenerator,
+    ResearchAssistant,
     StatisticalAnalyzer,
     detect_column_types,
     suggest_column_roles,
@@ -98,13 +99,18 @@ def show_analysis(analyzer: StatisticalAnalyzer, results: dict) -> None:
     for method in ("pearson", "spearman", "kendall"):
         print(f"  {method}: {correlation[method]['matrix']['variable_a']['variable_b']}")
     print("  Pearson p-value:", correlation["p_values"]["variable_a"]["variable_b"])
+    print("  Pairwise observed rows:", correlation["pearson"]["sample_sizes"]["variable_a"]["variable_b"])
 
     print("\nMissing-data summary:")
     missing = results["missing_data"]
     print("  Overall missing percentage:", missing["overall_missing_percentage"])
+    print("  Rows containing missing values:", missing["rows_with_missing"])
+    print("  Complete rows:", missing["complete_rows"])
     pprint({name: info for name, info in missing["by_column"].items() if info["count"]})
     print("\nData-quality metrics (completeness, uniqueness, duplicates):")
     pprint(results["data_quality"])
+    print("\nCategorical summary for group:")
+    pprint(results["categorical_summary"]["group"])
     print("\nDistribution analysis for measurement_1:")
     pprint(results["distributions"]["measurement_1"])
 
@@ -145,6 +151,11 @@ def show_column_intelligence() -> None:
     pprint(detect_column_types(contacts))
     print("Suggested roles and actions (advisory; data is never transformed):")
     pprint(suggest_column_roles(contacts))
+    declared_profile = ResearchAssistant(contacts).profile(
+        data_dictionary={"score": {"type": "continuous", "unit": "points", "valid_range": [0, 100]}}
+    )
+    print("\nOptional declared score metadata:")
+    pprint(declared_profile["variable_intelligence"]["score"])
 
 
 def show_insights(results: dict) -> dict:
