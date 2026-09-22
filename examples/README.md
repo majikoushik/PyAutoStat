@@ -44,6 +44,8 @@ print([finding.code for finding in interpretation.findings])
 
 For the Phase 8 canonical research report, run `python examples/research_report_example.py`. It executes a Welch comparison and a Pearson association, then obtains HTML, Markdown, JSON, and CSV content in memory. The Pearson report is partial because the current backend has no correlation confidence interval. The example writes no files. Use explicit `report.save_html(path)` or the other save methods when a file is wanted. This new `ResearchReport` workflow is separate from the legacy `ReportGenerator` showcase.
 
+For the Phase 9 observed-event ledger, report audit, fingerprint check, and explicit replay, run `python examples/phase9_reproducibility_example.py`. It also alters one report value and one observation to demonstrate failed consistency checks. It writes no files or raw-data package.
+
 The showcase also demonstrates an optional data dictionary, row-level missingness,
 categorical summaries, and pairwise correlation sample sizes.
 

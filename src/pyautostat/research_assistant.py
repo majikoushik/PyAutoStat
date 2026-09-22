@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from copy import deepcopy
+from datetime import datetime
 from typing import Any, cast
 
 import pandas as pd
 
 from .analyzer import StatisticalAnalyzer
+from .audit import AuditResult, StatisticalResultAuditor
+from .decision_ledger import DecisionLedger
 from .exceptions import InvalidDataError
 from .execution import execute_specification
 from .interpretation import InterpretationEngine, InterpretationResult
 from .profiling import complete_case_count
+from .provenance import content_reference
 from .question_builder import QuestionDraft, prepare_question
 from .recommendation import recommend_from_draft
+from .reproducibility import ReproducibilityRecord
 from .research_report import ResearchReport, build_research_report
 from .results import AnalysisResult, Recommendation
 from .specifications import (
@@ -35,6 +41,41 @@ class ResearchAssistant:
     def __init__(self, df: pd.DataFrame) -> None:
         self._analyzer = StatisticalAnalyzer(df)
         self._data_dictionary: dict | None = None
+        self._ledger: DecisionLedger | None = None
+        self._planning_status = "unknown"
+
+    def enable_tracking(
+        self, *, clock: Callable[[], datetime | str] | None = None
+    ) -> DecisionLedger:
+        """Start observing subsequent actions; no earlier decisions are reconstructed."""
+        if self._ledger is None:
+            self._ledger = DecisionLedger(clock=clock)
+        return self._ledger
+
+    @property
+    def decision_ledger(self) -> DecisionLedger | None:
+        return self._ledger
+
+    @property
+    def planning_status(self) -> str:
+        return self._planning_status
+
+    def declare_planning(self, status: str, *, reason: str | None = None) -> None:
+        """Record a researcher declaration, never independent preregistration proof."""
+        if status not in {"planned", "exploratory", "unknown"}:
+            raise InvalidDataError("planning status must be planned, exploratory, or unknown.")
+        if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+            raise InvalidDataError("A supplied planning reason must be non-empty text.")
+        previous = self._planning_status
+        if self._ledger is not None:
+            self._ledger._record(
+                "planning_declared",
+                source="researcher",
+                previous_state=previous,
+                new_state=status,
+                reason=reason,
+            )
+        self._planning_status = status
 
     def profile(
         self, *, data_dictionary=None, histogram_bins: int = 20, include_row_positions: bool = False
@@ -67,7 +108,7 @@ class ResearchAssistant:
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
-        return prepare_question(
+        draft = prepare_question(
             self._analyzer.df,
             objective=objective,
             outcome=outcome,
@@ -86,9 +127,22 @@ class ResearchAssistant:
             variable_types=variable_types,
             specification=specification,
         )
+        if self._ledger is not None:
+            payload = draft.specification.to_dict()
+            self._ledger._record(
+                "question_prepared",
+                new_state=payload,
+                references={"specification": content_reference("specification", payload)},
+                metadata={"draft_status": draft.status.value},
+            )
+        return draft
 
-    def update_question(self, draft: QuestionDraft, **changes: Any) -> QuestionDraft:
+    def update_question(
+        self, draft: QuestionDraft, *, reason: str | None = None, **changes: Any
+    ) -> QuestionDraft:
         """Reconstruct and revalidate an immutable draft after explicit answers."""
+        if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+            raise InvalidDataError("A supplied revision reason must be non-empty text.")
         if not isinstance(draft, QuestionDraft):
             raise InvalidDataError("draft must be a QuestionDraft.")
         allowed = {
@@ -152,9 +206,26 @@ class ResearchAssistant:
             variable_metadata=old.variable_metadata,
             data_dictionary=changes.get("data_dictionary", old.data_dictionary),
         )
-        return self.prepare_question(
-            specification=revised, variable_types=changes.get("variable_types")
+        updated = prepare_question(
+            self._analyzer.df,
+            specification=revised,
+            variable_types=changes.get("variable_types"),
         )
+        if self._ledger is not None:
+            before = old.to_dict()
+            after = updated.specification.to_dict()
+            if before != after:
+                changed = _changed_fields(before, after)
+                self._ledger._record(
+                    "specification_updated",
+                    source="researcher",
+                    previous_state=before,
+                    new_state=after,
+                    reason=reason,
+                    references={"specification": content_reference("specification", after)},
+                    metadata={"changed_fields": changed},
+                )
+        return updated
 
     def recommend_test(
         self,
@@ -168,8 +239,23 @@ class ResearchAssistant:
         if draft is not None and not isinstance(draft, QuestionDraft):
             raise InvalidDataError("draft must be a QuestionDraft.")
         selected_spec = draft.specification if draft is not None else specification
-        validated = self.prepare_question(specification=selected_spec)
-        return recommend_from_draft(self._analyzer.df, validated)
+        validated = prepare_question(self._analyzer.df, specification=selected_spec)
+        recommendation = recommend_from_draft(self._analyzer.df, validated)
+        if self._ledger is not None:
+            spec_payload = validated.specification.to_dict()
+            rec_payload = recommendation.to_dict()
+            self._ledger._record(
+                "method_recommended",
+                references={
+                    "specification": content_reference("specification", spec_payload),
+                    "recommendation": content_reference("recommendation", rec_payload),
+                },
+                metadata={
+                    "status": recommendation.status.value,
+                    "method_id": recommendation.method_id,
+                },
+            )
+        return recommendation
 
     def analyze(
         self,
@@ -184,11 +270,42 @@ class ResearchAssistant:
             raise InvalidDataError("draft must be a QuestionDraft.")
         selected_spec = draft.specification if draft is not None else specification
         assert selected_spec is not None
-        return execute_specification(self._analyzer, selected_spec)
+        result = execute_specification(self._analyzer, selected_spec)
+        if self._ledger is not None:
+            references = {"analysis": content_reference("analysis", result.to_dict())}
+            if result.specification is not None:
+                references["specification"] = content_reference(
+                    "specification", result.specification.to_dict()
+                )
+            if result.recommendation is not None:
+                references["recommendation"] = content_reference(
+                    "recommendation", result.recommendation.to_dict()
+                )
+            self._ledger._record(
+                "analysis_executed",
+                references=references,
+                metadata={
+                    "status": result.status.value,
+                    "method_id": result.method_id,
+                    "analyzed_rows": result.sample_size,
+                    "excluded_rows": result.excluded_rows,
+                },
+            )
+        return result
 
     def interpret(self, result: AnalysisResult) -> InterpretationResult:
         """Explain a completed analysis from its recorded values and specification."""
-        return InterpretationEngine().interpret(result)
+        interpretation = InterpretationEngine().interpret(result)
+        if self._ledger is not None:
+            self._ledger._record(
+                "interpretation_generated",
+                references={
+                    "analysis": content_reference("analysis", result.to_dict()),
+                    "interpretation": content_reference("interpretation", interpretation.to_dict()),
+                },
+                metadata={"status": interpretation.status.value},
+            )
+        return interpretation
 
     def report(
         self,
@@ -199,6 +316,73 @@ class ResearchAssistant:
         include_figures: bool = False,
     ) -> ResearchReport:
         """Assemble a general research report from recorded analysis and interpretation."""
-        return build_research_report(
+        report = build_research_report(
             result, interpretation=interpretation, title=title, include_figures=include_figures
         )
+        if self._ledger is not None:
+            report_reference = content_reference("report", report.to_dict())
+            self._ledger._record(
+                "report_generated",
+                references={
+                    "analysis": content_reference("analysis", result.to_dict()),
+                    "interpretation": content_reference(
+                        "interpretation", report.to_dict()["interpretation"]
+                    ),
+                    "report": report_reference,
+                },
+                metadata={"status": report.status},
+            )
+            ledger = self._ledger
+
+            def on_save(format_name: str) -> None:
+                ledger._record(
+                    "report_exported",
+                    references={"report": report_reference},
+                    metadata={"format": format_name},
+                )
+
+            report._on_save = on_save
+        return report
+
+    def audit(
+        self,
+        report: ResearchReport,
+        *,
+        result: AnalysisResult | None = None,
+        exports: dict[str, Any] | None = None,
+    ) -> AuditResult:
+        """Check recorded analysis, report and supplied exports without rerunning tests."""
+        audit = StatisticalResultAuditor().audit(report, result=result, exports=exports)
+        if self._ledger is not None:
+            self._ledger._record(
+                "audit_performed",
+                references={
+                    **audit.source_references,
+                    "audit": content_reference("audit", audit.to_dict()),
+                },
+                metadata={"status": audit.status},
+            )
+        return audit
+
+    def reproducibility_record(
+        self, result: AnalysisResult, *, fingerprint: bool = True
+    ) -> ReproducibilityRecord:
+        """Capture replay metadata for the assistant's current data, on request."""
+        return ReproducibilityRecord.from_result(
+            result,
+            data=self._analyzer.df,
+            fingerprint=fingerprint,
+            planning_status=self._planning_status,
+        )
+
+
+def _changed_fields(before: dict[str, Any], after: dict[str, Any], prefix: str = "") -> list[str]:
+    fields: list[str] = []
+    for key in sorted(before.keys() | after.keys()):
+        path = f"{prefix}.{key}" if prefix else key
+        left, right = before.get(key), after.get(key)
+        if isinstance(left, dict) and isinstance(right, dict):
+            fields.extend(_changed_fields(left, right, path))
+        elif left != right:
+            fields.append(path)
+    return fields

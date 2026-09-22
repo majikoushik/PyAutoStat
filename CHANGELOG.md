@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 9 optional observed-event `DecisionLedger`, content and dataset fingerprints, read-only `StatisticalResultAuditor` with actual export checks, runtime `ReproducibilityRecord`, metadata-only ZIP package, and explicit same-data replay through the existing Phase 6 engine. No raw DataFrame is included in records or packages by default.
 - Phase 8 `ResearchAssistant.report(result)` and canonical `ResearchReport` with structured Methods, Results, sample accounting, diagnostics, interpretation, limitations, optional histogram bin specifications, and deterministic HTML, Markdown, JSON, and CSV table exports. The legacy `ReportGenerator` API is retained.
 - Phase 7 deterministic `ResearchAssistant.interpret(result)`, with structured `InterpretationResult` and coded findings for executable Phase 6 methods. It reads recorded numbers, qualification flags, and intervals without recalculating or changing the original result.
 

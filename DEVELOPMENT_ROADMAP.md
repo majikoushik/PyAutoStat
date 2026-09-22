@@ -129,6 +129,8 @@
 
 **Goal:** Make analyses inspectable, repeatable and resistant to reporting inconsistencies.
 
+**Local completion record (2026-09-22):** Optional tracking now records observed actions and revisions; a read-only auditor checks source-linked reports and supplied exports; a metadata-only record supports explicit fingerprint-checked replay through Phase 6. This local work has not been committed or validated by CI. See [the Phase 9 contract](docs/PROVENANCE_AND_REPLAY.md).
+
 **Implement:** Complete the provenance structures introduced in Phase 1; record configurations, justified changes, preprocessing/exclusions, versions, seeds, fingerprints and result IDs. User-declared planned vs exploratory decisions remain distinguishable. Add an auditor checking canonical results against narrative/tables/export for names, groups, N, statistics, intervals and warnings. Reproduction package references authorized data and saves executable config/script; do not bundle raw data by default.
 
 **Acceptance:** Deliberate mismatches are caught; replay matches computed results on same data/environment within documented numerical tolerance; ledger reflects changes honestly; no false preregistration or raw-data-sharing claim.

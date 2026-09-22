@@ -1,6 +1,8 @@
 """Statistical analysis, insights, and reports for pandas DataFrames."""
 
 from .analyzer import StatisticalAnalyzer
+from .audit import AuditFinding, AuditResult, StatisticalResultAuditor
+from .decision_ledger import DecisionLedger
 from .detection import detect_column_types, suggest_column_roles
 from .exceptions import (
     ColumnNotFoundError,
@@ -21,6 +23,7 @@ from .interpretation import (
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
 from .report import ReportGenerator
+from .reproducibility import ReproducibilityRecord, ReproductionOutcome, reproduce
 from .research_assistant import ResearchAssistant
 from .research_report import ResearchReport
 from .results import AnalysisResult, AnalysisStatus, Recommendation, RecommendationStatus
@@ -39,6 +42,13 @@ __all__ = [
     "StatisticalAnalyzer",
     "ResearchAssistant",
     "ResearchReport",
+    "DecisionLedger",
+    "AuditFinding",
+    "AuditResult",
+    "StatisticalResultAuditor",
+    "ReproducibilityRecord",
+    "ReproductionOutcome",
+    "reproduce",
     "QuestionDraft",
     "QuestionStatus",
     "ClarificationQuestion",

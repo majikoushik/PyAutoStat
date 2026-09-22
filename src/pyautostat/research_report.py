@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import math
+from collections.abc import Callable
 from copy import deepcopy
 from html import escape
 from pathlib import Path
@@ -115,13 +116,23 @@ def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
 class ResearchReport:
     """Effectively immutable report snapshot with four in-memory export formats."""
 
-    __slots__ = ("_payload",)
+    __slots__ = ("_payload", "_source_result", "_include_figures", "_on_save")
 
-    def __init__(self, payload: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        payload: dict[str, Any],
+        *,
+        source_result: AnalysisResult | None = None,
+        include_figures: bool = False,
+        on_save: Callable[[str], None] | None = None,
+    ) -> None:
         try:
             self._payload = _json_value(payload)
         except InvalidDataError as exc:
             raise ReportError(f"Report contains non-serializable data: {exc}") from exc
+        self._source_result = deepcopy(source_result)
+        self._include_figures = include_figures
+        self._on_save = on_save
 
     @property
     def status(self) -> str:
@@ -246,13 +257,22 @@ class ResearchReport:
         return "\n".join(parts)
 
     def save_html(self, path: str | Path, *, overwrite: bool = False) -> Path:
-        return _write(path, self.to_html(), overwrite=overwrite)
+        output = _write(path, self.to_html(), overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("html")
+        return output
 
     def save_markdown(self, path: str | Path, *, overwrite: bool = False) -> Path:
-        return _write(path, self.to_markdown(), overwrite=overwrite)
+        output = _write(path, self.to_markdown(), overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("markdown")
+        return output
 
     def save_json(self, path: str | Path, *, overwrite: bool = False) -> Path:
-        return _write(path, self.to_json(), overwrite=overwrite)
+        output = _write(path, self.to_json(), overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("json")
+        return output
 
     def save_csv_tables(self, directory: str | Path, *, overwrite: bool = False) -> list[Path]:
         target = Path(directory)
@@ -264,10 +284,13 @@ class ResearchReport:
             if not overwrite and any(path.exists() for path in paths):
                 raise ReportError("A CSV report file exists; pass overwrite=True to replace it.")
             target.mkdir(parents=True, exist_ok=True)
-            return [
+            written = [
                 _write(path, content, overwrite=True)
                 for path, content in zip(paths, outputs.values(), strict=True)
             ]
+            if self._on_save is not None:
+                self._on_save("csv")
+            return written
         except ReportError:
             raise
         except (OSError, ValueError, TypeError) as exc:
@@ -656,5 +679,7 @@ def build_research_report(
             "figures": figures,
             "limitations": limitations,
             "warnings": warnings,
-        }
+        },
+        source_result=result,
+        include_figures=include_figures,
     )
