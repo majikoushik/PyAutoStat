@@ -40,10 +40,16 @@ def _finite_or_none(value):
 
 def _advisory_normaltest_warning(item, sample_size):
     """Recognize SciPy's small-sample kurtosis approximation warning only."""
+    message = str(item.message).lower()
     return (
         8 <= sample_size < 20
         and issubclass(item.category, UserWarning)
-        and str(item.message).lower().startswith("kurtosistest only valid for n>=20")
+        and (
+            message.startswith("kurtosistest only valid for n>=20")
+            or message.startswith(
+                "`kurtosistest` p-value may be inaccurate with fewer than 20 observations"
+            )
+        )
     )
 
 

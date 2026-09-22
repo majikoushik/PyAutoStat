@@ -37,13 +37,19 @@ def test_normality_reports_all_three_tests(numeric_df):
             )
 
 
-def test_normaltest_retains_only_advisory_small_sample_warning(monkeypatch):
+@pytest.mark.parametrize(
+    "message",
+    [
+        "kurtosistest only valid for n>=20 ... continuing anyway, n=10",
+        "`kurtosistest` p-value may be inaccurate with fewer than 20 observations; "
+        "only n=10 observations were given.",
+    ],
+)
+def test_normaltest_retains_only_advisory_small_sample_warning(monkeypatch, message):
     original = analyzer_module.normaltest
 
     def advisory(values):
-        warnings.warn(
-            "kurtosistest only valid for n>=20 ... continuing anyway", UserWarning, stacklevel=2
-        )
+        warnings.warn(message, UserWarning, stacklevel=2)
         return original(values)
 
     monkeypatch.setattr(analyzer_module, "normaltest", advisory)
