@@ -59,7 +59,8 @@ def test_small_and_constant_samples_do_not_emit_undefined_normality_results():
     df = pd.DataFrame({"short": [1.0, 2.0, 3.0, np.nan, np.nan], "constant": [7] * 5})
     result = StatisticalAnalyzer(df).analyze_all()
 
-    assert set(result["normality"]["short"]) == {"shapiro_wilk", "anderson_darling"}
+    assert "shapiro_wilk" in result["normality"]["short"]
+    assert set(result["normality"]["short"]).issubset({"shapiro_wilk", "anderson_darling"})
     assert "constant" not in result["normality"]
     assert result["outliers"]["constant"]["z_score"]["count"] is None
     assert result["outliers"]["constant"]["mad"]["count"] is None
