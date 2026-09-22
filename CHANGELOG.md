@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Phase 2 CI correction: retain finite D'Agostino-Pearson results under SciPy's advisory small-sample kurtosis warning, record approximation limits, and reject unreliable warnings or nonfinite results. Omit Anderson-Darling when its critical-value grid is invalid, including negative small-sample thresholds, with an explanatory warning.
 - Phase 2: automatic group-test selection requires a stated estimand and no longer switches from mean to rank methods after normality or variance screens. Welch is the default two-group mean method; automatic multi-group mean comparison reports unsupported.
 - Normality and Levene diagnostics now distinguish rejected, not rejected, and unknown states; reports and insights no longer call a nonrejection proof of normality.
 - Explicitly request two-sided Mann-Whitney p-values and calculate first-group U consistently across supported SciPy versions. Undefined Z-score/MAD counts and all-missing outlier counts are unavailable rather than zero.

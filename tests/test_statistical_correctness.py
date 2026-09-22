@@ -275,16 +275,20 @@ def test_profile_normality_and_outlier_reference_values():
 
 
 def test_shapiro_three_point_statistic_and_anderson_critical_grid():
-    normality = StatisticalAnalyzer(pd.DataFrame({"x": [1.0, 2.0, 4.0]})).analyze_all()[
-        "normality"
-    ]["x"]
+    profile = StatisticalAnalyzer(pd.DataFrame({"x": [1.0, 2.0, 4.0]})).analyze_all()
+    normality = profile["normality"]["x"]
     # For n=3 the Shapiro numerator is (max-min)^2/2; denominator is 14/3.
     assert normality["shapiro_wilk"]["statistic"] == pytest.approx(27 / 28)
     assert normality["shapiro_wilk"]["status"] == "not_rejected"
-    anderson = normality["anderson_darling"]
-    index = anderson["significance_levels"].index(5.0)
-    assert anderson["statistic"] < anderson["critical_values"][index]
-    assert "is_normal" not in anderson
+    # SciPy releases differ here: some return negative critical values for n=3.
+    if "anderson_darling" in normality:
+        anderson = normality["anderson_darling"]
+        assert min(anderson["critical_values"]) > 0
+        assert "is_normal" not in anderson
+    else:
+        assert any(
+            "critical-value grid" in warning["message"] for warning in profile["analysis_warnings"]
+        )
 
 
 def test_zero_mad_with_varying_values_is_unavailable():
