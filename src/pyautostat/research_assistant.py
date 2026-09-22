@@ -1,4 +1,4 @@
-"""Public entry point for profiling and research question preparation."""
+"""Public entry point for profiling, question intake, and method recommendations."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from .analyzer import StatisticalAnalyzer
 from .exceptions import InvalidDataError
 from .profiling import complete_case_count
 from .question_builder import QuestionDraft, prepare_question
+from .recommendation import recommend_from_draft
+from .results import Recommendation
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -21,7 +23,7 @@ from .specifications import (
 
 
 class ResearchAssistant:
-    """Coordinate profiling and question intake without selecting an analysis.
+    """Coordinate profiling, question intake, and deterministic recommendations.
 
     Construction uses StatisticalAnalyzer's validation and private DataFrame copy.
     It does not run the profiling calculations until :meth:`profile` is called.
@@ -150,3 +152,18 @@ class ResearchAssistant:
         return self.prepare_question(
             specification=revised, variable_types=changes.get("variable_types")
         )
+
+    def recommend_test(
+        self,
+        draft: QuestionDraft | None = None,
+        *,
+        specification: AnalysisSpecification | None = None,
+    ) -> Recommendation:
+        """Revalidate a question, then recommend a capability without executing it."""
+        if (draft is None) == (specification is None):
+            raise InvalidDataError("Provide either one QuestionDraft or specification.")
+        if draft is not None and not isinstance(draft, QuestionDraft):
+            raise InvalidDataError("draft must be a QuestionDraft.")
+        selected_spec = draft.specification if draft is not None else specification
+        validated = self.prepare_question(specification=selected_spec)
+        return recommend_from_draft(self._analyzer.df, validated)

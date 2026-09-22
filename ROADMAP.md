@@ -4,9 +4,9 @@ PyAutoStat's long-term aim is a single Python library for reliable, understandab
 
 | Goal | Current status | Next useful work |
 | --- | --- | --- |
-| 1. Statistical rigor | Normality and variance screens, independent group tests, effect sizes and intervals are available. | Add study-design guidance, post-hoc comparisons and multiple-testing controls. |
+| 1. Statistical rigor | Normality and variance screens, independent group tests, effect sizes, intervals and Phase 5 study-design guidance are available locally. | Add validated methods for dependent designs, post-hoc comparisons and multiple-testing controls. |
 | 2. Actionable insights | `InsightEngine` rates findings and returns recommendations for several data quality and analysis issues. | Make recommendations more specific and document their evidence and limits. |
-| 3. Automatic test selection | `hypothesis_tests(test_type="auto", estimand=...)` requires a stated mean or distribution target and selects only supported independent-group methods. | Add design validation and justified multi-group mean support in later phases. |
+| 3. Automatic test selection | `hypothesis_tests(test_type="auto", estimand=...)` selects supported independent-group methods. The separate `recommend_test()` path checks stated design and target without executing a test. | Add justified multi-group mean support and execution integration in later phases. |
 | 4. Multiple outlier methods | IQR, Z-score and MAD summaries are available. | Expose configuration and clarify behavior for highly skewed data. |
 | 5. Correlation analysis | Pearson, Spearman and Kendall matrices are available; Pearson pairs have p-values. | Add clearly defined inference for other correlation methods where appropriate. |
 | 6. Shareable analysis output | Dictionary, JSON, CSV, static HTML and optional interactive HTML exports are available. | Improve report customization and assess requirements for publication formats. |
@@ -17,4 +17,4 @@ PyAutoStat's long-term aim is a single Python library for reliable, understandab
 
 The [README](README.md) and [API reference](API_REFERENCE.md) describe shipped features. New work should include edge-case tests and update the [examples](examples/README.md) when it changes the public API.
 
-The Phase 1 `ResearchAssistant(df).profile()` facade, Phase 3 dataset intelligence, and Phase 4 `prepare_question()` intake are available locally. Question intake records unresolved research facts and serializable specifications; it does not recommend or execute a method. The [development roadmap](DEVELOPMENT_ROADMAP.md) defines the phase sequence; this older table remains a high-level summary.
+The Phase 1 `ResearchAssistant(df).profile()` facade, Phase 3 dataset intelligence, Phase 4 `prepare_question()` intake, and Phase 5 `recommend_test()` design review are available locally. Question intake records unresolved research facts; recommendation checks existing method compatibility but does not execute a test. The [development roadmap](DEVELOPMENT_ROADMAP.md) defines the phase sequence; this older table remains a high-level summary.

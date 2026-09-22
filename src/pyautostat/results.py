@@ -1,4 +1,4 @@
-"""Future-facing records only; these do not execute statistical analyses."""
+"""Serializable research records; they do not execute statistical analyses."""
 
 from __future__ import annotations
 
@@ -49,6 +49,11 @@ class Recommendation:
     missing_information: tuple[MissingInformation, ...] = ()
     blockers: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    method_availability: str | None = None
+    decision_trace: tuple[dict[str, Any], ...] = ()
+    alternatives: tuple[dict[str, Any], ...] = ()
+    context: dict[str, Any] = field(default_factory=dict)
+    questions: tuple[dict[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
         try:
@@ -63,6 +68,15 @@ class Recommendation:
             raise InvalidDataError("blockers are required when status is unsupported.")
         if any(not isinstance(item, MissingInformation) for item in self.missing_information):
             raise InvalidDataError("missing_information must contain MissingInformation records.")
+        if self.method_availability not in (None, "runnable", "coefficient_only", "unavailable"):
+            raise InvalidDataError(
+                "method_availability must be runnable, coefficient_only, unavailable, or None."
+            )
+        if self.status is RecommendationStatus.READY and self.method_availability not in (
+            None,
+            "runnable",
+        ):
+            raise InvalidDataError("A ready recommendation cannot describe an unavailable method.")
 
     def to_dict(self) -> dict[str, Any]:
         return _json_value(
@@ -76,6 +90,11 @@ class Recommendation:
                 "missing_information": [item.to_dict() for item in self.missing_information],
                 "blockers": self.blockers,
                 "warnings": self.warnings,
+                "method_availability": self.method_availability,
+                "decision_trace": self.decision_trace,
+                "alternatives": self.alternatives,
+                "context": self.context,
+                "questions": self.questions,
             }
         )
 

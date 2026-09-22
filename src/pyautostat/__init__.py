@@ -13,8 +13,10 @@ from .exceptions import (
 )
 from .insights import InsightEngine
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
+from .recommendation import MethodCapability
 from .report import ReportGenerator
 from .research_assistant import ResearchAssistant
+from .results import Recommendation, RecommendationStatus
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -32,6 +34,9 @@ __all__ = [
     "QuestionDraft",
     "QuestionStatus",
     "ClarificationQuestion",
+    "Recommendation",
+    "RecommendationStatus",
+    "MethodCapability",
     "ResearchQuestion",
     "StudyDesign",
     "Objective",

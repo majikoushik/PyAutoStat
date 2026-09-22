@@ -99,7 +99,10 @@ def show_analysis(analyzer: StatisticalAnalyzer, results: dict) -> None:
     for method in ("pearson", "spearman", "kendall"):
         print(f"  {method}: {correlation[method]['matrix']['variable_a']['variable_b']}")
     print("  Pearson p-value:", correlation["p_values"]["variable_a"]["variable_b"])
-    print("  Pairwise observed rows:", correlation["pearson"]["sample_sizes"]["variable_a"]["variable_b"])
+    print(
+        "  Pairwise observed rows:",
+        correlation["pearson"]["sample_sizes"]["variable_a"]["variable_b"],
+    )
 
     print("\nMissing-data summary:")
     missing = results["missing_data"]
@@ -173,6 +176,25 @@ def show_insights(results: dict) -> dict:
         for recommendation in insight.get("recommendation", []):
             print("    -", recommendation)
     return summary
+
+
+def show_recommendation(frame: pd.DataFrame) -> None:
+    """Show Phase 5 design review without executing a hypothesis test."""
+    heading("3a. ResearchAssistant: question and method recommendation")
+    assistant = ResearchAssistant(frame)
+    draft = assistant.prepare_question(
+        objective="compare_groups",
+        outcome="outcome",
+        predictor="group",
+        estimand="mean",
+        design="independent",
+        variable_types={"outcome": "continuous"},
+    )
+    recommendation = assistant.recommend_test(draft)
+    print("Status:", recommendation.status.value)
+    print("Method:", recommendation.method_name)
+    print("Reason:", recommendation.rationale)
+    print("Decision trace:", recommendation.to_dict()["decision_trace"])
 
 
 def show_hypothesis_tests(analyzer: StatisticalAnalyzer) -> list[dict]:
@@ -366,6 +388,7 @@ def main(argv: list[str] | None = None) -> int:
     show_analysis(analyzer, results)
     show_column_intelligence()
     summary = show_insights(results)
+    show_recommendation(frame)
     comparisons = show_hypothesis_tests(analyzer)
     associations = show_categorical_association(analyzer)
     report = ReportGenerator(results, summary, hypothesis_results=comparisons + associations)

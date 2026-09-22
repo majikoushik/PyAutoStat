@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 5 deterministic `ResearchAssistant.recommend_test()` with a small method capability registry, design checks, data-feasibility rules, structured decision traces, alternatives, assumptions and GUI-ready clarification records. It recommends existing calculations without executing them or changing the declared target; unimplemented inference stays unavailable.
 - Phase 4 research question intake with `ResearchAssistant.prepare_question()` and `update_question()`, a typed `QuestionDraft`, structured clarification questions, selected-variable availability counts, and Phase 3 metadata reuse. The builder records objectives, roles, targets, and design without selecting or executing a method.
 - Analysis specification schema version 2 for optional Phase 3 `data_dictionary` declarations; version 1 text-only `variable_metadata` and its round trips remain supported.
 

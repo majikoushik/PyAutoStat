@@ -11,6 +11,8 @@ from pyautostat import (
     InsightEngine,
     Objective,
     QuestionDraft,
+    Recommendation,
+    RecommendationStatus,
     ReportGenerator,
     ResearchAssistant,
     ResearchQuestion,
@@ -68,6 +70,35 @@ The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data
 `update_question(draft, **changes)` preserves confirmed answers, reconstructs a new draft, and leaves the old draft unchanged on invalid input. When the objective changes, it clears the previous predictor, target, and design; switching to descriptive also clears the old outcome. Supply new role selections explicitly. `profile(data_dictionary=...)` makes a copied declaration available to later question preparation; an explicit `data_dictionary` or `variable_types` correction takes precedence. The builder reuses Phase 3 variable intelligence without running full profiling, hypothesis tests, or recommendations.
 
 `ready` means Phase 4 fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired, repeated, and clustered designs can be represented even though the current analyzer does not execute them through this API.
+
+### Phase 5 method recommendation
+
+```python
+draft = assistant.prepare_question(
+    objective="compare_groups", outcome="score", predictor="group",
+    estimand="mean", design="independent",
+)
+recommendation = assistant.recommend_test(draft)
+# Alternatively: assistant.recommend_test(specification=draft.specification)
+print(recommendation.status, recommendation.method_id, recommendation.rationale)
+```
+
+`recommend_test(draft=None, *, specification=None)` accepts exactly one `QuestionDraft` or `AnalysisSpecification`. A direct specification, and any supplied draft, are revalidated against the assistant's current DataFrame and Phase 4 availability rules. No full profile or hypothesis test is run. Unknown essential information returns `needs_input` with `missing_information` and GUI-ready `questions`; a data-limited draft returns `unsupported` with its blockers. An incompatible design, target, measurement type, or hard computational requirement returns `unsupported`. `ready` means a compatible existing operation can be called later; it does not certify uncheckable assumptions.
+
+| Objective and target | Conditions | Result |
+| --- | --- | --- |
+| Description | Valid DataFrame | `dataset_profile` (`ResearchAssistant.profile()`), descriptive only |
+| Group comparison, mean | Two independent groups, quantitative outcome, at least two usable outcomes per group, representable spread | `welch_t`; Student t is an explicit, equal-variance alternative |
+| Group comparison, distribution | Two independent groups, ordered numeric outcome, at least two usable outcomes per group | `mann_whitney_u`; tied small samples have an approximation warning |
+| Group comparison, distribution | Three or more independent groups, ordered numeric outcome, at least five usable outcomes per group | `kruskal_wallis`; no post-hoc comparisons |
+| Group comparison, mean | Three or more independent groups | `unsupported`; standard one-way ANOVA is a conditional explicit option, while variance-robust Welch ANOVA is unavailable |
+| Association, linear | Two quantitative variables, independent observational pairs, at least three complete varying pairs | `pearson_correlation`, including the existing pairwise p-value when numerically valid |
+| Association, monotonic | Two varying ordered numeric variables | `unsupported` for inference; Spearman/Kendall coefficients are listed as `coefficient_only` alternatives |
+| Association, categorical independence | Two categorical variables, independent observations, at least two categories per axis, expected counts at least five in every cell | `pearson_chi_square`; sparse tables return `unsupported` |
+
+Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. Paired, repeated, and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
+
+`Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), and `questions` (Phase 4-compatible clarification dictionaries). `required_assumptions` and `context.assumption_checks` disclose researcher-confirmed facts, checkable feasibility, and conditions requiring review. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the Phase 4 specification schema; existing explicit analyzer calls remain available to experts.
 
 `to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no Phase 3 data dictionary and `schema_version: 2` when `data_dictionary` is present. Version 1 payloads round-trip unchanged; version 2 adds that field without overloading version 1's text-only `variable_metadata`. A legacy caller can keep using `variable_metadata` for descriptions. The Phase 3 dictionary is authoritative for analytical types and roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records. No recommendation, inferential result, or report is manufactured by question preparation.
 

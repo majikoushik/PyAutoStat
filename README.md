@@ -13,6 +13,7 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 - **Study relationships:** Pearson, Spearman, and Kendall correlations, with p-values for Pearson pairs.
 - **Compare independent groups:** Welch or explicit Student t-test, Mann-Whitney U, one-way ANOVA, and Kruskal-Wallis; assumption diagnostics, effect sizes, and confidence intervals. Automatic selection requires a stated target quantity.
 - **Test categorical association:** Pearson chi-square, Cramér's V, and Cohen's h for a two-by-two table with a named success outcome.
+- **Plan an analysis:** turn a completed research question into a traceable method recommendation, clarification request, or unsupported result without running a test.
 - **Share results:** severity-rated insights and dictionary, JSON, CSV, static HTML, or optional Plotly HTML reports.
 
 ## Installation
@@ -43,7 +44,7 @@ profile = ResearchAssistant(df).profile()
 print(profile["overview"])
 ```
 
-`profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Research configuration records are available for storing a question and an explicitly unknown study design; guided recommendations and research execution are planned for later phases. See the [architecture and contracts](docs/ARCHITECTURE.md).
+`profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Research configuration and method recommendation are available; a guided research execution workflow remains future work. See the [architecture and contracts](docs/ARCHITECTURE.md).
 
 ### Prepare a research question
 
@@ -55,9 +56,14 @@ draft = assistant.prepare_question(
 print(draft.status, [question.to_dict() for question in draft.questions])
 draft = assistant.update_question(draft, estimand="mean", design="independent")
 saved = draft.specification.to_dict()
+recommendation = assistant.recommend_test(draft)
+print(recommendation.status, recommendation.method_name)
+print(recommendation.rationale)
 ```
 
-`descriptive` needs no design or target. `compare_groups` requires an outcome, group column, target (`mean` or `distribution` for the common path), and confirmed design. `association` requires two columns and the relationship between observations across rows; two values in one row do not establish a paired-group design. Unknown facts stay as `needs_input` questions with stable option values; unusable selected data produce `data_limited` blockers. A `ready` draft means only that Phase 4 intake is complete and the selected data pass basic availability checks. It does not recommend a test or certify study validity. Use `data_dictionary={"score": {"type": "continuous"}}` or `variable_types={"score": "continuous"}` to correct an ambiguous type suggestion. No source values are recoded.
+`descriptive` needs no design or target. `compare_groups` requires an outcome, group column, target (`mean` or `distribution` for the common path), and confirmed design. `association` requires two columns and the relationship between observations across rows; two values in one row do not establish a paired-group design. Unknown facts stay as `needs_input` questions with stable option values; unusable selected data produce `data_limited` blockers. A `ready` draft means only that Phase 4 intake is complete and the selected data pass basic availability checks. `recommend_test()` adds method and design checks. Its `ready` status means a compatible calculation exists, not that the study's assumptions have been proven or a test has run. Use `data_dictionary={"score": {"type": "continuous"}}` or `variable_types={"score": "continuous"}` to correct an ambiguous type suggestion. No source values are recoded.
+
+For two independent quantitative groups targeting means, the recommendation is Welch's t-test. For ordered distribution comparisons it can recommend Mann-Whitney or Kruskal-Wallis. Linear numerical association can receive Pearson; adequate categorical tables can receive chi-square. Descriptive questions receive `dataset_profile`. A multi-group mean question remains unsupported without a justified explicit standard ANOVA choice. Paired, repeated, and clustered designs are unsupported by the current recommendation path. Spearman and Kendall have descriptive coefficients only, with no inferential p-values. The result records a structured decision trace, assumptions requiring review, relevant alternatives, and any missing information. [The API reference](API_REFERENCE.md) details the rules.
 
 The profile includes categorical frequencies and tied modes, missing rows and patterns, exact-duplicate overlap, advisory analytical types, outlier and distribution metadata, and pairwise observation counts for Pearson, Spearman, and Kendall. The DataFrame remains unchanged. Optional declarations and row positions stay out of the one-argument path:
 

@@ -81,6 +81,8 @@
 
 **Goal:** Recommend compatible analytical methods transparently or decline safely.
 
+**Local implementation record (2026-09-22):** `ResearchAssistant.recommend_test()` and its deterministic capability registry are implemented in the local `main` working tree, pending owner review and check-in. It revalidates Phase 4 drafts, checks design and method feasibility, and returns structured recommendations without executing tests. See `API_REFERENCE.md` and `docs/STATISTICAL_VALIDATION.md`. This record does not imply a release or CI validation.
+
 **Implement:** Explicit rule registry/decision tree keyed by objective, estimand, variable scale, group count and confirmed design. Return candidate/selected method, rationale, alternatives, diagnostics, blockers and warnings. Cover common independent means, paired means, multi-group means, rank-oriented questions, correlations and categorical association where corresponding execution exists or clearly flag planned-only execution. Define block/warn/unknown semantics and researcher override validation.
 
 **Acceptance:** Expert-reviewed table-driven scenario tests cover valid, invalid and ambiguous cases; no normality-p-value-only method switching; tests never silently substitute a different estimand; recommendations are reproducible and explainable.
