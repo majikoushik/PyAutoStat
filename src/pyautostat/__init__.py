@@ -12,6 +12,7 @@ from .exceptions import (
     ReportError,
 )
 from .insights import InsightEngine
+from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .report import ReportGenerator
 from .research_assistant import ResearchAssistant
 from .specifications import (
@@ -28,6 +29,9 @@ __author__ = "Koushik Chandra Maji"
 __all__ = [
     "StatisticalAnalyzer",
     "ResearchAssistant",
+    "QuestionDraft",
+    "QuestionStatus",
+    "ClarificationQuestion",
     "ResearchQuestion",
     "StudyDesign",
     "Objective",

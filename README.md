@@ -45,6 +45,20 @@ print(profile["overview"])
 
 `profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Research configuration records are available for storing a question and an explicitly unknown study design; guided recommendations and research execution are planned for later phases. See the [architecture and contracts](docs/ARCHITECTURE.md).
 
+### Prepare a research question
+
+```python
+assistant = ResearchAssistant(df)
+draft = assistant.prepare_question(
+    objective="compare_groups", outcome="score", predictor="group"
+)
+print(draft.status, [question.to_dict() for question in draft.questions])
+draft = assistant.update_question(draft, estimand="mean", design="independent")
+saved = draft.specification.to_dict()
+```
+
+`descriptive` needs no design or target. `compare_groups` requires an outcome, group column, target (`mean` or `distribution` for the common path), and confirmed design. `association` requires two columns and the relationship between observations across rows; two values in one row do not establish a paired-group design. Unknown facts stay as `needs_input` questions with stable option values; unusable selected data produce `data_limited` blockers. A `ready` draft means only that Phase 4 intake is complete and the selected data pass basic availability checks. It does not recommend a test or certify study validity. Use `data_dictionary={"score": {"type": "continuous"}}` or `variable_types={"score": "continuous"}` to correct an ambiguous type suggestion. No source values are recoded.
+
 The profile includes categorical frequencies and tied modes, missing rows and patterns, exact-duplicate overlap, advisory analytical types, outlier and distribution metadata, and pairwise observation counts for Pearson, Spearman, and Kendall. The DataFrame remains unchanged. Optional declarations and row positions stay out of the one-argument path:
 
 ```python

@@ -106,7 +106,7 @@ def test_invalid_names_seed_and_schema_are_rejected():
     with pytest.raises(InvalidDataError, match="random_seed"):
         AnalysisOptions(random_seed=True)
     with pytest.raises(InvalidDataError, match="schema_version"):
-        AnalysisSpecification.from_dict({"schema_version": 2})
+        AnalysisSpecification.from_dict({"schema_version": 3})
     with pytest.raises(InvalidDataError, match="variable_metadata"):
         AnalysisSpecification(variable_metadata={"score": ""})
 

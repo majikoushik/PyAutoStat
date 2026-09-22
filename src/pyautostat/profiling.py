@@ -247,6 +247,8 @@ class DatasetProfiler:
             variables[col] = {
                 "observed_dtype": str(series.dtype),
                 "suggested_type": suggested,
+                "ambiguous_numeric_category": observed == "categorical_numeric"
+                and "type" not in entry,
                 "suggested_role": role,
                 "evidence": evidence,
                 "declared": entry.copy(),
@@ -600,3 +602,14 @@ class DatasetProfiler:
                 "Inspect method availability before interpreting this result.",
             )
         results["data_quality"]["issues"] = issues
+
+
+def variable_intelligence_only(frame: pd.DataFrame, data_dictionary: Any = None) -> dict:
+    """Reuse Phase 3 hints without running full descriptive or inferential profiling."""
+
+    class _FrameHolder:
+        def __init__(self, value: pd.DataFrame) -> None:
+            self.df = value
+
+    profiler = DatasetProfiler(_FrameHolder(frame), data_dictionary, 20, False)
+    return profiler._variable_intelligence(detect_column_types(frame), suggest_column_roles(frame))

@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 4 research question intake with `ResearchAssistant.prepare_question()` and `update_question()`, a typed `QuestionDraft`, structured clarification questions, selected-variable availability counts, and Phase 3 metadata reuse. The builder records objectives, roles, targets, and design without selecting or executing a method.
+- Analysis specification schema version 2 for optional Phase 3 `data_dictionary` declarations; version 1 text-only `variable_metadata` and its round trips remain supported.
+
 - Phase 3 dataset intelligence through both profiling entry points: categorical frequencies and tied modes, analytical type/role evidence, optional validated data dictionary, row and pattern missingness, duplicate overlap, structured quality findings, per-pair correlation sample sizes, and explicit outlier/distribution metadata. Optional row positions and histogram bin count support future visual interfaces without changing source data.
 - `ResearchAssistant.complete_case_count(columns)` reports available and excluded rows for specified columns without applying a missing-data treatment.
 - Phase 1 architecture: `ResearchAssistant(df).profile()` delegates to existing profiling, and typed research configuration and future result contracts serialize to JSON-compatible dictionaries. See `docs/ARCHITECTURE.md`.

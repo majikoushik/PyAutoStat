@@ -17,4 +17,4 @@ PyAutoStat's long-term aim is a single Python library for reliable, understandab
 
 The [README](README.md) and [API reference](API_REFERENCE.md) describe shipped features. New work should include edge-case tests and update the [examples](examples/README.md) when it changes the public API.
 
-The Phase 1 `ResearchAssistant(df).profile()` facade and serializable research contracts are now available. They do not add guided method selection or research execution. The [development roadmap](DEVELOPMENT_ROADMAP.md) defines the current phase sequence; this older table remains a high-level summary.
+The Phase 1 `ResearchAssistant(df).profile()` facade, Phase 3 dataset intelligence, and Phase 4 `prepare_question()` intake are available locally. Question intake records unresolved research facts and serializable specifications; it does not recommend or execute a method. The [development roadmap](DEVELOPMENT_ROADMAP.md) defines the phase sequence; this older table remains a high-level summary.

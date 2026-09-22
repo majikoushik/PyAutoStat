@@ -12,6 +12,19 @@ print(profile["overview"])
 ```
 
 This only profiles the DataFrame. It does not recommend or execute a group test.
+To prepare a group-comparison question without running a test:
+
+```python
+assistant = ResearchAssistant(df)
+draft = assistant.prepare_question(
+    objective="compare_groups", outcome="score", predictor="group",
+    variable_types={"score": "continuous"},
+)
+print([item.field for item in draft.questions])  # estimand, design
+draft = assistant.update_question(draft, estimand="mean", design="independent")
+print(draft.status)  # ready for later design review, not an executed analysis
+```
+
 The showcase also demonstrates an optional data dictionary, row-level missingness,
 categorical summaries, and pairwise correlation sample sizes.
 

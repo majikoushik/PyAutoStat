@@ -10,6 +10,7 @@ from pyautostat import (
     AnalysisSpecification,
     InsightEngine,
     Objective,
+    QuestionDraft,
     ReportGenerator,
     ResearchAssistant,
     ResearchQuestion,
@@ -42,9 +43,33 @@ payload = spec.to_dict()
 restored = AnalysisSpecification.from_dict(payload)
 ```
 
-The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns the same dictionary as `analyze_all()`. It does not run group tests or use the research specification. `ResearchQuestion` fields may remain `None` while information is gathered. `StudyDesign.UNKNOWN` is explicit and never converted to independent. Invalid values raise `InvalidDataError` with the affected field. Data-dependent column and design checks are not part of these records yet.
+The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns the same dictionary as `analyze_all()`. `ResearchQuestion` fields may remain `None` while information is gathered. `StudyDesign.UNKNOWN` is explicit and never converted to independent.
 
-`to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1`; see [the architecture document](docs/ARCHITECTURE.md) for fields, status values, and the future result contracts. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records, but no Phase 1 workflow produces them. They have `to_dict()` only. No recommendation, inferential result, or report is manufactured from these records.
+### Phase 4 question builder
+
+```python
+draft = assistant.prepare_question(
+    objective="compare_groups", outcome="score", predictor="group"
+)
+print(draft.status)  # needs_input
+print([item.field for item in draft.questions])  # estimand, design
+draft = assistant.update_question(draft, estimand="mean", design="independent")
+assert draft.status == "ready"
+
+saved = draft.specification.to_dict()
+restored = AnalysisSpecification.from_dict(saved)
+rechecked = assistant.prepare_question(specification=restored)
+```
+
+`prepare_question()` accepts optional `objective`, `outcome`, `predictor`, `design`, `estimand`, `description`, `options`, `data_dictionary`, `variable_types`, and `specification`. Objectives are `descriptive`, `compare_groups`, and `association`. For comparison, `predictor` names the group or condition column. For association it names the second variable. A descriptive request needs none of these optional inferential details. Comparison needs both variables, target, and design. Association needs two variables and the dependence structure across rows; this is distinct from two x/y values occupying one row. `unknown` design remains unresolved. `mean` and `distribution` are distinct comparison targets. Other explicitly named targets can be recorded but later support is not guaranteed.
+
+The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data_limited`, `unsupported`), `missing_information`, `questions`, `warnings`, `blockers`, `variable_suggestions`, and `availability`. `questions` carry `field`, `question`, `explanation`, `input_type`, `required`, and options with stable `value` and display `label`; `to_dict()` is JSON-compatible. A future GUI should render these records and send selected values through `update_question()`. `availability` reports total, complete, and missing-relevant rows using Phase 3 complete-case counts. It is an availability summary, not a missing-data treatment. Declared missing codes remain ordinary observed values until the caller normalizes them. All-missing selected columns, no complete rows, and a group with fewer than two observed categories produce `data_limited` with blockers. An unsupported objective raises an actionable error; `unsupported` is reserved for future requests that cannot be represented. Constant variables produce warnings. Invalid column names and incompatible declarations raise package errors.
+
+`update_question(draft, **changes)` preserves confirmed answers, reconstructs a new draft, and leaves the old draft unchanged on invalid input. When the objective changes, it clears the previous predictor, target, and design; switching to descriptive also clears the old outcome. Supply new role selections explicitly. `profile(data_dictionary=...)` makes a copied declaration available to later question preparation; an explicit `data_dictionary` or `variable_types` correction takes precedence. The builder reuses Phase 3 variable intelligence without running full profiling, hypothesis tests, or recommendations.
+
+`ready` means Phase 4 fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired, repeated, and clustered designs can be represented even though the current analyzer does not execute them through this API.
+
+`to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no Phase 3 data dictionary and `schema_version: 2` when `data_dictionary` is present. Version 1 payloads round-trip unchanged; version 2 adds that field without overloading version 1's text-only `variable_metadata`. A legacy caller can keep using `variable_metadata` for descriptions. The Phase 3 dictionary is authoritative for analytical types and roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records. No recommendation, inferential result, or report is manufactured by question preparation.
 
 ## `StatisticalAnalyzer`
 

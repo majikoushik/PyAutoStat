@@ -69,6 +69,8 @@
 
 **Goal:** Capture the smallest scientifically adequate analysis specification.
 
+**Local implementation record (2026-09-22):** The Phase 4 question builder is implemented in the local `main` working tree, pending owner review and check-in. It captures objectives, roles, target, design, declarations, missing questions, and selected-data availability without method recommendation. See `API_REFERENCE.md` for the current API. This record does not imply a release or CI validation.
+
 **Implement:** Objectives (descriptive, group comparison, association initially); explicit outcome/group/predictor roles; estimand and unit of analysis when material; design types (independent, paired, clustered/unsupported); alpha and planned/exploratory status; configuration save/load; user-friendly validation. Use DataFrame metadata to suggest, never certify, roles. Return concise machine-readable requests for unresolved essentials and preserve expert overrides.
 
 **Acceptance:** Common specifications need only a few arguments; unknown pairing/design is not invented; invalid combinations give actionable feedback; round-trip configuration is stable; no terminal prompt required.

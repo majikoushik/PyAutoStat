@@ -10,6 +10,7 @@ from typing import Any
 from .exceptions import InvalidDataError
 
 SCHEMA_VERSION = 1
+QUESTION_SCHEMA_VERSION = 2
 
 
 class Objective(str, Enum):
@@ -136,6 +137,7 @@ class AnalysisSpecification:
     design: StudyDesign = StudyDesign.UNKNOWN
     options: AnalysisOptions = field(default_factory=AnalysisOptions)
     variable_metadata: dict[str, str] | None = None
+    data_dictionary: dict[str, dict[str, Any]] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.question, ResearchQuestion):
@@ -154,32 +156,54 @@ class AnalysisSpecification:
                 if value is None:
                     raise InvalidDataError("variable_metadata values must be non-empty strings.")
             object.__setattr__(self, "variable_metadata", self.variable_metadata.copy())
+        if self.data_dictionary is not None:
+            if not isinstance(self.data_dictionary, dict) or any(
+                not isinstance(key, str) or not key.strip() or not isinstance(value, dict)
+                for key, value in self.data_dictionary.items()
+            ):
+                raise InvalidDataError(
+                    "data_dictionary must map column names to metadata mappings."
+                )
+            object.__setattr__(self, "data_dictionary", _json_value(self.data_dictionary))
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": SCHEMA_VERSION,
+        payload = {
+            "schema_version": QUESTION_SCHEMA_VERSION
+            if self.data_dictionary is not None
+            else SCHEMA_VERSION,
             "question": self.question.to_dict(),
             "design": self.design.value,
             "options": self.options.to_dict(),
             "variable_metadata": _json_value(self.variable_metadata),
         }
+        if self.data_dictionary is not None:
+            payload["data_dictionary"] = _json_value(self.data_dictionary)
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AnalysisSpecification:
         if (
             not isinstance(data, dict)
             or type(data.get("schema_version")) is not int
-            or data["schema_version"] != SCHEMA_VERSION
+            or data["schema_version"] not in (SCHEMA_VERSION, QUESTION_SCHEMA_VERSION)
         ):
             raise InvalidDataError(
-                f"schema_version must be {SCHEMA_VERSION} for this specification."
+                f"schema_version must be {SCHEMA_VERSION} or "
+                f"{QUESTION_SCHEMA_VERSION} for this specification."
             )
+        if data["schema_version"] == SCHEMA_VERSION and "data_dictionary" in data:
+            raise InvalidDataError("data_dictionary requires schema_version 2.")
+        if data["schema_version"] == QUESTION_SCHEMA_VERSION and not isinstance(
+            data.get("data_dictionary"), dict
+        ):
+            raise InvalidDataError("schema_version 2 requires a data_dictionary mapping.")
         try:
             return cls(
                 question=ResearchQuestion.from_dict(data["question"]),
                 design=data["design"],
                 options=AnalysisOptions.from_dict(data["options"]),
                 variable_metadata=data.get("variable_metadata"),
+                data_dictionary=data.get("data_dictionary"),
             )
         except (KeyError, TypeError) as exc:
             raise InvalidDataError(
