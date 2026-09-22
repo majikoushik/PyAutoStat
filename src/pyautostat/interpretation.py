@@ -396,17 +396,31 @@ class InterpretationEngine:
         expected_effect = _METHODS[method][1]
         effect = values.get("effect_size")
         effect_value = _finite(effect.get("value")) if isinstance(effect, dict) else None
+        is_mean_test = method in {"welch_t", "student_t"}
+        if estimate is None:
+            partial = True
+            warnings.append("The primary estimate is unavailable or nonfinite.")
         if (
-            estimate is None
-            or effect_value is None
-            or not isinstance(effect, dict)
+            not isinstance(effect, dict)
             or effect.get("name") != expected_effect
+            or effect_value is None
         ):
+            effect_value = None
+            partial = True
+            warnings.append("The method-specific effect measure is unavailable or invalid.")
+        if (
+            is_mean_test
+            and estimate is not None
+            and effect_value is not None
+            and ((estimate > 0) != (effect_value > 0) or (estimate < 0) != (effect_value < 0))
+        ):
+            effect_value = None
             partial = True
             warnings.append(
-                "The primary estimate or method-specific effect measure is "
-                "unavailable or inconsistent."
+                "Cohen's d has a direction inconsistent with the recorded mean difference; "
+                "its interpretation is unavailable."
             )
+        if not is_mean_test and effect_value is None:
             estimate = None
         if estimate is not None and (
             (method in _NONNEGATIVE and estimate < 0)
@@ -419,7 +433,7 @@ class InterpretationEngine:
         if (
             estimate is not None
             and effect_value is not None
-            and method not in {"welch_t", "student_t"}
+            and not is_mean_test
             and not math.isclose(estimate, effect_value, rel_tol=1e-10, abs_tol=1e-12)
         ):
             partial = True
@@ -489,7 +503,7 @@ class InterpretationEngine:
             _finding(findings, "p_value_unavailable", hypothesis, "values.p_value")
 
         effect_text: str | None = None
-        if estimate is not None and effect_value is not None:
+        if estimate is not None or (is_mean_test and effect_value is not None):
             name = values.get("estimate_name")
             if not isinstance(name, str) or not name:
                 partial = True
@@ -497,38 +511,84 @@ class InterpretationEngine:
             else:
                 unit = values.get("estimate_unit")
                 unit_text = f" {unit}" if isinstance(unit, str) and unit.strip() else ""
-                direction = "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
-                if method in {"welch_t", "student_t"}:
-                    direction_note = (
-                        "The first group's observed mean was higher."
-                        if estimate > 0
-                        else "The first group's observed mean was lower."
-                        if estimate < 0
-                        else "The observed group means were equal."
+                if is_mean_test:
+                    if estimate is not None:
+                        direction = (
+                            "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
+                        )
+                        direction_note = (
+                            "The first group's observed mean was higher."
+                            if estimate > 0
+                            else "The first group's observed mean was lower."
+                            if estimate < 0
+                            else "The observed group means were equal."
+                        )
+                        effect_text = (
+                            f"The estimated {name} ({contrast}) was {_fmt(estimate)}{unit_text}. "
+                            f"{direction_note}"
+                        )
+                        _finding(
+                            findings,
+                            f"estimate_{direction}",
+                            effect_text,
+                            "values.primary_estimate",
+                            "metadata.contrast",
+                        )
+                    if effect_value is not None:
+                        d_text = (
+                            f"Cohen's d was {_fmt(effect_value)} "
+                            "(first minus second, divided by the pooled sample SD)."
+                        )
+                        effect_text = f"{effect_text} {d_text}" if effect_text else d_text
+                        _finding(
+                            findings,
+                            "standardized_effect_reported",
+                            d_text,
+                            "values.effect_size",
+                            "metadata.contrast",
+                        )
+                    else:
+                        _finding(
+                            findings,
+                            "effect_unavailable",
+                            "Cohen's d is unavailable or inconsistent.",
+                            "values.effect_size",
+                        )
+                elif (
+                    estimate is not None and effect_value is not None and method == "mann_whitney_u"
+                ):
+                    direction = (
+                        "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
                     )
-                    effect_text = (
-                        f"The estimated {name} ({contrast}) was {_fmt(estimate)}{unit_text}. "
-                        f"{direction_note} "
-                        f"Cohen's d was {_fmt(effect_value)} "
-                        "(first minus second, divided by the pooled sample SD)."
-                    )
-                elif method == "mann_whitney_u":
                     effect_text = (
                         f"Rank-biserial correlation ({contrast}) was {_fmt(estimate)}. "
                         "Its sign describes the observed rank ordering; "
                         "it is not a median difference."
                     )
-                elif method == "one_way_anova":
+                elif (
+                    estimate is not None and effect_value is not None and method == "one_way_anova"
+                ):
+                    direction = "positive" if estimate > 0 else "zero"
                     effect_text = (
                         f"Eta-squared was {_fmt(estimate)}, the reported sample proportion of "
                         "variance associated with group membership."
                     )
-                elif method == "kruskal_wallis":
+                elif (
+                    estimate is not None and effect_value is not None and method == "kruskal_wallis"
+                ):
+                    direction = "positive" if estimate > 0 else "zero"
                     effect_text = (
                         f"Epsilon-squared was {_fmt(estimate)}, "
                         "the reported truncated rank effect measure."
                     )
-                elif method == "pearson_correlation":
+                elif (
+                    estimate is not None
+                    and effect_value is not None
+                    and method == "pearson_correlation"
+                ):
+                    direction = (
+                        "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
+                    )
                     effect_text = (
                         f"Pearson r was {_fmt(estimate)}, indicating "
                         f"{direction} linear association in the analyzed observations."
@@ -536,20 +596,22 @@ class InterpretationEngine:
                         else "The observed Pearson r was zero; this does not establish "
                         "population independence."
                     )
-                else:
+                elif estimate is not None and effect_value is not None:
+                    direction = "positive" if estimate > 0 else "zero"
                     effect_text = (
                         f"Cramer's V was {_fmt(estimate)}, a nonnegative measure of categorical "
                         "association without a direction."
                     )
-                _finding(
-                    findings,
-                    f"estimate_{direction}"
-                    if method not in _NONNEGATIVE
-                    else "estimate_nonnegative",
-                    effect_text,
-                    "values.primary_estimate",
-                    "values.effect_size",
-                )
+                if not is_mean_test and effect_text is not None:
+                    _finding(
+                        findings,
+                        f"estimate_{direction}"
+                        if method not in _NONNEGATIVE
+                        else "estimate_nonnegative",
+                        effect_text,
+                        "values.primary_estimate",
+                        "values.effect_size",
+                    )
         else:
             _finding(
                 findings,
@@ -561,7 +623,13 @@ class InterpretationEngine:
         if method in {"welch_t", "student_t"} and isinstance(effect, dict):
             effect_interval = effect.get("confidence_interval")
             if effect_interval is not None:
-                if not isinstance(effect_interval, dict):
+                if effect_value is None:
+                    partial = True
+                    warnings.append(
+                        "The standardized-effect interval cannot be interpreted "
+                        "without a valid Cohen's d."
+                    )
+                elif not isinstance(effect_interval, dict):
                     partial = True
                     warnings.append("The standardized-effect interval has an invalid structure.")
                 else:
@@ -573,10 +641,15 @@ class InterpretationEngine:
                         or effect_high is None
                         or effect_level is None
                         or not 0 < effect_level < 1
+                        or not math.isclose(
+                            effect_level,
+                            result.specification.options.confidence_level,
+                            abs_tol=1e-12,
+                        )
                         or effect_low > effect_high
                         or effect_interval.get("quantity") != expected_effect
-                        or effect_value is None
-                        or not effect_low <= effect_value <= effect_high
+                        or effect_interval.get("method")
+                        != "independent within-group percentile bootstrap"
                     ):
                         partial = True
                         warnings.append("The standardized-effect interval needs review.")
@@ -610,20 +683,33 @@ class InterpretationEngine:
             high = _finite(interval.get("upper"))
             level = _finite(interval.get("level"))
             quantity = interval.get("quantity")
+            expected_method = (
+                "analytical t interval"
+                if is_mean_test
+                else "observation-row percentile bootstrap"
+                if method == "pearson_chi_square"
+                else "independent within-group percentile bootstrap"
+                if method in {"mann_whitney_u", "one_way_anova", "kruskal_wallis"}
+                else None
+            )
             if (
                 low is None
                 or high is None
                 or level is None
                 or not 0 < level < 1
+                or not math.isclose(
+                    level, result.specification.options.confidence_level, abs_tol=1e-12
+                )
                 or low > high
                 or quantity != values.get("estimate_name")
-                or estimate is None
-                or not low <= estimate <= high
+                or expected_method is None
+                or interval.get("method") != expected_method
+                or (is_mean_test and (estimate is None or not low <= estimate <= high))
             ):
                 partial = True
                 warnings.append(
-                    "The reported interval has invalid bounds, quantity, "
-                    "or coverage of its estimate; review it."
+                    "The reported interval has invalid bounds, level, quantity, method, "
+                    "or analytical estimate coverage; review it."
                 )
                 _finding(
                     findings,

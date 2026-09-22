@@ -250,8 +250,94 @@ def test_missing_effect_is_partial_and_does_not_invent_magnitude(group_case):
     _, assistant, result = group_case
     interpretation = assistant.interpret(_with_values(result, effect_size=None))
     assert interpretation.status is InterpretationStatus.PARTIAL
-    assert interpretation.effect_interpretation is None
+    assert "estimated mean difference" in interpretation.effect_interpretation
+    assert "Cohen's d was" not in interpretation.effect_interpretation
+    assert "estimate_negative" in _codes(interpretation)
     assert "effect_unavailable" in _codes(interpretation)
+    assert interpretation.metadata["primary_estimate"] == result.values["primary_estimate"]
+    assert "mean difference" in interpretation.uncertainty_interpretation
+
+
+def test_percentile_bootstrap_effect_interval_may_exclude_point_estimate(group_case):
+    _, assistant, result = group_case
+    values = deepcopy(result.values)
+    d = values["effect_size"]["value"]
+    values["effect_size"]["confidence_interval"]["lower"] = d + 0.5
+    values["effect_size"]["confidence_interval"]["upper"] = d + 1.0
+    interpretation = assistant.interpret(replace(result, values=values))
+    assert interpretation.status is InterpretationStatus.AVAILABLE
+    assert "effect_interval_reported" in _codes(interpretation)
+    assert "bootstrap interval" in interpretation.effect_interpretation
+    assert not any(
+        "standardized-effect interval needs review" in x for x in interpretation.warnings
+    )
+
+
+def test_percentile_bootstrap_primary_interval_may_exclude_point_estimate(group_case):
+    _, assistant, _ = group_case
+    result = assistant.analyze(
+        assistant.prepare_question(
+            objective="compare_groups",
+            outcome="score",
+            predictor="group",
+            estimand="distribution",
+            design="independent",
+            variable_types={"score": "continuous"},
+        )
+    )
+    values = deepcopy(result.values)
+    estimate = values["primary_estimate"]
+    values["confidence_interval"]["lower"] = estimate + 0.25
+    values["confidence_interval"]["upper"] = estimate + 0.5
+    interpretation = assistant.interpret(replace(result, values=values))
+    assert interpretation.status is InterpretationStatus.AVAILABLE
+    assert interpretation.metadata["confidence_interval"]["lower"] == estimate + 0.25
+    assert (
+        "interval_reported" in _codes(interpretation)
+        or "interval_includes_null" in _codes(interpretation)
+        or "interval_excludes_null" in _codes(interpretation)
+    )
+
+
+def test_conflicting_mean_difference_and_cohen_d_directions_are_flagged(group_case):
+    _, assistant, result = group_case
+    values = deepcopy(result.values)
+    values["effect_size"]["value"] = abs(values["effect_size"]["value"])
+    interpretation = assistant.interpret(replace(result, values=values))
+    assert interpretation.status is InterpretationStatus.PARTIAL
+    assert "estimated mean difference" in interpretation.effect_interpretation
+    assert "Cohen's d was" not in interpretation.effect_interpretation
+    assert "estimate_negative" in _codes(interpretation)
+    assert "effect_unavailable" in _codes(interpretation)
+    assert any("direction inconsistent" in warning for warning in interpretation.warnings)
+
+
+def test_cohen_d_can_be_reported_when_raw_mean_difference_is_missing(group_case):
+    _, assistant, result = group_case
+    interpretation = assistant.interpret(_with_values(result, primary_estimate=None))
+    assert interpretation.status is InterpretationStatus.PARTIAL
+    assert "Cohen's d was" in interpretation.effect_interpretation
+    assert "estimated mean difference" not in interpretation.effect_interpretation
+    assert "standardized_effect_reported" in _codes(interpretation)
+    assert interpretation.metadata["primary_estimate"] is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("method", "unknown bootstrap method"),
+        ("level", 0.9),
+    ],
+)
+def test_bootstrap_interval_requires_recorded_method_and_level(group_case, field, value):
+    _, assistant, result = group_case
+    values = deepcopy(result.values)
+    values["effect_size"]["confidence_interval"][field] = value
+    interpretation = assistant.interpret(replace(result, values=values))
+    assert interpretation.status is InterpretationStatus.PARTIAL
+    assert any("standardized-effect interval needs review" in x for x in interpretation.warnings)
+    assert "effect_interval_reported" not in _codes(interpretation)
+    assert "mean difference" in interpretation.uncertainty_interpretation
 
 
 def test_mann_whitney_interprets_ranks_without_median_claim(group_case):
@@ -291,7 +377,7 @@ def test_kruskal_is_omnibus_and_does_not_name_pairwise_difference():
     assert interpretation.method_id == "kruskal_wallis"
     assert "epsilon-squared" in interpretation.effect_interpretation.lower()
     assert any("does not identify specific" in item for item in interpretation.limitations)
-    assert interpretation.status is InterpretationStatus.PARTIAL
+    assert interpretation.status is InterpretationStatus.AVAILABLE
 
 
 @pytest.mark.parametrize("association", [1, -1, 0])
@@ -458,7 +544,7 @@ def test_diagnostics_and_source_warnings_are_preserved(group_case):
     ("field", "value", "expected"),
     [
         ("test_statistic", None, "test statistic"),
-        ("primary_estimate", float("inf"), "effect"),
+        ("primary_estimate", float("inf"), "primary estimate"),
         ("estimate_name", None, "named quantity"),
     ],
 )
