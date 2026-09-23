@@ -1,5 +1,16 @@
 # Phase 9: observed decisions, audit, and explicit replay
 
+Phase 10 calls these same facilities from `ResearchAssistant.run()`. With tracking enabled before
+the call, a successful raw-input workflow records one each of question preparation,
+recommendation, execution, interpretation, report, and audit. The internal revalidation performed
+by execution is not recorded as a second recommendation or user decision. Supplying an existing
+draft/specification does not fabricate its earlier preparation history.
+
+`workflow.reproducibility` is created from the already computed result. This captures settings and
+an optional fingerprint but never calls `reproduce()`. Default report auditing renders all four
+formats in memory and can therefore cost more than `audit=False`; it still performs no statistical
+recalculation. No ledger, report, record, or audit is automatically saved.
+
 Phase 9 adds optional local tracking and separate read-only consistency checks. It does not change the Phase 6 calculations, Phase 7 rules, or Phase 8 report schema. An audit pass means only that implemented checks found no discrepancy in the inspected records and exports. It does not validate study design, raw data authenticity, causal claims, or preregistration.
 
 ## Small workflow

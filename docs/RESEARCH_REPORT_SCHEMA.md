@@ -1,5 +1,12 @@
 # Phase 8 research report schema
 
+Phase 10 exposes this unchanged schema through `workflow.report`. The report is built once from
+`workflow.analysis` and `workflow.interpretation`; `run()` does not introduce another report
+format. Default workflow auditing renders the four existing formats in memory and compares them
+with the canonical report. An audit failure changes the workflow status to `failed` while leaving
+the report and findings inspectable. `audit=False` leaves `workflow.audit` as `None` and makes the
+workflow partial. File output still requires an explicit `ResearchReport.save_*` call.
+
 `ResearchAssistant.report(result, interpretation=None, title=None, include_figures=False)` returns a `ResearchReport`. It captures a JSON-safe snapshot without rerunning a test or writing a file. `report.to_dict()` returns a defensive copy. Schema version is 1.
 
 | Field | Source and meaning |

@@ -18,6 +18,7 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 - **Interpret a result:** `ResearchAssistant.interpret(result)` explains evidence, effect estimates, intervals, assumptions, and limitations using deterministic rules and coded findings.
 - **Build a research report:** `ResearchAssistant.report(result)` creates one structured report with static HTML, Markdown, JSON, and CSV table exports.
 - **Trace and check results:** optional local decision tracking records observed workflow events; `ResearchAssistant.audit(report)` checks a report and its exports; an explicit replay compares results using separately supplied data.
+- **Run the controlled workflow:** `ResearchAssistant.run()` connects question intake, recommendation, one execution, deterministic interpretation, reporting, auditing, and reproducibility metadata without writing files.
 - **Share results:** severity-rated insights and dictionary, JSON, CSV, static HTML, or optional Plotly HTML reports.
 
 ## Installation
@@ -54,7 +55,44 @@ print(profile["overview"])
 
 `profile()` returns the same dictionary as `StatisticalAnalyzer(df).analyze_all()`. Guided question preparation, recommendation, execution, interpretation, and general research reports are available. See the [architecture and contracts](docs/ARCHITECTURE.md).
 
-### Prepare a research question
+### Run a guided analysis
+
+```python
+assistant = ResearchAssistant(df)
+workflow = assistant.run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="group",
+    estimand="mean",
+    design="independent",
+    variable_types={"score": "continuous"},
+)
+print(workflow.status, workflow.analysis.method_id)
+print(workflow.interpretation.summary)
+print(workflow.audit.status)
+
+# Writing remains explicit:
+workflow.report.save_html("research_report.html")
+```
+
+The common path recommends and executes the supported method once, then passes the same result to
+interpretation, reporting, audit, and reproducibility metadata. `run()` itself writes no files and
+does not replay an analysis. If a design fact is missing, `workflow.status` is `needs_input`,
+`workflow.missing_information` explains what is needed, and no test runs:
+
+```python
+incomplete = assistant.run(
+    objective="compare_groups", outcome="score", predictor="group", estimand="mean",
+    variable_types={"score": "continuous"},
+)
+revised = assistant.update_question(incomplete.draft, design="independent")
+workflow = assistant.run(draft=revised)
+```
+
+See the [controlled MVP contract and support matrix](docs/CONTROLLED_MVP.md) for statuses,
+supported methods, failure modes, privacy limits, and researcher responsibilities.
+
+### Configure stages directly
 
 ```python
 assistant = ResearchAssistant(df)
@@ -163,6 +201,7 @@ Add `--skip-interactive` if you want only JSON, CSV, and static HTML. For your o
 
 - [API reference](https://github.com/majikoushik/PyAutoStat/blob/main/API_REFERENCE.md): public methods, parameters, return values, and errors.
 - [Examples guide](https://github.com/majikoushik/PyAutoStat/blob/main/examples/README.md): complete runnable showcase and output files.
+- [Controlled MVP](docs/CONTROLLED_MVP.md): integrated workflow, method support, blockers, and failure modes.
 - [Changelog](https://github.com/majikoushik/PyAutoStat/blob/main/CHANGELOG.md): shipped changes.
 - [Roadmap](https://github.com/majikoushik/PyAutoStat/blob/main/ROADMAP.md): product goals and current status.
 

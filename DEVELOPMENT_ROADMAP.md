@@ -139,6 +139,12 @@
 
 ### Phase 10 — Integrated Research Assistant: controlled MVP
 
+**Local implementation record (2026-09-23):** `ResearchAssistant.run()` now composes the Phase
+4–9 contracts into one structured workflow with explicit clarification, data-limited,
+unsupported, partial, completed, and failed outcomes. It performs one statistical execution,
+audits by default, creates metadata-only reproducibility information without replay, and writes no
+files. See `docs/CONTROLLED_MVP.md`. This uncommitted local work is not a release or CI claim.
+
 **Goal:** Turn the components into an easy, cohesive user journey.
 
 **Implement:** Refine `ResearchAssistant` quick-profile, guided `recommend`/`analyze` and `report` workflows, informative blockers, examples, docs, error messages, release checks, and consistent interfaces. Validate whole workflows, compatibility and audit/report integration. Define supported cases clearly.

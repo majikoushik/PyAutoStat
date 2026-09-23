@@ -1,5 +1,27 @@
 # Architecture and Phase 1 contracts
 
+## Phase 10 orchestration boundary
+
+`ResearchAssistant.run()` is a thin coordinator over the established components. It creates or
+revalidates one `QuestionDraft`, asks the Phase 5 registry for one recommendation, calls the Phase
+6 execution path once, and passes the resulting `AnalysisResult` unchanged to Phase 7
+interpretation, Phase 8 reporting, and Phase 9 audit/reproducibility functions. It contains no
+statistical formula, p-value rule, interval rule, or report renderer.
+
+`ResearchWorkflowResult` is an additive schema version 1 container. Its object graph holds the
+existing models rather than alternate copies of their logic. A stopped stage has `None` for all
+downstream objects. The source DataFrame remains inside the assistant's validated private copy and
+is never a workflow-result field. Existing specification versions 1/2, analysis contracts,
+interpretation serialization, report schema 1, ledger schema 1, and reproducibility schema 1 are
+unchanged.
+
+The orchestrator lets known scientific incompleteness remain structured. Invalid Python usage
+raises package exceptions; missing declarations return `needs_input`; insufficient observed data
+return `data_limited`; unsupported design/target combinations return `unsupported`; valid but
+incomplete reporting returns `partial`; numerical or audit contradictions return `failed`.
+Unexpected programming exceptions are not converted to successful statistical outcomes. See
+[`CONTROLLED_MVP.md`](CONTROLLED_MVP.md) for the public contract and support matrix.
+
 PyAutoStat has two entry points for dataset profiling. `StatisticalAnalyzer(df).analyze_all()` is the established API. `ResearchAssistant(df).profile()` calls that same method and returns the same dictionary. Construction validates and copies the DataFrame through `StatisticalAnalyzer`; calculations run on `profile()`. Neither entry point infers a research design.
 
 | Module | Responsibility |

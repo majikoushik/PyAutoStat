@@ -566,7 +566,18 @@ class StatisticalAnalyzer:
             # Z-score Method
             z_scores = None
             z_warning = False
-            if col_data.nunique() > 1:
+            numeric_values = np.asarray(col_data, dtype=float)
+            with np.errstate(over="ignore", invalid="ignore"):
+                mean_value = float(np.mean(numeric_values))
+                centered = numeric_values - mean_value
+                centered_norm = float(np.linalg.norm(centered))
+            near_constant = bool(
+                col_data.nunique() > 1
+                and np.isfinite(centered_norm)
+                and np.isfinite(mean_value)
+                and centered_norm < np.finfo(float).eps ** 0.75 * abs(mean_value)
+            )
+            if col_data.nunique() > 1 and not near_constant:
                 with warnings.catch_warnings(record=True) as caught:
                     warnings.simplefilter("always", RuntimeWarning)
                     z_scores = np.abs(stats.zscore(col_data))
@@ -575,7 +586,12 @@ class StatisticalAnalyzer:
             z_outliers = int(np.sum(z_scores > 3)) if z_valid else None
             if not z_valid:
                 self._add_warning(
-                    "undefined_result", "outliers", col, "Z-scores could not be calculated."
+                    "undefined_result",
+                    "outliers",
+                    col,
+                    "Z-scores could not be calculated at a reliable numerical scale."
+                    if near_constant
+                    else "Z-scores could not be calculated.",
                 )
             methods["z_score"] = {
                 "count": z_outliers,

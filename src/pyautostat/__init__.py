@@ -34,6 +34,7 @@ from .specifications import (
     ResearchQuestion,
     StudyDesign,
 )
+from .workflow import ResearchWorkflowResult, WorkflowStatus
 
 __version__ = "0.1.0"
 __author__ = "Koushik Chandra Maji"
@@ -41,6 +42,8 @@ __author__ = "Koushik Chandra Maji"
 __all__ = [
     "StatisticalAnalyzer",
     "ResearchAssistant",
+    "ResearchWorkflowResult",
+    "WorkflowStatus",
     "ResearchReport",
     "DecisionLedger",
     "AuditFinding",

@@ -17,9 +17,11 @@ from pyautostat import (
     RecommendationStatus,
     ReportGenerator,
     ResearchAssistant,
+    ResearchWorkflowResult,
     ResearchQuestion,
     StatisticalAnalyzer,
     StudyDesign,
+    WorkflowStatus,
     detect_column_types,
     suggest_column_roles,
 )
@@ -48,6 +50,35 @@ restored = AnalysisSpecification.from_dict(payload)
 ```
 
 The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns the same dictionary as `analyze_all()`. `ResearchQuestion` fields may remain `None` while information is gathered. `StudyDesign.UNKNOWN` is explicit and never converted to independent.
+
+### Phase 10 integrated workflow
+
+```python
+workflow = assistant.run(
+    objective="compare_groups", outcome="score", predictor="group",
+    estimand="mean", design="independent",
+    variable_types={"score": "continuous"},
+)
+```
+
+`run()` accepts the same raw question fields as `prepare_question()` plus `draft` or
+`specification` for continuation, `include_profile=False`, `audit=True`, `fingerprint=True`,
+`title=None`, and `include_figures=False`. A draft/specification is mutually exclusive with raw
+question arguments. Invalid API types and conflicting inputs raise `InvalidDataError`.
+
+`ResearchWorkflowResult` exposes `status`, `specification`, `draft`, `recommendation`, `analysis`,
+`interpretation`, `report`, `audit`, `reproducibility`, optional `profile`,
+`missing_information`, `blockers`, and `warnings`. Statuses are `completed`, `partial`,
+`needs_input`, `data_limited`, `unsupported`, and `failed`. A stage that did not run stays `None`.
+`to_dict()` and `to_json()` use workflow schema version 1, reject nonfinite JSON values, and do
+not embed the source DataFrame.
+
+The default successful path performs one Phase 6 execution. Later stages consume that result;
+reproducibility-record creation does not replay it. Default audit renders and checks HTML,
+Markdown, JSON, and CSV in memory. `audit=False` returns a partial workflow with `audit=None`.
+`include_profile=True` requests one Phase 3 profile for an inferential workflow; descriptive
+execution reuses its existing profile. No files are written. See
+[`docs/CONTROLLED_MVP.md`](docs/CONTROLLED_MVP.md) for the method and failure-mode matrices.
 
 ### Phase 4 question builder
 

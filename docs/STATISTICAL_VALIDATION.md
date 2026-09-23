@@ -1,5 +1,25 @@
 # Phase 2 statistical validation baseline
 
+## Phase 10 integration invariants
+
+The integrated workflow adds no test, effect-size calculation, or confidence-interval algorithm.
+It preserves the selected method ID and declared estimand from recommendation through execution.
+One successful `run()` invokes the Phase 6 execution path once; interpretation, reporting, audit,
+and reproducibility metadata operate on the resulting object. Normality and variance diagnostics
+cannot redirect a mean target to a rank target.
+
+Recommendation-stage failures caused by observed sample limitations are surfaced as
+`data_limited`; incompatible designs and unsupported scientific targets are `unsupported`.
+Paired, repeated, and clustered designs never enter the independent backends. An execution that
+returns an unavailable numerical result yields a failed workflow and no successful report.
+
+The current environment exposed one baseline consistency issue: SciPy could return finite
+Z-scores for a large-offset series whose variation was already considered numerically near
+constant by correlation inference. Z-score outlier detection now applies the same scale-aware
+floating-point threshold (`eps**0.75` relative to the mean magnitude) before reporting a count.
+Near-constant values yield an unavailable count and an explicit warning. Ordinary finite varying
+series continue to use SciPy's implementation; warnings and nonfinite results remain rejected.
+
 This is an audit of the methods in the current analyzer, not a claim that any method fits a particular study. All inferential comparisons require independent observations supplied by the study design; the package cannot infer independence, pairing, randomization, or causality from values. Group and outcome rows with missing values are excluded per analysis and counted. No outlier is removed. All-missing columns have unavailable outlier counts, not zero counts.
 
 ## Method inventory and decisions

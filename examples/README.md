@@ -1,5 +1,17 @@
 # Run the complete example
 
+For the shortest Phase 10 path, run:
+
+```bash
+python examples/integrated_workflow_example.py
+```
+
+It uses a synthetic examination-score dataset to show a one-call profile, a `needs_input` design
+question, immutable draft continuation, Welch execution, interpretation, report audit, and
+reproducibility metadata. It writes no files. Use `workflow.report.save_html(path)` or another
+Phase 8 save method when an explicit export is wanted. The exact support and failure-mode matrices
+are in [`docs/CONTROLLED_MVP.md`](../docs/CONTROLLED_MVP.md).
+
 For a minimal profile:
 
 ```python

@@ -29,6 +29,7 @@ from .specifications import (
     ResearchQuestion,
     StudyDesign,
 )
+from .workflow import ResearchWorkflowResult, WorkflowStatus
 
 
 class ResearchAssistant:
@@ -92,6 +93,216 @@ class ResearchAssistant:
     def complete_case_count(self, columns: list[str]) -> dict:
         """Count rows available for a specified set of columns."""
         return complete_case_count(self._analyzer.df, columns)
+
+    def run(
+        self,
+        *,
+        objective: str | Objective | None = None,
+        outcome: str | None = None,
+        predictor: str | None = None,
+        design: str | StudyDesign | None = None,
+        estimand: str | None = None,
+        description: str | None = None,
+        options: AnalysisOptions | None = None,
+        data_dictionary: dict | None = None,
+        variable_types: dict[str, str] | None = None,
+        draft: QuestionDraft | None = None,
+        specification: AnalysisSpecification | None = None,
+        include_profile: bool = False,
+        audit: bool = True,
+        fingerprint: bool = True,
+        title: str | None = None,
+        include_figures: bool = False,
+    ) -> ResearchWorkflowResult:
+        """Run one supported workflow or return the exact information needed next.
+
+        Scientific design facts are never inferred. Supplying a draft or specification
+        is mutually exclusive with raw question arguments. No files are written and no
+        reproduction is attempted.
+        """
+        for name, value in (
+            ("include_profile", include_profile),
+            ("audit", audit),
+            ("fingerprint", fingerprint),
+            ("include_figures", include_figures),
+        ):
+            if not isinstance(value, bool):
+                raise InvalidDataError(f"{name} must be a Boolean.")
+        if draft is not None and specification is not None:
+            raise InvalidDataError("Provide either draft or specification, not both.")
+        raw_values = (
+            objective,
+            outcome,
+            predictor,
+            design,
+            estimand,
+            description,
+            options,
+            data_dictionary,
+            variable_types,
+        )
+        if (draft is not None or specification is not None) and any(
+            value is not None for value in raw_values
+        ):
+            raise InvalidDataError(
+                "A supplied draft or specification cannot be combined with raw question "
+                "arguments. Update the draft explicitly before running it."
+            )
+        if draft is not None:
+            if not isinstance(draft, QuestionDraft):
+                raise InvalidDataError("draft must be a QuestionDraft.")
+            selected = prepare_question(self._analyzer.df, specification=draft.specification)
+        elif specification is not None:
+            selected = prepare_question(self._analyzer.df, specification=specification)
+        else:
+            selected = self.prepare_question(
+                objective=objective,
+                outcome=outcome,
+                predictor=predictor,
+                design=design,
+                estimand=estimand,
+                description=description,
+                options=options,
+                data_dictionary=data_dictionary,
+                variable_types=variable_types,
+            )
+
+        profile = None
+        is_descriptive = selected.specification.question.objective is Objective.DESCRIPTIVE
+        if include_profile and not is_descriptive:
+            profile = self.profile(data_dictionary=selected.specification.data_dictionary)
+
+        def stop(
+            status: WorkflowStatus,
+            *,
+            recommendation: Recommendation | None = None,
+            analysis: AnalysisResult | None = None,
+            missing_information=(),
+            blockers=(),
+            warnings=(),
+        ) -> ResearchWorkflowResult:
+            return ResearchWorkflowResult(
+                status=status,
+                specification=selected.specification,
+                draft=selected,
+                recommendation=recommendation,
+                analysis=analysis,
+                profile=profile,
+                missing_information=tuple(missing_information),
+                blockers=tuple(blockers),
+                warnings=tuple(dict.fromkeys(warnings)),
+            )
+
+        if selected.status.value == "needs_input":
+            return stop(
+                WorkflowStatus.NEEDS_INPUT,
+                missing_information=selected.missing_information,
+                warnings=selected.warnings,
+            )
+        if selected.status.value == "data_limited":
+            return stop(
+                WorkflowStatus.DATA_LIMITED,
+                blockers=selected.blockers,
+                warnings=selected.warnings,
+            )
+        if selected.status.value == "unsupported":
+            return stop(
+                WorkflowStatus.UNSUPPORTED,
+                blockers=selected.blockers,
+                warnings=selected.warnings,
+            )
+
+        recommendation = self.recommend_test(selected)
+        if recommendation.status.value == "needs_input":
+            return stop(
+                WorkflowStatus.NEEDS_INPUT,
+                recommendation=recommendation,
+                missing_information=recommendation.missing_information,
+                warnings=(*selected.warnings, *recommendation.warnings),
+            )
+        if recommendation.status.value == "unsupported":
+            blocked_status = (
+                WorkflowStatus.DATA_LIMITED
+                if _is_data_limited_recommendation(recommendation)
+                else WorkflowStatus.UNSUPPORTED
+            )
+            return stop(
+                blocked_status,
+                recommendation=recommendation,
+                blockers=recommendation.blockers,
+                warnings=(*selected.warnings, *recommendation.warnings),
+            )
+
+        analysis = self.analyze(selected)
+        if analysis.status.value != "available":
+            return stop(
+                WorkflowStatus.FAILED,
+                recommendation=recommendation,
+                analysis=analysis,
+                blockers=analysis.warnings
+                or ("The selected method could not produce a usable numerical result.",),
+                warnings=(*selected.warnings, *recommendation.warnings, *analysis.warnings),
+            )
+
+        interpretation = self.interpret(analysis)
+        report = self.report(
+            analysis,
+            interpretation=interpretation,
+            title=title,
+            include_figures=include_figures,
+        )
+        audit_result = self.audit(report, result=analysis) if audit else None
+        reproducibility = self.reproducibility_record(analysis, fingerprint=fingerprint)
+        if is_descriptive:
+            profile_value = analysis.values.get("profile")
+            profile = profile_value if isinstance(profile_value, dict) else None
+
+        warnings = list(
+            dict.fromkeys(
+                [
+                    *selected.warnings,
+                    *recommendation.warnings,
+                    *analysis.warnings,
+                    *interpretation.warnings,
+                    *report.to_dict()["warnings"],
+                    *reproducibility.to_dict().get("warnings", []),
+                ]
+            )
+        )
+        blockers: tuple[str, ...] = ()
+        if audit_result is not None and audit_result.status == "failed":
+            status = WorkflowStatus.FAILED
+            blockers = tuple(finding.explanation for finding in audit_result.findings)
+        elif interpretation.status.value == "unavailable" or report.status == "unavailable":
+            status = WorkflowStatus.FAILED
+            blockers = ("The computed result could not be interpreted into a usable report.",)
+        elif (
+            interpretation.status.value == "partial"
+            or report.status == "partial"
+            or audit_result is None
+            or audit_result.status == "incomplete"
+        ):
+            status = WorkflowStatus.PARTIAL
+            if audit_result is None:
+                warnings.append("Report auditing was disabled; no audit was performed.")
+            elif audit_result.status == "incomplete":
+                warnings.append("The report audit was incomplete; inspect its skipped checks.")
+        else:
+            status = WorkflowStatus.COMPLETED
+        return ResearchWorkflowResult(
+            status=status,
+            specification=selected.specification,
+            draft=selected,
+            recommendation=recommendation,
+            analysis=analysis,
+            interpretation=interpretation,
+            report=report,
+            audit=audit_result,
+            reproducibility=reproducibility,
+            profile=profile,
+            blockers=blockers,
+            warnings=tuple(dict.fromkeys(warnings)),
+        )
 
     def prepare_question(
         self,
@@ -386,3 +597,24 @@ def _changed_fields(before: dict[str, Any], after: dict[str, Any], prefix: str =
         elif left != right:
             fields.append(path)
     return fields
+
+
+_DATA_LIMIT_MESSAGES = (
+    "fewer than two groups",
+    "needs at least two usable outcomes",
+    "not representable at this scale",
+    "zero representable within-group variation",
+    "no observed variation",
+    "requires at least five usable observations",
+    "at least two complete, varying numeric pairs",
+    "at least three complete pairs",
+    "variation in both variables",
+    "at least two observed categories",
+    "expected cell count below 5",
+)
+
+
+def _is_data_limited_recommendation(recommendation: Recommendation) -> bool:
+    """Separate observed data insufficiency from unsupported scientific requests."""
+    messages = " ".join(recommendation.blockers).lower()
+    return any(fragment in messages for fragment in _DATA_LIMIT_MESSAGES)

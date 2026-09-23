@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 10 `ResearchAssistant.run()` and JSON-safe `ResearchWorkflowResult` integrate question intake, design blocking, recommendation, one statistical execution, deterministic interpretation, canonical reporting, default consistency audit, and reproducibility metadata. Missing information, observed data limits, unsupported requests, partial findings, and audit failures retain distinct workflow statuses; no file export or replay occurs automatically.
+- A controlled-MVP method matrix, failure-mode matrix, researcher responsibilities, and runnable profile/guided/continuation example.
 - Phase 9 optional observed-event `DecisionLedger`, content and dataset fingerprints, read-only `StatisticalResultAuditor` with actual export checks, runtime `ReproducibilityRecord`, metadata-only ZIP package, and explicit same-data replay through the existing Phase 6 engine. No raw DataFrame is included in records or packages by default.
 - Phase 8 `ResearchAssistant.report(result)` and canonical `ResearchReport` with structured Methods, Results, sample accounting, diagnostics, interpretation, limitations, optional histogram bin specifications, and deterministic HTML, Markdown, JSON, and CSV table exports. The legacy `ReportGenerator` API is retained.
 - Phase 7 deterministic `ResearchAssistant.interpret(result)`, with structured `InterpretationResult` and coded findings for executable Phase 6 methods. It reads recorded numbers, qualification flags, and intervals without recalculating or changing the original result.
@@ -49,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Treat Z-score outlier counts as unavailable when variation is below a reliable floating-point scale relative to a large offset, matching the existing near-constant correlation safeguard instead of reporting a misleading zero count.
 - Phase 7 interpretation accepts valid percentile-bootstrap intervals outside the original point estimate, preserves raw mean-difference interpretation when Cohen's d is unavailable, and flags conflicting mean-difference/d directions.
 - Phase 2 CI correction: retain finite D'Agostino-Pearson results under SciPy's advisory small-sample kurtosis warning, record approximation limits, and reject unreliable warnings or nonfinite results. Omit Anderson-Darling when its critical-value grid is invalid, including negative small-sample thresholds, with an explanatory warning.
 - Phase 2: automatic group-test selection requires a stated estimand and no longer switches from mean to rank methods after normality or variance screens. Welch is the default two-group mean method; automatic multi-group mean comparison reports unsupported.
