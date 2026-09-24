@@ -19,6 +19,8 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 - **Build a research report:** `ResearchAssistant.report(result)` creates one structured report with static HTML, Markdown, JSON, and CSV table exports.
 - **Trace and check results:** optional local decision tracking records observed workflow events; `ResearchAssistant.audit(report)` checks a report and its exports; an explicit replay compares results using separately supplied data.
 - **Run the controlled workflow:** `ResearchAssistant.run()` connects question intake, recommendation, one execution, deterministic interpretation, reporting, auditing, and reproducibility metadata without writing files.
+- **Examine declared alternatives:** `ResearchAssistant.sensitivity_analysis()` executes only the supplied scenarios, distinguishes same from different estimands, and retains unavailable and failed attempts without ranking p-values.
+- **Apply a meaningful-effect threshold:** `ResearchAssistant.practical_significance()` compares a named estimate and its available interval with a researcher-defined threshold, separately from statistical significance.
 - **Share results:** severity-rated insights and dictionary, JSON, CSV, static HTML, or optional Plotly HTML reports.
 
 ## Installation
@@ -91,6 +93,54 @@ workflow = assistant.run(draft=revised)
 
 See the [controlled MVP contract and support matrix](docs/CONTROLLED_MVP.md) for statuses,
 supported methods, failure modes, privacy limits, and researcher responsibilities.
+
+### Add explicit sensitivity and practical significance
+
+```python
+from pyautostat import MeaningfulEffectThreshold, SensitivitySpecification
+
+pooled = SensitivitySpecification(
+    name="pooled variance",
+    specification=workflow.analysis.specification,
+    method_id="student_t",
+    rationale="Assess sensitivity to the pooled-variance assumption.",
+    assumptions=("Equal population variances",),
+)
+sensitivity = assistant.sensitivity_analysis(
+    workflow.analysis, scenarios=[pooled]
+)
+
+threshold = MeaningfulEffectThreshold(
+    quantity="mean_difference",
+    minimum_magnitude=5,
+    direction="two_sided",
+    unit="points",
+    rationale="A smaller difference would not change the decision.",
+)
+practical = assistant.practical_significance(
+    workflow.analysis, threshold=threshold
+)
+report = assistant.report(
+    workflow.analysis,
+    sensitivity=sensitivity,
+    practical_significance=practical,
+)
+```
+
+Sensitivity scenarios are deliberate follow-up calls; `run()` does not create alternatives.
+Student's t-test requires an explicit equal-population-variance assumption. A requested
+Mann–Whitney analysis of rank distributions is labelled `different_estimand` relative to a Welch
+mean comparison and receives no direct estimate-change calculation. Every attempted scenario
+remains visible. There is no smallest-p-value selection, significance-majority rule, or robustness
+score.
+
+Meaningful thresholds must name an available quantity such as `mean_difference`, `cohens_d`,
+`pearson_r`, `rank_biserial`, or `cramers_v`. Point and confidence-interval relations are separate;
+missing intervals produce a partial assessment. A confidence interval inside a researcher-defined
+negligible region is descriptive and is not a formal equivalence test. Formal equivalence and
+noninferiority inference remain unsupported. See
+[the Phase 11 contract](docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md) and
+[the runnable example](examples/phase11_sensitivity_example.py).
 
 ### Configure stages directly
 
@@ -202,6 +252,7 @@ Add `--skip-interactive` if you want only JSON, CSV, and static HTML. For your o
 - [API reference](https://github.com/majikoushik/PyAutoStat/blob/main/API_REFERENCE.md): public methods, parameters, return values, and errors.
 - [Examples guide](https://github.com/majikoushik/PyAutoStat/blob/main/examples/README.md): complete runnable showcase and output files.
 - [Controlled MVP](docs/CONTROLLED_MVP.md): integrated workflow, method support, blockers, and failure modes.
+- [Sensitivity and practical significance](docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md): explicit scenarios, estimand comparison, meaningful thresholds, provenance, and limits.
 - [Changelog](https://github.com/majikoushik/PyAutoStat/blob/main/CHANGELOG.md): shipped changes.
 - [Roadmap](https://github.com/majikoushik/PyAutoStat/blob/main/ROADMAP.md): product goals and current status.
 

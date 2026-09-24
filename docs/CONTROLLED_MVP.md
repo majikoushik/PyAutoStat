@@ -83,6 +83,19 @@ sets `workflow.audit` to `None`, and makes the workflow partial. `fingerprint=Fa
 reproducibility record but omits the data fingerprint. `include_profile=True` adds one Phase 3
 profile to an inferential workflow. A descriptive workflow reuses its one executed profile.
 
+## Optional Phase 11 follow-up
+
+`run()` remains the base workflow and does not accept or generate sensitivity scenarios. After a
+successful result, callers may explicitly invoke `sensitivity_analysis()` with an ordered list of
+scenario specifications and `practical_significance()` with a researcher-defined threshold.
+These calls do not replace `workflow.analysis`. Their recorded results may be supplied to
+`report()`, `audit()`, and `reproducibility_record()` for additive Phase 11 content. The ordinary
+Phase 10 path still performs one statistical execution and produces report and reproducibility
+schema version 1.
+
+See [the Phase 11 contract](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md) for same versus different
+estimands, supported quantities, provenance, and formal-equivalence limits.
+
 ## Guided method support
 
 | Question | Required declaration | Executed method | Interpretation/report/audit | Main limit |

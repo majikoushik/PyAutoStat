@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from .exceptions import InvalidDataError, ReportError
+from .practical_significance import PracticalSignificanceResult
 from .provenance import content_reference
 from .research_report import ResearchReport, build_research_report
 from .results import AnalysisResult
+from .sensitivity import SensitivityResult
 from .specifications import _json_value
 
 
@@ -54,6 +56,16 @@ class AuditResult:
 
 
 def _code(path: str) -> str:
+    if "comparability" in path:
+        return "SENSITIVITY_COMPARABILITY_MISMATCH"
+    if "scenario_results" in path and path.endswith("length"):
+        return "SENSITIVITY_SCENARIO_OMITTED"
+    if "sensitivity" in path and "primary_estimate" in path:
+        return "SENSITIVITY_ESTIMATE_MISMATCH"
+    if "practical_significance" in path and "threshold" in path:
+        return "PRACTICAL_THRESHOLD_MISMATCH"
+    if "practical_significance" in path and "relation" in path:
+        return "PRACTICAL_RELATION_MISMATCH"
     if "p_value" in path:
         return "PVALUE_MISMATCH"
     if "test_statistic" in path:
@@ -162,13 +174,29 @@ class StatisticalResultAuditor:
         report: ResearchReport,
         *,
         result: AnalysisResult | None = None,
+        sensitivity: SensitivityResult | None = None,
+        practical_significance: PracticalSignificanceResult | None = None,
         exports: dict[str, Any] | None = None,
     ) -> AuditResult:
         if not isinstance(report, ResearchReport):
             raise InvalidDataError("audit requires a ResearchReport.")
         if result is not None and not isinstance(result, AnalysisResult):
             raise InvalidDataError("result must be an AnalysisResult when provided.")
+        if sensitivity is not None and not isinstance(sensitivity, SensitivityResult):
+            raise InvalidDataError("sensitivity must be a SensitivityResult when provided.")
+        if practical_significance is not None and not isinstance(
+            practical_significance, PracticalSignificanceResult
+        ):
+            raise InvalidDataError(
+                "practical_significance must be a PracticalSignificanceResult when provided."
+            )
         source = result if result is not None else report._source_result
+        sensitivity_source = sensitivity if sensitivity is not None else report._source_sensitivity
+        practical_source = (
+            practical_significance
+            if practical_significance is not None
+            else report._source_practical_significance
+        )
         findings: list[AuditFinding] = []
         checked: list[str] = []
         skipped: list[str] = []
@@ -183,6 +211,8 @@ class StatisticalResultAuditor:
         try:
             expected = build_research_report(
                 source,
+                sensitivity=sensitivity_source,
+                practical_significance=practical_source,
                 title=report.title,
                 include_figures=report._include_figures,
             )
@@ -210,6 +240,16 @@ class StatisticalResultAuditor:
         references["interpretation"] = content_reference(
             "interpretation", expected_payload["interpretation"]
         )
+        if sensitivity_source is not None:
+            references["sensitivity"] = content_reference(
+                "sensitivity", sensitivity_source.to_dict()
+            )
+            checked.append("sensitivity")
+        if practical_source is not None:
+            references["practical_significance"] = content_reference(
+                "practical_significance", practical_source.to_dict()
+            )
+            checked.append("practical_significance")
         _compare(expected_payload, payload, "", findings)
         checked.extend(("analysis", "interpretation", "sections", "tables", "warnings"))
 

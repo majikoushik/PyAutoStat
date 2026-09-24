@@ -12,6 +12,18 @@ reproducibility metadata. It writes no files. Use `workflow.report.save_html(pat
 Phase 8 save method when an explicit export is wanted. The exact support and failure-mode matrices
 are in [`docs/CONTROLLED_MVP.md`](../docs/CONTROLLED_MVP.md).
 
+For the Phase 11 explicit sensitivity and researcher-defined meaningful-threshold workflow, run:
+
+```bash
+python examples/phase11_sensitivity_example.py
+```
+
+It retains a pooled-variance same-estimand scenario and a Mann–Whitney different-estimand
+scenario, classifies the point estimate and interval against a five-point threshold, builds an
+optional schema 2 report, and audits it without rerunning scenarios. It writes no files and does
+not select or rank scenarios by p-value. See
+[`docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`](../docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
+
 For a minimal profile:
 
 ```python

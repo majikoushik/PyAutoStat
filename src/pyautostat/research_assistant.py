@@ -12,16 +12,33 @@ import pandas as pd
 from .analyzer import StatisticalAnalyzer
 from .audit import AuditResult, StatisticalResultAuditor
 from .decision_ledger import DecisionLedger
-from .exceptions import InvalidDataError
-from .execution import execute_specification
+from .exceptions import InvalidDataError, PyAutoStatError
+from .execution import execute_selected_method, execute_specification
 from .interpretation import InterpretationEngine, InterpretationResult
+from .practical_significance import (
+    MeaningfulEffectThreshold,
+    PracticalSignificanceResult,
+    assess_practical_significance,
+)
 from .profiling import complete_case_count
-from .provenance import content_reference
+from .provenance import content_reference, dataset_fingerprint
 from .question_builder import QuestionDraft, prepare_question
 from .recommendation import recommend_from_draft
 from .reproducibility import ReproducibilityRecord
 from .research_report import ResearchReport, build_research_report
 from .results import AnalysisResult, Recommendation
+from .sensitivity import (
+    Comparability,
+    ScenarioStatus,
+    SensitivityResult,
+    SensitivityScenarioResult,
+    SensitivitySpecification,
+    SensitivityStatus,
+    classify_comparability,
+    compare_same_estimand,
+    estimate_quantity,
+    scenario_values,
+)
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -44,6 +61,7 @@ class ResearchAssistant:
         self._data_dictionary: dict | None = None
         self._ledger: DecisionLedger | None = None
         self._planning_status = "unknown"
+        self._last_meaningful_threshold: dict[str, Any] | None = None
 
     def enable_tracking(
         self, *, clock: Callable[[], datetime | str] | None = None
@@ -518,17 +536,355 @@ class ResearchAssistant:
             )
         return interpretation
 
+    def sensitivity_analysis(
+        self,
+        result: AnalysisResult,
+        *,
+        scenarios: list[SensitivitySpecification] | tuple[SensitivitySpecification, ...],
+    ) -> SensitivityResult:
+        """Execute exactly the declared scenarios, once each, in supplied order."""
+        if not isinstance(result, AnalysisResult) or result.specification is None:
+            raise InvalidDataError("sensitivity_analysis requires a result with its specification.")
+        if result.status.value != "available":
+            raise InvalidDataError("sensitivity_analysis requires an available base result.")
+        if not isinstance(scenarios, (list, tuple)) or not scenarios:
+            raise InvalidDataError("scenarios must be a non-empty list or tuple.")
+        if any(not isinstance(item, SensitivitySpecification) for item in scenarios):
+            raise InvalidDataError("Every scenario must be a SensitivitySpecification.")
+        names = [item.name for item in scenarios]
+        if len(set(names)) != len(names):
+            raise InvalidDataError("Sensitivity scenario names must be unique.")
+        original_rows = result.metadata.get("sample", {}).get("original_rows")
+        if original_rows is not None and original_rows != len(self._analyzer.df):
+            raise InvalidDataError(
+                "The base result row count does not match this assistant's dataset."
+            )
+        fingerprint_warning = None
+        try:
+            fingerprint = dataset_fingerprint(self._analyzer.df)
+        except InvalidDataError as exc:
+            fingerprint = None
+            fingerprint_warning = f"Dataset fingerprint unavailable: {exc}"
+        base_reference = content_reference("analysis", result.to_dict())
+        plan = [item.to_dict() for item in scenarios]
+        if self._ledger is not None:
+            self._ledger._record(
+                "sensitivity_plan_created",
+                source="researcher",
+                new_state=plan,
+                references={"base_analysis": base_reference},
+                metadata={
+                    "scenario_order": names,
+                    "note": "Local planning record; not external preregistration.",
+                },
+            )
+        outputs: list[SensitivityScenarioResult] = []
+        warnings: list[str] = [fingerprint_warning] if fingerprint_warning is not None else []
+        base_spec = result.specification
+        for scenario in scenarios:
+            requested = scenario.method_id
+            if self._ledger is not None:
+                self._ledger._record(
+                    "sensitivity_scenario_attempted",
+                    source="researcher",
+                    new_state=scenario.to_dict(),
+                    references={"base_analysis": base_reference},
+                    metadata={"name": scenario.name, "planning_status": scenario.planning_status},
+                )
+            incompatible_reason = _scenario_incompatibility(base_spec, scenario.specification)
+            if incompatible_reason is not None:
+                output = SensitivityScenarioResult(
+                    name=scenario.name,
+                    specification=scenario,
+                    requested_method_id=requested,
+                    method_id=None,
+                    status=ScenarioStatus.INCOMPATIBLE,
+                    comparability=Comparability.INCOMPATIBLE,
+                    warnings=(incompatible_reason,),
+                    error=incompatible_reason,
+                )
+                outputs.append(output)
+                warnings.append(f"{scenario.name}: {incompatible_reason}")
+                self._record_sensitivity_outcome(output, base_reference)
+                continue
+            method_id = requested
+            if method_id is None:
+                scenario_draft = prepare_question(
+                    self._analyzer.df, specification=scenario.specification
+                )
+                recommendation = recommend_from_draft(self._analyzer.df, scenario_draft)
+                method_id = (
+                    recommendation.method_id if recommendation.status.value == "ready" else None
+                )
+                if method_id is None:
+                    reason = "; ".join(recommendation.blockers) or (
+                        recommendation.rationale or "No runnable method was selected."
+                    )
+                    output = SensitivityScenarioResult(
+                        name=scenario.name,
+                        specification=scenario,
+                        requested_method_id=None,
+                        method_id=None,
+                        status=ScenarioStatus.UNAVAILABLE,
+                        comparability=Comparability.UNAVAILABLE,
+                        warnings=tuple(recommendation.warnings),
+                        error=reason,
+                    )
+                    outputs.append(output)
+                    warnings.append(f"{scenario.name}: {reason}")
+                    self._record_sensitivity_outcome(output, base_reference)
+                    continue
+            if method_id in {"student_t", "one_way_anova"} and not any(
+                "equal" in item.lower() and "variance" in item.lower()
+                for item in scenario.assumptions
+            ):
+                reason = (
+                    f"{method_id} requires an explicit equal-population-variance assumption "
+                    "in the sensitivity scenario."
+                )
+                output = SensitivityScenarioResult(
+                    name=scenario.name,
+                    specification=scenario,
+                    requested_method_id=requested,
+                    method_id=method_id,
+                    status=ScenarioStatus.INCOMPATIBLE,
+                    comparability=Comparability.INCOMPATIBLE,
+                    warnings=(reason,),
+                    error=reason,
+                )
+                outputs.append(output)
+                warnings.append(f"{scenario.name}: {reason}")
+                self._record_sensitivity_outcome(output, base_reference)
+                continue
+            try:
+                analysis = execute_selected_method(
+                    self._analyzer, scenario.specification, method_id
+                )
+                if analysis.status.value != "available":
+                    reason = analysis.warnings[-1] if analysis.warnings else "Scenario unavailable."
+                    output = SensitivityScenarioResult(
+                        name=scenario.name,
+                        specification=scenario,
+                        requested_method_id=requested,
+                        method_id=method_id,
+                        status=ScenarioStatus.UNAVAILABLE,
+                        comparability=Comparability.UNAVAILABLE,
+                        warnings=analysis.warnings,
+                        error=reason,
+                        analysis=analysis,
+                    )
+                else:
+                    comparability = classify_comparability(result, analysis)
+                    comparison = (
+                        compare_same_estimand(result, analysis)
+                        if comparability is Comparability.SAME_ESTIMAND
+                        else None
+                    )
+                    if (
+                        comparability is Comparability.SAME_ESTIMAND
+                        and comparison is not None
+                        and not comparison.get("available", False)
+                        and "contrast" in str(comparison.get("reason", "")).lower()
+                    ):
+                        comparability = Comparability.INCOMPATIBLE
+                    scenario_warning = list(analysis.warnings)
+                    if comparability is Comparability.DIFFERENT_ESTIMAND:
+                        scenario_warning.append(
+                            "This scenario targets a different estimand and is not a direct "
+                            "robustness replication of the base analysis."
+                        )
+                    values = scenario_values(analysis)
+                    missing_numerical = [
+                        label
+                        for label, value in (
+                            ("primary estimate", values["primary_estimate"]),
+                            ("p-value", values["p_value"]),
+                        )
+                        if value is None
+                    ]
+                    if missing_numerical:
+                        reason = (
+                            "Scenario returned no finite "
+                            + " or ".join(missing_numerical)
+                            + "; the numerical result is unreliable."
+                        )
+                        output = SensitivityScenarioResult(
+                            name=scenario.name,
+                            specification=scenario,
+                            requested_method_id=requested,
+                            method_id=analysis.method_id,
+                            status=ScenarioStatus.FAILED,
+                            comparability=Comparability.UNAVAILABLE,
+                            warnings=tuple(dict.fromkeys([*scenario_warning, reason])),
+                            error=reason,
+                            analysis=analysis,
+                            **values,
+                        )
+                    else:
+                        output = SensitivityScenarioResult(
+                            name=scenario.name,
+                            specification=scenario,
+                            requested_method_id=requested,
+                            method_id=analysis.method_id,
+                            status=ScenarioStatus.COMPLETED,
+                            comparability=comparability,
+                            comparison=comparison,
+                            warnings=tuple(dict.fromkeys(scenario_warning)),
+                            analysis=analysis,
+                            **values,
+                        )
+                outputs.append(output)
+                warnings.extend(f"{scenario.name}: {item}" for item in output.warnings)
+                self._record_sensitivity_outcome(output, base_reference)
+            except (PyAutoStatError, ValueError, TypeError, OverflowError, RuntimeError) as exc:
+                output = SensitivityScenarioResult(
+                    name=scenario.name,
+                    specification=scenario,
+                    requested_method_id=requested,
+                    method_id=method_id,
+                    status=ScenarioStatus.FAILED,
+                    comparability=Comparability.UNAVAILABLE,
+                    error=str(exc),
+                    warnings=(f"Scenario execution failed: {exc}",),
+                )
+                outputs.append(output)
+                warnings.extend(f"{scenario.name}: {item}" for item in output.warnings)
+                self._record_sensitivity_outcome(output, base_reference)
+        completed = sum(item.status is ScenarioStatus.COMPLETED for item in outputs)
+        status = (
+            SensitivityStatus.COMPLETE
+            if completed == len(outputs)
+            else SensitivityStatus.PARTIAL
+            if completed
+            else SensitivityStatus.UNAVAILABLE
+        )
+        same = [item for item in outputs if item.comparability is Comparability.SAME_ESTIMAND]
+        different = [
+            item for item in outputs if item.comparability is Comparability.DIFFERENT_ESTIMAND
+        ]
+        summary = {
+            "base_method_id": result.method_id,
+            "base_estimate_quantity": estimate_quantity(result.method_id),
+            "declared_scenario_count": len(outputs),
+            "completed_scenario_count": completed,
+            "same_estimand_scenarios": len(same),
+            "different_estimand_scenarios": len(different),
+            "same_estimand_direction_consistent": (
+                all(bool((item.comparison or {}).get("direction_consistent")) for item in same)
+                if same
+                else None
+            ),
+            "all_same_estimand_intervals_available": (
+                all((item.comparison or {}).get("interval_overlap") is not None for item in same)
+                if same
+                else None
+            ),
+            "note": (
+                "Comparisons are descriptive across the declared scenarios. P-values do not "
+                "select, rank, or replace the primary analysis."
+            ),
+        }
+        return SensitivityResult(
+            base_result=result,
+            scenario_results=tuple(outputs),
+            status=status,
+            comparison_summary=summary,
+            warnings=tuple(dict.fromkeys(warnings)),
+            provenance={
+                "tracking_enabled": self._ledger is not None,
+                "local_record_only": True,
+                "external_preregistration_verified": False,
+                "scenario_planning_statuses": [item.planning_status for item in scenarios],
+            },
+            reproducibility={
+                "schema_version": 1,
+                "base_analysis_reference": base_reference,
+                "dataset_fingerprint": fingerprint,
+                "scenario_order": names,
+                "scenarios": plan,
+                "actual_methods": [item.method_id for item in outputs],
+                "scenario_statuses": [item.status.value for item in outputs],
+                "random_seeds": [
+                    item.specification.specification.options.random_seed for item in outputs
+                ],
+                "automatic_replay": False,
+            },
+        )
+
+    def _record_sensitivity_outcome(
+        self, output: SensitivityScenarioResult, base_reference: str
+    ) -> None:
+        if self._ledger is None:
+            return
+        event = (
+            "sensitivity_scenario_completed"
+            if output.status is ScenarioStatus.COMPLETED
+            else "sensitivity_scenario_failed"
+            if output.status is ScenarioStatus.FAILED
+            else "sensitivity_scenario_unavailable"
+        )
+        self._ledger._record(
+            event,
+            references={
+                "base_analysis": base_reference,
+                "scenario": content_reference("sensitivity_scenario", output.to_dict()),
+            },
+            metadata={
+                "name": output.name,
+                "status": output.status.value,
+                "comparability": output.comparability.value,
+                "method_id": output.method_id,
+            },
+        )
+
+    def practical_significance(
+        self,
+        result: AnalysisResult,
+        *,
+        threshold: MeaningfulEffectThreshold,
+    ) -> PracticalSignificanceResult:
+        """Assess one available quantity against a researcher-supplied threshold."""
+        if not isinstance(threshold, MeaningfulEffectThreshold):
+            raise InvalidDataError("threshold must be a MeaningfulEffectThreshold.")
+        payload = threshold.to_dict()
+        if self._ledger is not None:
+            self._ledger._record(
+                "meaningful_threshold_declared",
+                source="researcher",
+                previous_state=self._last_meaningful_threshold,
+                new_state=payload,
+                reason=threshold.rationale,
+                references={"analysis": content_reference("analysis", result.to_dict())},
+                metadata={
+                    "planning_status": threshold.planning_status,
+                    "note": (
+                        "Researcher declaration recorded locally; timing is not external proof."
+                    ),
+                },
+            )
+        self._last_meaningful_threshold = payload
+        return assess_practical_significance(
+            result, threshold, planning_status=threshold.planning_status
+        )
+
     def report(
         self,
         result: AnalysisResult,
         *,
         interpretation: InterpretationResult | None = None,
+        sensitivity: SensitivityResult | None = None,
+        practical_significance: PracticalSignificanceResult | None = None,
         title: str | None = None,
         include_figures: bool = False,
     ) -> ResearchReport:
         """Assemble a general research report from recorded analysis and interpretation."""
         report = build_research_report(
-            result, interpretation=interpretation, title=title, include_figures=include_figures
+            result,
+            interpretation=interpretation,
+            sensitivity=sensitivity,
+            practical_significance=practical_significance,
+            title=title,
+            include_figures=include_figures,
         )
         if self._ledger is not None:
             report_reference = content_reference("report", report.to_dict())
@@ -560,10 +916,18 @@ class ResearchAssistant:
         report: ResearchReport,
         *,
         result: AnalysisResult | None = None,
+        sensitivity: SensitivityResult | None = None,
+        practical_significance: PracticalSignificanceResult | None = None,
         exports: dict[str, Any] | None = None,
     ) -> AuditResult:
         """Check recorded analysis, report and supplied exports without rerunning tests."""
-        audit = StatisticalResultAuditor().audit(report, result=result, exports=exports)
+        audit = StatisticalResultAuditor().audit(
+            report,
+            result=result,
+            sensitivity=sensitivity,
+            practical_significance=practical_significance,
+            exports=exports,
+        )
         if self._ledger is not None:
             self._ledger._record(
                 "audit_performed",
@@ -576,7 +940,12 @@ class ResearchAssistant:
         return audit
 
     def reproducibility_record(
-        self, result: AnalysisResult, *, fingerprint: bool = True
+        self,
+        result: AnalysisResult,
+        *,
+        fingerprint: bool = True,
+        sensitivity: SensitivityResult | None = None,
+        practical_significance: PracticalSignificanceResult | None = None,
     ) -> ReproducibilityRecord:
         """Capture replay metadata for the assistant's current data, on request."""
         return ReproducibilityRecord.from_result(
@@ -584,6 +953,8 @@ class ResearchAssistant:
             data=self._analyzer.df,
             fingerprint=fingerprint,
             planning_status=self._planning_status,
+            sensitivity=sensitivity,
+            practical_significance=practical_significance,
         )
 
 
@@ -618,3 +989,20 @@ def _is_data_limited_recommendation(recommendation: Recommendation) -> bool:
     """Separate observed data insufficiency from unsupported scientific requests."""
     messages = " ".join(recommendation.blockers).lower()
     return any(fragment in messages for fragment in _DATA_LIMIT_MESSAGES)
+
+
+def _scenario_incompatibility(
+    base: AnalysisSpecification, scenario: AnalysisSpecification
+) -> str | None:
+    """Reject changes that would no longer be an analysis of the same question roles."""
+    left, right = base.question, scenario.question
+    if left.objective != right.objective:
+        return "The scenario changes the research objective."
+    if left.outcome != right.outcome or left.predictor != right.predictor:
+        return "The scenario changes the outcome or predictor role."
+    if base.design != scenario.design:
+        return (
+            "The scenario changes the declared study design; no independent-analysis method "
+            "was substituted."
+        )
+    return None

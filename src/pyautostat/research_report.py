@@ -14,7 +14,9 @@ from typing import Any
 
 from .exceptions import InvalidDataError, ReportError
 from .interpretation import InterpretationEngine, InterpretationResult, InterpretationStatus
+from .practical_significance import PracticalSignificanceResult, assess_practical_significance
 from .results import AnalysisResult, AnalysisStatus
+from .sensitivity import SensitivityResult
 from .specifications import _json_value
 
 REPORT_SCHEMA_VERSION = 1
@@ -116,13 +118,22 @@ def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
 class ResearchReport:
     """Effectively immutable report snapshot with four in-memory export formats."""
 
-    __slots__ = ("_payload", "_source_result", "_include_figures", "_on_save")
+    __slots__ = (
+        "_payload",
+        "_source_result",
+        "_source_sensitivity",
+        "_source_practical_significance",
+        "_include_figures",
+        "_on_save",
+    )
 
     def __init__(
         self,
         payload: dict[str, Any],
         *,
         source_result: AnalysisResult | None = None,
+        source_sensitivity: SensitivityResult | None = None,
+        source_practical_significance: PracticalSignificanceResult | None = None,
         include_figures: bool = False,
         on_save: Callable[[str], None] | None = None,
     ) -> None:
@@ -131,6 +142,8 @@ class ResearchReport:
         except InvalidDataError as exc:
             raise ReportError(f"Report contains non-serializable data: {exc}") from exc
         self._source_result = deepcopy(source_result)
+        self._source_sensitivity = deepcopy(source_sensitivity)
+        self._source_practical_significance = deepcopy(source_practical_significance)
         self._include_figures = include_figures
         self._on_save = on_save
 
@@ -167,7 +180,7 @@ class ResearchReport:
             f"**Status:** {_markdown(data['status'])}",
             "",
         ]
-        for key, heading in _SECTIONS:
+        for key, heading in _report_sections(data):
             lines.extend([f"## {heading}", ""])
             for label, value in data["sections"][key].items():
                 if value is not None and value != [] and value != {}:
@@ -223,7 +236,7 @@ class ResearchReport:
             f"<h1>{escape(data['title'], quote=True)}</h1>",
             f"<p><strong>Report status:</strong> {escape(data['status'])}</p>",
         ]
-        for key, heading in _SECTIONS:
+        for key, heading in _report_sections(data):
             parts.append(f"<section><h2>{heading}</h2><dl>")
             for label, value in data["sections"][key].items():
                 if value is not None and value != [] and value != {}:
@@ -307,10 +320,21 @@ _SECTIONS = (
 )
 
 
+def _report_sections(data: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    additions: list[tuple[str, str]] = []
+    if "sensitivity_analysis" in data.get("sections", {}):
+        additions.append(("sensitivity_analysis", "Sensitivity analysis"))
+    if "practical_significance" in data.get("sections", {}):
+        additions.append(("practical_significance", "Practical significance"))
+    return (*_SECTIONS, *additions)
+
+
 def build_research_report(
     result: AnalysisResult,
     *,
     interpretation: InterpretationResult | None = None,
+    sensitivity: SensitivityResult | None = None,
+    practical_significance: PracticalSignificanceResult | None = None,
     title: str | None = None,
     include_figures: bool = False,
 ) -> ResearchReport:
@@ -321,6 +345,26 @@ def build_research_report(
         raise ReportError("title must be a non-empty string when provided.")
     if not isinstance(include_figures, bool):
         raise ReportError("include_figures must be a Boolean.")
+    if sensitivity is not None and not isinstance(sensitivity, SensitivityResult):
+        raise ReportError("sensitivity must be a SensitivityResult when supplied.")
+    if practical_significance is not None and not isinstance(
+        practical_significance, PracticalSignificanceResult
+    ):
+        raise ReportError(
+            "practical_significance must be a PracticalSignificanceResult when supplied."
+        )
+    if sensitivity is not None and sensitivity.base_result.to_dict() != result.to_dict():
+        raise ReportError("The sensitivity base result does not match this report analysis.")
+    if practical_significance is not None:
+        expected_practical = assess_practical_significance(
+            result,
+            practical_significance.threshold,
+            planning_status=practical_significance.threshold.planning_status,
+        )
+        if expected_practical.to_dict() != practical_significance.to_dict():
+            raise ReportError(
+                "The practical-significance result does not match this analysis and threshold."
+            )
     if result.specification is None:
         raise ReportError("The AnalysisResult has no research specification.")
     try:
@@ -649,37 +693,159 @@ def build_research_report(
                 )
             if len(figures) == 3:
                 break
-    return ResearchReport(
-        {
-            "schema_version": REPORT_SCHEMA_VERSION,
-            "status": status,
-            "title": title.strip() if title is not None else "Statistical Research Report",
-            "analysis": analysis,
-            "interpretation": interpreted,
-            "sections": {
-                "research_question": {
-                    "objective": question["objective"],
-                    "description": question["description"],
-                    "outcome": question["outcome"],
-                    "predictor": question["predictor"],
-                    "estimand": question["estimand"],
-                    "declared_design": spec["design"],
-                    "data_dictionary": spec.get("data_dictionary"),
-                },
-                "dataset": dataset,
-                "methods": methods,
-                "diagnostics": {
-                    "recorded": metadata.get("diagnostics"),
-                    "assumption_notes": interpreted["assumption_notes"],
-                },
-                "results": report_results,
-                "interpretation": interpretation_section,
-            },
-            "tables": tables,
-            "figures": figures,
-            "limitations": limitations,
-            "warnings": warnings,
+    sections = {
+        "research_question": {
+            "objective": question["objective"],
+            "description": question["description"],
+            "outcome": question["outcome"],
+            "predictor": question["predictor"],
+            "estimand": question["estimand"],
+            "declared_design": spec["design"],
+            "data_dictionary": spec.get("data_dictionary"),
         },
+        "dataset": dataset,
+        "methods": methods,
+        "diagnostics": {
+            "recorded": metadata.get("diagnostics"),
+            "assumption_notes": interpreted["assumption_notes"],
+        },
+        "results": report_results,
+        "interpretation": interpretation_section,
+    }
+    sensitivity_payload = sensitivity.to_dict() if sensitivity is not None else None
+    practical_payload = (
+        practical_significance.to_dict() if practical_significance is not None else None
+    )
+    if sensitivity_payload is not None:
+        sections["sensitivity_analysis"] = {
+            "status": sensitivity_payload["status"],
+            "base_method_id": sensitivity_payload["base_result"]["method_id"],
+            "declared_scenario_count": sensitivity_payload["comparison_summary"][
+                "declared_scenario_count"
+            ],
+            "same_estimand_scenarios": sensitivity_payload["comparison_summary"][
+                "same_estimand_scenarios"
+            ],
+            "different_estimand_scenarios": sensitivity_payload["comparison_summary"][
+                "different_estimand_scenarios"
+            ],
+            "comparison_note": sensitivity_payload["comparison_summary"]["note"],
+        }
+        tables.append(
+            _table(
+                "sensitivity_scenarios",
+                "Declared sensitivity scenarios",
+                [
+                    "Scenario",
+                    "Rationale",
+                    "Planning status",
+                    "Method",
+                    "Status",
+                    "Comparability",
+                    "Estimate quantity",
+                    "Estimate",
+                    "P-value (secondary)",
+                    "Analyzed rows",
+                    "Warnings",
+                ],
+                [
+                    [
+                        _cell(item["name"], f"sensitivity.scenario_results[{index}].name"),
+                        _cell(
+                            item["specification"]["rationale"],
+                            f"sensitivity.scenario_results[{index}].specification.rationale",
+                        ),
+                        _cell(
+                            item["specification"]["planning_status"],
+                            f"sensitivity.scenario_results[{index}].specification.planning_status",
+                        ),
+                        _cell(
+                            item["method_id"],
+                            f"sensitivity.scenario_results[{index}].method_id",
+                        ),
+                        _cell(item["status"], f"sensitivity.scenario_results[{index}].status"),
+                        _cell(
+                            item["comparability"],
+                            f"sensitivity.scenario_results[{index}].comparability",
+                        ),
+                        _cell(
+                            item["estimate_quantity"],
+                            f"sensitivity.scenario_results[{index}].estimate_quantity",
+                        ),
+                        _cell(
+                            item["primary_estimate"],
+                            f"sensitivity.scenario_results[{index}].primary_estimate",
+                        ),
+                        _cell(
+                            item["p_value"],
+                            f"sensitivity.scenario_results[{index}].p_value",
+                        ),
+                        _cell(
+                            item["sample_size"],
+                            f"sensitivity.scenario_results[{index}].sample_size",
+                        ),
+                        _cell(
+                            item["warnings"],
+                            f"sensitivity.scenario_results[{index}].warnings",
+                        ),
+                    ]
+                    for index, item in enumerate(sensitivity_payload["scenario_results"])
+                ],
+            )
+        )
+        warnings.extend(sensitivity_payload["warnings"])
+        if status != "unavailable" and sensitivity_payload["status"] != "complete":
+            status = "partial"
+    if practical_payload is not None:
+        threshold = practical_payload["threshold"]
+        sections["practical_significance"] = {
+            "status": practical_payload["status"],
+            "quantity": practical_payload["quantity"],
+            "estimate": practical_payload["estimate"],
+            "threshold": threshold["minimum_magnitude"],
+            "direction": threshold["direction"],
+            "unit": threshold["unit"],
+            "rationale": threshold["rationale"],
+            "confidence_interval": practical_payload["confidence_interval"],
+            "point_estimate_relation": practical_payload["point_estimate_relation"],
+            "confidence_interval_relation": practical_payload["confidence_interval_relation"],
+            "statistical_significance": practical_payload["statistical_significance"],
+            "conclusion": practical_payload["conclusion"],
+        }
+        tables.append(
+            _table(
+                "practical_significance",
+                "Researcher-defined meaningful-effect threshold",
+                ["Field", "Value"],
+                _mapping_rows(
+                    sections["practical_significance"], "sections.practical_significance"
+                ),
+            )
+        )
+        warnings.extend(practical_payload["warnings"])
+        if status != "unavailable" and practical_payload["status"] != "complete":
+            status = "partial"
+    phase11_supplied = sensitivity_payload is not None or practical_payload is not None
+    payload = {
+        "schema_version": 2 if phase11_supplied else REPORT_SCHEMA_VERSION,
+        "status": status,
+        "title": title.strip() if title is not None else "Statistical Research Report",
+        "analysis": analysis,
+        "interpretation": interpreted,
+        "sections": sections,
+        "tables": tables,
+        "figures": figures,
+        "limitations": limitations,
+        "warnings": list(dict.fromkeys(warnings)),
+    }
+    if sensitivity_payload is not None:
+        payload["sensitivity"] = sensitivity_payload
+    if practical_payload is not None:
+        payload["practical_significance"] = practical_payload
+    return ResearchReport(
+        payload,
         source_result=result,
+        source_sensitivity=sensitivity,
+        source_practical_significance=practical_significance,
         include_figures=include_figures,
     )

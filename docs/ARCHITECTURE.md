@@ -1,5 +1,25 @@
 # Architecture and Phase 1 contracts
 
+## Phase 11 optional analysis layers
+
+`sensitivity.py` defines the scenario, outcome, comparability, comparison, provenance, and
+serialization records. `ResearchAssistant.sensitivity_analysis()` is the only orchestration entry
+point. It executes exactly the supplied scenarios through `execution.execute_selected_method()`,
+which reuses the Phase 6 adapters after validating objective, target, design, capability, and
+explicit assumptions. The normal recommendation path and `ResearchAssistant.run()` remain
+unchanged. A scenario cannot replace the primary analysis.
+
+`practical_significance.py` maps only validated result quantities to a researcher-supplied
+threshold. It checks quantity, direction, finite magnitude, unit compatibility, interval metadata,
+and metric range, then classifies point and interval relations separately. It contains no
+hypothesis-test calculation and does not treat null-hypothesis significance as importance.
+
+The records are small frozen dataclasses with schema version 1 and no DataFrames. Report schema
+version 2 is used only when optional Phase 11 content is supplied; ordinary reports remain schema
+version 1. Reproducibility records follow the same version rule. Report and audit stages consume
+the recorded Phase 11 results and never rerun scenarios. See
+[`ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
+
 ## Phase 10 orchestration boundary
 
 `ResearchAssistant.run()` is a thin coordinator over the established components. It creates or
@@ -37,6 +57,8 @@ PyAutoStat has two entry points for dataset profiling. `StatisticalAnalyzer(df).
 | `question_builder.py` | Phase 4 question intake and selected-data checks; no method choice |
 | `recommendation.py` | Phase 5 capability registry, design guardian and deterministic method decision rules; no statistical execution |
 | `execution.py` | Phase 6 revalidation, stable method dispatch and adapters from existing numerical dictionaries into `AnalysisResult` |
+| `sensitivity.py` | Phase 11 explicit scenarios, estimand identity, comparability, and descriptive estimate/CI comparison |
+| `practical_significance.py` | Phase 11 researcher-defined thresholds and point/uncertainty relation classification |
 | `interpretation.py` | Phase 7 deterministic method rules, structured findings, and JSON-safe interpretation records |
 | `research_report.py` | Phase 8 canonical report assembly and static HTML, Markdown, JSON, and CSV table export |
 | `decision_ledger.py`, `provenance.py` | Phase 9 optional observed-event ledger and stable local content/data references |

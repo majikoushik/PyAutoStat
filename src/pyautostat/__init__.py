@@ -20,6 +20,7 @@ from .interpretation import (
     InterpretationResult,
     InterpretationStatus,
 )
+from .practical_significance import MeaningfulEffectThreshold, PracticalSignificanceResult
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
 from .report import ReportGenerator
@@ -27,6 +28,15 @@ from .reproducibility import ReproducibilityRecord, ReproductionOutcome, reprodu
 from .research_assistant import ResearchAssistant
 from .research_report import ResearchReport
 from .results import AnalysisResult, AnalysisStatus, Recommendation, RecommendationStatus
+from .sensitivity import (
+    Comparability,
+    ScenarioStatus,
+    SensitivityResult,
+    SensitivityScenario,
+    SensitivityScenarioResult,
+    SensitivitySpecification,
+    SensitivityStatus,
+)
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -64,6 +74,15 @@ __all__ = [
     "InterpretationFinding",
     "InterpretationResult",
     "InterpretationStatus",
+    "SensitivitySpecification",
+    "SensitivityScenario",
+    "SensitivityScenarioResult",
+    "SensitivityResult",
+    "SensitivityStatus",
+    "ScenarioStatus",
+    "Comparability",
+    "MeaningfulEffectThreshold",
+    "PracticalSignificanceResult",
     "ResearchQuestion",
     "StudyDesign",
     "Objective",

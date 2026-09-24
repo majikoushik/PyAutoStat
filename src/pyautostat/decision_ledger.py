@@ -24,6 +24,12 @@ _EVENTS = {
     "audit_performed",
     "planning_declared",
     "existing_analysis_imported",
+    "sensitivity_plan_created",
+    "sensitivity_scenario_attempted",
+    "sensitivity_scenario_completed",
+    "sensitivity_scenario_unavailable",
+    "sensitivity_scenario_failed",
+    "meaningful_threshold_declared",
 }
 
 

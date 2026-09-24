@@ -11,6 +11,7 @@ from pyautostat import (
     AnalysisSpecification,
     AnalysisStatus,
     InsightEngine,
+    MeaningfulEffectThreshold,
     Objective,
     QuestionDraft,
     Recommendation,
@@ -21,6 +22,7 @@ from pyautostat import (
     ResearchQuestion,
     StatisticalAnalyzer,
     StudyDesign,
+    SensitivitySpecification,
     WorkflowStatus,
     detect_column_types,
     suggest_column_roles,
@@ -79,6 +81,85 @@ Markdown, JSON, and CSV in memory. `audit=False` returns a partial workflow with
 `include_profile=True` requests one Phase 3 profile for an inferential workflow; descriptive
 execution reuses its existing profile. No files are written. See
 [`docs/CONTROLLED_MVP.md`](docs/CONTROLLED_MVP.md) for the method and failure-mode matrices.
+
+### Phase 11 sensitivity analysis
+
+```python
+scenario = SensitivitySpecification(
+    name="pooled variance",
+    specification=workflow.analysis.specification,
+    method_id="student_t",
+    rationale="Assess the pooled-variance assumption.",
+    planning_status="planned",
+    assumptions=("Equal population variances",),
+)
+sensitivity = assistant.sensitivity_analysis(
+    workflow.analysis,
+    scenarios=[scenario],
+)
+```
+
+`sensitivity_analysis(result, *, scenarios) -> SensitivityResult` requires an available base
+result and a nonempty ordered list of uniquely named `SensitivitySpecification` records. A
+scenario stores an `AnalysisSpecification`, optional explicit `method_id`, rationale,
+`planning_status` (`planned`, `exploratory`, or `unknown`), and explicit assumptions. With no
+method ID, the ordinary deterministic recommendation for that scenario specification is used.
+Student t and standard ANOVA require an explicit equal-population-variance assumption. No method
+is chosen from a p-value.
+
+`SensitivityResult.status` is `complete`, `partial`, or `unavailable`. Its
+`scenario_results` retain every supplied scenario in order with `completed`, `unavailable`,
+`incompatible`, or `failed` execution status and `same_estimand`, `different_estimand`,
+`incompatible`, or `unavailable` comparability. Each record includes actual method, stable
+estimate quantity, estimate, effect quantity/value, CI, p-value, sample/exclusion counts, contrast,
+warnings, error, and the aggregate `AnalysisResult` in memory. Serialization excludes the
+in-memory result object and source DataFrame.
+
+Same-estimand comparisons record estimate difference, direction, interval availability and
+descriptive overlap, sample-size change, and a relative change only when the base estimate is not
+near zero. Reversed group orientation is normalized in comparison fields with an explicit
+transformation note; raw scenario values remain unchanged. Different-estimand analyses, including
+Welch mean difference versus Mann–Whitney rank distribution, have no direct estimate-change
+calculation. There is no p-value ordering, scenario selection, robustness score, or automatic
+changed-data analysis.
+
+### Phase 11 practical significance
+
+```python
+threshold = MeaningfulEffectThreshold(
+    quantity="mean_difference",
+    minimum_magnitude=5,
+    direction="two_sided",
+    unit="points",
+    rationale="Researcher-defined decision threshold.",
+)
+practical = assistant.practical_significance(
+    workflow.analysis,
+    threshold=threshold,
+)
+```
+
+`MeaningfulEffectThreshold` supports signed `mean_difference`, `cohens_d`, `pearson_r`, and
+`rank_biserial` quantities and nonnegative `cramers_v`, `eta_squared`, and `epsilon_squared`.
+Magnitude must be finite and nonnegative. Directions are `two_sided`, `positive`, `negative`, or
+`nonnegative` as appropriate. `equivalence` and `noninferiority` are recognized only to return an
+explicit unsupported result; no TOST or noninferiority test is implemented. Unit and rationale are
+optional preserved metadata. A known result unit must match the threshold unit.
+
+`practical_significance(result, *, threshold) -> PracticalSignificanceResult` selects only the
+named existing quantity and its recorded interval. It reports `point_estimate_relation`,
+`confidence_interval_relation`, `uncertainty_status`, and null-hypothesis
+`statistical_significance` separately. Missing CIs return `partial`; unavailable analyses return
+`unavailable`; formal equivalence/noninferiority requests return `unsupported`. An interval wholly
+inside a two-sided negligible region is described without claiming formal equivalence. Generic
+small/medium/large labels are not used as meaningful-effect criteria.
+
+Both models serialize with schema version 1. `assistant.report(..., sensitivity=...,
+practical_significance=...)`, `assistant.audit(...)`, and
+`assistant.reproducibility_record(...)` accept the optional Phase 11 records. See
+[`docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`](docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
+`SensitivitySpecification.from_dict(...)` and `MeaningfulEffectThreshold.from_dict(...)` restore
+their validated configuration records.
 
 ### Phase 4 question builder
 
@@ -187,7 +268,7 @@ json_text = report.to_json()
 csv_tables = report.to_csv_tables()  # stable table-ID to CSV-text mapping
 ```
 
-`report(result, *, interpretation=None, title=None, include_figures=False) -> ResearchReport` does not rerun an analysis or write a file. Supplied interpretations must exactly match the deterministic Phase 7 interpretation for this result; mismatches raise `ReportError`. The snapshot exposes `status` (`complete`, `partial`, `unavailable`), `title`, and `to_dict()`. It includes the source specification/result, matching interpretation, structured research question, dataset, Methods, diagnostics, Results, interpretation, source-linked tables, optional histogram-bin specifications, warnings, and limitations. Contradictory sample counts raise `ReportError`. An unavailable result has no displayed numerical findings, even if its envelope contains stale values. Invalid effect measures and intervals remain unavailable in reader-facing sections.
+`report(result, *, interpretation=None, sensitivity=None, practical_significance=None, title=None, include_figures=False) -> ResearchReport` does not rerun an analysis or write a file. Supplied interpretations must exactly match the deterministic Phase 7 interpretation for this result; mismatches raise `ReportError`. The snapshot exposes `status` (`complete`, `partial`, `unavailable`), `title`, and `to_dict()`. It includes the source specification/result, matching interpretation, structured research question, dataset, Methods, diagnostics, Results, interpretation, source-linked tables, optional histogram-bin specifications, warnings, and limitations. Contradictory sample counts raise `ReportError`. An unavailable result has no displayed numerical findings, even if its envelope contains stale values. Invalid effect measures and intervals remain unavailable in reader-facing sections. Without Phase 11 records the payload remains report schema version 1; optional sensitivity or practical-significance content uses additive report schema version 2.
 
 `to_html()` returns self-contained escaped static HTML; `to_markdown()` escapes user syntax; `to_json()` preserves JSON-safe raw numbers; `to_csv_tables()` returns a dictionary of independent CSV strings. Cells beginning with formula-like prefixes after whitespace are prefixed with an apostrophe only in CSV output; numeric cells remain numeric. `save_html(path)`, `save_markdown(path)`, `save_json(path)`, and `save_csv_tables(directory)` write only to explicit paths and reject existing files unless `overwrite=True`. Filenames for CSV tables are stable IDs, never derived from report titles or category labels. The report omits categorical identifier labels from descriptive profiles and does not include the complete input DataFrame. Small aggregate groups can still disclose information. See [the schema and method matrix](docs/RESEARCH_REPORT_SCHEMA.md) and [the runnable example](examples/research_report_example.py). The legacy `ReportGenerator` continues to accept its original dictionary inputs.
 
@@ -207,9 +288,9 @@ replay = reproduce(record, data=df)  # explicit Phase 6 rerun
 
 `decision_ledger` is `None` when tracking is off. Tracked events have sequence IDs, local software timestamps, before/after states for revisions, optional researcher-supplied reasons, and content references. `update_question(draft, reason="...")` accepts an optional decision reason. `declare_planning("planned" | "exploratory" | "unknown")` is an explicit declaration; the default is `unknown`. `DecisionLedger.import_result(result)` records only an import and marks prior history unavailable. No ledger or hash authenticates an external preregistration or timestamp.
 
-`audit(report, *, result=None, exports=None) -> AuditResult` compares the report with its captured source result or an explicitly supplied original result. Findings have stable codes and field paths. `passed`, `failed`, and `incomplete` distinguish agreement, contradiction, and checks that could not be performed. A directly reconstructed report without a supplied source result is incomplete. If `exports` is omitted, all four current formats are rendered and checked; supplied content is inspected as provided. HTML and Markdown checks compare the exact canonical rendering, not arbitrary edited prose semantics. The auditor never reruns a statistical test. Its pass status does not establish scientific validity.
+`audit(report, *, result=None, sensitivity=None, practical_significance=None, exports=None) -> AuditResult` compares the report with its captured sources or explicitly supplied originals. Findings have stable codes and field paths, including Phase 11 threshold, relation, estimate, omission, status, and comparability mismatches. `passed`, `failed`, and `incomplete` distinguish agreement, contradiction, and checks that could not be performed. A directly reconstructed report without a supplied source result is incomplete. If `exports` is omitted, all four current formats are rendered and checked; supplied content is inspected as provided. HTML and Markdown checks compare the exact canonical rendering, not arbitrary edited prose semantics. The auditor never reruns a statistical test or sensitivity scenario. Its pass status does not establish scientific validity.
 
-`reproducibility_record(result, *, fingerprint=True) -> ReproducibilityRecord` stores a JSON-safe specification, method, restricted expected-result projection, actual runtime versions, recorded seed and bootstrap configuration, and an optional hash of the assistant's current DataFrame. `ReproducibilityRecord.from_dict(...)` reloads this metadata. `record.save_package(path, data_reference=None, overwrite=False)` writes a metadata-only ZIP to an explicit path; no raw data or script are included. `reproduce(record, *, data=df, allow_changed_data=False) -> ReproductionOutcome` checks the fingerprint, revalidates the recorded method, executes only on explicit request, and compares actual numeric fields under the documented tolerance. A changed dataset is a mismatch by default; an allowed changed-data rerun remains labelled as such. A missing fingerprint cannot establish same-data reproduction. See [the precise fingerprint, comparison, privacy, and export policy](docs/PROVENANCE_AND_REPLAY.md).
+`reproducibility_record(result, *, fingerprint=True, sensitivity=None, practical_significance=None) -> ReproducibilityRecord` stores a JSON-safe specification, method, restricted expected-result projection, actual runtime versions, recorded seed and bootstrap configuration, and an optional hash of the assistant's current DataFrame. Base-only records remain schema version 1. Optional Phase 11 configuration produces schema version 2 with ordered scenarios, actual methods/statuses/seeds, fingerprint metadata, and the meaningful threshold. `ReproducibilityRecord.from_dict(...)` reloads this metadata. `record.save_package(path, data_reference=None, overwrite=False)` writes a metadata-only ZIP to an explicit path; no raw data or script are included. `reproduce(record, *, data=df, allow_changed_data=False) -> ReproductionOutcome` checks the fingerprint, revalidates the recorded base method, executes only on explicit request, and compares actual numeric fields under the documented tolerance. It does not automatically replay Phase 11 scenarios. A changed dataset is a mismatch by default; an allowed changed-data rerun remains labelled as such. A missing fingerprint cannot establish same-data reproduction. See [the precise fingerprint, comparison, privacy, and export policy](docs/PROVENANCE_AND_REPLAY.md).
 
 `to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no Phase 3 data dictionary and `schema_version: 2` when `data_dictionary` is present. Version 1 payloads round-trip unchanged; version 2 adds that field without overloading version 1's text-only `variable_metadata`. A legacy caller can keep using `variable_metadata` for descriptions. The Phase 3 dictionary is authoritative for analytical types and roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records. No recommendation, inferential result, or report is manufactured by question preparation.
 

@@ -1,5 +1,30 @@
 # Phase 2 statistical validation baseline
 
+## Phase 11 sensitivity and threshold rules
+
+Sensitivity execution uses the Phase 6 numerical adapters. Representative pooled-variance
+Student results are checked against `scipy.stats.ttest_ind(..., equal_var=True)` and the raw mean
+difference is checked directly. Welch and Student share the `mean_difference` quantity when the
+same outcome, grouping variable, independent design, population, and contrast are retained.
+Student additionally requires an explicit equal-population-variance assumption; a Levene
+nonrejection is never treated as proof.
+
+Mann–Whitney uses `rank_biserial`, so a declared rank-distribution scenario beside a Welch mean
+analysis is `different_estimand`. No estimate difference, relative change, or CI overlap is
+calculated across those metrics. Paired and other changed-design specifications are incompatible;
+no independent test is substituted. Same-estimand comparisons use raw estimates and existing CIs,
+normalize an exactly reversed two-group contrast with a disclosed sign transformation, and omit
+relative change near a zero base estimate. Interval overlap is descriptive, not an inferential
+test.
+
+Practical-significance rules use only a caller-named result quantity. Signed quantities support
+two-sided, positive, or negative thresholds; nonnegative metrics use a nonnegative threshold.
+Finite ordered interval bounds, confidence level, named quantity, and method are validated. Point
+and interval relations are separate. Missing uncertainty yields partial status. A CI within a
+researcher-defined negligible region is reported descriptively and never becomes a TOST result or
+formal equivalence claim. Ordinary intervals do not establish noninferiority. Statistical
+significance stays in a separate field and does not choose a threshold or scenario.
+
 ## Phase 10 integration invariants
 
 The integrated workflow adds no test, effect-size calculation, or confidence-interval algorithm.

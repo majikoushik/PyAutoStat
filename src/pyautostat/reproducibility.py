@@ -18,8 +18,14 @@ import pandas as pd
 import scipy
 
 from .exceptions import InvalidDataError, PyAutoStatError
+from .practical_significance import (
+    MeaningfulEffectThreshold,
+    PracticalSignificanceResult,
+    assess_practical_significance,
+)
 from .provenance import content_reference, dataset_fingerprint
 from .results import AnalysisResult, RecommendationStatus
+from .sensitivity import SensitivityResult, SensitivitySpecification
 from .specifications import AnalysisSpecification, _json_value
 
 _REL_TOL = 1e-10
@@ -122,13 +128,44 @@ class ReproducibilityRecord:
         self._payload = _json_value(payload)
         if (
             type(self._payload.get("schema_version")) is not int
-            or self._payload["schema_version"] != 1
+            or self._payload["schema_version"] not in (1, 2)
             or not all(
                 key in self._payload
                 for key in ("specification", "method_id", "expected", "environment", "stochastic")
             )
         ):
             raise InvalidDataError("Reproducibility record has missing or unsupported fields.")
+        if self._payload["schema_version"] == 2 and not isinstance(
+            self._payload.get("phase11"), dict
+        ):
+            raise InvalidDataError("Schema version 2 requires Phase 11 configuration metadata.")
+        if self._payload["schema_version"] == 2:
+            phase11 = self._payload["phase11"]
+            if phase11.get("automatic_replay") is not False:
+                raise InvalidDataError("Phase 11 reproducibility must disable automatic replay.")
+            sensitivity = phase11.get("sensitivity")
+            practical = phase11.get("practical_significance")
+            if sensitivity is None and practical is None:
+                raise InvalidDataError("Phase 11 metadata must contain at least one component.")
+            if sensitivity is not None:
+                if not isinstance(sensitivity, dict) or not isinstance(
+                    sensitivity.get("configuration"), dict
+                ):
+                    raise InvalidDataError("Phase 11 sensitivity configuration is invalid.")
+                configuration = sensitivity["configuration"]
+                scenarios = configuration.get("scenarios")
+                order = configuration.get("scenario_order")
+                if not isinstance(scenarios, list) or not isinstance(order, list):
+                    raise InvalidDataError("Phase 11 scenario order or specifications are invalid.")
+                restored = [SensitivitySpecification.from_dict(item) for item in scenarios]
+                if [item.name for item in restored] != order:
+                    raise InvalidDataError("Phase 11 scenario order does not match its records.")
+            if practical is not None:
+                if not isinstance(practical, dict) or not isinstance(
+                    practical.get("threshold"), dict
+                ):
+                    raise InvalidDataError("Phase 11 threshold configuration is invalid.")
+                MeaningfulEffectThreshold.from_dict(practical["threshold"])
         if (
             not isinstance(self._payload["method_id"], str)
             or not isinstance(self._payload["expected"], dict)
@@ -160,11 +197,33 @@ class ReproducibilityRecord:
         data: pd.DataFrame | None = None,
         fingerprint: bool = True,
         planning_status: str = "unknown",
+        sensitivity: SensitivityResult | None = None,
+        practical_significance: PracticalSignificanceResult | None = None,
     ) -> ReproducibilityRecord:
         if not isinstance(result, AnalysisResult) or result.specification is None:
             raise InvalidDataError("A result with its specification is required.")
         if planning_status not in {"unknown", "planned", "exploratory"}:
             raise InvalidDataError("planning_status must be unknown, planned, or exploratory.")
+        if sensitivity is not None and not isinstance(sensitivity, SensitivityResult):
+            raise InvalidDataError("sensitivity must be a SensitivityResult when supplied.")
+        if sensitivity is not None and sensitivity.base_result.to_dict() != result.to_dict():
+            raise InvalidDataError("Sensitivity metadata does not reference this base result.")
+        if practical_significance is not None and not isinstance(
+            practical_significance, PracticalSignificanceResult
+        ):
+            raise InvalidDataError(
+                "practical_significance must be a PracticalSignificanceResult when supplied."
+            )
+        if practical_significance is not None:
+            expected_practical = assess_practical_significance(
+                result,
+                practical_significance.threshold,
+                planning_status=practical_significance.threshold.planning_status,
+            )
+            if expected_practical.to_dict() != practical_significance.to_dict():
+                raise InvalidDataError(
+                    "Practical-significance metadata does not match this base result."
+                )
         warnings = list(result.warnings)
         fingerprint_value = None
         if fingerprint and data is not None:
@@ -185,25 +244,49 @@ class ReproducibilityRecord:
             "bootstrap_method": interval.get("method") if isinstance(interval, dict) else None,
             "confidence_level": result.specification.options.confidence_level,
         }
-        return cls(
-            {
-                "schema_version": 1,
-                "specification": spec,
-                "method_id": result.method_id,
-                "expected": _projection(result),
-                "analysis_reference": content_reference("analysis", result.to_dict()),
-                "specification_reference": content_reference("specification", spec),
-                "environment": runtime_environment(),
-                "stochastic": stochastic,
-                "dataset_fingerprint": fingerprint_value,
-                "planning_status": planning_status,
-                "warnings": warnings,
-                "limitations": [
-                    "Source data must be supplied separately for replay.",
-                    "Software records do not verify data authenticity or preregistration.",
-                ],
+        phase11 = None
+        if sensitivity is not None or practical_significance is not None:
+            phase11 = {
+                "sensitivity": (
+                    {
+                        "configuration": sensitivity.reproducibility,
+                        "result_reference": content_reference("sensitivity", sensitivity.to_dict()),
+                    }
+                    if sensitivity is not None
+                    else None
+                ),
+                "practical_significance": (
+                    {
+                        "threshold": practical_significance.threshold.to_dict(),
+                        "result_reference": content_reference(
+                            "practical_significance", practical_significance.to_dict()
+                        ),
+                    }
+                    if practical_significance is not None
+                    else None
+                ),
+                "automatic_replay": False,
             }
-        )
+        payload = {
+            "schema_version": 2 if phase11 is not None else 1,
+            "specification": spec,
+            "method_id": result.method_id,
+            "expected": _projection(result),
+            "analysis_reference": content_reference("analysis", result.to_dict()),
+            "specification_reference": content_reference("specification", spec),
+            "environment": runtime_environment(),
+            "stochastic": stochastic,
+            "dataset_fingerprint": fingerprint_value,
+            "planning_status": planning_status,
+            "warnings": warnings,
+            "limitations": [
+                "Source data must be supplied separately for replay.",
+                "Software records do not verify data authenticity or preregistration.",
+            ],
+        }
+        if phase11 is not None:
+            payload["phase11"] = phase11
+        return cls(payload)
 
     @property
     def method_id(self) -> str:
@@ -285,6 +368,11 @@ def reproduce(
         raise InvalidDataError("reproduce requires an explicitly supplied DataFrame.")
     payload = record.to_dict()
     warnings: list[str] = []
+    if payload.get("phase11") is not None:
+        warnings.append(
+            "Phase 11 configurations are recorded but sensitivity scenarios are not "
+            "automatically replayed."
+        )
     expected_fingerprint = payload.get("dataset_fingerprint")
     if expected_fingerprint is None:
         data_status = "fingerprint_unavailable"

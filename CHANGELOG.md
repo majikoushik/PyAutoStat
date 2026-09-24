@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Phase 11 explicit `ResearchAssistant.sensitivity_analysis()` with ordered, JSON-safe scenario specifications and results; same-estimand estimate/CI comparison, different-estimand labels, group-orientation normalization, complete attempt retention, local provenance, and no p-value ranking or robustness score.
+- Phase 11 researcher-defined `MeaningfulEffectThreshold` and `ResearchAssistant.practical_significance()` with named metric, direction, unit, point-estimate relation, separate confidence-interval relation, partial status when uncertainty is unavailable, and explicit unsupported equivalence/noninferiority requests.
+- Optional report schema 2 sensitivity/practical-significance sections, Phase 11 audit checks, reproducibility schema 2 configuration metadata, and a runnable sensitivity example. Base Phase 10 reports and reproducibility records remain schema version 1 when Phase 11 content is absent.
 - Phase 10 `ResearchAssistant.run()` and JSON-safe `ResearchWorkflowResult` integrate question intake, design blocking, recommendation, one statistical execution, deterministic interpretation, canonical reporting, default consistency audit, and reproducibility metadata. Missing information, observed data limits, unsupported requests, partial findings, and audit failures retain distinct workflow statuses; no file export or replay occurs automatically.
 - A controlled-MVP method matrix, failure-mode matrix, researcher responsibilities, and runnable profile/guided/continuation example.
 - Phase 9 optional observed-event `DecisionLedger`, content and dataset fingerprints, read-only `StatisticalResultAuditor` with actual export checks, runtime `ReproducibilityRecord`, metadata-only ZIP package, and explicit same-data replay through the existing Phase 6 engine. No raw DataFrame is included in records or packages by default.

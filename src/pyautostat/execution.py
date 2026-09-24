@@ -491,3 +491,77 @@ def execute_specification(
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, recommendation, str(exc))
+
+
+def execute_selected_method(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    method_id: str,
+) -> AnalysisResult:
+    """Execute one explicitly selected, compatible Phase 6 method.
+
+    This entry point exists for declared sensitivity specifications. It does not
+    participate in automatic recommendation and it never substitutes another
+    method when the requested method is unavailable.
+    """
+    if not isinstance(method_id, str) or not method_id.strip():
+        raise InvalidTestError("A sensitivity method_id must be non-empty text.")
+    draft = prepare_question(analyzer.df, specification=specification)
+    specification = draft.specification
+    ordinary = recommend_from_draft(analyzer.df, draft)
+    capability = METHOD_CAPABILITIES.get(method_id)
+    if capability is None or capability.availability != "runnable":
+        return _unavailable(
+            analyzer,
+            specification,
+            ordinary,
+            f"Requested sensitivity method {method_id!r} is not a runnable capability.",
+        )
+    question = specification.question
+    objective = question.objective.value if question.objective is not None else None
+    if (
+        draft.status.value != "ready"
+        or objective != capability.objective
+        or question.estimand != capability.target
+        or specification.design.value not in capability.designs
+    ):
+        reason = "; ".join(draft.blockers) or (
+            f"Method {method_id!r} is incompatible with the declared objective, "
+            "estimand, or study design."
+        )
+        return _unavailable(analyzer, specification, ordinary, reason)
+    explicit = Recommendation(
+        status=RecommendationStatus.READY,
+        method_id=method_id,
+        method_name=capability.name,
+        rationale=(
+            "Explicitly requested sensitivity method; this selection was not made "
+            "from its p-value or diagnostics."
+        ),
+        required_assumptions=capability.assumptions,
+        warnings=ordinary.warnings,
+        method_availability="runnable",
+        decision_trace=(
+            {
+                "key": "sensitivity_method",
+                "value": method_id,
+                "reason": "Researcher-declared analytical variation.",
+            },
+        ),
+        context={
+            "objective": objective,
+            "estimand": question.estimand,
+            "design": specification.design.value,
+            "selection": "explicit_sensitivity_scenario",
+        },
+    )
+    try:
+        if method_id in _GROUP_BACKENDS:
+            return _group_result(analyzer, specification, explicit)
+        if method_id == "pearson_correlation":
+            return _pearson_result(analyzer, specification, explicit)
+        if method_id == "pearson_chi_square":
+            return _categorical_result(analyzer, specification, explicit)
+        raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
+    except PyAutoStatError as exc:
+        return _unavailable(analyzer, specification, explicit, str(exc))

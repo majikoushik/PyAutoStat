@@ -155,6 +155,12 @@ files. See `docs/CONTROLLED_MVP.md`. This uncommitted local work is not a releas
 
 ### Phase 11 — Robustness and Practical Significance
 
+**Local implementation record (2026-09-24):** Explicit same-data sensitivity scenarios,
+estimand-aware comparison, researcher-defined meaningful thresholds, optional report/audit
+integration, local provenance, and reproducibility metadata are implemented in the local `main`
+working tree pending owner review. The normal Phase 10 workflow remains unchanged. This record is
+not a release or CI claim. See `docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`.
+
 **Goal:** Examine findings across defensible choices and meaningful-effect criteria.
 
 **Implement:** Prespecified sensitivity specifications with provenance; compare common-estimand estimates/CIs and warn when alternatives answer different questions; researcher-defined meaningful-effect threshold and uncertainty comparison; correctly specified equivalence/noninferiority only when separately validated. Record all attempted alternatives rather than selecting significant ones.
