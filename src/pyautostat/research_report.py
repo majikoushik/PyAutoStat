@@ -20,6 +20,7 @@ from .sensitivity import SensitivityResult
 from .specifications import _json_value
 
 REPORT_SCHEMA_VERSION = 1
+REPORT_STYLES = ("general", "apa", "ieee")
 
 
 def _display(value: Any, *, p_value: bool = False) -> str:
@@ -51,6 +52,54 @@ def _csv_cell(value: Any) -> Any:
     if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value
+
+
+def _style(value: str) -> str:
+    if value not in REPORT_STYLES:
+        raise ReportError("style must be general, apa, or ieee.")
+    return value
+
+
+def _styled_heading(heading: str, index: int, style: str) -> str:
+    return f"{index}. {heading}" if style == "ieee" else heading
+
+
+def _concise_result(data: dict[str, Any], style: str) -> str | None:
+    if style == "general":
+        return None
+    method = data["sections"]["methods"].get("method_name")
+    values = data["sections"]["results"]
+    if method is None or values.get("test_statistic") is None:
+        return None
+    parts = [
+        str(method),
+        f"statistic = {_display(values.get('test_statistic'))}",
+    ]
+    if values.get("degrees_of_freedom") is not None:
+        parts.append(f"df = {_display(values['degrees_of_freedom'])}")
+    if values.get("p_value") is not None:
+        parts.append(f"p = {_display(values['p_value'])}")
+    if values.get("primary_estimate") is not None:
+        parts.append(f"estimate = {_display(values['primary_estimate'])}")
+    prefix = "APA-oriented summary: " if style == "apa" else "Technical result: "
+    return prefix + ", ".join(parts) + "."
+
+
+def _latex_escape(value: Any) -> str:
+    text = _display(value)
+    replacements = {
+        "\\": r"\textbackslash{}",
+        "{": r"\{",
+        "}": r"\}",
+        "$": r"\$",
+        "&": r"\&",
+        "#": r"\#",
+        "_": r"\_",
+        "%": r"\%",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+    }
+    return "".join(replacements.get(character, character) for character in text)
 
 
 def _cell(value: Any, source: str | None = None) -> dict[str, Any]:
@@ -116,7 +165,7 @@ def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
 
 
 class ResearchReport:
-    """Effectively immutable report snapshot with four in-memory export formats."""
+    """Effectively immutable report snapshot with safe in-memory export formats."""
 
     __slots__ = (
         "_payload",
@@ -172,7 +221,8 @@ class ResearchReport:
             outputs[table["id"]] = stream.getvalue()
         return outputs
 
-    def to_markdown(self) -> str:
+    def to_markdown(self, *, style: str = "general") -> str:
+        style = _style(style)
         data = self._payload
         lines = [
             f"# {_markdown(data['title'])}",
@@ -180,8 +230,11 @@ class ResearchReport:
             f"**Status:** {_markdown(data['status'])}",
             "",
         ]
-        for key, heading in _report_sections(data):
-            lines.extend([f"## {heading}", ""])
+        summary = _concise_result(data, style)
+        if summary is not None:
+            lines.extend([_markdown(summary), ""])
+        for index, (key, heading) in enumerate(_report_sections(data), start=1):
+            lines.extend([f"## {_styled_heading(heading, index, style)}", ""])
             for label, value in data["sections"][key].items():
                 if value is not None and value != [] and value != {}:
                     lines.extend(
@@ -219,7 +272,8 @@ class ResearchReport:
             lines.append("")
         return "\n".join(lines).rstrip() + "\n"
 
-    def to_html(self) -> str:
+    def to_html(self, *, style: str = "general") -> str:
+        style = _style(style)
         data = self._payload
         parts = [
             "<!doctype html>",
@@ -236,8 +290,12 @@ class ResearchReport:
             f"<h1>{escape(data['title'], quote=True)}</h1>",
             f"<p><strong>Report status:</strong> {escape(data['status'])}</p>",
         ]
-        for key, heading in _report_sections(data):
-            parts.append(f"<section><h2>{heading}</h2><dl>")
+        summary = _concise_result(data, style)
+        if summary is not None:
+            parts.append(f'<p class="oriented-summary">{escape(summary)}</p>')
+        for index, (key, heading) in enumerate(_report_sections(data), start=1):
+            styled = _styled_heading(heading, index, style)
+            parts.append(f"<section><h2>{escape(styled)}</h2><dl>")
             for label, value in data["sections"][key].items():
                 if value is not None and value != [] and value != {}:
                     display_value = escape(
@@ -269,16 +327,56 @@ class ResearchReport:
         parts.append("</main></body></html>")
         return "\n".join(parts)
 
-    def save_html(self, path: str | Path, *, overwrite: bool = False) -> Path:
-        output = _write(path, self.to_html(), overwrite=overwrite)
+    def to_latex(self, *, style: str = "general") -> str:
+        style = _style(style)
+        data = self._payload
+        lines = [
+            r"\documentclass{article}",
+            r"\usepackage[T1]{fontenc}",
+            r"\usepackage{longtable}",
+            r"\begin{document}",
+            rf"\section*{{{_latex_escape(data['title'])}}}",
+            rf"\textbf{{Report status:}} {_latex_escape(data['status'])}",
+        ]
+        summary = _concise_result(data, style)
+        if summary is not None:
+            lines.append(_latex_escape(summary))
+        for index, (key, heading) in enumerate(_report_sections(data), start=1):
+            styled = _styled_heading(heading, index, style)
+            lines.append(rf"\section*{{{_latex_escape(styled)}}}")
+            for label, value in data["sections"][key].items():
+                if value is not None and value != [] and value != {}:
+                    lines.append(rf"\textbf{{{_latex_escape(label)}:}} {_latex_escape(value)}\par")
+        for key, heading in (("limitations", "Limitations"), ("warnings", "Warnings")):
+            lines.extend([rf"\section*{{{heading}}}", r"\begin{itemize}"])
+            values = data[key] or ["None recorded."]
+            lines.extend(rf"\item {_latex_escape(item)}" for item in values)
+            lines.append(r"\end{itemize}")
+        lines.append(r"\end{document}")
+        return "\n".join(lines) + "\n"
+
+    def save_html(
+        self, path: str | Path, *, style: str = "general", overwrite: bool = False
+    ) -> Path:
+        output = _write(path, self.to_html(style=style), overwrite=overwrite)
         if self._on_save is not None:
             self._on_save("html")
         return output
 
-    def save_markdown(self, path: str | Path, *, overwrite: bool = False) -> Path:
-        output = _write(path, self.to_markdown(), overwrite=overwrite)
+    def save_markdown(
+        self, path: str | Path, *, style: str = "general", overwrite: bool = False
+    ) -> Path:
+        output = _write(path, self.to_markdown(style=style), overwrite=overwrite)
         if self._on_save is not None:
             self._on_save("markdown")
+        return output
+
+    def save_latex(
+        self, path: str | Path, *, style: str = "general", overwrite: bool = False
+    ) -> Path:
+        output = _write(path, self.to_latex(style=style), overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("latex")
         return output
 
     def save_json(self, path: str | Path, *, overwrite: bool = False) -> Path:
@@ -428,7 +526,7 @@ def build_research_report(
         visible["confidence_interval"] = validated.get("confidence_interval")
         finding_codes = {item["code"] for item in interpreted["findings"]}
         effect = values.get("effect_size")
-        if analysis["method_id"] in {"welch_t", "student_t"}:
+        if analysis["method_id"] in {"welch_t", "student_t", "paired_t"}:
             if isinstance(effect, dict) and "standardized_effect_reported" in finding_codes:
                 effect = deepcopy(effect)
                 if "effect_interval_reported" not in finding_codes:
@@ -460,6 +558,7 @@ def build_research_report(
         "effective_random_seed": metadata.get("effective_random_seed"),
         "bootstrap_resamples": metadata.get("bootstrap_default_resamples"),
         "required_assumptions": analysis["assumptions"],
+        "unit_id": spec.get("unit_id"),
     }
     dataset = {
         "original_rows": original,
@@ -468,6 +567,12 @@ def build_research_report(
         "group_order": metadata.get("group_order"),
         "group_sizes": sample.get("group_sizes"),
         "effective_pair_count": sample.get("effective_pair_count"),
+        "complete_pairs": sample.get("complete_pairs"),
+        "total_units": sample.get("total_units"),
+        "incomplete_units": sample.get("incomplete_units"),
+        "excluded_units": sample.get("excluded_units"),
+        "missing_unit_rows": sample.get("missing_unit_rows"),
+        "complete_pair_rule": sample.get("complete_pair_rule"),
         "contrast": metadata.get("contrast"),
     }
     if isinstance(dataset["group_sizes"], list) and analyzed is not None:
@@ -526,6 +631,20 @@ def build_research_report(
                 "Sample accounting",
                 ["Measure", "Rows"],
                 _mapping_rows(sample_fields, "sections.dataset"),
+            )
+        )
+    pair_fields = {
+        name: dataset[name]
+        for name in ("total_units", "complete_pairs", "incomplete_units", "excluded_units")
+        if dataset[name] is not None
+    }
+    if pair_fields:
+        tables.append(
+            _table(
+                "pair_accounting",
+                "Paired-unit accounting",
+                ["Measure", "Count"],
+                _mapping_rows(pair_fields, "sections.dataset"),
             )
         )
     groups = dataset["group_sizes"]
@@ -701,6 +820,8 @@ def build_research_report(
             "predictor": question["predictor"],
             "estimand": question["estimand"],
             "declared_design": spec["design"],
+            "unit_id": spec.get("unit_id"),
+            "condition_order": spec.get("condition_order"),
             "data_dictionary": spec.get("data_dictionary"),
         },
         "dataset": dataset,

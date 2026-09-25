@@ -21,6 +21,10 @@ from pyautostat import (
     ResearchWorkflowResult,
     ResearchQuestion,
     StatisticalAnalyzer,
+    StatisticalAnalysisPlan,
+    StudyPlanner,
+    ReportingCompletenessResult,
+    ResearchSessionSnapshot,
     StudyDesign,
     SensitivitySpecification,
     WorkflowStatus,
@@ -183,7 +187,7 @@ The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data
 
 `update_question(draft, **changes)` preserves confirmed answers, reconstructs a new draft, and leaves the old draft unchanged on invalid input. When the objective changes, it clears the previous predictor, target, and design; switching to descriptive also clears the old outcome. Supply new role selections explicitly. `profile(data_dictionary=...)` makes a copied declaration available to later question preparation; an explicit `data_dictionary` or `variable_types` correction takes precedence. The builder reuses Phase 3 variable intelligence without running full profiling, hypothesis tests, or recommendations.
 
-`ready` means Phase 4 fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired, repeated, and clustered designs can be represented even though the current analyzer does not execute them through this API.
+`ready` means Phase 4 fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired designs require an explicit unit-ID column; repeated and clustered designs remain representable but unsupported for execution.
 
 ### Phase 5 method recommendation
 
@@ -210,7 +214,7 @@ print(recommendation.status, recommendation.method_id, recommendation.rationale)
 | Association, monotonic | Two varying ordered numeric variables | `unsupported` for inference; Spearman/Kendall coefficients are listed as `coefficient_only` alternatives |
 | Association, categorical independence | Two categorical variables, independent observations, at least two categories per axis, expected counts at least five in every cell | `pearson_chi_square`; sparse tables return `unsupported` |
 
-Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. Paired, repeated, and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
+Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. A paired mean question without a unit ID returns `needs_input`; compatible two-condition paired data select `paired_t`. Repeated and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
 
 `Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), and `questions` (Phase 4-compatible clarification dictionaries). `required_assumptions` and `context.assumption_checks` disclose researcher-confirmed facts, checkable feasibility, and conditions requiring review. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the Phase 4 specification schema; existing explicit analyzer calls remain available to experts.
 
@@ -235,7 +239,7 @@ print(result.metadata["sample"], result.metadata["group_order"])
 | `pearson_correlation` | Pair-only `analyze_all()` correlation profile | Pearson r and its pairwise p-value; no CI |
 | `pearson_chi_square` | `categorical_association()` | Chi-square, df, p, observed/expected table, Cramer's V and optional bootstrap CI |
 
-The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable **legacy explicit calculations**, but Phase 5 does not select them automatically. They remain available through `StatisticalAnalyzer.hypothesis_tests()`; `analyze()` never substitutes them for a Welch or unsupported multi-group mean request. Spearman/Kendall inference, paired or clustered methods, Welch ANOVA, and sparse-table exact tests are unavailable in this guided path.
+The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable **legacy explicit calculations**, but Phase 5 does not select them automatically. They remain available through `StatisticalAnalyzer.hypothesis_tests()`; `analyze()` never substitutes them for a Welch or unsupported multi-group mean request. The guided engine supports `paired_t` only for an explicit unit ID and exactly two conditions. Spearman/Kendall inference, repeated designs with more than two conditions, clustered methods, Welch ANOVA, and sparse-table exact tests are unavailable.
 
 `AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
 
@@ -380,6 +384,74 @@ association = analyzer.categorical_association(
 This method runs a Pearson chi-square test of independence without continuity correction. It excludes rows missing either selected value, preserves first-appearance category order, and applies this library's conservative policy requiring every expected cell count to be at least five.
 
 The result includes `test`, `statistic`, `p_value`, `degrees_of_freedom`, `groups`, `outcomes`, `observed_counts`, `expected_counts`, `sample_size`, `excluded_rows`, `assumptions` and Cramér's V in `effect_size`. For a two-by-two table with an explicit `success_value`, it also includes `cohens_h`. Positive Cohen's h means the first group has the higher success proportion. Bootstrap intervals resample complete observed group/outcome rows; interval and assumption metadata report valid resample counts and seed. Set `bootstrap_samples=0` to omit intervals.
+
+## Phase 12 planning, paired analysis, presentation, and adapters
+
+```python
+plan = assistant.analysis_plan(
+    draft,
+    sensitivity_scenarios=[scenario],
+    meaningful_threshold=threshold,
+    multiplicity_policy="none_planned",
+    report_style="apa",
+)
+result = assistant.analyze(draft)
+adherence = assistant.plan_adherence(plan, result)
+```
+
+`analysis_plan()` accepts one `QuestionDraft` or `AnalysisSpecification`. It performs validation
+and recommendation but no analysis. Optional ordered sensitivity specifications and a meaningful
+threshold are retained. `previous_plan=` plus optional `reason=` records a revision when tracking
+is enabled. `StatisticalAnalysisPlan` has schema version 1, `to_dict()`, `to_json()`,
+`from_dict()`, and `to_specification()`. A plan created after this assistant has executed an
+analysis records `created_after_analysis=True`. `plan_adherence()` compares recorded fields with
+a result as `matched`, `changed`, or `not_recorded` and makes no conduct inference.
+
+```python
+planner = StudyPlanner()
+independent = planner.independent_mean_power(
+    target_difference=5, sd_group1=10, sd_group2=12,
+    alpha=0.05, target_power=0.80, allocation_ratio=1,
+)
+paired = planner.paired_mean_precision(
+    sd_difference=5, confidence_level=0.95, target_half_width=2,
+)
+```
+
+`StudyPlanner` is standalone. It exposes `independent_mean_power`,
+`independent_mean_precision`, `paired_mean_power(target_mean_difference=...)`, and
+`paired_mean_precision`. Searches are bounded by `max_n` or `max_pairs` (default 100,000).
+`allocation_ratio` means `n2/n1`. Paired results use `required_pairs`; `total_required_n` is left
+unset so a pair count is not mistaken for raw rows. Inputs must be finite and scientifically
+valid. These functions never inspect an observed result and there is no observed-power API.
+
+For paired execution, pass `unit_id=` and optionally `condition_order=(first, second)` through
+`prepare_question()`, `run()`, or schema-3 `AnalysisSpecification`. Exactly two observed
+conditions are required. Duplicate usable unit/condition rows are blocked, incomplete pairs are
+counted and excluded, and row order never establishes pairing. The result method is `paired_t`,
+with first-minus-second mean paired difference, analytical paired t interval, Cohen's dz, and
+aggregate complete/incomplete-pair counts. Identifier values are not exported.
+
+```python
+completeness = assistant.reporting_completeness(report, style="apa")
+apa_html = report.to_html(style="apa")
+ieee_markdown = report.to_markdown(style="ieee")
+latex = report.to_latex(style="general")
+report.save_latex("report.tex", overwrite=False)
+snapshot = assistant.session_snapshot(
+    workflow, analysis_plan=plan, reporting_completeness=completeness
+)
+```
+
+Completeness item statuses are `present`, `missing`, `partial`, and `not_applicable`; there is no
+quality score. Styles are `general`, `apa`, and `ieee` and change presentation only. LaTeX is
+escaped inert text and is never compiled. `ResearchSessionSnapshot` schema version 1 contains
+JSON-safe workflow state, machine-renderable questions, action identifiers, registry-derived
+capabilities, warnings/blockers, and optional records; it embeds no DataFrame or callable.
+
+See [advanced planning and presentation](docs/ADVANCED_PLANNING_AND_PRESENTATION.md), the
+[final capability matrix](docs/FINAL_CAPABILITY_MATRIX.md), and
+[scientific limitations](docs/SCIENTIFIC_LIMITATIONS.md).
 
 ## Column detection
 

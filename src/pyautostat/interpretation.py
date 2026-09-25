@@ -100,13 +100,14 @@ _METHODS = {
     "dataset_profile": ("Dataset profile", None),
     "welch_t": ("Welch's independent-samples t-test", "Cohen's d"),
     "student_t": ("Student's pooled-variance t-test", "Cohen's d"),
+    "paired_t": ("Paired-samples t-test", "Cohen's dz"),
     "mann_whitney_u": ("Mann-Whitney U test", "rank-biserial correlation"),
     "one_way_anova": ("One-way ANOVA", "eta-squared"),
     "kruskal_wallis": ("Kruskal-Wallis test", "epsilon-squared (rank)"),
     "pearson_correlation": ("Pearson correlation", "Pearson r"),
     "pearson_chi_square": ("Pearson chi-square independence test", "Cramer's V"),
 }
-_SIGNED_GROUP = {"welch_t", "student_t", "mann_whitney_u"}
+_SIGNED_GROUP = {"welch_t", "student_t", "paired_t", "mann_whitney_u"}
 _GROUP = _SIGNED_GROUP | {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
 _NONNEGATIVE = {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
 
@@ -179,13 +180,26 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
             if len(order) != 2:
                 raise InvalidDataError("A two-group result must name exactly two groups.")
             contrast = result.metadata.get("contrast")
+            expected_definition = (
+                "first condition minus second condition"
+                if method == "paired_t"
+                else "first group minus second group"
+            )
             if (
                 not isinstance(contrast, dict)
-                or contrast.get("definition") != "first group minus second group"
+                or contrast.get("definition") != expected_definition
                 or contrast.get("first") != order[0]
                 or contrast.get("second") != order[1]
             ):
                 raise InvalidDataError("The recorded first-minus-second contrast is inconsistent.")
+            if method == "paired_t":
+                pairs = result.metadata.get("sample", {}).get("complete_pairs")
+                return (
+                    f"{_METHODS[method][0]} compared paired {question.outcome} values across "
+                    f"{question.predictor} conditions {order[0]!r} and {order[1]!r} "
+                    f"using {pairs} complete pairs.",
+                    f"{order[0]!r} minus {order[1]!r}",
+                )
             return (
                 f"{_METHODS[method][0]} compared {question.outcome} across "
                 f"{question.predictor} categories {order[0]!r} and {order[1]!r}.",
@@ -231,6 +245,11 @@ def _assumption_notes(result: AnalysisResult) -> tuple[str, ...]:
         notes.append(
             "Welch's test does not require equal population variances; independence "
             "and appropriate mean-inference conditions still matter."
+        )
+    elif result.method_id == "paired_t":
+        notes.append(
+            "The paired t-test models within-unit differences; complete pairs must be "
+            "independent across units and suitable for mean inference."
         )
     if result.assumptions:
         notes.append(
@@ -396,7 +415,7 @@ class InterpretationEngine:
         expected_effect = _METHODS[method][1]
         effect = values.get("effect_size")
         effect_value = _finite(effect.get("value")) if isinstance(effect, dict) else None
-        is_mean_test = method in {"welch_t", "student_t"}
+        is_mean_test = method in {"welch_t", "student_t", "paired_t"}
         if estimate is None:
             partial = True
             warnings.append("The primary estimate is unavailable or nonfinite.")
@@ -536,7 +555,10 @@ class InterpretationEngine:
                         )
                     if effect_value is not None:
                         d_text = (
-                            f"Cohen's d was {_fmt(effect_value)} "
+                            f"Cohen's dz was {_fmt(effect_value)} "
+                            "(mean paired difference divided by the SD of paired differences)."
+                            if method == "paired_t"
+                            else f"Cohen's d was {_fmt(effect_value)} "
                             "(first minus second, divided by the pooled sample SD)."
                         )
                         effect_text = f"{effect_text} {d_text}" if effect_text else d_text
@@ -684,7 +706,9 @@ class InterpretationEngine:
             level = _finite(interval.get("level"))
             quantity = interval.get("quantity")
             expected_method = (
-                "analytical t interval"
+                "analytical paired t interval"
+                if method == "paired_t"
+                else "analytical t interval"
                 if is_mean_test
                 else "observation-row percentile bootstrap"
                 if method == "pearson_chi_square"
@@ -750,11 +774,12 @@ class InterpretationEngine:
                         findings, "interval_reported", interval_text, "values.confidence_interval"
                     )
                 if (
-                    method in {"welch_t", "student_t"}
+                    method in {"welch_t", "student_t", "paired_t"}
                     and p is not None
                     and alpha is not None
                     and null_value is not None
-                    and interval.get("method") == "analytical t interval"
+                    and interval.get("method")
+                    in {"analytical t interval", "analytical paired t interval"}
                     and result.metadata.get("alternative_hypothesis") == "two-sided"
                     and math.isclose(level, 1 - alpha, abs_tol=1e-12)
                     and ((p < alpha) == (low <= null_value <= high))

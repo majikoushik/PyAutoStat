@@ -136,6 +136,8 @@ def prepare_question(
     variable_types: dict[str, str] | None = None,
     specification: AnalysisSpecification | None = None,
     variable_metadata: dict[str, str] | None = None,
+    unit_id: str | None = None,
+    condition_order: tuple[Any, Any] | None = None,
 ) -> QuestionDraft:
     """Build or revalidate a question against the assistant's copied DataFrame."""
     if specification is not None and not isinstance(specification, AnalysisSpecification):
@@ -151,6 +153,10 @@ def prepare_question(
     )
     selected_design = cast(StudyDesign, design if design is not None else base.design)
     selected_options = options if options is not None else base.options
+    selected_unit_id = unit_id if unit_id is not None else base.unit_id
+    selected_condition_order = (
+        condition_order if condition_order is not None else base.condition_order
+    )
     if not isinstance(selected_options, AnalysisOptions):
         raise InvalidDataError("options must be an AnalysisOptions instance.")
     if question.objective == Objective.DESCRIPTIVE and (
@@ -189,6 +195,7 @@ def prepare_question(
     selected_fields: tuple[tuple[str, str | None], ...] = (
         ("outcome", question.outcome),
         ("predictor", question.predictor),
+        ("unit_id", selected_unit_id),
     )
     for field_name, selected_column in selected_fields:
         if selected_column is not None and selected_column not in frame.columns:
@@ -212,14 +219,19 @@ def prepare_question(
         if variable_metadata is not None
         else base.variable_metadata,
         data_dictionary=dictionary if dictionary else None,
+        unit_id=selected_unit_id,
+        condition_order=selected_condition_order,
     )
     selected = list(
         dict.fromkeys(
             column for column in (question.outcome, question.predictor) if column is not None
         )
     )
+    availability_columns = selected.copy()
+    if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
+        availability_columns.append(spec.unit_id)
     hints = variable_intelligence_only(frame, dictionary) if selected else {}
-    availability = complete_case_count(frame, selected) if selected else None
+    availability = complete_case_count(frame, availability_columns) if selected else None
     warnings: list[str] = []
     blockers: list[str] = []
     questions: list[ClarificationQuestion] = []
@@ -280,6 +292,20 @@ def prepare_question(
                 "select",
                 _DESIGN_OPTIONS,
             )
+        elif spec.design == StudyDesign.PAIRED and spec.unit_id is None:
+            ask(
+                "unit_id",
+                "Which column identifies the same or matched unit across the two conditions?",
+                "Pairing cannot be inferred from row order or identifier-like values.",
+                "column",
+                column_options,
+            )
+
+    if spec.unit_id is not None and spec.unit_id in {
+        question.outcome,
+        question.predictor,
+    }:
+        raise InvalidDataError("unit_id must differ from the outcome and condition columns.")
 
     for column in selected:
         observed = frame[column].dropna()

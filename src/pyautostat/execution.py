@@ -7,6 +7,8 @@ from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
+import pandas as pd
+from scipy import stats
 
 from .analyzer import StatisticalAnalyzer
 from .exceptions import InsufficientDataError, InvalidTestError, PyAutoStatError
@@ -40,6 +42,7 @@ _NULL_HYPOTHESES = {
     "kruskal_wallis": "All group rank distributions are equal.",
     "pearson_correlation": "The population Pearson linear correlation is zero.",
     "pearson_chi_square": "The two categorical variables are independent.",
+    "paired_t": "The population mean paired difference is zero.",
 }
 
 
@@ -274,6 +277,7 @@ def _pearson_result(
     profile = StatisticalAnalyzer(subset).analyze_all(
         data_dictionary=declarations if declarations else None
     )
+
     correlation = profile.get("correlation", {})
     pearson = correlation.get("pearson", {})
     coefficient = pearson.get("matrix", {}).get(first, {}).get(second)
@@ -331,6 +335,121 @@ def _pearson_result(
             "alternative_hypothesis": "two-sided",
             "diagnostics": {
                 "independent_observational_pairs": "Declared design; not verified from values."
+            },
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _paired_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    outcome = specification.question.outcome
+    condition = specification.question.predictor
+    unit_id = specification.unit_id
+    assert outcome is not None and condition is not None and unit_id is not None
+    usable = analyzer.df[[unit_id, condition, outcome]].dropna()
+    if usable.duplicated([unit_id, condition]).any():
+        raise InsufficientDataError(
+            "A unit has multiple usable observations in one condition; aggregation is required."
+        )
+    observed = list(pd.unique(analyzer.df[condition].dropna()))
+    order = list(specification.condition_order or tuple(observed))
+    if len(observed) != 2 or len(order) != 2 or set(order) != set(observed):
+        raise InsufficientDataError("Paired execution requires exactly two ordered conditions.")
+    pivot = usable.pivot(index=unit_id, columns=condition, values=outcome)
+    complete = pivot.dropna(subset=order)
+    first = np.asarray(complete[order[0]], dtype=float)
+    second = np.asarray(complete[order[1]], dtype=float)
+    if len(first) < 2 or not np.isfinite(first).all() or not np.isfinite(second).all():
+        raise InsufficientDataError("At least two finite complete pairs are required.")
+    differences = first - second
+    mean_difference = float(np.mean(differences))
+    sd_difference = float(np.std(differences, ddof=1))
+    if not math.isfinite(sd_difference) or sd_difference <= 0:
+        raise InsufficientDataError("Paired differences need finite nonzero variation.")
+    test = stats.ttest_rel(first, second, nan_policy="raise")
+    statistic = _number(test.statistic, "paired t statistic")
+    p_value = _number(test.pvalue, "paired t p-value", probability=True)
+    complete_pairs = int(len(differences))
+    degrees = complete_pairs - 1
+    standard_error = sd_difference / math.sqrt(complete_pairs)
+    critical = float(stats.t.ppf((1 + specification.options.confidence_level) / 2, degrees))
+    if not math.isfinite(critical):
+        raise InsufficientDataError("The paired confidence interval critical value is invalid.")
+    margin = critical * standard_error
+    interval = {
+        "quantity": "mean paired difference",
+        "lower": mean_difference - margin,
+        "upper": mean_difference + margin,
+        "level": specification.options.confidence_level,
+        "method": "analytical paired t interval",
+    }
+    effect = mean_difference / sd_difference
+    analyzed_rows = 2 * complete_pairs
+    excluded_rows = len(analyzer.df) - analyzed_rows
+    total_units = int(analyzer.df[unit_id].dropna().nunique())
+    incomplete_units = total_units - complete_pairs
+    missing_unit_rows = int(analyzer.df[unit_id].isna().sum())
+    labels = [_label(item) for item in order]
+    contrast = {
+        "definition": "first condition minus second condition",
+        "first": labels[0],
+        "second": labels[1],
+    }
+    unit = (specification.data_dictionary or {}).get(outcome, {}).get("unit")
+    return AnalysisResult(
+        method_id="paired_t",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed_rows,
+        excluded_rows=excluded_rows,
+        values={
+            "test_statistic": statistic,
+            "degrees_of_freedom": degrees,
+            "p_value": p_value,
+            "primary_estimate": mean_difference,
+            "estimate_name": "mean paired difference",
+            "estimate_unit": unit,
+            "effect_size": {
+                "name": "Cohen's dz",
+                "value": effect,
+                "definition": (
+                    "Mean paired difference divided by the sample SD of paired differences."
+                ),
+                "confidence_interval": None,
+            },
+            "confidence_interval": interval,
+        },
+        assumptions=recommendation.required_assumptions,
+        warnings=tuple(recommendation.warnings),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.ttest_rel",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed_rows,
+                "excluded_rows": excluded_rows,
+                "total_units": total_units,
+                "complete_pairs": complete_pairs,
+                "incomplete_units": incomplete_units,
+                "excluded_units": incomplete_units,
+                "missing_unit_rows": missing_unit_rows,
+                "complete_pair_rule": "one usable observation in each declared condition",
+            },
+            "unit_id": unit_id,
+            "group_order": labels,
+            "condition_order": labels,
+            "contrast": contrast,
+            "null_hypothesis": _NULL_HYPOTHESES["paired_t"],
+            "null_value": 0.0,
+            "null_quantity": "mean paired difference",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "paired_difference_sd": sd_difference,
+                "independent_pairs": "Declared design; not verified from values.",
             },
         },
         specification=specification,
@@ -484,6 +603,8 @@ def execute_specification(
             )
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, recommendation)
+        if method_id == "paired_t":
+            return _paired_result(analyzer, specification, recommendation)
         if method_id == "pearson_correlation":
             return _pearson_result(analyzer, specification, recommendation)
         if method_id == "pearson_chi_square":
@@ -558,6 +679,8 @@ def execute_selected_method(
     try:
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, explicit)
+        if method_id == "paired_t":
+            return _paired_result(analyzer, specification, explicit)
         if method_id == "pearson_correlation":
             return _pearson_result(analyzer, specification, explicit)
         if method_id == "pearson_chi_square":

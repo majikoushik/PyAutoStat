@@ -11,6 +11,7 @@ from .exceptions import InvalidDataError
 
 SCHEMA_VERSION = 1
 QUESTION_SCHEMA_VERSION = 2
+PAIRED_SCHEMA_VERSION = 3
 
 
 class Objective(str, Enum):
@@ -138,6 +139,8 @@ class AnalysisSpecification:
     options: AnalysisOptions = field(default_factory=AnalysisOptions)
     variable_metadata: dict[str, str] | None = None
     data_dictionary: dict[str, dict[str, Any]] | None = None
+    unit_id: str | None = None
+    condition_order: tuple[Any, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.question, ResearchQuestion):
@@ -165,12 +168,36 @@ class AnalysisSpecification:
                     "data_dictionary must map column names to metadata mappings."
                 )
             object.__setattr__(self, "data_dictionary", _json_value(self.data_dictionary))
+        _name(self.unit_id, "unit_id")
+        if self.condition_order is not None:
+            if (
+                not isinstance(self.condition_order, (list, tuple))
+                or len(self.condition_order) != 2
+            ):
+                raise InvalidDataError("condition_order must contain exactly two condition labels.")
+            checked = tuple(_json_value(item, "condition_order") for item in self.condition_order)
+            if any(item is None or isinstance(item, (list, dict)) for item in checked):
+                raise InvalidDataError(
+                    "condition_order labels must be non-missing JSON scalar values."
+                )
+            if checked[0] == checked[1]:
+                raise InvalidDataError("condition_order labels must be distinct.")
+            object.__setattr__(self, "condition_order", checked)
+        if self.condition_order is not None and self.unit_id is None:
+            raise InvalidDataError("condition_order requires an explicit unit_id.")
+        if self.unit_id is not None and self.design is not StudyDesign.PAIRED:
+            raise InvalidDataError("unit_id is supported only for design='paired'.")
 
     def to_dict(self) -> dict[str, Any]:
-        payload = {
-            "schema_version": QUESTION_SCHEMA_VERSION
+        schema_version = (
+            PAIRED_SCHEMA_VERSION
+            if self.unit_id is not None or self.condition_order is not None
+            else QUESTION_SCHEMA_VERSION
             if self.data_dictionary is not None
-            else SCHEMA_VERSION,
+            else SCHEMA_VERSION
+        )
+        payload = {
+            "schema_version": schema_version,
             "question": self.question.to_dict(),
             "design": self.design.value,
             "options": self.options.to_dict(),
@@ -178,6 +205,9 @@ class AnalysisSpecification:
         }
         if self.data_dictionary is not None:
             payload["data_dictionary"] = _json_value(self.data_dictionary)
+        if schema_version == PAIRED_SCHEMA_VERSION:
+            payload["unit_id"] = self.unit_id
+            payload["condition_order"] = _json_value(self.condition_order)
         return payload
 
     @classmethod
@@ -185,18 +215,27 @@ class AnalysisSpecification:
         if (
             not isinstance(data, dict)
             or type(data.get("schema_version")) is not int
-            or data["schema_version"] not in (SCHEMA_VERSION, QUESTION_SCHEMA_VERSION)
+            or data["schema_version"]
+            not in (SCHEMA_VERSION, QUESTION_SCHEMA_VERSION, PAIRED_SCHEMA_VERSION)
         ):
             raise InvalidDataError(
                 f"schema_version must be {SCHEMA_VERSION} or "
-                f"{QUESTION_SCHEMA_VERSION} for this specification."
+                f"{QUESTION_SCHEMA_VERSION}, or {PAIRED_SCHEMA_VERSION} for this specification."
             )
         if data["schema_version"] == SCHEMA_VERSION and "data_dictionary" in data:
             raise InvalidDataError("data_dictionary requires schema_version 2.")
+        if data["schema_version"] in (SCHEMA_VERSION, QUESTION_SCHEMA_VERSION) and any(
+            key in data for key in ("unit_id", "condition_order")
+        ):
+            raise InvalidDataError("unit_id and condition_order require schema_version 3.")
         if data["schema_version"] == QUESTION_SCHEMA_VERSION and not isinstance(
             data.get("data_dictionary"), dict
         ):
             raise InvalidDataError("schema_version 2 requires a data_dictionary mapping.")
+        if data["schema_version"] == PAIRED_SCHEMA_VERSION and (
+            not isinstance(data.get("unit_id"), str) or not data["unit_id"].strip()
+        ):
+            raise InvalidDataError("schema_version 3 requires an explicit unit_id.")
         try:
             return cls(
                 question=ResearchQuestion.from_dict(data["question"]),
@@ -204,6 +243,12 @@ class AnalysisSpecification:
                 options=AnalysisOptions.from_dict(data["options"]),
                 variable_metadata=data.get("variable_metadata"),
                 data_dictionary=data.get("data_dictionary"),
+                unit_id=data.get("unit_id"),
+                condition_order=(
+                    tuple(data["condition_order"])
+                    if data.get("condition_order") is not None
+                    else None
+                ),
             )
         except (KeyError, TypeError) as exc:
             raise InvalidDataError(

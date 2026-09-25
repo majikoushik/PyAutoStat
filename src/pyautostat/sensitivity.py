@@ -39,6 +39,7 @@ _PLANNING = {"planned", "exploratory", "unknown"}
 _QUANTITIES = {
     "welch_t": "mean_difference",
     "student_t": "mean_difference",
+    "paired_t": "mean_difference",
     "mann_whitney_u": "rank_biserial",
     "one_way_anova": "eta_squared",
     "kruskal_wallis": "epsilon_squared",
@@ -379,6 +380,7 @@ def scenario_values(result: AnalysisResult) -> dict[str, Any]:
     effect_value = _finite(effect.get("value")) if isinstance(effect, dict) else None
     effect_quantities = {
         "Cohen's d": "cohens_d",
+        "Cohen's dz": "cohens_dz",
         "rank-biserial correlation": "rank_biserial",
         "eta-squared": "eta_squared",
         "epsilon-squared": "epsilon_squared",

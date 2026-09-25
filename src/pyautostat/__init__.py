@@ -1,7 +1,18 @@
 """Statistical analysis, insights, and reports for pandas DataFrames."""
 
+from .analysis_plan import (
+    AnalysisPlanStatus,
+    PlanAdherenceResult,
+    StatisticalAnalysisPlan,
+    compare_plan_to_result,
+)
 from .analyzer import StatisticalAnalyzer
 from .audit import AuditFinding, AuditResult, StatisticalResultAuditor
+from .completeness import (
+    CompletenessItem,
+    ReportingCompletenessResult,
+    assess_reporting_completeness,
+)
 from .decision_ledger import DecisionLedger
 from .detection import detect_column_types, suggest_column_roles
 from .exceptions import (
@@ -37,6 +48,7 @@ from .sensitivity import (
     SensitivitySpecification,
     SensitivityStatus,
 )
+from .session import ResearchSessionSnapshot, build_session_snapshot, capability_payload
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -44,6 +56,7 @@ from .specifications import (
     ResearchQuestion,
     StudyDesign,
 )
+from .study_planning import StudyPlanner, StudyPlanningResult
 from .workflow import ResearchWorkflowResult, WorkflowStatus
 
 __version__ = "0.1.0"
@@ -51,10 +64,22 @@ __author__ = "Koushik Chandra Maji"
 
 __all__ = [
     "StatisticalAnalyzer",
+    "StatisticalAnalysisPlan",
+    "AnalysisPlanStatus",
+    "PlanAdherenceResult",
+    "compare_plan_to_result",
+    "StudyPlanner",
+    "StudyPlanningResult",
     "ResearchAssistant",
     "ResearchWorkflowResult",
     "WorkflowStatus",
     "ResearchReport",
+    "CompletenessItem",
+    "ReportingCompletenessResult",
+    "assess_reporting_completeness",
+    "ResearchSessionSnapshot",
+    "build_session_snapshot",
+    "capability_payload",
     "DecisionLedger",
     "AuditFinding",
     "AuditResult",

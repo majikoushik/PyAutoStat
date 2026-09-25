@@ -199,7 +199,7 @@ def test_data_limits_and_overlapping_missing_counts():
     assert any("fewer than two" in item for item in blocked.blockers)
 
 
-@pytest.mark.parametrize("design", ["paired", "repeated", "clustered"])
+@pytest.mark.parametrize("design", ["repeated", "clustered"])
 def test_designs_are_representable_without_execution(assistant, design):
     draft = assistant.prepare_question(
         objective="compare_groups",
@@ -210,6 +210,18 @@ def test_designs_are_representable_without_execution(assistant, design):
     )
     assert draft.status == "ready"
     assert draft.specification.design.value == design
+
+
+def test_paired_design_requires_explicit_unit_identifier(assistant):
+    draft = assistant.prepare_question(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="paired",
+        estimand="mean",
+    )
+    assert draft.status == "needs_input"
+    assert draft.missing_information[0].field == "unit_id"
 
 
 def test_unknown_design_stays_unknown_and_options_have_stable_values(assistant):

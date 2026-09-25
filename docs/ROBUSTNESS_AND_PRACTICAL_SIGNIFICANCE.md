@@ -32,8 +32,9 @@ scenario with an independent design and a declared equal-population-variance ass
 statistic is calculated by the existing Phase 6 adapter. A Mann–Whitney scenario must use a
 distribution estimand and is labelled `different_estimand` relative to a Welch mean comparison.
 Its estimate is displayed, but no estimate change or direct robustness conclusion is calculated.
-Paired, repeated, clustered, coefficient-only, and unknown methods remain incompatible or
-unavailable; no independent method is substituted.
+Paired scenarios require the same explicit unit-ID and two-condition contract as the primary
+paired workflow. Repeated, clustered, coefficient-only, and unknown methods remain incompatible
+or unavailable; no independent method is substituted.
 
 For `same_estimand` scenarios, the result records point-estimate difference, direction, effective
 sample-size change, interval availability, and descriptive interval overlap. A reversed two-group
@@ -115,7 +116,7 @@ Phase 11 configurations were recorded but were not automatically replayed.
 - Sensitivity results describe only the scenarios supplied by the researcher.
 - Different-estimand scenarios are supplementary analyses, not direct replications.
 - Pearson uncertainty remains partial because the current backend has no Pearson interval.
-- Changed-data sensitivity, paired methods, exact sparse-table methods, and rank-correlation
+- Changed-data sensitivity, cross-design paired/independent substitutions, exact sparse-table methods, and rank-correlation
   inference are not implemented.
 - Thresholds express researcher context. PyAutoStat does not supply universal practical-importance
   cutoffs or generic small, medium, and large labels for this decision.

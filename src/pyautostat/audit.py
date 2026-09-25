@@ -296,10 +296,17 @@ class StatisticalResultAuditor:
                         )
                     except (TypeError, csv.Error):
                         _mismatch(f"exports.csv.{table_id}", "valid CSV", "invalid CSV", findings)
-            elif name in {"html", "markdown"}:
+            elif name in {"html", "markdown", "latex"}:
                 checked.append(f"exports.{name}")
-                canonical = expected.to_html() if name == "html" else expected.to_markdown()
-                if not isinstance(supplied, str) or supplied != canonical:
+                render = (
+                    expected.to_html
+                    if name == "html"
+                    else expected.to_markdown
+                    if name == "markdown"
+                    else expected.to_latex
+                )
+                canonical = {render(style=style) for style in ("general", "apa", "ieee")}
+                if not isinstance(supplied, str) or supplied not in canonical:
                     _mismatch(f"exports.{name}", "canonical rendering", supplied, findings)
             else:
                 skipped.append(f"exports.{name}: unsupported format")

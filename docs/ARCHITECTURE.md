@@ -92,3 +92,19 @@ Phase 9 adds an optional `DecisionLedger` owned by `ResearchAssistant`, a separa
 Phase 3 routes both profiling entry points through `DatasetProfiler`. The analyzer still computes the existing statistics, then the profiler attaches categorical summaries, column intelligence, missingness patterns, duplicate overlap, outlier/distribution details, pairwise correlation counts, and profile defaults. Optional declarations are validated before calculations. Numeric identifiers supported by name and observed uniqueness are omitted from profile calculations; `analyzer.numeric_cols` continues to describe raw numeric dtypes and hypothesis testing remains separate. User-declared types and roles can override profiling selection. `ResearchAssistant.complete_case_count(columns)` provides reusable row availability for future analysis intake. The profile remains a plain dictionary; `ReportGenerator.to_json()` is its JSON-safe serialization path, including pandas dtype conversion. No presentation layer recalculates statistics.
 
 Compatibility policy: existing public imports and established result dictionary keys remain intact; Phase 2 adds fields and changes method behavior where needed for correctness. Schema version 1 is the first configuration wire format; a future incompatible schema change must use a new version and explicitly document migration. The new records do not retrofit legacy result dictionaries.
+## Phase 12 planning and adapter boundaries
+
+`analysis_plan.py` records validated pre-analysis intent and later field-by-field adherence without
+executing statistics. `study_planning.py` is standalone because prospective planning must not
+require a research DataFrame. `completeness.py` assesses report-field representation separately
+from scientific quality. `session.py` composes existing serializable records and registry-derived
+capabilities; it contains no decision or statistical calculation logic.
+
+Paired matching remains in question/recommendation/execution layers: the specification carries
+the unit-ID column and optional condition order, recommendation validates pair structure, and
+execution creates complete pairs. Interpretation and reporting consume the resulting aggregate
+record. Unit identifier values never cross into reports or session snapshots.
+
+The canonical `ResearchReport` stays style-neutral. General, APA-oriented, IEEE-oriented, and
+LaTeX methods render that same payload. No renderer recalculates a statistic. See
+`ADVANCED_PLANNING_AND_PRESENTATION.md` for public contracts.

@@ -56,3 +56,18 @@ Unavailable analyses yield `status="unavailable"` and no reader-facing numerical
 The static HTML has embedded CSS and no network dependency. All user text is HTML escaped; Markdown syntax and HTML-like text are escaped; CSV formula-like text is apostrophe-prefixed after leading whitespace. This is a defensive CSV policy, not a guarantee for every spreadsheet application. Save methods require an explicit destination, refuse overwrite by default, and derive CSV names from stable table IDs.
 
 The report excludes the raw DataFrame and omits detected identifier category values in descriptive profiles, including unique-value categorical columns. Aggregate small cells can still be sensitive. No package/dependency version, execution timestamp, randomization, ethics approval, or preregistration is fabricated inside the report. The recorded method ID, seed, bootstrap count, specification, tables, and source references support the separate Phase 9 consistency auditor; the optional Decision Ledger records only observed local events and is not authenticated history. The legacy `ReportGenerator` remains separate.
+## Phase 12 presentation and completeness
+
+The canonical report payload and its schema version remain style-neutral. `to_html`,
+`to_markdown`, and `to_latex` accept `general`, `apa`, or `ieee`; all read the same stored values.
+The oriented styles are presentation aids and do not claim journal compliance. LaTeX output
+escapes user-controlled special characters and is never compiled. `save_latex` follows the same
+explicit-write and `overwrite=False` policy as other save methods.
+
+Paired reports add aggregate `complete_pairs`, `total_units`, `incomplete_units`,
+`excluded_units`, the complete-pair rule, condition order, and signed contrast. The unit-ID column
+name may be stated in Methods, but identifier values are omitted.
+
+`ReportingCompletenessResult` schema version 1 is separate from the report. It labels applicable
+items `present`, `missing`, `partial`, or `not_applicable`, including the distinction between an
+omitted available interval and a backend-unavailable Pearson interval. It has no quality score.

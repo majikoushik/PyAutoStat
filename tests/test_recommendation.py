@@ -39,7 +39,8 @@ def test_registry_matches_real_backend_capabilities():
     for method_id in ("spearman_coefficient", "kendall_coefficient"):
         assert METHOD_CAPABILITIES[method_id].availability == "coefficient_only"
         assert not METHOD_CAPABILITIES[method_id].inferential
-    assert "paired_t" not in METHOD_CAPABILITIES
+    assert METHOD_CAPABILITIES["paired_t"].availability == "runnable"
+    assert "paired" in METHOD_CAPABILITIES["paired_t"].designs
     assert "welch_anova" not in METHOD_CAPABILITIES
 
 
@@ -113,7 +114,7 @@ def test_two_group_distribution_uses_mann_whitney(comparison):
     assert "median" not in result.rationale
 
 
-@pytest.mark.parametrize("design", ["paired", "repeated", "clustered"])
+@pytest.mark.parametrize("design", ["repeated", "clustered"])
 def test_dependent_designs_block_independent_methods(comparison, design):
     result = question(
         comparison,
@@ -127,6 +128,19 @@ def test_dependent_designs_block_independent_methods(comparison, design):
     assert result.method_id is None
     assert design in result.blockers[0]
     assert "independent" in result.blockers[0]
+
+
+def test_paired_mean_question_requests_unit_identifier(comparison):
+    result = question(
+        comparison,
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        estimand="mean",
+        design="paired",
+    )
+    assert result.status == "needs_input"
+    assert result.missing_information[0].field == "unit_id"
 
 
 def test_unknown_design_preserves_phase4_question(comparison):

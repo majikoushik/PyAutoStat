@@ -30,6 +30,12 @@ _EVENTS = {
     "sensitivity_scenario_unavailable",
     "sensitivity_scenario_failed",
     "meaningful_threshold_declared",
+    "analysis_plan_created",
+    "analysis_plan_updated",
+    "study_planning_completed",
+    "plan_adherence_compared",
+    "reporting_completeness_assessed",
+    "session_snapshot_created",
 }
 
 

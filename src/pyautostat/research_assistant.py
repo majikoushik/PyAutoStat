@@ -9,8 +9,17 @@ from typing import Any, cast
 
 import pandas as pd
 
+from .analysis_plan import (
+    AnalysisPlanStatus,
+    PlanAdherenceResult,
+    StatisticalAnalysisPlan,
+    compare_plan_to_result,
+    planned_interval_quantity,
+    planned_quantity,
+)
 from .analyzer import StatisticalAnalyzer
 from .audit import AuditResult, StatisticalResultAuditor
+from .completeness import ReportingCompletenessResult, assess_reporting_completeness
 from .decision_ledger import DecisionLedger
 from .exceptions import InvalidDataError, PyAutoStatError
 from .execution import execute_selected_method, execute_specification
@@ -39,6 +48,7 @@ from .sensitivity import (
     estimate_quantity,
     scenario_values,
 )
+from .session import ResearchSessionSnapshot, build_session_snapshot
 from .specifications import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -46,6 +56,7 @@ from .specifications import (
     ResearchQuestion,
     StudyDesign,
 )
+from .study_planning import StudyPlanner, StudyPlanningResult
 from .workflow import ResearchWorkflowResult, WorkflowStatus
 
 
@@ -62,6 +73,7 @@ class ResearchAssistant:
         self._ledger: DecisionLedger | None = None
         self._planning_status = "unknown"
         self._last_meaningful_threshold: dict[str, Any] | None = None
+        self._analysis_has_executed = False
 
     def enable_tracking(
         self, *, clock: Callable[[], datetime | str] | None = None
@@ -112,6 +124,25 @@ class ResearchAssistant:
         """Count rows available for a specified set of columns."""
         return complete_case_count(self._analyzer.df, columns)
 
+    def study_planner(self) -> StudyPlanner:
+        """Return a prospective planner that does not inspect this assistant's data."""
+
+        def record(result: StudyPlanningResult) -> None:
+            if self._ledger is not None:
+                payload = result.to_dict()
+                self._ledger._record(
+                    "study_planning_completed",
+                    source="researcher",
+                    references={"study_planning": content_reference("study_planning", payload)},
+                    metadata={
+                        "status": result.status,
+                        "planning_type": result.planning_type,
+                        "method_family": result.method_family,
+                    },
+                )
+
+        return StudyPlanner(on_result=record)
+
     def run(
         self,
         *,
@@ -124,6 +155,8 @@ class ResearchAssistant:
         options: AnalysisOptions | None = None,
         data_dictionary: dict | None = None,
         variable_types: dict[str, str] | None = None,
+        unit_id: str | None = None,
+        condition_order: tuple[Any, Any] | None = None,
         draft: QuestionDraft | None = None,
         specification: AnalysisSpecification | None = None,
         include_profile: bool = False,
@@ -158,6 +191,8 @@ class ResearchAssistant:
             options,
             data_dictionary,
             variable_types,
+            unit_id,
+            condition_order,
         )
         if (draft is not None or specification is not None) and any(
             value is not None for value in raw_values
@@ -183,6 +218,8 @@ class ResearchAssistant:
                 options=options,
                 data_dictionary=data_dictionary,
                 variable_types=variable_types,
+                unit_id=unit_id,
+                condition_order=condition_order,
             )
 
         profile = None
@@ -334,6 +371,8 @@ class ResearchAssistant:
         options: AnalysisOptions | None = None,
         data_dictionary: dict | None = None,
         variable_types: dict[str, str] | None = None,
+        unit_id: str | None = None,
+        condition_order: tuple[Any, Any] | None = None,
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
@@ -354,6 +393,8 @@ class ResearchAssistant:
                 else None
             ),
             variable_types=variable_types,
+            unit_id=unit_id,
+            condition_order=condition_order,
             specification=specification,
         )
         if self._ledger is not None:
@@ -384,6 +425,8 @@ class ResearchAssistant:
             "options",
             "data_dictionary",
             "variable_types",
+            "unit_id",
+            "condition_order",
         }
         unknown = set(changes) - allowed
         if unknown:
@@ -413,8 +456,13 @@ class ResearchAssistant:
             values["predictor"] = None
             values["estimand"] = None
             selected_design = StudyDesign.UNKNOWN
+            selected_unit_id = None
+            selected_condition_order = None
             if new_objective == Objective.DESCRIPTIVE:
                 values["outcome"] = None
+        else:
+            selected_unit_id = old.unit_id
+            selected_condition_order = old.condition_order
         for key in ("outcome", "predictor", "estimand", "description"):
             if key in changes:
                 values[key] = changes[key]
@@ -422,6 +470,17 @@ class ResearchAssistant:
             selected_design = (
                 StudyDesign.UNKNOWN if changes["design"] is None else changes["design"]
             )
+            try:
+                revised_design = StudyDesign(selected_design)
+            except (TypeError, ValueError) as exc:
+                raise InvalidDataError(
+                    "design must be unknown, independent, paired, repeated, or clustered."
+                ) from exc
+            if revised_design is not StudyDesign.PAIRED:
+                selected_unit_id = None
+                selected_condition_order = None
+        if changes.get("unit_id", selected_unit_id) is None:
+            selected_condition_order = None
         if new_objective == Objective.DESCRIPTIVE and any(
             key in changes for key in ("predictor", "estimand", "design")
         ):
@@ -434,6 +493,8 @@ class ResearchAssistant:
             options=changes.get("options", old.options),
             variable_metadata=old.variable_metadata,
             data_dictionary=changes.get("data_dictionary", old.data_dictionary),
+            unit_id=changes.get("unit_id", selected_unit_id),
+            condition_order=changes.get("condition_order", selected_condition_order),
         )
         updated = prepare_question(
             self._analyzer.df,
@@ -455,6 +516,127 @@ class ResearchAssistant:
                     metadata={"changed_fields": changed},
                 )
         return updated
+
+    def analysis_plan(
+        self,
+        draft_or_specification: QuestionDraft | AnalysisSpecification,
+        *,
+        sensitivity_scenarios: list[SensitivitySpecification]
+        | tuple[SensitivitySpecification, ...]
+        | None = None,
+        meaningful_threshold: MeaningfulEffectThreshold | None = None,
+        multiplicity_policy: str = "not_applicable",
+        multiplicity_method: str | None = None,
+        report_style: str = "general",
+        previous_plan: StatisticalAnalysisPlan | None = None,
+        reason: str | None = None,
+    ) -> StatisticalAnalysisPlan:
+        """Create or revise a plan without executing any numerical analysis."""
+        if isinstance(draft_or_specification, QuestionDraft):
+            draft = prepare_question(
+                self._analyzer.df, specification=draft_or_specification.specification
+            )
+        elif isinstance(draft_or_specification, AnalysisSpecification):
+            draft = prepare_question(self._analyzer.df, specification=draft_or_specification)
+        else:
+            raise InvalidDataError(
+                "analysis_plan requires a QuestionDraft or AnalysisSpecification."
+            )
+        scenarios = tuple(sensitivity_scenarios or ())
+        if any(not isinstance(item, SensitivitySpecification) for item in scenarios):
+            raise InvalidDataError(
+                "sensitivity_scenarios must contain SensitivitySpecification records."
+            )
+        if meaningful_threshold is not None and not isinstance(
+            meaningful_threshold, MeaningfulEffectThreshold
+        ):
+            raise InvalidDataError(
+                "meaningful_threshold must be a MeaningfulEffectThreshold or None."
+            )
+        if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+            raise InvalidDataError("A supplied plan-revision reason must be non-empty text.")
+        recommendation = None
+        if draft.status.value == "ready":
+            recommendation = recommend_from_draft(self._analyzer.df, draft)
+        status = (
+            AnalysisPlanStatus.NEEDS_INPUT
+            if draft.status.value == "needs_input"
+            else AnalysisPlanStatus.READY
+            if recommendation is not None and recommendation.status.value == "ready"
+            else AnalysisPlanStatus.UNSUPPORTED
+        )
+        method_id = (
+            recommendation.method_id
+            if recommendation is not None and recommendation.status.value == "ready"
+            else None
+        )
+        warnings = [*draft.warnings]
+        limitations = [
+            "A local plan is not proof of external preregistration or study validity.",
+            "No automatic outlier deletion or missing-data modeling is planned.",
+        ]
+        if multiplicity_policy == "planned_method":
+            limitations.append(
+                "The named multiplicity procedure is recorded but is not executed by PyAutoStat."
+            )
+        rationale = None
+        if recommendation is not None:
+            rationale = recommendation.rationale
+            warnings.extend(recommendation.warnings)
+            limitations.extend(recommendation.blockers)
+        else:
+            limitations.extend(draft.blockers)
+            limitations.extend(item.message for item in draft.missing_information)
+        plan = StatisticalAnalysisPlan(
+            specification=draft.specification,
+            status=status,
+            primary_method_id=method_id,
+            method_rationale=rationale,
+            effect_quantity=planned_quantity(method_id),
+            confidence_interval_quantity=planned_interval_quantity(method_id),
+            missing_data_policy="analysis-specific complete cases",
+            exclusion_rule=(
+                "Only rows missing variables required by the selected analysis are excluded."
+            ),
+            outlier_rule="No automatic outlier deletion.",
+            sensitivity_scenarios=scenarios,
+            meaningful_threshold=meaningful_threshold,
+            multiplicity_policy=multiplicity_policy,
+            multiplicity_method=multiplicity_method,
+            report_style=report_style,
+            planning_status=self._planning_status,
+            created_after_analysis=self._analysis_has_executed,
+            warnings=tuple(dict.fromkeys(warnings)),
+            limitations=tuple(dict.fromkeys(limitations)),
+            provenance={
+                "tracking_enabled": self._ledger is not None,
+                "local_record_only": True,
+                "external_preregistration_verified": False,
+                "timing": "after_analysis"
+                if self._analysis_has_executed
+                else "before_observed_analysis_in_this_assistant",
+            },
+        )
+        if previous_plan is not None and not isinstance(previous_plan, StatisticalAnalysisPlan):
+            raise InvalidDataError("previous_plan must be a StatisticalAnalysisPlan or None.")
+        if self._ledger is not None:
+            payload = plan.to_dict()
+            previous = previous_plan.to_dict() if previous_plan is not None else None
+            self._ledger._record(
+                "analysis_plan_updated" if previous is not None else "analysis_plan_created",
+                source="researcher",
+                previous_state=previous,
+                new_state=payload,
+                reason=reason,
+                references={"analysis_plan": content_reference("analysis_plan", payload)},
+                metadata={
+                    "status": plan.status.value,
+                    "changed_fields": _changed_fields(previous, payload)
+                    if previous is not None
+                    else [],
+                },
+            )
+        return plan
 
     def recommend_test(
         self,
@@ -500,6 +682,7 @@ class ResearchAssistant:
         selected_spec = draft.specification if draft is not None else specification
         assert selected_spec is not None
         result = execute_specification(self._analyzer, selected_spec)
+        self._analysis_has_executed = result.method_id != "unselected"
         if self._ledger is not None:
             references = {"analysis": content_reference("analysis", result.to_dict())}
             if result.specification is not None:
@@ -866,6 +1049,73 @@ class ResearchAssistant:
         return assess_practical_significance(
             result, threshold, planning_status=threshold.planning_status
         )
+
+    def plan_adherence(
+        self,
+        plan: StatisticalAnalysisPlan,
+        result: AnalysisResult,
+        *,
+        reason: str | None = None,
+    ) -> PlanAdherenceResult:
+        """Compare recorded plan fields with a later result without judging conduct."""
+        comparison = compare_plan_to_result(plan, result, reason=reason)
+        if self._ledger is not None:
+            payload = comparison.to_dict()
+            self._ledger._record(
+                "plan_adherence_compared",
+                references={
+                    "analysis_plan": content_reference("analysis_plan", plan.to_dict()),
+                    "analysis": content_reference("analysis", result.to_dict()),
+                    "plan_adherence": content_reference("plan_adherence", payload),
+                },
+                metadata={"status": comparison.status},
+            )
+        return comparison
+
+    def reporting_completeness(
+        self, report: ResearchReport, *, style: str = "general"
+    ) -> ReportingCompletenessResult:
+        """Assess applicable reporting fields without scoring research quality."""
+        result = assess_reporting_completeness(report, style=style)
+        if self._ledger is not None:
+            payload = result.to_dict()
+            self._ledger._record(
+                "reporting_completeness_assessed",
+                references={
+                    "report": content_reference("report", report.to_dict()),
+                    "reporting_completeness": content_reference("reporting_completeness", payload),
+                },
+                metadata={"status": result.status, "style": result.style},
+            )
+        return result
+
+    def session_snapshot(
+        self,
+        workflow: ResearchWorkflowResult,
+        *,
+        sensitivity: SensitivityResult | None = None,
+        practical_significance: PracticalSignificanceResult | None = None,
+        analysis_plan: StatisticalAnalysisPlan | None = None,
+        study_planning: StudyPlanningResult | None = None,
+        reporting_completeness: ReportingCompletenessResult | None = None,
+    ) -> ResearchSessionSnapshot:
+        """Serialize current records for UI-independent adapters without rerunning work."""
+        snapshot = build_session_snapshot(
+            workflow,
+            sensitivity=sensitivity,
+            practical_significance=practical_significance,
+            analysis_plan=analysis_plan,
+            study_planning=study_planning,
+            reporting_completeness=reporting_completeness,
+        )
+        if self._ledger is not None:
+            payload = snapshot.to_dict()
+            self._ledger._record(
+                "session_snapshot_created",
+                references={"session_snapshot": content_reference("session_snapshot", payload)},
+                metadata={"workflow_status": workflow.status.value},
+            )
+        return snapshot
 
     def report(
         self,

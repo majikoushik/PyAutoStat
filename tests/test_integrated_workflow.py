@@ -112,7 +112,7 @@ def test_workflow_controls_require_booleans(comparison_frame, argument):
         ResearchAssistant(comparison_frame).run(**{**_mean_arguments(), argument: "yes"})
 
 
-@pytest.mark.parametrize("design", ["paired", "repeated", "clustered"])
+@pytest.mark.parametrize("design", ["repeated", "clustered"])
 def test_unsupported_dependent_designs_never_execute(comparison_frame, monkeypatch, design):
     assistant = ResearchAssistant(comparison_frame)
     monkeypatch.setattr(
@@ -124,6 +124,18 @@ def test_unsupported_dependent_designs_never_execute(comparison_frame, monkeypat
     assert workflow.status is WorkflowStatus.UNSUPPORTED
     assert workflow.analysis is workflow.report is None
     assert workflow.blockers
+
+
+def test_paired_workflow_requests_explicit_unit_identifier(comparison_frame, monkeypatch):
+    assistant = ResearchAssistant(comparison_frame)
+    monkeypatch.setattr(
+        assistant,
+        "analyze",
+        lambda *args, **kwargs: pytest.fail("analysis must wait for an explicit unit ID"),
+    )
+    workflow = assistant.run(**{**_mean_arguments(), "design": "paired"})
+    assert workflow.status is WorkflowStatus.NEEDS_INPUT
+    assert workflow.missing_information[0].field == "unit_id"
 
 
 def test_three_group_mean_target_is_not_switched_to_rank_test(monkeypatch):

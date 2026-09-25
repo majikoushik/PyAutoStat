@@ -24,6 +24,17 @@ optional schema 2 report, and audits it without rerunning scenarios. It writes n
 not select or rank scenarios by p-value. See
 [`docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`](../docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
 
+For Phase 12 prospective planning, analysis-plan creation, an explicit-ID paired mean workflow,
+report completeness, oriented presentation, and a JSON session snapshot, run:
+
+```bash
+python examples/phase12_planning_and_paired_example.py
+```
+
+The example writes no files, never derives planning inputs from the observed result, and reports
+only aggregate pair counts. See
+[`docs/ADVANCED_PLANNING_AND_PRESENTATION.md`](../docs/ADVANCED_PLANNING_AND_PRESENTATION.md).
+
 For a minimal profile:
 
 ```python

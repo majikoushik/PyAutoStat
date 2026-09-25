@@ -102,6 +102,7 @@ estimands, supported quantities, provenance, and formal-equivalence limits.
 | --- | --- | --- | --- | --- |
 | Dataset description | `objective="descriptive"` | `dataset_profile` | Complete when the profile is usable | Descriptive only; no inferential conclusion |
 | Two-group mean comparison | quantitative outcome, exactly two groups, independent design, `mean` target | Welch independent t-test | Available | At least two values per group and representable variance/effect |
+| Paired two-condition mean comparison | quantitative outcome, explicit unit ID, exactly two conditions, paired design, `mean` target | Paired t-test | Available | Unique unit/condition rows, at least two complete pairs, nonzero difference variance |
 | Two-group distribution comparison | ordered numeric outcome, independent design, `distribution` target | Mann–Whitney U | Available | Rank-distribution target; no universal median claim |
 | Three-or-more-group distribution comparison | ordered numeric outcome, independent design, `distribution` target | Kruskal–Wallis | Available | At least five values per group; omnibus only |
 | Linear numerical association | two quantitative variables, independent rows, `linear` target | Pearson correlation | Partial because no CI is implemented | At least three complete varying pairs; no causal claim |
@@ -109,7 +110,7 @@ estimands, supported quantities, provenance, and formal-equivalence limits.
 
 Student t-test and standard one-way ANOVA retain execution adapters for existing advanced callers,
 but the guided selector does not choose them. Spearman and Kendall remain descriptive
-coefficients without guided inference. Paired, repeated, clustered, multi-group robust mean,
+coefficients without guided inference. Repeated (>2 conditions), clustered, multi-group robust mean,
 Fisher exact, regression, mixed model, and survival workflows are unavailable. Diagnostics never
 change a declared mean target into a rank-distribution target.
 
@@ -123,7 +124,9 @@ change a declared mean target into a rank-distribution target.
 | All-missing selected variable or one observed group | question intake | `data_limited` | Correct/filter source data and rebuild | No / no |
 | Too few values, constant outcome, nonrepresentable spread | recommendation | `data_limited` | Review source values/sample and rescale when justified | No / no |
 | Sparse contingency table | recommendation | `data_limited` | Use an appropriate externally validated sparse-table method | No / no |
-| Paired, repeated, or clustered design | recommendation | `unsupported` | Use a design-compatible method outside this guided engine | No / no |
+| Paired design without a unit ID | question intake | `needs_input` | Supply the explicit matching column | No / no |
+| Paired duplicate unit/condition or unusable pairs | recommendation | `data_limited` or `unsupported` | Resolve the data structure without silent aggregation | No / no |
+| Repeated (>2 conditions) or clustered design | recommendation | `unsupported` | Use a design-compatible method outside this guided engine | No / no |
 | Three-group mean target | recommendation | `unsupported` | Use a justified supported external mean model | No / no |
 | Unsupported target/type combination or method preference | recommendation/API validation | `unsupported` or exception | Preserve the question and choose a compatible supported contract | No / no |
 | Numerical backend failure | execution | `failed`, unavailable analysis exposed | Inspect warnings and data scale | Yes / no successful report |

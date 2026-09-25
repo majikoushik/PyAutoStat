@@ -71,3 +71,16 @@ reference. It does not embed scenario DataFrames or rerun anything.
 Replay compares configuration, method, status, row and group accounting, statistic, degrees of freedom, raw p-value, estimate, effect and interval, warnings, and available profile reference. IDs, labels, counts, configuration and boolean decisions use exact equality. Floating point result fields use `math.isclose(rel_tol=1e-10, abs_tol=1e-12)`; the p-value decision at the recorded alpha is checked separately. The outcome lists differing field paths and discloses changed runtime versions. Agreement on a significance category alone is insufficient. Different dependency versions can legitimately produce numerical differences, and matching results do not prove scientific validity.
 
 `record.save_package(path, data_reference=None)` writes an explicitly requested ZIP containing `README.md`, `analysis_specification.json`, `analysis_reference.json`, and `reproducibility_record.json`. The optional data reference must be relative text. No raw observations or executable script are included, and no file is uploaded or run. Existing destinations are protected unless `overwrite=True`. The researcher must supply data separately for replay.
+## Phase 12 records
+
+With tracking enabled, analysis-plan creation and revision record local events. Revisions retain
+old/new payloads, changed fields, and only a researcher reason that was actually supplied.
+Prospective study-planning calls obtained through `assistant.study_planner()` record aggregate
+planning results and assumptions, never data. Plan adherence records matched, changed, and
+unrecorded fields and explicitly makes no misconduct inference.
+
+Paired specification schema 3 stores the unit-ID column name and condition order so explicit
+replay reconstructs the same pairing rule. Expected-result projections retain aggregate sample
+and contrast metadata, not identifier values. Analysis plans and session snapshots serialize for
+recordkeeping but do not trigger automatic analysis or replay. Local planning timing is not
+external preregistration evidence, and a dataset fingerprint is not authentication.

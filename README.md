@@ -11,7 +11,7 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 - **Explore data:** descriptive statistics, missing values, duplicates, distributions, histograms, and advisory column type and role detection.
 - **Check assumptions:** Shapiro-Wilk, D'Agostino-Pearson, and Anderson-Darling normality results; IQR, Z-score, and MAD outlier summaries.
 - **Study relationships:** Pearson, Spearman, and Kendall correlations, with p-values for Pearson pairs.
-- **Compare independent groups:** Welch or explicit Student t-test, Mann-Whitney U, one-way ANOVA, and Kruskal-Wallis; assumption diagnostics, effect sizes, and confidence intervals. Automatic selection requires a stated target quantity.
+- **Compare groups:** Welch or explicit Student t-test, an explicit two-condition paired t-test, Mann-Whitney U, one-way ANOVA, and Kruskal-Wallis; assumption diagnostics, effect sizes, and confidence intervals. Automatic selection requires a stated target quantity and design.
 - **Test categorical association:** Pearson chi-square, Cramér's V, and Cohen's h for a two-by-two table with a named success outcome.
 - **Plan an analysis:** turn a completed research question into a traceable method recommendation, clarification request, or unsupported result without running a test.
 - **Execute a supported plan:** `ResearchAssistant.analyze()` rechecks the design and recommendation, calls the existing numerical backend, and returns a structured result tied to the research specification.
@@ -21,6 +21,8 @@ PyAutoStat analyzes pandas DataFrames and returns structured statistical results
 - **Run the controlled workflow:** `ResearchAssistant.run()` connects question intake, recommendation, one execution, deterministic interpretation, reporting, auditing, and reproducibility metadata without writing files.
 - **Examine declared alternatives:** `ResearchAssistant.sensitivity_analysis()` executes only the supplied scenarios, distinguishes same from different estimands, and retains unavailable and failed attempts without ranking p-values.
 - **Apply a meaningful-effect threshold:** `ResearchAssistant.practical_significance()` compares a named estimate and its available interval with a researcher-defined threshold, separately from statistical significance.
+- **Plan prospectively:** `ResearchAssistant.analysis_plan()` records a pre-analysis contract without executing a test, while standalone `StudyPlanner` provides bounded independent and paired mean power or precision calculations from researcher-supplied assumptions.
+- **Prepare presentation and adapters:** assess reporting-field completeness, render General, APA-oriented, or IEEE-oriented HTML/Markdown/LaTeX, and serialize a versioned session snapshot without embedding the DataFrame.
 - **Share results:** severity-rated insights and dictionary, JSON, CSV, static HTML, or optional Plotly HTML reports.
 
 ## Installation
@@ -93,6 +95,44 @@ workflow = assistant.run(draft=revised)
 
 See the [controlled MVP contract and support matrix](docs/CONTROLLED_MVP.md) for statuses,
 supported methods, failure modes, privacy limits, and researcher responsibilities.
+
+### Plan and run a paired study
+
+```python
+from pyautostat import StudyPlanner
+
+prospective = StudyPlanner().paired_mean_power(
+    target_mean_difference=3,
+    sd_difference=6,
+    target_power=0.80,
+)
+
+paired_draft = assistant.prepare_question(
+    objective="compare_groups",
+    outcome="score",
+    predictor="condition",
+    estimand="mean",
+    design="paired",
+    unit_id="participant_id",
+    condition_order=("before", "after"),
+    variable_types={"score": "continuous"},
+)
+analysis_plan = assistant.analysis_plan(paired_draft, report_style="apa")
+paired_workflow = assistant.run(draft=paired_draft)
+completeness = assistant.reporting_completeness(paired_workflow.report, style="apa")
+apa_html = paired_workflow.report.to_html(style="apa")
+latex = paired_workflow.report.to_latex(style="apa")
+snapshot = assistant.session_snapshot(
+    paired_workflow,
+    analysis_plan=analysis_plan,
+    study_planning=prospective,
+    reporting_completeness=completeness,
+)
+```
+
+Pairing always uses the explicit unit-ID column, never row order. Duplicate unit/condition rows
+are blocked; incomplete pairs are counted and excluded. Planning inputs are prospective
+researcher assumptions. See [advanced planning and presentation](docs/ADVANCED_PLANNING_AND_PRESENTATION.md).
 
 ### Add explicit sensitivity and practical significance
 
@@ -171,7 +211,7 @@ csv_tables = report.to_csv_tables()
 
 `descriptive` needs no design or target. `compare_groups` requires an outcome, group column, target (`mean` or `distribution` for the common path), and confirmed design. `association` requires two columns and the relationship between observations across rows; two values in one row do not establish a paired-group design. Unknown facts stay as `needs_input` questions with stable option values; unusable selected data produce `data_limited` blockers. A `ready` draft means only that Phase 4 intake is complete and the selected data pass basic availability checks. `recommend_test()` adds method and design checks. Its `ready` status means a compatible calculation exists, not that the study's assumptions have been proven or a test has run. Use `data_dictionary={"score": {"type": "continuous"}}` or `variable_types={"score": "continuous"}` to correct an ambiguous type suggestion. No source values are recoded.
 
-For two independent quantitative groups targeting means, the recommendation is Welch's t-test. For ordered distribution comparisons it can recommend Mann-Whitney or Kruskal-Wallis. Linear numerical association can receive Pearson; adequate categorical tables can receive chi-square. Descriptive questions receive `dataset_profile`. A multi-group mean question remains unsupported without a justified explicit standard ANOVA choice. Paired, repeated, and clustered designs are unsupported by the current recommendation path. Spearman and Kendall have descriptive coefficients only, with no inferential p-values. The result records a structured decision trace, assumptions requiring review, relevant alternatives, and any missing information. [The API reference](API_REFERENCE.md) details the rules.
+For two independent quantitative groups targeting means, the recommendation is Welch's t-test. For ordered distribution comparisons it can recommend Mann-Whitney or Kruskal-Wallis. Linear numerical association can receive Pearson; adequate categorical tables can receive chi-square. Descriptive questions receive `dataset_profile`. A multi-group mean question remains unsupported without a justified explicit standard ANOVA choice. A paired mean comparison requires exactly two conditions and an explicit unit-ID column; repeated designs with more than two conditions and clustered designs remain unsupported. Spearman and Kendall have descriptive coefficients only, with no inferential p-values. The result records a structured decision trace, assumptions requiring review, relevant alternatives, and any missing information. [The API reference](API_REFERENCE.md) details the rules.
 
 `analyze()` executes only a fresh, ready, runnable recommendation. It records the original specification, method ID, analyzed and excluded rows, numerical values, confidence-interval quantity, group order, diagnostics, and warnings in `AnalysisResult`. Incomplete or unsupported requests return `status="unavailable"` without running a test; invalid column names still raise a package error. A successful calculation does not verify the scientific design. The existing `StatisticalAnalyzer` and `ReportGenerator` APIs remain available separately.
 

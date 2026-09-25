@@ -82,6 +82,25 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             "StatisticalAnalyzer.hypothesis_tests(test_type='ttest', equal_var=True)",
         ),
         MethodCapability(
+            "paired_t",
+            "Paired-samples t-test",
+            "compare_groups",
+            "mean",
+            ("quantitative", "condition", "unit_identifier"),
+            ("paired",),
+            "exactly 2 conditions",
+            "At least 2 complete pairs with finite nonzero difference variance",
+            (
+                "Explicit paired or matched units",
+                "Independent pairs",
+                "Appropriate paired-difference mean-inference conditions",
+            ),
+            True,
+            "runnable",
+            "Long-format pairs require one usable observation per unit and condition.",
+            "scipy.stats.ttest_rel",
+        ),
+        MethodCapability(
             "mann_whitney_u",
             "Mann-Whitney U",
             "compare_groups",
@@ -329,7 +348,10 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
 
     assert question.outcome is not None and question.predictor is not None
     assert objective is not None
-    usable = frame[[question.outcome, question.predictor]].dropna()
+    required_columns = [question.outcome, question.predictor]
+    if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
+        required_columns.append(spec.unit_id)
+    usable = frame[required_columns].dropna()
 
     for column in selected:
         codes = (spec.data_dictionary or {}).get(column, {}).get("missing_codes", [])
@@ -346,6 +368,29 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                     ),
                     rationale="Declared missing codes are not removed from the current data.",
                 )
+
+    if spec.design == StudyDesign.PAIRED:
+        if objective != Objective.COMPARE_GROUPS or question.estimand != "mean":
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "Paired support is limited to a two-condition quantitative mean comparison.",
+                ),
+                rationale="Paired distributional and association methods remain unsupported.",
+            )
+        assert spec.unit_id is not None
+        return _paired_compare(
+            frame,
+            question.outcome,
+            question.predictor,
+            spec.unit_id,
+            spec.condition_order,
+            types,
+            context,
+            record,
+            finish,
+            warnings,
+        )
 
     context["assumption_checks"].append(
         {
@@ -405,6 +450,120 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         record,
         finish,
         warnings,
+    )
+
+
+def _paired_compare(
+    frame: pd.DataFrame,
+    outcome: str,
+    condition: str,
+    unit_id: str,
+    condition_order: tuple[Any, Any] | None,
+    types: dict[str, str],
+    context: dict[str, Any],
+    record: Any,
+    finish: Any,
+    warnings: list[str],
+) -> Recommendation:
+    if types[outcome] not in _QUANTITATIVE or _numeric(frame[outcome].dropna()) is None:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("A paired mean comparison needs a quantitative numeric outcome.",),
+            rationale="The paired t-test targets a population mean paired difference.",
+        )
+    observed_conditions = list(pd.unique(frame[condition].dropna()))
+    if len(observed_conditions) != 2:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("A paired t-test requires exactly two observed condition levels.",),
+            rationale="More than two repeated conditions need a different dependent-design method.",
+        )
+    order = list(condition_order) if condition_order is not None else observed_conditions
+    if len(order) != 2 or set(order) != set(observed_conditions):
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("condition_order must name the two observed condition levels exactly.",),
+            rationale="The signed paired contrast must have an explicit valid orientation.",
+        )
+    usable = frame[[unit_id, condition, outcome]].dropna()
+    if usable.duplicated([unit_id, condition]).any():
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                "At least one unit has multiple usable observations in the same condition; "
+                "PyAutoStat will not average duplicates automatically.",
+            ),
+            rationale="Aggregation within a unit and condition is a scientific decision.",
+        )
+    pivot = usable.pivot(index=unit_id, columns=condition, values=outcome)
+    complete = pivot.dropna(subset=order)
+    complete_pairs = int(len(complete))
+    total_units = int(frame[unit_id].dropna().nunique())
+    incomplete_units = total_units - complete_pairs
+    missing_unit_rows = int(frame[unit_id].isna().sum())
+    order_labels = [str(item) for item in order]
+    context.update(
+        {
+            "unit_id": unit_id,
+            "condition_order": order_labels,
+            "total_units": total_units,
+            "complete_pairs": complete_pairs,
+            "incomplete_units": incomplete_units,
+            "missing_unit_rows": missing_unit_rows,
+        }
+    )
+    record(
+        "condition_order",
+        order_labels,
+        "Observed order or explicit researcher declaration.",
+    )
+    record("complete_pairs", complete_pairs, "Only units observed in both conditions are usable.")
+    if incomplete_units:
+        warnings.append(
+            f"{incomplete_units} unit(s) without both conditions were excluded from "
+            "paired analysis."
+        )
+    if missing_unit_rows:
+        warnings.append(
+            f"{missing_unit_rows} row(s) with missing unit identifiers could not be paired."
+        )
+    if complete_pairs < 2:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("At least two complete pairs are required for a paired t-test.",),
+            rationale="The paired-difference variance and t reference require complete pairs.",
+        )
+    first = _numeric(complete[order[0]])
+    second = _numeric(complete[order[1]])
+    if first is None or second is None:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("Complete paired outcomes must be finite numeric values.",),
+            rationale="The paired numerical backend cannot use nonfinite outcomes.",
+        )
+    differences = first - second
+    spread = _spread(differences)
+    if spread is None or spread <= 0:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("Paired differences must have finite nonzero variation.",),
+            rationale="Zero paired-difference variance makes the paired standard error undefined.",
+        )
+    context["assumption_checks"].append(
+        {
+            "assumption": "independent_pairs",
+            "category": "researcher_design_fact",
+            "status": "confirmed",
+        }
+    )
+    record("method", "paired_t", "Explicit paired design and two-condition mean estimand.")
+    return finish(
+        RecommendationStatus.READY,
+        method_id="paired_t",
+        rationale=(
+            "The declared paired design, explicit unit identifier, two conditions, and mean "
+            "estimand support a paired-samples t-test on complete paired differences."
+        ),
     )
 
 
