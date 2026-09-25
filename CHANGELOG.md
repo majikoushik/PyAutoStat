@@ -4,11 +4,6 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
-
-The established analysis, planning, and reporting implementation is checked into `main`, and its
-GitHub CI matrix passed. Packaging a new release remains a separate owner decision.
-
 ### Added
 
 - Added structured profiling resource metadata based on deep pandas memory usage, with advisory
@@ -116,3 +111,59 @@ GitHub CI matrix passed. Packaging a new release remains a separate owner decisi
 ## [0.1.0] - 2026-09-21
 
 - Initial statistical analysis, insight, and report-export package.
+
+## [Unreleased]
+
+## [0.2.0] - 2026-09-25
+
+This release substantially expands PyAutoStat from its initial analysis utilities into an explainable and reproducible research-analysis assistant. It adds guided research workflows, study planning, sensitivity and practical-significance analysis, paired-data support, reproducibility tooling, richer reporting, and stronger statistical safeguards.
+
+### Added
+
+- Added `ResearchAssistant` guided workflows from research-question intake through method recommendation, analysis, interpretation, reporting, audit, and reproducibility metadata.
+- Added structured research-question preparation with `prepare_question()` and `update_question()`, including explicit clarification when essential design information is missing.
+- Added deterministic method recommendation with explicit study-design, estimand, variable-type, and data-feasibility checks.
+- Added structured `AnalysisResult` and deterministic interpretation with effect estimates, confidence intervals, sample accounting, diagnostics, warnings, and limitations.
+- Added canonical research reports with HTML, Markdown, JSON, CSV, and safe LaTeX output.
+- Added General, APA-oriented, and IEEE-oriented report presentation styles.
+- Added reporting-completeness assessment without converting reporting completeness into a study-quality score.
+- Added explicit paired two-condition mean analysis using a researcher-supplied unit identifier, paired t-test, paired mean difference, confidence interval, and Cohen's \(d_z\).
+- Added prospective study planning for independent and paired means, including power and confidence-interval precision planning.
+- Added serializable Statistical Analysis Plans and plan-adherence comparison.
+- Added researcher-declared sensitivity analysis with estimand-aware comparison and retention of every attempted scenario.
+- Added researcher-defined practical-significance thresholds with separate point-estimate and confidence-interval interpretation.
+- Added optional decision-ledger tracking, dataset/content fingerprints, result auditing, reproducibility records, metadata-only reproducibility packages, and explicit supplied-data replay.
+- Added richer dataset profiling with variable intelligence, categorical summaries, missingness patterns, duplicate information, pairwise correlation sample sizes, data-quality findings, and optional data dictionaries.
+- Added advisory DataFrame resource metadata using deep pandas memory estimates, including large-memory and wide-correlation warnings without sampling or modifying source data.
+- Added a JSON-safe session snapshot suitable for future notebook, CLI, or GUI integrations.
+- Added explicit capability, architecture, statistical-validation, scientific-limitations, provenance, robustness, planning, and report-schema documentation.
+
+### Fixed
+
+- Prevented automatic switching from a mean estimand to a rank/distribution estimand based on diagnostic tests.
+- Made Welch's t-test the default supported two-group independent mean comparison.
+- Standardized first-versus-second group and paired-condition contrast direction across estimates and effects.
+- Improved handling of undefined, nonfinite, extreme-scale, and numerically unreliable statistical results.
+- Improved normality and variance diagnostic states so rejected, not rejected, and unknown remain distinct.
+- Corrected percentile-bootstrap interpretation so valid intervals are not required to contain the observed point estimate.
+- Preserved valid raw mean differences when standardized effects are unavailable.
+- Added paired-design safeguards for unit identifiers, incomplete pairs, duplicate unit-condition observations, contrast orientation, and declared missing-value codes.
+- Added paired sensitivity safeguards so analyses using different pairing definitions are not treated as directly comparable.
+- Added directional practical-significance safeguards for reversed paired contrasts.
+- Extended plan-adherence checks to planned sensitivity analyses and meaningful-effect thresholds.
+- Strengthened report security with HTML escaping, strict JSON serialization, CSV formula protection, safe LaTeX escaping, and explicit file-write behavior.
+
+### Changed
+
+- Documentation is now organized around current capabilities rather than historical development stages.
+- `ROADMAP.md` is the single forward-looking development roadmap.
+- Examples and tests use permanent capability-oriented names.
+- Detailed scientific and technical documentation is consolidated under `docs/`.
+- Python 3.10 or newer is required.
+
+### Quality and packaging
+
+- Added Ruff formatting/linting, mypy type checking, coverage enforcement, package build validation, and Twine checks.
+- Added GitHub Actions testing across Python 3.10–3.13 on Linux and Windows.
+- Added isolated installed-wheel smoke testing.
+- Current automated test suite contains more than 500 tests with greater than 90% code coverage.

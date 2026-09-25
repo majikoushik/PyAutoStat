@@ -31,14 +31,22 @@ from .interpretation import (
     InterpretationResult,
     InterpretationStatus,
 )
-from .practical_significance import MeaningfulEffectThreshold, PracticalSignificanceResult
+from .practical_significance import (
+    MeaningfulEffectThreshold,
+    PracticalSignificanceResult,
+)
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
 from .report import ReportGenerator
 from .reproducibility import ReproducibilityRecord, ReproductionOutcome, reproduce
 from .research_assistant import ResearchAssistant
 from .research_report import ResearchReport
-from .results import AnalysisResult, AnalysisStatus, Recommendation, RecommendationStatus
+from .results import (
+    AnalysisResult,
+    AnalysisStatus,
+    Recommendation,
+    RecommendationStatus,
+)
 from .sensitivity import (
     Comparability,
     ScenarioStatus,
@@ -59,7 +67,7 @@ from .specifications import (
 from .study_planning import StudyPlanner, StudyPlanningResult
 from .workflow import ResearchWorkflowResult, WorkflowStatus
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Koushik Chandra Maji"
 
 __all__ = [
