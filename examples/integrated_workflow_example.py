@@ -1,4 +1,4 @@
-"""Phase 10 profile, guided workflow, and clarification continuation."""
+"""Profile, guided workflow, and clarification continuation."""
 
 import pandas as pd
 

@@ -1,6 +1,6 @@
 # Advanced planning and presentation
 
-Phase 12 adds planning and presentation contracts around the existing deterministic workflow. It
+PyAutoStat provides planning and presentation contracts around the existing deterministic workflow. It
 does not add a GUI, observed post-hoc power, automatic model selection, or journal certification.
 
 ## Statistical analysis plans

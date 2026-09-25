@@ -52,7 +52,7 @@ class ClarificationQuestion:
 
 @dataclass(frozen=True)
 class QuestionDraft:
-    """Phase 4 completeness and data availability, without a recommended method."""
+    """Check completeness and data availability without recommending a method."""
 
     specification: AnalysisSpecification
     status: QuestionStatus
@@ -173,7 +173,7 @@ def prepare_question(
     if variable_types is not None:
         if not isinstance(variable_types, dict):
             raise InvalidDataError(
-                "variable_types must map existing columns to Phase 3 type names."
+                "variable_types must map existing columns to supported analytical type names."
             )
         for column, declared_type in variable_types.items():
             candidate = {key: value.copy() for key, value in dictionary.items()}

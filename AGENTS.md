@@ -1,71 +1,121 @@
-# PyAutoStat — contributor and coding-agent instructions
+# PyAutoStat contributor and coding-agent instructions
 
-> **Status:** Project-wide operating instructions for Codex and contributors. This document governs how work is done; it does **not** imply that planned features already exist. Read `PRODUCT_VISION.md` for the locked destination and `DEVELOPMENT_ROADMAP.md` for phase boundaries. Follow the user's current, explicit task and the repository's actual code over speculative descriptions.
+These are permanent project-wide working rules. Follow the user's explicit task and
+[`ROADMAP.md`](ROADMAP.md), and verify the actual source and tests before assuming a capability
+exists.
 
-## Mission and operating priorities
+## Mission and priorities
 
-Build **PyAutoStat: an Explainable and Reproducible Research Analysis Assistant**. The intended journey is *research question → defensible recommendation → validated calculation → qualified interpretation → reproducible research report*. The initial product uses deterministic rules, **not generative AI**.
+PyAutoStat is an explainable and reproducible research analysis assistant for pandas DataFrames.
+It connects dataset profiling, explicit research specifications, defensible recommendations,
+validated calculations, qualified interpretation, reporting, audit, and reproducibility. The
+package is deterministic and does not require generative AI, a cloud service, or a GUI.
 
-1. **Statistical validity before automation or feature count.** An analysis that cannot be justified must be blocked or marked unresolved, never presented as certain.
-2. **Ease of use.** A DataFrame alone should suffice for profiling. For hypothesis testing, require only information essential to the research question and study design. Infer only defensible metadata, provide transparent defaults for optional settings, and let experts override valid options.
-3. **Transparent decisions.** Explain a recommendation, record assumptions and decisions, preserve uncertainty, and never silently change the estimand, method, or dataset.
-4. **One engine, multiple interfaces.** Python API first; the future GUI must consume the same serializable configuration, validation, result, and missing-information structures. Do not put statistical logic in presentation code.
-5. **Small, reviewable increments.** Implement only the explicitly assigned phase; later phases are specifications, not permission for scope expansion.
+Work in this order:
 
-## Current repository facts (verify against code before editing)
+1. Protect statistical validity and the stated estimand.
+2. Keep common workflows easy to discover and use.
+3. Make decisions, assumptions, exclusions, warnings, and uncertainty visible.
+4. Keep one statistical engine behind every interface.
+5. Make changes small, reviewable, tested, and within the assigned scope.
 
-- Public repository: `majikoushik/PyAutoStat`; Python import/distribution name: `pyautostat`. `main` is the default branch. Do not confuse the case-sensitive names of publishing configuration fields.
-- Existing alpha code is version `0.1.0` at the time these instructions were drafted. The authoritative current version is `src/pyautostat/__init__.py`, read by Hatchling's dynamic version setting; do not freeze a version elsewhere.
-- `src` layout; Hatchling build; Python >=3.10. Runtime dependencies presently include pandas, NumPy and SciPy. Plotly is optional (`report` extra); verify actual constraints in `pyproject.toml` before introducing APIs or dependencies.
-- Existing modules: `analyzer.py` (`StatisticalAnalyzer`, descriptive analysis and independent-group tests); `categorical.py` (chi-square and effect measures); `detection.py` (advisory type/role hints); `insights.py` (`InsightEngine`, data-quality-oriented recommendations); `report.py` (`ReportGenerator`, JSON/CSV/HTML and optional interactive HTML); `exceptions.py`; `__init__.py` (exports/version).
-- Existing tests are in `tests/`; runnable showcase in `examples/example_usage.py`; documentation in `README.md`, `API_REFERENCE.md`, `examples/README.md`, `ROADMAP.md`, and `CHANGELOG.md`. `ROADMAP.md` records an older high-level plan: retain it until deliberately reconciled, and do not mistake it for shipped behavior.
-- Current `hypothesis_tests(test_type="auto")` relies on normality/variance screens for independent-group selection. This is **existing behavior to review and correct**, not the target design. Paired/repeated-measures support, full reporting styles, and the high-level ResearchAssistant are **not yet shipped** simply because these documents describe them.
+## Current repository facts
 
-## Locked user experience
+- Repository: `majikoushik/PyAutoStat`; import and distribution name: `pyautostat`; default
+  branch: `main`.
+- Read `src/pyautostat/__init__.py` for the authoritative package version. Do not duplicate or
+  freeze the version in contributor guidance.
+- The package uses a `src` layout, Hatchling, Python 3.10+, pandas, NumPy, and SciPy. Plotly is an
+  optional reporting extra. Read `pyproject.toml` for current constraints and tool settings.
+- `ResearchAssistant(df).profile()` is the beginner dataset-only entry point.
+- `ResearchAssistant(df).run(...)` is the integrated guided workflow. It preserves unresolved
+  design facts as structured requests and never prompts unexpectedly inside a library call.
+- The public architecture includes dataset profiling; research questions and serializable
+  specifications; design-aware recommendation; statistical execution; deterministic
+  interpretation; research reports and styled exports; audit and explicit replay; sensitivity
+  analysis; researcher-defined practical-significance thresholds; statistical analysis plans;
+  prospective study planning; explicit two-condition paired analysis; reporting completeness;
+  and UI-independent session snapshots.
+- The legacy `StatisticalAnalyzer`, `InsightEngine`, and `ReportGenerator` APIs remain supported.
+- `README.md` is the beginner introduction, `API_REFERENCE.md` is the detailed public API,
+  `PRODUCT_VISION.md` contains enduring product principles, `ROADMAP.md` is the sole future-work
+  roadmap, and `CHANGELOG.md` records software changes.
 
-- **Quick profile:** `ResearchAssistant(df).profile()` is a *proposed* simple API; dataset profiling must not require a research question.
-- **Guided research:** the researcher supplies or confirms objective, outcome/predictor/group, estimand where material, and design facts that cannot be inferred (e.g., independence, pairing, nesting). Return structured missing-information requests in noninteractive scripts. A GUI can later render these as short questions. Never unexpectedly prompt inside a library call.
-- **Advanced mode:** expose validated options without burdening beginners. Use safe documented defaults for optional settings, e.g. a disclosed 0.05 alpha when applicable; do not default unknown scientific design facts.
-- Make the common path short; keep expert metadata available; use plain-language errors and explanatory result objects. Keep the proposed high-level API provisional until Phase 1 formally specifies it.
+## Scientific safeguards
 
-## Non-negotiable statistical and ethical safeguards
-
-- Begin with **research objective and estimand**, then variable roles, study design, candidate methods, diagnostics, execution, and reporting. Normality-test p-values alone must never choose a different scientific question or automatically switch a mean-comparison estimand to a rank-based one.
-- Failing to reject a normality hypothesis is **not proof of normality**. A large p-value is **not proof of no effect**, and a small one is **not a measure of effect size, practical importance, or causation**.
-- Independence, pairing, clustering, randomization, causality, and data-collection intent are not reliably deducible from numbers. Ask for essential unknowns or return a blocker. Distinguish `known/confirmed`, `violated`, `unknown`, and `not_applicable` (or equivalent documented states).
-- Every inferential output must identify its target quantity, test name, sample and excluded-row counts, statistic/df as applicable, p-value when applicable, effect estimate, confidence interval when supported, group ordering/direction, assumptions, limits, and warnings. Do not fabricate unavailable results or intervals.
-- Do not automatically delete outliers, impute missing values, reclassify variables, change alpha, change tests, or perform favorable alternative analyses. Analysis-specific complete-case exclusions must be clearly documented. Preserve source data by default.
-- Respect multiplicity and exploratory versus confirmatory distinctions; never run all tests and pick the most favorable p-value. A decision ledger is not evidence of externally authenticated preregistration.
-- Sensitivity analyses must compare scientifically defensible specifications and identify estimand changes. Researcher-defined meaningful-effect thresholds need context and justification. A nonsignificant superiority test is not an equivalence test.
-- Avoid categorical promises of “publication-ready” or guaranteed correctness: produce **publication-oriented** material subject to expert and journal-specific review. Never silently infer study facts or manufacture Methods text.
-- Use established numerical implementations (SciPy/NumPy/pandas and carefully justified additional dependencies) rather than duplicating tested algorithms. Verify behavior across supported dependency versions before adopting modern functions.
-- Handle empty/all-missing, constant, ties, sparse cells, small samples, non-finite values, extreme numerical scale and undefined denominators explicitly. Raise an actionable package exception or return a documented unavailable outcome; never disguise an error as a normal result.
+- Start with the research objective and estimand, then variable roles, design, candidate methods,
+  diagnostics, execution, and reporting. A diagnostic p-value must not silently change the
+  scientific question.
+- Independence, pairing, clustering, randomization, causality, and collection intent cannot be
+  inferred reliably from values. Require the researcher to supply essential unknown facts.
+- Failing to reject a null hypothesis is not proof of no effect or normality. Statistical
+  significance is not effect magnitude, practical importance, or causation.
+- Every inferential result must identify its quantity, method, sample and exclusion counts,
+  statistic and degrees of freedom where applicable, p-value where applicable, effect estimate,
+  supported interval, direction, assumptions, limitations, and warnings.
+- Never fabricate unavailable results. Handle empty, all-missing, constant, tied, sparse,
+  nonfinite, extreme-scale, and undefined-denominator inputs explicitly.
+- Do not automatically remove outliers, impute or recode data, change alpha, choose a favorable
+  test, alter pairing, sample rows, truncate data, or switch estimands.
+- Sensitivity analyses must retain every declared attempt and identify estimand or contrast
+  changes. A nonsignificant superiority test is not an equivalence test.
+- Planning inputs and meaningful-effect thresholds are researcher supplied. Local ledger entries
+  do not prove external preregistration.
+- Reporting and completeness checks organize recorded evidence; they do not certify study quality,
+  journal compliance, causality, or publication readiness.
 
 ## Architecture and compatibility
 
-- Separate **profiling**, **research specification**, **design validation**, **recommendations**, **diagnostics**, **statistical execution**, **interpretation**, **reporting**, and **provenance**. Introduce modules only when needed by the active phase; avoid premature frameworks and a monolithic analyzer.
-- Create a single typed, documented, JSON-serializable source of truth for configurations and results. Tables, narrative and export must use the same validated numbers. Future GUI code must not duplicate statistical decisions.
-- Preserve current public imports and result dictionaries where practical. If correctness requires a behavioral change, add regression tests, document migration, and do not silently break compatibility. Prefer a new higher-level interface over changing every established method at once.
-- Avoid mandatory cloud/network/AI services or GUI dependencies. Optional features must fail with clear installation guidance when their extra is unavailable. Keep tests offline. Interactive reports currently rely on a Plotly CDN; document this rather than claiming all output is fully offline.
-- Preserve input DataFrames; use local RNGs and reproducible seeds; make outputs deterministic where feasible. Protect user data: do not include raw datasets in export archives without explicit opt-in. Escape untrusted strings in HTML and protect formula-like text in exported spreadsheet-readable files.
-- Prefer Python standard-library data models where sufficient; choose any new dependency only with a documented need. Use type hints, useful docstrings, `pathlib`, UTF-8, and portable code for supported Python/OS versions. Follow actual Ruff/mypy configuration in `pyproject.toml`.
+- Keep profiling, specification, validation, recommendation, execution, interpretation,
+  reporting, provenance, and presentation responsibilities separate.
+- Use typed, documented, JSON-safe records as the source of truth. Reports, audits, exports, and
+  adapters must consume the same validated values rather than recalculate statistics.
+- Preserve documented public imports, signatures, schemas, and established result keys where
+  scientifically defensible. Make correctness changes explicit, additive when possible, tested,
+  and documented.
+- Use established numerical implementations from SciPy, NumPy, and pandas rather than duplicating
+  algorithms. Check behavior across supported versions where feasible and state unverified scope.
+- Preserve input DataFrames. Use local reproducible random generators and record stochastic
+  settings. Resource diagnostics are advisory and must not change computations.
+- Optional features must fail with actionable installation guidance when their extras are absent.
+  Keep the core offline and UI independent.
 
-## Phase discipline and Codex workflow
+## Privacy and security
 
-1. Read this file, the locked vision, the active phase in `DEVELOPMENT_ROADMAP.md`, relevant source/tests, and the user-supplied phase prompt.
-2. State the current behavior and intended scope in your implementation plan; flag any conflict between instructions and the actual repository.
-3. Work **only** on the requested phase; do not claim, implement, or advertise future-phase features as shipped. Small prerequisite fixes are acceptable when necessary and disclosed.
-4. Define executable acceptance tests before declaring completion. Use independent reference values, tests for invalid/ambiguous designs, edge cases and compatibility; do not merely test that a result key exists.
-5. Update docs and examples for changed *shipped* behavior. Keep `README.md`, `API_REFERENCE.md`, `CHANGELOG.md`, old `ROADMAP.md` and the new roadmap consistent; do not rewrite historical entries as if new work already shipped.
-6. Report files changed, functionality delivered, tests run with **actual results**, checks blocked with reasons, known limitations, and deviations from the phase plan. Do not claim tests or review happened unless performed.
-7. Do not bump the version, create/push tags, modify release automation, publish to PyPI, or make GitHub releases without explicit user authorization. Prefer branch/PR workflows when asked to modify the repository; never perform destructive or forced Git operations without authorization.
+- Do not include raw datasets or participant identifiers in reports, snapshots, or reproducibility
+  packages without an explicit opt-in contract.
+- Escape untrusted text in HTML and LaTeX, and protect formula-like cells in spreadsheet-readable
+  exports.
+- Treat small aggregate cells as potentially sensitive. Dataset fingerprints detect changes but
+  do not authenticate identity, custody, or provenance.
+- Never expose credentials, environment secrets, or arbitrary executable content through records
+  or exports.
 
-## Verification commands
+## Development workflow
 
-Use the current `pyproject.toml`/CI as the source of truth. The repository currently uses commands similar to:
+1. Read this file, the assigned task, `PRODUCT_VISION.md`, `ROADMAP.md`, and the relevant source,
+   tests, and focused documentation.
+2. Inspect the current branch and working tree. Preserve unrelated work and obey the user's Git
+   constraints.
+3. Describe current behavior and the bounded intended change. Resolve routine implementation
+   choices from evidence in the repository.
+4. Add tests that validate scientific meaning, invalid and ambiguous designs, edge cases,
+   serialization, and compatibility. Avoid tests that merely assert a key exists.
+5. Update the README, API reference, changelog, examples, and focused docs when shipped behavior
+   changes. Do not advertise unsupported capabilities.
+6. Run affected tests during development and all required quality gates before reporting
+   completion.
+7. Report actual commands and results, changed files, known limitations, and unverified claims.
+
+Future work must follow the user's explicit assignment and `ROADMAP.md`. Candidate roadmap items
+are not permission to implement them, and no feature is shipped merely because documentation
+mentions it.
+
+## Verification
+
+Use `pyproject.toml` and CI as the source of truth. The standard local gates are:
 
 ```bash
-python -m pip install -e ".[dev]"
 python -m ruff check src tests
 python -m ruff format --check src tests
 python -m mypy src/pyautostat
@@ -74,13 +124,22 @@ python -m build
 python -m twine check dist/*
 ```
 
-Run affected unit tests during development and all applicable checks before reporting a phase complete. Test across supported Python versions where the environment permits; if a tool or environment is unavailable, say so. Do not lower coverage thresholds or disable lint/type checks merely to achieve a passing badge. Prefer tests that validate statistical semantics as well as arithmetic and formatting.
+Also run focused numerical, documentation, example, or installed-wheel checks required by the
+change. Never lower thresholds or disable a failing test to obtain a pass.
+
+## Git and release safeguards
+
+- Do not create or switch branches, commit, push, merge, rebase, reset, clean, tag, publish, or
+  create a release unless the user explicitly authorizes that action.
+- Never force a Git operation or rewrite repository history without explicit authorization.
+- Do not change the package version, publishing automation, or dependency floors incidentally.
+- Keep release preparation and publication separate from ordinary implementation work.
 
 ## Before finishing
 
-- Did the implementation preserve the stated estimand, study design and source data?
-- Are default choices and requested confirmations visible, and are unsupported cases safely handled?
-- Are recommendations, result values, narratives and exports consistent and traceable?
-- Does the basic workflow remain simple and the implementation UI-independent?
-- Are source, docs, tests and changelog aligned with what actually ships?
-- Can the user reproduce what was run, and have you stated every unverified claim?
+- Is the estimand, design, pairing, group order, and source data preserved?
+- Are defaults, exclusions, warnings, unsupported cases, and missing information visible?
+- Are recommendation, calculation, interpretation, report, audit, and replay records consistent?
+- Does the beginner path remain short while advanced metadata remains available?
+- Are source, tests, docs, examples, and changelog aligned with actual behavior?
+- Can the user reproduce every reported check, and are all limitations stated?

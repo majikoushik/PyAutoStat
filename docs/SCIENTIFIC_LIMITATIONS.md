@@ -32,6 +32,10 @@ It is not a substitute for scientific design review or subject-matter judgment.
   prove that a plan existed externally or before all researcher access to outcomes.
 - Reports and snapshots omit raw DataFrames and participant identifier values, but small aggregate
   cells can still disclose sensitive information and require researcher review.
+- Resource classifications use deep DataFrame memory and numeric-column width as local advisory
+  heuristics. They do not predict peak memory or runtime on every dtype, dependency version, or
+  machine. Profiling remains a full-data operation and can require substantially more temporary
+  memory than the reported DataFrame size.
 
 ## Minimum dependency compatibility scope
 

@@ -1,110 +1,94 @@
-# Architecture and Phase 1 contracts
+# Architecture
 
-## Phase 11 optional analysis layers
+PyAutoStat separates research specification, numerical execution, interpretation, reporting, and
+provenance so each layer can be validated independently. The Python API is the reference
+interface. Other interfaces must use the same serializable records and core validators.
 
-`sensitivity.py` defines the scenario, outcome, comparability, comparison, provenance, and
-serialization records. `ResearchAssistant.sensitivity_analysis()` is the only orchestration entry
-point. It executes exactly the supplied scenarios through `execution.execute_selected_method()`,
-which reuses the Phase 6 adapters after validating objective, target, design, capability, and
-explicit assumptions. The normal recommendation path and `ResearchAssistant.run()` remain
-unchanged. A scenario cannot replace the primary analysis.
+## Public workflows
 
-`practical_significance.py` maps only validated result quantities to a researcher-supplied
-threshold. It checks quantity, direction, finite magnitude, unit compatibility, interval metadata,
-and metric range, then classifies point and interval relations separately. It contains no
-hypothesis-test calculation and does not treat null-hypothesis significance as importance.
+`ResearchAssistant` owns a defensive copy of a pandas DataFrame and coordinates the supported
+workflow:
 
-The records are small frozen dataclasses with schema version 1 and no DataFrames. Report schema
-version 2 is used only when optional Phase 11 content is supplied; ordinary reports remain schema
-version 1. Reproducibility records follow the same version rule. Report and audit stages consume
-the recorded Phase 11 results and never rerun scenarios. See
-[`ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
+1. `profile()` produces descriptive dataset metadata without requiring a research question.
+2. `prepare_question()` and `update_question()` build an immutable research specification and
+   return structured questions when essential information is missing.
+3. `recommend_test()` validates design, target quantity, analytical types, and data feasibility
+   without running an inferential calculation.
+4. `analyze()` revalidates the request, dispatches one selected method, and returns an
+   `AnalysisResult`.
+5. `interpret()` converts that recorded result into deterministic qualified findings without
+   recalculation.
+6. `report()`, `audit()`, and `reproducibility_record()` render and inspect the same captured
+   records.
+7. `run()` coordinates the bounded guided path and returns `needs_input`, `data_limited`,
+   `unsupported`, `failed`, `partial`, or `completed` as appropriate.
 
-## Phase 10 orchestration boundary
+Optional sensitivity, practical-significance, prospective-planning, analysis-plan, completeness,
+and session-snapshot operations remain explicit. They do not silently replace the primary
+analysis.
 
-`ResearchAssistant.run()` is a thin coordinator over the established components. It creates or
-revalidates one `QuestionDraft`, asks the Phase 5 registry for one recommendation, calls the Phase
-6 execution path once, and passes the resulting `AnalysisResult` unchanged to Phase 7
-interpretation, Phase 8 reporting, and Phase 9 audit/reproducibility functions. It contains no
-statistical formula, p-value rule, interval rule, or report renderer.
-
-`ResearchWorkflowResult` is an additive schema version 1 container. Its object graph holds the
-existing models rather than alternate copies of their logic. A stopped stage has `None` for all
-downstream objects. The source DataFrame remains inside the assistant's validated private copy and
-is never a workflow-result field. Existing specification versions 1/2, analysis contracts,
-interpretation serialization, report schema 1, ledger schema 1, and reproducibility schema 1 are
-unchanged.
-
-The orchestrator lets known scientific incompleteness remain structured. Invalid Python usage
-raises package exceptions; missing declarations return `needs_input`; insufficient observed data
-return `data_limited`; unsupported design/target combinations return `unsupported`; valid but
-incomplete reporting returns `partial`; numerical or audit contradictions return `failed`.
-Unexpected programming exceptions are not converted to successful statistical outcomes. See
-[`CONTROLLED_MVP.md`](CONTROLLED_MVP.md) for the public contract and support matrix.
-
-PyAutoStat has two entry points for dataset profiling. `StatisticalAnalyzer(df).analyze_all()` is the established API. `ResearchAssistant(df).profile()` calls that same method and returns the same dictionary. Construction validates and copies the DataFrame through `StatisticalAnalyzer`; calculations run on `profile()`. Neither entry point infers a research design.
+## Module boundaries
 
 | Module | Responsibility |
 | --- | --- |
-| `analyzer.py` | Existing profiling, correlations, and independent-group analyses |
-| `profiling.py` | Phase 3 dataset profile coordinator, optional data dictionary validation, and structured descriptive additions; delegates numerical calculations to the analyzer |
-| `categorical.py` | Existing categorical association calculations |
-| `detection.py` | Advisory column type and role hints |
-| `insights.py` | Data quality findings from existing analysis dictionaries |
-| `report.py` | Existing dictionary, JSON, CSV, and HTML exports |
-| `exceptions.py` | Package exceptions; invalid contracts use `InvalidDataError` |
-| `research_assistant.py` | Lightweight public facade over the existing analyzer |
-| `question_builder.py` | Phase 4 question intake and selected-data checks; no method choice |
-| `recommendation.py` | Phase 5 capability registry, design guardian and deterministic method decision rules; no statistical execution |
-| `execution.py` | Phase 6 revalidation, stable method dispatch and adapters from existing numerical dictionaries into `AnalysisResult` |
-| `sensitivity.py` | Phase 11 explicit scenarios, estimand identity, comparability, and descriptive estimate/CI comparison |
-| `practical_significance.py` | Phase 11 researcher-defined thresholds and point/uncertainty relation classification |
-| `interpretation.py` | Phase 7 deterministic method rules, structured findings, and JSON-safe interpretation records |
-| `research_report.py` | Phase 8 canonical report assembly and static HTML, Markdown, JSON, and CSV table export |
-| `decision_ledger.py`, `provenance.py` | Phase 9 optional observed-event ledger and stable local content/data references |
-| `audit.py` | Phase 9 read-only source, report, table, and export consistency checks |
-| `reproducibility.py` | Phase 9 runtime metadata, metadata-only package, and explicit Phase 6 replay |
-| `specifications.py` | Data-independent research question, design, and options contracts |
-| `results.py` | Records for missing information, recommendation, diagnostic, and method result |
+| `analyzer.py`, `categorical.py` | Established descriptive and inferential numerical backends |
+| `profiling.py`, `detection.py`, `insights.py` | Dataset profiling, advisory variable intelligence, data-quality summaries, and resource metadata |
+| `specifications.py`, `question_builder.py` | Typed research configuration, completeness checks, and structured missing-information requests |
+| `recommendation.py` | Capability registry, design safeguards, and deterministic method selection; no test execution |
+| `execution.py` | Fresh validation, stable method dispatch, and conversion to `AnalysisResult` |
+| `interpretation.py` | Deterministic result validation and qualified findings; no numerical backend calls |
+| `research_report.py`, `report.py` | Canonical research reports and legacy profile exports |
+| `sensitivity.py`, `practical_significance.py` | Explicit robustness scenarios, estimand comparison, and researcher-defined meaningful thresholds |
+| `analysis_plan.py`, `study_planning.py` | Analysis-plan records and prospective power or precision calculations |
+| `decision_ledger.py`, `provenance.py` | Optional observed-event records and stable local content or dataset references |
+| `audit.py`, `reproducibility.py` | Read-only consistency checking and explicit supplied-data replay |
+| `completeness.py`, `session.py` | Reporting checklists and interface-safe snapshots |
+| `research_assistant.py` | Orchestration only; statistical decisions remain in their owning layers |
 
-`ResearchQuestion` records an optional objective (`descriptive`, `compare_groups`, `association`), outcome, predictor/grouping column, estimand, and description. `AnalysisSpecification` combines it with a design (`unknown`, `independent`, `paired`, `repeated`, `clustered`), optional metadata, and `AnalysisOptions`. An absent objective or outcome remains `null`; the design defaults to `unknown`. No design is inferred from column values. `alpha=0.05` and `confidence_level=0.95` are optional defaults for future inference, and `random_seed` defaults to `null`. These are configuration records only; they do not authorize or run analyses. Phase 4 question intake checks selected column existence and basic data availability; Phase 5 recommendation checks method and design compatibility.
+## Configuration and result contracts
 
-All configuration models provide `to_dict()` and `from_dict()`. The root `AnalysisSpecification` dictionary includes `schema_version: 1` without declarations or version 2 with a data dictionary; its nested records do not repeat the version. Records in `results.py` provide `to_dict()` only and still use `schema_version: 1`. Enum values serialize as strings, absent values as `null`, and lists in the JSON form. `to_dict()` rejects non-finite and non-JSON values, including DataFrames, instead of emitting invalid JSON. Call `json.dumps(model.to_dict(), allow_nan=False)` for strict JSON. Display formatting is separate from underlying values.
+`ResearchQuestion`, `AnalysisSpecification`, `QuestionDraft`, `Recommendation`,
+`AnalysisResult`, `InterpretationResult`, `ResearchReport`, and the planning and provenance
+records are typed, documented, and JSON serializable. Schema versions identify wire contracts.
+Additive fields preserve existing meanings; an incompatible schema change requires a new version
+and a documented migration.
 
-The result contract uses a common envelope (`method_id`, status, sample and excluded-row counts, assumptions, warnings, metadata) and a `values` map for method-specific statistics, estimates, intervals, and directions. Unavailable values are `None`. `MissingInformation` names a field and a question. Recommendation statuses are `ready`, `needs_input`, and `unsupported`; result statuses are `available` and `unavailable`. `Diagnostic` carries an identifier, status, message, and optional values. Future reporting should consume validated results and keep its own format-specific rendering; the existing `ReportGenerator` still consumes legacy dictionaries. No new report generator or report format is defined here.
+The source result remains the numerical authority. Interpretation and reporting validate and
+render recorded values instead of recomputing them. Auditing reconstructs deterministic report
+content but does not rerun a statistical method. Replay is a separate explicit operation that
+requires supplied data and checks the recorded method and fingerprint when available.
 
-Future phases can add broader methods, interpretation, provenance, and report assembly around these contracts. A GUI should serialize these records and render them without duplicating statistical rules. Phase 2 corrected the legacy analyzer's automatic independent-group selection: it now requires a stated target quantity. The Phase 5 facade does not call it during recommendation. See [statistical validation](STATISTICAL_VALIDATION.md).
+## Scientific boundaries
 
-Phase 4 adds `ResearchAssistant.prepare_question()` and `update_question()`. The immutable `QuestionDraft` contains the existing `AnalysisSpecification`, completeness status, `MissingInformation`, GUI-ready questions, warnings, blockers, selected-column hints, and complete-case counts. `ready` means intake fields and basic data availability are complete; it is not a method recommendation or scientific approval. The builder reuses Phase 3 type and role detection through `variable_intelligence_only()` without full profiling or statistical tests. Explicit role selection never certifies measurement type. The assistant retains a deep copy of declarations from the last `profile(data_dictionary=...)` call. Construction still copies the DataFrame. Rebuilding a draft recalculates only lightweight hints and selected-column checks, avoiding stale mutable profile results.
+The workflow starts with objective, estimand, variables, and study design. Design facts such as
+independence, pairing, clustering, and causal assignment are never inferred from values. Missing
+facts produce structured questions or blockers. Diagnostics can qualify a method but do not
+silently change the estimand. Unsupported designs remain explicit rather than being routed to a
+convenient calculation.
 
-Phase 5 adds `ResearchAssistant.recommend_test(draft)` or `recommend_test(specification=spec)`. The facade rebuilds the Phase 4 draft against its current copied dataset, then passes it to the pure decision rules in `recommendation.py`. The module holds a small registry of the methods the existing analyzer can calculate, including an explicit `coefficient_only` designation for Spearman and Kendall. The design guardian rejects dependence structures that require unimplemented methods; the rule tree checks target, analytical types, complete-case structure, group counts and relevant numerical feasibility. It never calls an inferential backend. `Recommendation` keeps schema version 1 and adds availability, ordered decision trace, alternatives, context, and GUI-ready questions with optional defaults, so earlier callers can still construct it. The result carries no data rows. Its `ready` status describes computational compatibility subject to disclosed assumptions, not a completed analysis.
+Paired analyses require an explicit unit identifier and two-condition contrast. The pairing
+identity, condition order, estimand, design, and unit-ID column participate in sensitivity
+comparability. Declared missing codes observed in selected columns, including the paired unit ID,
+block execution until the caller normalizes source data explicitly.
 
-Phase 6 adds `ResearchAssistant.analyze(draft)` or `analyze(specification=spec)`. `execution.py` revalidates the specification against the assistant's dataset, makes a fresh recommendation, checks its registry availability, and dispatches only the selected method ID. It calls the established analyzer methods rather than implementing new test equations. Adapters preserve backend precision and group order while naming the estimate, effect measure, confidence-interval quantity, sample accounting, diagnostic source and warnings. The additive `AnalysisResult.specification` and `.recommendation` fields link the numbers to their validated request. An unavailable result has no numerical values. The full profile path returns JSON-safe summaries, not source rows. Unexpected programming errors propagate; known package-level numerical failures become explicit unavailable results.
+## Data ownership, resource information, and privacy
 
-Phase 7 adds `ResearchAssistant.interpret(result)`. `interpretation.py` reads that result and its specification, checks essential fields, and returns `InterpretationResult` with coded `InterpretationFinding` records, numeric references, concise prose, warnings and limitations. It never calls a numerical backend or report writer. `available` means its supported explanation has the required recorded evidence; `partial` retains factual components when an effect, p-value or interval is missing or inconsistent; `unavailable` means no trustworthy contextual interpretation can be made. The source `AnalysisResult` remains the numerical authority. The Phase 8 report renders both records without recomputing decisions or parsing prose.
+Construction and analysis preserve the caller's DataFrame. Profiling reports a best-effort deep
+memory estimate and advisory warnings for large or wide inputs. It does not sample, truncate,
+downcast, mutate, or skip requested calculations in response to those warnings. If memory
+estimation itself fails, profiling continues and records that resource status is unknown.
 
-Phase 8 adds `ResearchAssistant.report(result, interpretation=None, title=None)` and the independent `ResearchReport` snapshot. It accepts the original specification, result, and a matching deterministic interpretation; when omitted, the existing Phase 7 engine supplies the interpretation. Exact interpretation comparison prevents mixing analyses without inventing a provenance ID. The report captures the analysis numbers once, builds stable tables with source-field references, and renders all formats from that snapshot. Invalid or unavailable values stay out of reader-facing results; source warnings and limitations remain visible. The legacy `ReportGenerator` and its dictionary-oriented exports are separate and unchanged. See [report schema](RESEARCH_REPORT_SCHEMA.md).
+Reports and session snapshots omit participant-level source rows. Dataset fingerprints cover the
+full supplied data when supported but contain no observations. Exports escape untrusted text and
+protect spreadsheet-readable cells from formula interpretation. Aggregate output can still be
+sensitive and remains the researcher's responsibility.
 
-Phase 9 adds an optional `DecisionLedger` owned by `ResearchAssistant`, a separate `StatisticalResultAuditor`, and a `ReproducibilityRecord` for explicit replay. The report keeps a private defensive source snapshot for ordinary audits without changing report schema version 1. Content references link existing records outside their public schemas. Audit regenerates the deterministic report from the recorded result but never runs statistical calculations. Replay alone invokes the existing Phase 6 engine against explicitly supplied data. See [provenance and replay](PROVENANCE_AND_REPLAY.md).
+## Compatibility
 
-**Schema migration:** Existing specification payloads without a data dictionary still serialize as version 1 and round-trip unchanged. Version 2 adds a separate `data_dictionary` mapping when declarations are present. `variable_metadata` remains the version 1 text-description mapping and is never reinterpreted as rich metadata. Readers accept versions 1 and 2; other versions are rejected. To migrate, load a version 1 specification, then pass it to `prepare_question(specification=old_spec, data_dictionary=...)`; saving the result produces version 2. A future GUI should use version 2 `data_dictionary` for analytical types and roles and `questions[].options[].value` for answers. Result envelopes retain version 1 with additive optional fields; existing fields and constructor arguments remain valid.
+Existing public imports and established result dictionary keys remain available where
+scientifically defensible. Correctness changes are additive when possible and are covered by
+regression tests. Legacy dictionary-oriented analyzer and `ReportGenerator` entry points remain
+separate from the guided typed workflow.
 
-Phase 3 routes both profiling entry points through `DatasetProfiler`. The analyzer still computes the existing statistics, then the profiler attaches categorical summaries, column intelligence, missingness patterns, duplicate overlap, outlier/distribution details, pairwise correlation counts, and profile defaults. Optional declarations are validated before calculations. Numeric identifiers supported by name and observed uniqueness are omitted from profile calculations; `analyzer.numeric_cols` continues to describe raw numeric dtypes and hypothesis testing remains separate. User-declared types and roles can override profiling selection. `ResearchAssistant.complete_case_count(columns)` provides reusable row availability for future analysis intake. The profile remains a plain dictionary; `ReportGenerator.to_json()` is its JSON-safe serialization path, including pandas dtype conversion. No presentation layer recalculates statistics.
-
-Compatibility policy: existing public imports and established result dictionary keys remain intact; Phase 2 adds fields and changes method behavior where needed for correctness. Schema version 1 is the first configuration wire format; a future incompatible schema change must use a new version and explicitly document migration. The new records do not retrofit legacy result dictionaries.
-## Phase 12 planning and adapter boundaries
-
-`analysis_plan.py` records validated pre-analysis intent and later field-by-field adherence without
-executing statistics. `study_planning.py` is standalone because prospective planning must not
-require a research DataFrame. `completeness.py` assesses report-field representation separately
-from scientific quality. `session.py` composes existing serializable records and registry-derived
-capabilities; it contains no decision or statistical calculation logic.
-
-Paired matching remains in question/recommendation/execution layers: the specification carries
-the unit-ID column and optional condition order, recommendation validates pair structure, and
-execution creates complete pairs. Interpretation and reporting consume the resulting aggregate
-record. Unit identifier values never cross into reports or session snapshots.
-
-The canonical `ResearchReport` stays style-neutral. General, APA-oriented, IEEE-oriented, and
-LaTeX methods render that same payload. No renderer recalculates a statistic. See
-`ADVANCED_PLANNING_AND_PRESENTATION.md` for public contracts.
+See [statistical validation](STATISTICAL_VALIDATION.md), [research report schema](RESEARCH_REPORT_SCHEMA.md),
+and [provenance and replay](PROVENANCE_AND_REPLAY.md) for detailed contracts.

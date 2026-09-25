@@ -20,6 +20,7 @@ independent = pd.DataFrame(
 assistant = ResearchAssistant(independent)
 profile = assistant.profile()
 assert profile["overview"]["total_rows"] == 12
+assert profile["resource_info"]["sampling_applied"] is False
 guided = assistant.run(
     objective="compare_groups",
     outcome="score",

@@ -1,4 +1,4 @@
-"""Deterministic explanations of completed Phase 6 analysis records.
+"""Deterministic explanations of completed analysis records.
 
 This module reads recorded results. It never calls a statistical backend.
 """
@@ -357,7 +357,7 @@ def _profile(result: AnalysisResult) -> InterpretationResult:
 
 
 class InterpretationEngine:
-    """Apply method-specific, deterministic rules to a Phase 6 result."""
+    """Apply method-specific, deterministic rules to an analysis result."""
 
     def interpret(self, result: AnalysisResult) -> InterpretationResult:
         if not isinstance(result, AnalysisResult):

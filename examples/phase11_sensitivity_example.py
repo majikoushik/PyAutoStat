@@ -1,4 +1,4 @@
-"""Explicit Phase 11 sensitivity and meaningful-effect threshold example."""
+"""Explicit sensitivity and meaningful-effect threshold example."""
 
 from dataclasses import replace
 

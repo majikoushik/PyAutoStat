@@ -1,8 +1,8 @@
-# Phase 2 statistical validation baseline
+# Statistical validation baseline
 
-## Phase 11 sensitivity and threshold rules
+## Sensitivity and threshold rules
 
-Sensitivity execution uses the Phase 6 numerical adapters. Representative pooled-variance
+Sensitivity execution uses the execution numerical adapters. Representative pooled-variance
 Student results are checked against `scipy.stats.ttest_ind(..., equal_var=True)` and the raw mean
 difference is checked directly. Welch and Student share the `mean_difference` quantity when the
 same outcome, grouping variable, independent design, population, and contrast are retained.
@@ -25,11 +25,11 @@ researcher-defined negligible region is reported descriptively and never becomes
 formal equivalence claim. Ordinary intervals do not establish noninferiority. Statistical
 significance stays in a separate field and does not choose a threshold or scenario.
 
-## Phase 10 integration invariants
+## Integrated workflow invariants
 
-The integrated workflow adds no test, effect-size calculation, or confidence-interval algorithm.
+The orchestration layer adds no test, effect-size calculation, or confidence-interval algorithm.
 It preserves the selected method ID and declared estimand from recommendation through execution.
-One successful `run()` invokes the Phase 6 execution path once; interpretation, reporting, audit,
+One successful `run()` invokes the execution path once; interpretation, reporting, audit,
 and reproducibility metadata operate on the resulting object. Normality and variance diagnostics
 cannot redirect a mean target to a rank target.
 
@@ -87,7 +87,7 @@ The declared minimum SciPy is 1.5. Its [Mann-Whitney documentation](https://docs
 
 The guided engine now provides one bounded dependent-design method: a paired t-test for exactly two conditions, an explicit unit identifier, unique unit/condition observations, at least two complete pairs, and nonzero paired-difference variance. It reports the first-condition-minus-second mean difference, analytical t interval, and Cohen's dz. Clustered designs, repeated measures with more than two conditions, Welch ANOVA, exact sparse-table alternatives, and multiplicity adjustments remain unavailable. Extreme-scale input can still trigger NumPy/SciPy runtime warnings. The symmetric `[-1e308, 1e308]` regression case confirms that overflowed spread, normality, outlier, and histogram fields are unavailable with section warnings, while its representable mean remains available; a t-test with an undefined interval raises `InsufficientDataError`. Further numerical stabilization belongs to continued review.
 
-## Phase 5 recommendation policy
+## Recommendation policy
 
 `ResearchAssistant.recommend_test()` uses the inventory above as a capability boundary. It runs no normality screen, chi-square test, correlation test, or group test. It uses complete-case counts and declared analytical types, then checks whether an existing calculation is compatible with the stated target and design. Independence and pairing are researcher-declared facts. Unknown design yields a question; a paired design requests an explicit unit identifier. Repeated and clustered designs remain blocked.
 
@@ -95,17 +95,17 @@ For two independent groups with a quantitative mean target, the default recommen
 
 For numeric association, an unspecified linear versus monotonic target produces one clarification question. Pearson is a runnable linear option for at least three complete varying quantitative pairs. Spearman and Kendall expose descriptive coefficients but no inferential p-values in the current profile, so monotonic inference remains unsupported. For categorical association, the recommendation independently constructs a complete-case contingency grid and checks the existing two-category-per-axis and expected-count-at-least-five policies without running chi-square. Sparse tables are blocked; Fisher's exact test is mentioned only as an unimplemented alternative. Observed declared missing codes block a finalized recommendation until the researcher normalizes them outside the package. Warnings and `context.assumption_checks` distinguish design confirmation, checked feasibility, and conditions that still need review.
 
-## Phase 6 execution mapping
+## Execution mapping
 
-`ResearchAssistant.analyze()` revalidates the Phase 4 specification and Phase 5 selection, then calls an existing backend. It does not run alternative methods after a failure. The selected `welch_t`, `mann_whitney_u`, and `kruskal_wallis` methods map to explicit `hypothesis_tests()` calls with the stated target. Pearson maps to the existing pairwise correlation profile on the two selected columns. Chi-square maps to `categorical_association()` with the declared predictor as the table's group axis. Descriptive requests map to `analyze_all()` without inferential fields. Student t and standard ANOVA remain explicit legacy backend choices; no guided override is implied by their presence in the registry.
+`ResearchAssistant.analyze()` revalidates the prepared specification and recommendation, then calls an existing backend. It does not run alternative methods after a failure. The selected `welch_t`, `mann_whitney_u`, and `kruskal_wallis` methods map to explicit `hypothesis_tests()` calls with the stated target. Pearson maps to the existing pairwise correlation profile on the two selected columns. Chi-square maps to `categorical_association()` with the declared predictor as the table's group axis. Descriptive requests map to `analyze_all()` without inferential fields. Student t and standard ANOVA remain explicit legacy backend choices; no guided override is implied by their presence in the registry.
 
 Group sample size is the backend's complete-case count for outcome and group; excluded rows are original rows minus that count. Pearson uses complete observation pairs; chi-square uses the observed table total. Backend first-observed group order is retained. The two-group mean difference is first minus second, as are the signs of Cohen's d and rank-biserial correlation. An analytical t interval is labeled as a **mean-difference** interval. Bootstrap effect intervals are labeled with their own metrics and never relabeled as raw mean-difference intervals. Rank methods and chi-square have no generic raw location-difference interval. Pearson currently has no confidence interval. The stored alpha is a future interpretation threshold; it does not change the calculated p-value.
 
-The guided path requests 499 backend bootstrap resamples with effective seed 0 by default, or the specification's seed when provided. Both settings and valid-resample counts are recorded; a backend-unavailable interval remains `None` with its warning. The engine checks core statistics, p-values, effect estimates, interval bounds and confidence level before marking an analysis available. A known backend numerical failure returns an unavailable result with the originating specification and recommendation. These checks do not prove statistical assumptions. The separate Phase 9 auditor checks recorded results against reports and exports without recalculating the analysis. Existing extreme-scale analyzer warnings remain possible; further numerical stabilization is outside this completion.
+The guided path requests 499 backend bootstrap resamples with effective seed 0 by default, or the specification's seed when provided. Both settings and valid-resample counts are recorded; a backend-unavailable interval remains `None` with its warning. The engine checks core statistics, p-values, effect estimates, interval bounds and confidence level before marking an analysis available. A known backend numerical failure returns an unavailable result with the originating specification and recommendation. These checks do not prove statistical assumptions. The separate provenance auditor checks recorded results against reports and exports without recalculating the analysis. Existing extreme-scale analyzer warnings remain possible; further numerical stabilization is outside this completion.
 
-## Phase 7 interpretation policy
+## Interpretation policy
 
-`ResearchAssistant.interpret(result)` reads the original Phase 6 `AnalysisResult`. Supported guided methods are descriptive profile, Welch, Mann-Whitney, Kruskal-Wallis, Pearson correlation, and Pearson chi-square. Valid internal Student and standard ANOVA adapter results have templates, although the guided selector does not choose them. Spearman and Kendall remain coefficient-only in legacy profiling; no guided inferential interpretation is claimed. No new numerical method is introduced.
+`ResearchAssistant.interpret(result)` reads the original `AnalysisResult`. Supported guided methods are descriptive profile, Welch, Mann-Whitney, Kruskal-Wallis, Pearson correlation, and Pearson chi-square. Valid internal Student and standard ANOVA adapter results have templates, although the guided selector does not choose them. Spearman and Kendall remain coefficient-only in legacy profiling; no guided inferential interpretation is claimed. No new numerical method is introduced.
 
 The unrounded recorded p-value is compared to the specification's alpha with `p < alpha`; a value equal to alpha does not reject. Missing or invalid p-values produce no threshold conclusion. Display formatting preserves the numeric source; computational zero is shown as an inequality with a machine-precision warning. A nonsignificant result is insufficient evidence against the null, not proof of no effect or equivalence. No adjustment or practical-importance threshold is claimed without recorded evidence.
 

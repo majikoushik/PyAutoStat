@@ -179,7 +179,7 @@ def show_insights(results: dict) -> dict:
 
 
 def show_recommendation(frame: pd.DataFrame) -> None:
-    """Show Phase 5 design review without executing a hypothesis test."""
+    """Show design review without executing a hypothesis test."""
     heading("3a. ResearchAssistant: question and method recommendation")
     assistant = ResearchAssistant(frame)
     draft = assistant.prepare_question(

@@ -1,4 +1,4 @@
-"""Phase 8 in-memory research report example; no files are written."""
+"""In-memory research report example; no files are written."""
 
 import pandas as pd
 

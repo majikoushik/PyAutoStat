@@ -1,6 +1,6 @@
-# Phase 11 sensitivity analysis and practical significance
+# Sensitivity analysis and practical significance
 
-Phase 11 adds two optional follow-up operations to a validated `AnalysisResult`. It does not
+PyAutoStat provides two optional follow-up operations for a validated `AnalysisResult`. It does not
 change `ResearchAssistant.run()` and does not run hidden alternatives.
 
 ## Explicit sensitivity scenarios
@@ -29,7 +29,7 @@ significant result, or calculate a robustness score.
 
 Student's pooled-variance t-test is available only as an explicit mean-difference sensitivity
 scenario with an independent design and a declared equal-population-variance assumption. Its
-statistic is calculated by the existing Phase 6 adapter. A Mann–Whitney scenario must use a
+statistic is calculated by the existing execution adapter. A Mann–Whitney scenario must use a
 distribution estimand and is labelled `different_estimand` relative to a Welch mean comparison.
 Its estimate is displayed, but no estimate change or direct robustness conclusion is calculated.
 Paired scenarios require the same explicit unit-ID and two-condition contract as the primary
@@ -80,7 +80,7 @@ Null-hypothesis significance is recorded separately and never defines practical 
 
 `direction="positive"`, `"negative"`, and `"nonnegative"` provide one-sided descriptive
 relations for appropriate metrics. Requests using `"equivalence"` or `"noninferiority"` return
-`unsupported`: PyAutoStat does not implement TOST or noninferiority inference in Phase 11.
+`unsupported`: PyAutoStat does not implement TOST or noninferiority inference.
 For a positive or negative paired mean-difference threshold, declare
 `contrast_order=(first_condition, second_condition)`. The order identifies the intended signed
 first-minus-second contrast. A missing or reversed declaration leaves that directional assessment
@@ -107,13 +107,13 @@ record = assistant.reproducibility_record(
 )
 ```
 
-An ordinary Phase 10 report remains schema version 1. Supplying either Phase 11 component creates
+An ordinary integrated workflow report remains schema version 1. Supplying either follow-up analysis component creates
 report schema version 2 with optional sections and source-linked tables. The auditor rebuilds the
 canonical report without rerunning scenarios and detects changed thresholds, estimates,
 relations, scenario status, omissions, and comparability. Reproducibility schema version 2 stores
 scenario order, specifications, actual methods, statuses, seeds, fingerprint, and threshold.
-`reproduce()` still replays only the base Phase 6 analysis on explicit request; it reports that
-Phase 11 configurations were recorded but were not automatically replayed.
+`reproduce()` still replays only the base execution analysis on explicit request; it reports that
+follow-up configurations were recorded but were not automatically replayed.
 
 ## Limits
 

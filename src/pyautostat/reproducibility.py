@@ -1,4 +1,4 @@
-"""Explicit, data-supplied replay of existing Phase 6 analyses."""
+"""Explicit, data-supplied replay of existing analyses."""
 
 from __future__ import annotations
 
@@ -138,33 +138,41 @@ class ReproducibilityRecord:
         if self._payload["schema_version"] == 2 and not isinstance(
             self._payload.get("phase11"), dict
         ):
-            raise InvalidDataError("Schema version 2 requires Phase 11 configuration metadata.")
+            raise InvalidDataError(
+                "Schema version 2 requires follow-up analysis configuration metadata."
+            )
         if self._payload["schema_version"] == 2:
             phase11 = self._payload["phase11"]
             if phase11.get("automatic_replay") is not False:
-                raise InvalidDataError("Phase 11 reproducibility must disable automatic replay.")
+                raise InvalidDataError(
+                    "Follow-up reproducibility metadata must disable automatic replay."
+                )
             sensitivity = phase11.get("sensitivity")
             practical = phase11.get("practical_significance")
             if sensitivity is None and practical is None:
-                raise InvalidDataError("Phase 11 metadata must contain at least one component.")
+                raise InvalidDataError("Follow-up metadata must contain at least one component.")
             if sensitivity is not None:
                 if not isinstance(sensitivity, dict) or not isinstance(
                     sensitivity.get("configuration"), dict
                 ):
-                    raise InvalidDataError("Phase 11 sensitivity configuration is invalid.")
+                    raise InvalidDataError("Sensitivity configuration metadata is invalid.")
                 configuration = sensitivity["configuration"]
                 scenarios = configuration.get("scenarios")
                 order = configuration.get("scenario_order")
                 if not isinstance(scenarios, list) or not isinstance(order, list):
-                    raise InvalidDataError("Phase 11 scenario order or specifications are invalid.")
+                    raise InvalidDataError(
+                        "Sensitivity scenario order or specifications are invalid."
+                    )
                 restored = [SensitivitySpecification.from_dict(item) for item in scenarios]
                 if [item.name for item in restored] != order:
-                    raise InvalidDataError("Phase 11 scenario order does not match its records.")
+                    raise InvalidDataError("Sensitivity scenario order does not match its records.")
             if practical is not None:
                 if not isinstance(practical, dict) or not isinstance(
                     practical.get("threshold"), dict
                 ):
-                    raise InvalidDataError("Phase 11 threshold configuration is invalid.")
+                    raise InvalidDataError(
+                        "Practical-significance threshold configuration is invalid."
+                    )
                 MeaningfulEffectThreshold.from_dict(practical["threshold"])
         if (
             not isinstance(self._payload["method_id"], str)
@@ -361,7 +369,7 @@ def reproduce(
     data: pd.DataFrame,
     allow_changed_data: bool = False,
 ) -> ReproductionOutcome:
-    """Explicitly replay through Phase 6 after checking data and selected method."""
+    """Explicitly replay after checking data and the selected method."""
     if not isinstance(record, ReproducibilityRecord):
         raise InvalidDataError("reproduce requires a ReproducibilityRecord.")
     if not isinstance(data, pd.DataFrame):
@@ -370,7 +378,7 @@ def reproduce(
     warnings: list[str] = []
     if payload.get("phase11") is not None:
         warnings.append(
-            "Phase 11 configurations are recorded but sensitivity scenarios are not "
+            "Follow-up configurations are recorded but sensitivity scenarios are not "
             "automatically replayed."
         )
     expected_fingerprint = payload.get("dataset_fingerprint")

@@ -1,4 +1,4 @@
-"""Phase 12 planning, paired analysis, presentation, and adapter example."""
+"""Planning, paired analysis, presentation, and adapter example."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Canonical Phase 8 research reports from recorded analyses."""
+"""Canonical research reports from recorded analyses."""
 
 from __future__ import annotations
 
@@ -436,7 +436,7 @@ def build_research_report(
     title: str | None = None,
     include_figures: bool = False,
 ) -> ResearchReport:
-    """Assemble one report from recorded Phase 6 and Phase 7 records."""
+    """Assemble one report from recorded analysis and interpretation records."""
     if not isinstance(result, AnalysisResult):
         raise ReportError("report() requires an AnalysisResult.")
     if title is not None and (not isinstance(title, str) or not title.strip()):

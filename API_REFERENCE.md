@@ -35,29 +35,21 @@ from pyautostat import (
 
 All documented exception classes are also exported from `pyautostat`.
 
-## `ResearchAssistant` and research configuration
+## `ResearchAssistant` common workflows
 
 ```python
 assistant = ResearchAssistant(df)
 profile = assistant.profile()
-
-spec = AnalysisSpecification(
-    question=ResearchQuestion(
-        objective=Objective.COMPARE_GROUPS,
-        outcome="score",
-        predictor="group",
-        estimand="difference in means",
-    ),
-    design=StudyDesign.UNKNOWN,
-    options=AnalysisOptions(alpha=0.05, confidence_level=0.95),
-)
-payload = spec.to_dict()
-restored = AnalysisSpecification.from_dict(payload)
+print(profile["overview"])
+print(profile["resource_info"])
 ```
 
-The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns the same dictionary as `analyze_all()`. `ResearchQuestion` fields may remain `None` while information is gathered. `StudyDesign.UNKNOWN` is explicit and never converted to independent.
+The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns
+the same statistical dictionary as `analyze_all()` plus structured profiling metadata. It needs no
+research question. `resource_info` contains deep-memory and correlation-width performance
+advisories without sampling, truncating, modifying, or skipping calculations.
 
-### Phase 10 integrated workflow
+### Integrated guided workflow
 
 ```python
 workflow = assistant.run(
@@ -79,14 +71,35 @@ question arguments. Invalid API types and conflicting inputs raise `InvalidDataE
 `to_dict()` and `to_json()` use workflow schema version 1, reject nonfinite JSON values, and do
 not embed the source DataFrame.
 
-The default successful path performs one Phase 6 execution. Later stages consume that result;
+The default successful path performs one statistical execution. Later stages consume that result;
 reproducibility-record creation does not replay it. Default audit renders and checks HTML,
 Markdown, JSON, and CSV in memory. `audit=False` returns a partial workflow with `audit=None`.
-`include_profile=True` requests one Phase 3 profile for an inferential workflow; descriptive
+`include_profile=True` requests one dataset profile for an inferential workflow; descriptive
 execution reuses its existing profile. No files are written. See
 [`docs/CONTROLLED_MVP.md`](docs/CONTROLLED_MVP.md) for the method and failure-mode matrices.
 
-### Phase 11 sensitivity analysis
+### Continue after `needs_input`
+
+When an essential scientific fact is absent, `run()` returns a structured request and does not
+execute a test:
+
+```python
+pending = assistant.run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="group",
+    estimand="mean",
+)
+assert pending.status == "needs_input"
+
+revised = assistant.update_question(pending.draft, design="independent")
+workflow = assistant.run(draft=revised)
+```
+
+The draft retains confirmed values. Its questions explain each missing field, and continuation
+passes through the same validation and recommendation rules as a new request.
+
+### Sensitivity analysis
 
 ```python
 scenario = SensitivitySpecification(
@@ -127,7 +140,7 @@ Welch mean difference versus Mann–Whitney rank distribution, have no direct es
 calculation. There is no p-value ordering, scenario selection, robustness score, or automatic
 changed-data analysis.
 
-### Phase 11 practical significance
+### Practical significance
 
 ```python
 threshold = MeaningfulEffectThreshold(
@@ -164,12 +177,12 @@ small/medium/large labels are not used as meaningful-effect criteria.
 
 Both models serialize with schema version 1. `assistant.report(..., sensitivity=...,
 practical_significance=...)`, `assistant.audit(...)`, and
-`assistant.reproducibility_record(...)` accept the optional Phase 11 records. See
+`assistant.reproducibility_record(...)` accept the optional sensitivity and threshold records. See
 [`docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`](docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
 `SensitivitySpecification.from_dict(...)` and `MeaningfulEffectThreshold.from_dict(...)` restore
 their validated configuration records.
 
-### Phase 4 question builder
+### Question intake and specification details
 
 ```python
 draft = assistant.prepare_question(
@@ -187,13 +200,13 @@ rechecked = assistant.prepare_question(specification=restored)
 
 `prepare_question()` accepts optional `objective`, `outcome`, `predictor`, `design`, `estimand`, `description`, `options`, `data_dictionary`, `variable_types`, and `specification`. Objectives are `descriptive`, `compare_groups`, and `association`. For comparison, `predictor` names the group or condition column. For association it names the second variable. A descriptive request needs none of these optional inferential details. Comparison needs both variables, target, and design. Association needs two variables and the dependence structure across rows; this is distinct from two x/y values occupying one row. `unknown` design remains unresolved. `mean` and `distribution` are distinct comparison targets. Other explicitly named targets can be recorded but later support is not guaranteed.
 
-The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data_limited`, `unsupported`), `missing_information`, `questions`, `warnings`, `blockers`, `variable_suggestions`, and `availability`. `questions` carry `field`, `question`, `explanation`, `input_type`, `required`, and options with stable `value` and display `label`; `to_dict()` is JSON-compatible. A future GUI should render these records and send selected values through `update_question()`. `availability` reports total, complete, and missing-relevant rows using Phase 3 complete-case counts. It is an availability summary, not a missing-data treatment. Declared missing codes remain ordinary observed values until the caller normalizes them. All-missing selected columns, no complete rows, and a group with fewer than two observed categories produce `data_limited` with blockers. An unsupported objective raises an actionable error; `unsupported` is reserved for future requests that cannot be represented. Constant variables produce warnings. Invalid column names and incompatible declarations raise package errors.
+The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data_limited`, `unsupported`), `missing_information`, `questions`, `warnings`, `blockers`, `variable_suggestions`, and `availability`. `questions` carry `field`, `question`, `explanation`, `input_type`, `required`, and options with stable `value` and display `label`; `to_dict()` is JSON-compatible. A future GUI should render these records and send selected values through `update_question()`. `availability` reports total, complete, and missing-relevant rows using complete-case counts. It is an availability summary, not a missing-data treatment. Declared missing codes remain ordinary observed values until the caller normalizes them. All-missing selected columns, no complete rows, and a group with fewer than two observed categories produce `data_limited` with blockers. An unsupported objective raises an actionable error; `unsupported` is reserved for future requests that cannot be represented. Constant variables produce warnings. Invalid column names and incompatible declarations raise package errors.
 
-`update_question(draft, **changes)` preserves confirmed answers, reconstructs a new draft, and leaves the old draft unchanged on invalid input. When the objective changes, it clears the previous predictor, target, and design; switching to descriptive also clears the old outcome. Supply new role selections explicitly. `profile(data_dictionary=...)` makes a copied declaration available to later question preparation; an explicit `data_dictionary` or `variable_types` correction takes precedence. The builder reuses Phase 3 variable intelligence without running full profiling, hypothesis tests, or recommendations.
+`update_question(draft, **changes)` preserves confirmed answers, reconstructs a new draft, and leaves the old draft unchanged on invalid input. When the objective changes, it clears the previous predictor, target, and design; switching to descriptive also clears the old outcome. Supply new role selections explicitly. `profile(data_dictionary=...)` makes a copied declaration available to later question preparation; an explicit `data_dictionary` or `variable_types` correction takes precedence. The builder reuses dataset variable intelligence without running full profiling, hypothesis tests, or recommendations.
 
-`ready` means Phase 4 fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired designs require an explicit unit-ID column; repeated and clustered designs remain representable but unsupported for execution.
+`ready` means question fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired designs require an explicit unit-ID column; repeated and clustered designs remain representable but unsupported for execution.
 
-### Phase 5 method recommendation
+### Method recommendation
 
 ```python
 draft = assistant.prepare_question(
@@ -205,7 +218,7 @@ recommendation = assistant.recommend_test(draft)
 print(recommendation.status, recommendation.method_id, recommendation.rationale)
 ```
 
-`recommend_test(draft=None, *, specification=None)` accepts exactly one `QuestionDraft` or `AnalysisSpecification`. A direct specification, and any supplied draft, are revalidated against the assistant's current DataFrame and Phase 4 availability rules. No full profile or hypothesis test is run. Unknown essential information returns `needs_input` with `missing_information` and GUI-ready `questions`; a data-limited draft returns `unsupported` with its blockers. An incompatible design, target, measurement type, or hard computational requirement returns `unsupported`. `ready` means a compatible existing operation can be called later; it does not certify uncheckable assumptions.
+`recommend_test(draft=None, *, specification=None)` accepts exactly one `QuestionDraft` or `AnalysisSpecification`. A direct specification, and any supplied draft, are revalidated against the assistant's current DataFrame and question-availability rules. No full profile or hypothesis test is run. Unknown essential information returns `needs_input` with `missing_information` and GUI-ready `questions`; a data-limited draft returns `unsupported` with its blockers. An incompatible design, target, measurement type, or hard computational requirement returns `unsupported`. `ready` means a compatible existing operation can be called later; it does not certify uncheckable assumptions.
 
 | Objective and target | Conditions | Result |
 | --- | --- | --- |
@@ -220,9 +233,9 @@ print(recommendation.status, recommendation.method_id, recommendation.rationale)
 
 Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. A paired mean question without a unit ID returns `needs_input`; compatible two-condition paired data select `paired_t`. Repeated and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
 
-`Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), and `questions` (Phase 4-compatible clarification dictionaries). `required_assumptions` and `context.assumption_checks` disclose researcher-confirmed facts, checkable feasibility, and conditions requiring review. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the Phase 4 specification schema; existing explicit analyzer calls remain available to experts.
+`Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), and `questions` (question-builder-compatible clarification dictionaries). `required_assumptions` and `context.assumption_checks` disclose researcher-confirmed facts, checkable feasibility, and conditions requiring review. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the specification schema; existing explicit analyzer calls remain available to experts.
 
-### Phase 6 statistical execution
+### Statistical execution
 
 ```python
 result = assistant.analyze(draft)
@@ -232,7 +245,7 @@ print(result.values["primary_estimate"], result.values["p_value"])
 print(result.metadata["sample"], result.metadata["group_order"])
 ```
 
-`analyze(draft=None, *, specification=None)` accepts exactly one completed `QuestionDraft` or `AnalysisSpecification`. It rebuilds the question against the assistant's copied DataFrame and obtains a fresh Phase 5 recommendation. Only `ready` and `runnable` selections dispatch. Incomplete, unsupported, or known backend numerical failures return `AnalysisResult(status="unavailable")` with a reason and no fabricated values. Invalid specification fields or nonexistent columns raise the existing package exceptions. Unexpected programming errors are not hidden.
+`analyze(draft=None, *, specification=None)` accepts exactly one completed `QuestionDraft` or `AnalysisSpecification`. It rebuilds the question against the assistant's copied DataFrame and obtains a fresh recommendation. Only `ready` and `runnable` selections dispatch. Incomplete, unsupported, or known backend numerical failures return `AnalysisResult(status="unavailable")` with a reason and no fabricated values. Invalid specification fields or nonexistent columns raise the existing package exceptions. Unexpected programming errors are not hidden.
 
 | Selected method ID | Existing numerical source | Main outputs |
 | --- | --- | --- |
@@ -243,13 +256,13 @@ print(result.metadata["sample"], result.metadata["group_order"])
 | `pearson_correlation` | Pair-only `analyze_all()` correlation profile | Pearson r and its pairwise p-value; no CI |
 | `pearson_chi_square` | `categorical_association()` | Chi-square, df, p, observed/expected table, Cramer's V and optional bootstrap CI |
 
-The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable **legacy explicit calculations**, but Phase 5 does not select them automatically. They remain available through `StatisticalAnalyzer.hypothesis_tests()`; `analyze()` never substitutes them for a Welch or unsupported multi-group mean request. The guided engine supports `paired_t` only for an explicit unit ID and exactly two conditions. Spearman/Kendall inference, repeated designs with more than two conditions, clustered methods, Welch ANOVA, and sparse-table exact tests are unavailable.
+The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable **legacy explicit calculations**, but the guided recommender does not select them automatically. They remain available through `StatisticalAnalyzer.hypothesis_tests()`; `analyze()` never substitutes them for a Welch or unsupported multi-group mean request. The guided engine supports `paired_t` only for an explicit unit ID and exactly two conditions. Spearman/Kendall inference, repeated designs with more than two conditions, clustered methods, Welch ANOVA, and sparse-table exact tests are unavailable.
 
 `AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
 
 Group and categorical effect intervals use the existing 499-resample bootstrap with effective seed 0 when no seed was specified; this default and any explicit seed are recorded in metadata and diagnostics. The specification's alpha and confidence level remain available through `result.specification.options`; alpha is not used to alter the numerical p-value. No missing rows are imputed, no outliers are removed, and declared missing codes still block execution until normalized externally. JSON export is `json.dumps(result.to_dict(), allow_nan=False)`.
 
-### Phase 7 deterministic interpretation
+### Deterministic interpretation
 
 ```python
 result = assistant.analyze(draft)
@@ -259,13 +272,13 @@ print(interpretation.status, [finding.code for finding in interpretation.finding
 payload = interpretation.to_dict()  # json.dumps(payload, allow_nan=False)
 ```
 
-`interpret(result: AnalysisResult) -> InterpretationResult` reads the completed Phase 6 record only; it runs no statistical test or report writer. `InterpretationEngine().interpret(result)` is the independently usable rule engine. The result has `status` (`available`, `partial`, `unavailable`), `execution_status`, `method_id`, `summary`, `method_explanation`, `hypothesis_interpretation`, `effect_interpretation`, `uncertainty_interpretation`, `assumption_notes`, `limitations`, `conclusion`, `warnings`, `metadata`, and `findings`. Each `InterpretationFinding` has a stable `code`, display `message`, and `supporting_fields` pointing to the source result. `to_dict()` is JSON compatible and leaves the original `AnalysisResult` unchanged.
+`interpret(result: AnalysisResult) -> InterpretationResult` reads the completed analysis record only; it runs no statistical test or report writer. `InterpretationEngine().interpret(result)` is the independently usable rule engine. The result has `status` (`available`, `partial`, `unavailable`), `execution_status`, `method_id`, `summary`, `method_explanation`, `hypothesis_interpretation`, `effect_interpretation`, `uncertainty_interpretation`, `assumption_notes`, `limitations`, `conclusion`, `warnings`, `metadata`, and `findings`. Each `InterpretationFinding` has a stable `code`, display `message`, and `supporting_fields` pointing to the source result. `to_dict()` is JSON compatible and leaves the original `AnalysisResult` unchanged.
 
-Supported guided results are `dataset_profile`, `welch_t`, `mann_whitney_u`, `kruskal_wallis`, `pearson_correlation`, and `pearson_chi_square`. Templates also accept valid Phase 6 `student_t` and `one_way_anova` adapter results; the guided selector does not choose these. Spearman and Kendall are coefficient-only in legacy profiling, so there is no successful guided inferential interpretation for them. Unrecognized or unavailable results return an unavailable interpretation. A missing p-value, effect, or primary confidence interval gives a partial interpretation, preserving factual components without inventing the missing result. Pearson's current result has no CI, so its interpretation is normally partial.
+Supported guided results are `dataset_profile`, `welch_t`, `mann_whitney_u`, `kruskal_wallis`, `pearson_correlation`, and `pearson_chi_square`. Templates also accept valid `student_t` and `one_way_anova` adapter results; the guided selector does not choose these. Spearman and Kendall are coefficient-only in legacy profiling, so there is no successful guided inferential interpretation for them. Unrecognized or unavailable results return an unavailable interpretation. A missing p-value, effect, or primary confidence interval gives a partial interpretation, preserving factual components without inventing the missing result. Pearson's current result has no CI, so its interpretation is normally partial.
 
 The decision rule is `p < result.specification.options.alpha`; equality does not reject. It uses the original numeric p-value and formats very small values separately; computational zero displays as `p < 0.001` with a numerical warning. The engine does not claim multiplicity adjustment, equivalence, causation, or practical importance. Two-group directions follow `metadata.contrast`; confidence intervals retain their own `quantity`, `method`, and `level`. Finite ordered percentile-bootstrap bounds may exclude the original point estimate; containment is required for the analytical t mean-difference interval. The analytical t interval is checked against a two-sided p-value only when its level matches `1-alpha`. Apparent disagreement produces a warning and partial status. A valid raw mean difference remains interpretable when Cohen's d is missing or inconsistent, with partial status and a warning; conflicting signs invalidate the d interpretation. Bootstrap effect intervals are not treated as interchangeable with the analytical mean-difference interval. Assumption diagnostics describe rejection or non-rejection, never proof; source warnings and excluded-row counts remain visible.
 
-### Phase 8 general research reports
+### Research reports
 
 ```python
 result = assistant.analyze(draft)
@@ -276,11 +289,11 @@ json_text = report.to_json()
 csv_tables = report.to_csv_tables()  # stable table-ID to CSV-text mapping
 ```
 
-`report(result, *, interpretation=None, sensitivity=None, practical_significance=None, title=None, include_figures=False) -> ResearchReport` does not rerun an analysis or write a file. Supplied interpretations must exactly match the deterministic Phase 7 interpretation for this result; mismatches raise `ReportError`. The snapshot exposes `status` (`complete`, `partial`, `unavailable`), `title`, and `to_dict()`. It includes the source specification/result, matching interpretation, structured research question, dataset, Methods, diagnostics, Results, interpretation, source-linked tables, optional histogram-bin specifications, warnings, and limitations. Contradictory sample counts raise `ReportError`. An unavailable result has no displayed numerical findings, even if its envelope contains stale values. Invalid effect measures and intervals remain unavailable in reader-facing sections. Without Phase 11 records the payload remains report schema version 1; optional sensitivity or practical-significance content uses additive report schema version 2.
+`report(result, *, interpretation=None, sensitivity=None, practical_significance=None, title=None, include_figures=False) -> ResearchReport` does not rerun an analysis or write a file. Supplied interpretations must exactly match the deterministic interpretation for this result; mismatches raise `ReportError`. The snapshot exposes `status` (`complete`, `partial`, `unavailable`), `title`, and `to_dict()`. It includes the source specification/result, matching interpretation, structured research question, dataset, Methods, diagnostics, Results, interpretation, source-linked tables, optional histogram-bin specifications, warnings, and limitations. Contradictory sample counts raise `ReportError`. An unavailable result has no displayed numerical findings, even if its envelope contains stale values. Invalid effect measures and intervals remain unavailable in reader-facing sections. Without sensitivity or practical-significance records the payload remains report schema version 1; optional follow-up content uses additive report schema version 2.
 
 `to_html()` returns self-contained escaped static HTML; `to_markdown()` escapes user syntax; `to_json()` preserves JSON-safe raw numbers; `to_csv_tables()` returns a dictionary of independent CSV strings. Cells beginning with formula-like prefixes after whitespace are prefixed with an apostrophe only in CSV output; numeric cells remain numeric. `save_html(path)`, `save_markdown(path)`, `save_json(path)`, and `save_csv_tables(directory)` write only to explicit paths and reject existing files unless `overwrite=True`. Filenames for CSV tables are stable IDs, never derived from report titles or category labels. The report omits categorical identifier labels from descriptive profiles and does not include the complete input DataFrame. Small aggregate groups can still disclose information. See [the schema and method matrix](docs/RESEARCH_REPORT_SCHEMA.md) and [the runnable example](examples/research_report_example.py). The legacy `ReportGenerator` continues to accept its original dictionary inputs.
 
-### Phase 9 provenance, audit, and replay
+### Provenance, audit, and replay
 
 ```python
 from pyautostat import reproduce
@@ -291,16 +304,16 @@ result = assistant.analyze(draft)
 report = assistant.report(result)
 audit = assistant.audit(report)
 record = assistant.reproducibility_record(result)
-replay = reproduce(record, data=df)  # explicit Phase 6 rerun
+replay = reproduce(record, data=df)  # explicit supplied-data rerun
 ```
 
 `decision_ledger` is `None` when tracking is off. Tracked events have sequence IDs, local software timestamps, before/after states for revisions, optional researcher-supplied reasons, and content references. `update_question(draft, reason="...")` accepts an optional decision reason. `declare_planning("planned" | "exploratory" | "unknown")` is an explicit declaration; the default is `unknown`. `DecisionLedger.import_result(result)` records only an import and marks prior history unavailable. No ledger or hash authenticates an external preregistration or timestamp.
 
-`audit(report, *, result=None, sensitivity=None, practical_significance=None, exports=None) -> AuditResult` compares the report with its captured sources or explicitly supplied originals. Findings have stable codes and field paths, including Phase 11 threshold, relation, estimate, omission, status, and comparability mismatches. `passed`, `failed`, and `incomplete` distinguish agreement, contradiction, and checks that could not be performed. A directly reconstructed report without a supplied source result is incomplete. If `exports` is omitted, all four current formats are rendered and checked; supplied content is inspected as provided. HTML and Markdown checks compare the exact canonical rendering, not arbitrary edited prose semantics. The auditor never reruns a statistical test or sensitivity scenario. Its pass status does not establish scientific validity.
+`audit(report, *, result=None, sensitivity=None, practical_significance=None, exports=None) -> AuditResult` compares the report with its captured sources or explicitly supplied originals. Findings have stable codes and field paths, including threshold, relation, estimate, omission, status, and comparability mismatches. `passed`, `failed`, and `incomplete` distinguish agreement, contradiction, and checks that could not be performed. A directly reconstructed report without a supplied source result is incomplete. If `exports` is omitted, all four current formats are rendered and checked; supplied content is inspected as provided. HTML and Markdown checks compare the exact canonical rendering, not arbitrary edited prose semantics. The auditor never reruns a statistical test or sensitivity scenario. Its pass status does not establish scientific validity.
 
-`reproducibility_record(result, *, fingerprint=True, sensitivity=None, practical_significance=None) -> ReproducibilityRecord` stores a JSON-safe specification, method, restricted expected-result projection, actual runtime versions, recorded seed and bootstrap configuration, and an optional hash of the assistant's current DataFrame. Base-only records remain schema version 1. Optional Phase 11 configuration produces schema version 2 with ordered scenarios, actual methods/statuses/seeds, fingerprint metadata, and the meaningful threshold. `ReproducibilityRecord.from_dict(...)` reloads this metadata. `record.save_package(path, data_reference=None, overwrite=False)` writes a metadata-only ZIP to an explicit path; no raw data or script are included. `reproduce(record, *, data=df, allow_changed_data=False) -> ReproductionOutcome` checks the fingerprint, revalidates the recorded base method, executes only on explicit request, and compares actual numeric fields under the documented tolerance. It does not automatically replay Phase 11 scenarios. A changed dataset is a mismatch by default; an allowed changed-data rerun remains labelled as such. A missing fingerprint cannot establish same-data reproduction. See [the precise fingerprint, comparison, privacy, and export policy](docs/PROVENANCE_AND_REPLAY.md).
+`reproducibility_record(result, *, fingerprint=True, sensitivity=None, practical_significance=None) -> ReproducibilityRecord` stores a JSON-safe specification, method, restricted expected-result projection, actual runtime versions, recorded seed and bootstrap configuration, and an optional hash of the assistant's current DataFrame. Base-only records remain schema version 1. Optional sensitivity configuration produces schema version 2 with ordered scenarios, actual methods/statuses/seeds, fingerprint metadata, and the meaningful threshold. `ReproducibilityRecord.from_dict(...)` reloads this metadata. `record.save_package(path, data_reference=None, overwrite=False)` writes a metadata-only ZIP to an explicit path; no raw data or script are included. `reproduce(record, *, data=df, allow_changed_data=False) -> ReproductionOutcome` checks the fingerprint, revalidates the recorded base method, executes only on explicit request, and compares actual numeric fields under the documented tolerance. It does not automatically replay sensitivity scenarios. A changed dataset is a mismatch by default; an allowed changed-data rerun remains labelled as such. A missing fingerprint cannot establish same-data reproduction. See [the precise fingerprint, comparison, privacy, and export policy](docs/PROVENANCE_AND_REPLAY.md).
 
-`to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no Phase 3 data dictionary and `schema_version: 2` when `data_dictionary` is present. Version 1 payloads round-trip unchanged; version 2 adds that field without overloading version 1's text-only `variable_metadata`. A legacy caller can keep using `variable_metadata` for descriptions. The Phase 3 dictionary is authoritative for analytical types and roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records. No recommendation, inferential result, or report is manufactured by question preparation.
+`to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no data dictionary and `schema_version: 2` when `data_dictionary` is present. Version 1 payloads round-trip unchanged; version 2 adds that field without overloading version 1's text-only `variable_metadata`. A legacy caller can keep using `variable_metadata` for descriptions. The data dictionary is authoritative for analytical types and roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records. No recommendation, inferential result, or report is manufactured by question preparation.
 
 ## `StatisticalAnalyzer`
 
@@ -334,13 +347,22 @@ analysis = analyzer.analyze_all()
 | `categorical_summary` | Nonmissing/missing counts, observed categories, tied modes, top 20 frequencies and percentages of nonmissing observations |
 | `variable_intelligence` | Observed dtype, advisory analytical type and role, evidence, declaration sources and warnings |
 | `data_dictionary` | Validated, copied column declarations supplied by the caller; empty by default |
+| `resource_info` | Deep memory estimate, analytical numeric width, advisory resource level, correlation size, and structured performance warnings |
 | `profile_metadata` | Schema version and disclosed binning, missingness, row-position and outlier defaults |
 
 An unavailable numeric result is `None`. Some tests are skipped for all-missing, constant or short columns; inspect `analysis_warnings`. For D'Agostino-Pearson at 8-19 observations, a finite result is retained with a small-sample approximation warning; other numerical warnings or nonfinite output make it unavailable. Anderson-Darling is omitted if SciPy supplies an unusable critical-value grid, including nonpositive values sometimes returned for very small samples. Correlation uses pairwise nonmissing observations. Only Pearson pairs include p-values.
 
-### Phase 3 profile details and optional declarations
+### Profile details and optional declarations
 
 `overview` retains original pandas dtype objects for Python callers and adds suggested-type counts, datetime/Boolean counts, memory bytes, missing cells and exact duplicates. Use `ReportGenerator(profile).to_json()` for JSON-safe export; it converts dtype objects and unavailable values. `missing_data` adds `rows_with_missing`, `completely_missing_rows`, `complete_rows`, top 10 `common_patterns`, column `available_count`, and co-missing pair counts. Cell counts and affected-row counts are distinct. `ResearchAssistant(df).complete_case_count(["score", "group"])` returns selected columns, available rows, excluded rows and total rows without changing stored data.
+
+`resource_info` uses `DataFrame.memory_usage(index=True, deep=True).sum()` when available. The
+default performance-advisory bands are 256 MiB (`large`), 1 GiB (`very_large`), and 100 analytical
+numeric columns for a correlation-width warning. It reports matrix dimensions and distinct pair
+count before all-pairs correlation work. These local policy categories are not scientific limits
+or universal hardware limits. Warnings never sample, truncate, cast, mutate, or skip calculations.
+If deep memory estimation fails, the estimate and MiB value are `None`, the level is `unknown`,
+and profiling continues with an advisory record.
 
 `data_quality.duplicate_rows` retains the count of rows that repeat an earlier entire row. `duplicate_group_rows` counts every row in a repeated group; `missing_duplicate_overlap_rows` counts rows with both flags. These are overlapping observations, not counts to subtract from a denominator. Repeated identifiers are reported separately when an identifier role is declared or suggested. `data_quality.issues` contains `code`, `severity`, `section`, `column`, `message`, `evidence`, and `recommendation`. Severity is a review priority, not a dataset-quality score.
 
@@ -389,7 +411,7 @@ This method runs a Pearson chi-square test of independence without continuity co
 
 The result includes `test`, `statistic`, `p_value`, `degrees_of_freedom`, `groups`, `outcomes`, `observed_counts`, `expected_counts`, `sample_size`, `excluded_rows`, `assumptions` and Cramér's V in `effect_size`. For a two-by-two table with an explicit `success_value`, it also includes `cohens_h`. Positive Cohen's h means the first group has the higher success proportion. Bootstrap intervals resample complete observed group/outcome rows; interval and assumption metadata report valid resample counts and seed. Set `bootstrap_samples=0` to omit intervals.
 
-## Phase 12 planning, paired analysis, presentation, and adapters
+## Analysis planning, paired analysis, presentation, and adapters
 
 ```python
 plan = assistant.analysis_plan(

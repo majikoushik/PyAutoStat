@@ -246,7 +246,7 @@ def _group_sizes(usable: pd.DataFrame, group: str) -> list[int]:
 
 
 def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommendation:
-    """Evaluate a Phase 4 draft using lightweight deterministic checks only."""
+    """Evaluate a question draft using lightweight deterministic checks only."""
     spec = draft.specification
     question = spec.question
     objective = question.objective
@@ -310,13 +310,13 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
 
     record("objective", context["objective"], "Researcher-declared research objective.")
     record("variables", selected, "Selected variable roles are preserved from the specification.")
-    record("types", types, "Phase 3 suggestions or validated researcher declarations.")
+    record("types", types, "Profile suggestions or validated researcher declarations.")
     record("target", question.estimand, "The scientific target is never inferred from diagnostics.")
     record("design", spec.design.value, "Dependence is taken only from the researcher declaration.")
     record("availability", draft.availability, "Counts use rows complete for selected variables.")
 
     if draft.status == QuestionStatus.DATA_LIMITED or draft.status == QuestionStatus.UNSUPPORTED:
-        record("blocker", "phase4_data", "Phase 4 found unusable selected data.")
+        record("blocker", "phase4_data", "Question intake found unusable selected data.")
         return finish(
             RecommendationStatus.UNSUPPORTED,
             blockers=draft.blockers,

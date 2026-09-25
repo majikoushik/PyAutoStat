@@ -1,6 +1,6 @@
 # Final controlled capability matrix
 
-This matrix describes the local Phase 12 implementation. A listed method still depends on a
+This matrix describes the current local implementation. A listed method still depends on a
 researcher supplying the correct scientific design and on its documented numerical conditions.
 
 ## Guided execution

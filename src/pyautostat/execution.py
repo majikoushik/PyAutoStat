@@ -619,7 +619,7 @@ def execute_selected_method(
     specification: AnalysisSpecification,
     method_id: str,
 ) -> AnalysisResult:
-    """Execute one explicitly selected, compatible Phase 6 method.
+    """Execute one explicitly selected, compatible method.
 
     This entry point exists for declared sensitivity specifications. It does not
     participate in automatic recommendation and it never substitutes another

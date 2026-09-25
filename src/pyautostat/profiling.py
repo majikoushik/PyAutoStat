@@ -44,6 +44,115 @@ _LIST_FIELDS = {"allowed_values", "missing_codes", "ordinal_order"}
 _ENTRY_FIELDS = _TEXT_FIELDS | _LIST_FIELDS | {"type", "role", "valid_range"}
 _TOP_CATEGORY_LIMIT = 20
 _TOP_PATTERN_LIMIT = 10
+_LARGE_DATAFRAME_BYTES = 256 * 1024**2
+_VERY_LARGE_DATAFRAME_BYTES = 1024 * 1024**2
+_WIDE_CORRELATION_COLUMN_COUNT = 100
+
+
+def _dataset_resource_info(frame: pd.DataFrame, numeric_column_count: int) -> dict[str, Any]:
+    """Estimate profiling resources without changing or sampling the DataFrame."""
+    resource_warnings: list[dict[str, Any]] = []
+    estimated_bytes: int | None
+    try:
+        estimated_bytes = int(frame.memory_usage(index=True, deep=True).sum())
+        if estimated_bytes < 0:
+            raise ValueError("negative memory estimate")
+    except Exception:  # Resource advice must never block a valid statistical workflow.
+        estimated_bytes = None
+        resource_warnings.append(
+            {
+                "code": "memory_estimate_unavailable",
+                "severity": "advisory",
+                "message": (
+                    "Deep DataFrame memory estimation was unavailable. Profiling continued "
+                    "without a memory-size classification."
+                ),
+                "context": {"estimation_method": "memory_usage(index=True, deep=True)"},
+            }
+        )
+
+    estimated_mib = estimated_bytes / 1024**2 if estimated_bytes is not None else None
+    if estimated_bytes is None:
+        resource_level = "unknown"
+    elif estimated_bytes >= _VERY_LARGE_DATAFRAME_BYTES:
+        resource_level = "very_large"
+        resource_warnings.append(
+            {
+                "code": "very_large_dataframe_profile",
+                "severity": "strong_advisory",
+                "message": (
+                    f"This DataFrame uses approximately {estimated_bytes} bytes "
+                    f"({estimated_mib:.2f} MiB). Full profiling may require substantial "
+                    "additional temporary memory."
+                ),
+                "context": {
+                    "estimated_memory_bytes": estimated_bytes,
+                    "estimated_memory_mib": estimated_mib,
+                },
+            }
+        )
+    elif estimated_bytes >= _LARGE_DATAFRAME_BYTES:
+        resource_level = "large"
+        resource_warnings.append(
+            {
+                "code": "large_dataframe_profile",
+                "severity": "advisory",
+                "message": (
+                    f"This DataFrame uses approximately {estimated_bytes} bytes "
+                    f"({estimated_mib:.2f} MiB). Full profiling may require additional "
+                    "temporary memory for distributions, histograms, correlations, and "
+                    "intermediate calculations."
+                ),
+                "context": {
+                    "estimated_memory_bytes": estimated_bytes,
+                    "estimated_memory_mib": estimated_mib,
+                },
+            }
+        )
+    else:
+        resource_level = "normal"
+
+    pair_count = numeric_column_count * (numeric_column_count - 1) // 2
+    if numeric_column_count >= _WIDE_CORRELATION_COLUMN_COUNT:
+        resource_warnings.append(
+            {
+                "code": "wide_correlation_profile",
+                "severity": "advisory",
+                "message": (
+                    f"The profile includes {numeric_column_count} numerical columns; each "
+                    f"all-pairs correlation matrix is {numeric_column_count} x "
+                    f"{numeric_column_count} ({pair_count} distinct column pairs) and may be "
+                    "computationally expensive."
+                ),
+                "context": {
+                    "numeric_column_count": numeric_column_count,
+                    "matrix_dimension": [numeric_column_count, numeric_column_count],
+                    "distinct_pair_count": pair_count,
+                },
+            }
+        )
+
+    return {
+        "row_count": int(len(frame)),
+        "column_count": int(len(frame.columns)),
+        "numeric_column_count": int(numeric_column_count),
+        "estimated_memory_bytes": estimated_bytes,
+        "estimated_memory_mib": estimated_mib,
+        "memory_estimation_method": "memory_usage(index=True, deep=True).sum()",
+        "resource_level": resource_level,
+        "correlation_matrix_dimension": [numeric_column_count, numeric_column_count],
+        "correlation_distinct_pair_count": pair_count,
+        "resource_warnings": resource_warnings,
+        "policy": {
+            "large_dataframe_bytes": _LARGE_DATAFRAME_BYTES,
+            "very_large_dataframe_bytes": _VERY_LARGE_DATAFRAME_BYTES,
+            "wide_correlation_column_count": _WIDE_CORRELATION_COLUMN_COUNT,
+            "categories_are_performance_advisories": True,
+        },
+        "sampling_applied": False,
+        "truncation_applied": False,
+        "source_data_modified": False,
+    }
 
 
 def _plain_scalar(value: Any) -> bool:
@@ -173,7 +282,10 @@ class DatasetProfiler:
             )
         ]
         self.analyzer._profile_include_positions = self.include_row_positions
+        resource_info = _dataset_resource_info(self.frame, len(self.analyzer._profile_numeric_cols))
+        self.analyzer._profile_resource_info = resource_info
         results = self.analyzer._base_profile(self.histogram_bins)
+        results["resource_info"] = resource_info
         results["variable_intelligence"] = variables
         results["data_dictionary"] = self.dictionary
         results["categorical_summary"] = self._categorical_summary(variables)
@@ -386,7 +498,7 @@ class DatasetProfiler:
                 "missing_cells": missing["total_missing_cells"],
                 "missing_cell_percentage": missing["overall_missing_percentage"],
                 "duplicate_rows": quality["duplicate_rows"],
-                "memory_usage_bytes": int(self.frame.memory_usage(deep=True).sum()),
+                "memory_usage_bytes": results["resource_info"]["estimated_memory_bytes"],
             }
         )
 
@@ -605,7 +717,7 @@ class DatasetProfiler:
 
 
 def variable_intelligence_only(frame: pd.DataFrame, data_dictionary: Any = None) -> dict:
-    """Reuse Phase 3 hints without running full descriptive or inferential profiling."""
+    """Reuse variable hints without running full descriptive or inferential profiling."""
 
     class _FrameHolder:
         def __init__(self, value: pd.DataFrame) -> None:

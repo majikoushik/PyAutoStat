@@ -1,4 +1,4 @@
-# Phase 10 controlled MVP
+# Controlled integrated workflow
 
 PyAutoStat provides a bounded, deterministic path from a pandas DataFrame and a declared
 research question to an audited report and reproducibility metadata. It supports the cases in
@@ -59,7 +59,7 @@ combined with raw question arguments. This prevents silent precedence rules.
 
 ## Workflow result contract
 
-`ResearchWorkflowResult` has schema version 1. Its object fields reuse the existing Phase 4–9
+`ResearchWorkflowResult` has schema version 1. Its object fields reuse the established workflow
 types: `specification`, `draft`, `recommendation`, `analysis`, `interpretation`, `report`, `audit`,
 and `reproducibility`. It also provides optional `profile`, plus `missing_information`, `blockers`,
 and `warnings`. Downstream fields remain `None` when their stage did not run. `to_dict()` and
@@ -80,20 +80,20 @@ workflow because its guided result has no confidence interval.
 
 By default `audit=True` and `fingerprint=True`. `audit=False` avoids rendering the four formats,
 sets `workflow.audit` to `None`, and makes the workflow partial. `fingerprint=False` keeps the
-reproducibility record but omits the data fingerprint. `include_profile=True` adds one Phase 3
+reproducibility record but omits the data fingerprint. `include_profile=True` adds one dataset
 profile to an inferential workflow. A descriptive workflow reuses its one executed profile.
 
-## Optional Phase 11 follow-up
+## Optional follow-up analyses
 
 `run()` remains the base workflow and does not accept or generate sensitivity scenarios. After a
 successful result, callers may explicitly invoke `sensitivity_analysis()` with an ordered list of
 scenario specifications and `practical_significance()` with a researcher-defined threshold.
 These calls do not replace `workflow.analysis`. Their recorded results may be supplied to
-`report()`, `audit()`, and `reproducibility_record()` for additive Phase 11 content. The ordinary
-Phase 10 path still performs one statistical execution and produces report and reproducibility
+`report()`, `audit()`, and `reproducibility_record()` for additive follow-up content. The ordinary
+`run()` path still performs one statistical execution and produces report and reproducibility
 schema version 1.
 
-See [the Phase 11 contract](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md) for same versus different
+See [the robustness contract](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md) for same versus different
 estimands, supported quantities, provenance, and formal-equivalence limits.
 
 ## Guided method support
@@ -151,5 +151,5 @@ the implemented checks. A local ledger is not authenticated preregistration, a m
 not proof of data authenticity, and a passing test suite is not universal scientific validation.
 
 The declared dependency floors (`pandas>=1.0`, `numpy>=1.19`, `scipy>=1.5`) are older than the
-local Phase 10 validation environment. Modern-version tests alone do not verify those floors;
+local validation environment. Modern-version tests alone do not verify those floors;
 minimum-dependency testing remains a release-readiness requirement.

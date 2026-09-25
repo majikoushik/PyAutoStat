@@ -1,4 +1,4 @@
-"""Explicit, estimand-aware sensitivity analysis over existing Phase 6 methods."""
+"""Explicit, estimand-aware sensitivity analysis over existing methods."""
 
 from __future__ import annotations
 
@@ -382,7 +382,7 @@ def compare_same_estimand(base: AnalysisResult, scenario: AnalysisResult) -> dic
 
 
 def scenario_values(result: AnalysisResult) -> dict[str, Any]:
-    """Extract validated, aggregate display values from one Phase 6 result."""
+    """Extract validated, aggregate display values from one analysis result."""
     effect = result.values.get("effect_size")
     effect_name = effect.get("name") if isinstance(effect, dict) else None
     effect_value = _finite(effect.get("value")) if isinstance(effect, dict) else None

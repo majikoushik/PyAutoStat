@@ -146,6 +146,7 @@ class StatisticalAnalyzer:
         self.analysis_warnings = []
         self._profile_numeric_cols = self.numeric_cols
         self._profile_include_positions = False
+        self._profile_resource_info = None
 
     def _add_warning(self, code, section, column, message):
         warning = {"code": code, "section": section, "column": column, "message": message}
@@ -203,13 +204,18 @@ class StatisticalAnalyzer:
 
     def _overview(self):
         """Basic dataset overview"""
+        estimated_bytes = (
+            self._profile_resource_info.get("estimated_memory_bytes")
+            if isinstance(self._profile_resource_info, dict)
+            else None
+        )
         return {
             "shape": self.df.shape,
             "total_rows": len(self.df),
             "total_columns": len(self.df.columns),
             "numeric_columns": len(self.numeric_cols),
             "categorical_columns": len(self.categorical_cols),
-            "memory_usage_mb": self.df.memory_usage(deep=True).sum() / 1024**2,
+            "memory_usage_mb": (estimated_bytes / 1024**2 if estimated_bytes is not None else None),
             "columns": self.df.columns.tolist(),
             "dtypes": self.df.dtypes.to_dict(),
         }
