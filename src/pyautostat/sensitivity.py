@@ -253,6 +253,7 @@ def _identity(result: AnalysisResult) -> dict[str, Any]:
         "predictor": question.predictor,
         "design": specification.design.value,
         "estimand": question.estimand,
+        "unit_id": specification.unit_id,
         "estimate_quantity": estimate_quantity(result.method_id),
         "contrast": result.metadata.get("contrast"),
     }
@@ -270,6 +271,13 @@ def classify_comparability(base: AnalysisResult, scenario: AnalysisResult) -> Co
         return Comparability.UNAVAILABLE
     for field_name in ("objective", "outcome", "predictor", "design"):
         if left[field_name] != right[field_name]:
+            return Comparability.INCOMPATIBLE
+    if left["design"] == "paired" and left["unit_id"] != right["unit_id"]:
+        return Comparability.INCOMPATIBLE
+    if left["estimand"] != right["estimand"]:
+        return Comparability.DIFFERENT_ESTIMAND
+    if left["design"] == "paired":
+        if left["contrast"] != right["contrast"]:
             return Comparability.INCOMPATIBLE
     if left["estimate_quantity"] != right["estimate_quantity"]:
         return Comparability.DIFFERENT_ESTIMAND

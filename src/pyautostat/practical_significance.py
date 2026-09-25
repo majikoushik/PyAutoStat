@@ -30,6 +30,7 @@ class MeaningfulEffectThreshold:
     unit: str | None = None
     rationale: str | None = None
     planning_status: str = "unknown"
+    contrast_order: tuple[Any, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.quantity not in SUPPORTED_QUANTITIES:
@@ -68,6 +69,21 @@ class MeaningfulEffectThreshold:
             )
         if self.planning_status not in {"planned", "exploratory", "unknown"}:
             raise InvalidDataError("planning_status must be planned, exploratory, or unknown.")
+        if self.contrast_order is not None:
+            if not isinstance(self.contrast_order, (list, tuple)) or len(self.contrast_order) != 2:
+                raise InvalidDataError("contrast_order must contain exactly two condition labels.")
+            checked = tuple(_json_value(item, "contrast_order") for item in self.contrast_order)
+            if any(item is None or isinstance(item, (list, dict)) for item in checked):
+                raise InvalidDataError(
+                    "contrast_order labels must be non-missing JSON scalar values."
+                )
+            if checked[0] == checked[1]:
+                raise InvalidDataError("contrast_order labels must be distinct.")
+            if self.quantity != "mean_difference":
+                raise InvalidDataError(
+                    "contrast_order is supported only for mean_difference thresholds."
+                )
+            object.__setattr__(self, "contrast_order", checked)
 
     def to_dict(self) -> dict[str, Any]:
         return _json_value(
@@ -79,6 +95,7 @@ class MeaningfulEffectThreshold:
                 "unit": self.unit,
                 "rationale": self.rationale,
                 "planning_status": self.planning_status,
+                "contrast_order": self.contrast_order,
             }
         )
 
@@ -94,6 +111,7 @@ class MeaningfulEffectThreshold:
                 unit=payload.get("unit"),
                 rationale=payload.get("rationale"),
                 planning_status=payload.get("planning_status", "unknown"),
+                contrast_order=payload.get("contrast_order"),
             )
         except (KeyError, TypeError) as exc:
             raise InvalidDataError(
@@ -203,6 +221,7 @@ def _metric(
             raise InvalidDataError("The selected quantity has an invalid confidence interval.")
         interval_aliases = {
             "mean difference": "mean_difference",
+            "mean paired difference": "mean_difference",
             "Cohen's d": "cohens_d",
             "rank-biserial correlation": "rank_biserial",
             "eta-squared": "eta_squared",
@@ -321,6 +340,54 @@ def assess_practical_significance(
             ("An ordinary two-sided analysis is not a validated formal " + label + " test.",),
             {"planning_status": planning_status, "local_record_only": True},
         )
+    if (
+        result.method_id == "paired_t"
+        and threshold.quantity == "mean_difference"
+        and threshold.direction in {"positive", "negative"}
+    ):
+        contrast = result.metadata.get("contrast")
+        if not isinstance(contrast, dict) or any(
+            contrast.get(name) is None for name in ("first", "second")
+        ):
+            raise InvalidDataError(
+                "The paired result does not contain a usable first-minus-second contrast."
+            )
+        observed_order = (contrast["first"], contrast["second"])
+        if threshold.contrast_order is None:
+            warning = (
+                "A positive or negative paired mean-difference threshold requires an explicit "
+                "contrast_order naming the intended first-minus-second conditions."
+            )
+        elif threshold.contrast_order != observed_order:
+            reversed_order = threshold.contrast_order == tuple(reversed(observed_order))
+            warning = (
+                "The directional threshold was defined for the reversed paired contrast and "
+                "cannot be applied to this result."
+                if reversed_order
+                else "The directional threshold contrast_order does not match this paired result."
+            )
+        else:
+            warning = None
+        if warning is not None:
+            return PracticalSignificanceResult(
+                "unavailable",
+                threshold.quantity,
+                None,
+                threshold,
+                None,
+                "unavailable",
+                "unavailable",
+                "contrast_orientation_unavailable",
+                "unavailable",
+                "The directional threshold was not assessed because its paired contrast "
+                "orientation was not verified.",
+                (warning,),
+                {
+                    "planning_status": planning_status,
+                    "result_contrast_order": observed_order,
+                    "local_record_only": True,
+                },
+            )
     estimate, interval, result_unit = _metric(result, threshold.quantity)
     if threshold.unit is not None and result_unit is not None and threshold.unit != result_unit:
         raise InvalidDataError(
@@ -375,6 +442,15 @@ def assess_practical_significance(
         {
             "planning_status": planning_status,
             "researcher_supplied_rationale": threshold.rationale,
+            "result_contrast_order": (
+                (
+                    result.metadata["contrast"].get("first"),
+                    result.metadata["contrast"].get("second"),
+                )
+                if result.method_id == "paired_t"
+                and isinstance(result.metadata.get("contrast"), dict)
+                else None
+            ),
             "local_record_only": True,
             "external_preregistration_verified": False,
         },

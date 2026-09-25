@@ -171,13 +171,13 @@ not a release or CI claim. See `docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`.
 
 ### Phase 12 — Advanced research, reporting and GUI preparation
 
-**Local implementation status (pending owner review):** Implemented in the uncommitted Phase 12
-working tree: schema-versioned statistical analysis plans and adherence comparison; bounded
+**Implementation status:** Checked into `main`, with the corresponding GitHub CI run passed:
+schema-versioned statistical analysis plans and adherence comparison; bounded
 prospective independent/paired mean power and precision planning; an explicit-unit-ID paired
 two-condition t workflow; reporting completeness; General, APA-oriented, and IEEE-oriented
 rendering; safe LaTeX text export; and a versioned UI-independent session snapshot. Repeated
 measures with more than two conditions, clustered/regression model families, GUI, PDF/DOCX, and
-release actions remain excluded. This note is not a CI or release claim.
+release actions remain excluded. A release remains a separate owner decision.
 
 **Goal:** Extend into study planning, further methods and presentation options without compromising the core.
 

@@ -32,5 +32,17 @@ It is not a substitute for scientific design review or subject-matter judgment.
   prove that a plan existed externally or before all researcher access to outcomes.
 - Reports and snapshots omit raw DataFrames and participant identifier values, but small aggregate
   cells can still disclose sensitive information and require researcher review.
-- Current local validation does not by itself verify every declared Python and minimum dependency
-  version. Release readiness requires the configured CI matrix and minimum-dependency review.
+
+## Minimum dependency compatibility scope
+
+The declared floors remain pandas 1.0, NumPy 1.19, and SciPy 1.5. A package-wide source review
+found use of established pandas table, dtype, correlation, and missing-value operations; NumPy
+array, quantile, random-generator, and finite-value operations; and SciPy descriptive-test,
+t-distribution, chi-square, and noncentral-t functions. The closure review did not identify an API
+call that clearly requires a higher version than the declared floor.
+
+Exact minimum-version execution is still unverified. The closure checks ran on Python 3.12.7,
+pandas 3.0.6, NumPy 2.2.6, and SciPy 1.13.0, plus the configured GitHub CI Python/OS matrix with
+resolver-selected dependency versions. The old declared floor releases were not installed in a
+separate compatible interpreter matrix, so this project does not claim verified runtime
+compatibility at those exact minimum versions. The dependency declarations were not raised.

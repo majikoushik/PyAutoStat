@@ -149,6 +149,10 @@ Magnitude must be finite and nonnegative. Directions are `two_sided`, `positive`
 `nonnegative` as appropriate. `equivalence` and `noninferiority` are recognized only to return an
 explicit unsupported result; no TOST or noninferiority test is implemented. Unit and rationale are
 optional preserved metadata. A known result unit must match the threshold unit.
+For a directional paired mean-difference threshold, supply
+`contrast_order=(first_condition, second_condition)` to identify the intended first-minus-second
+contrast. A missing or mismatched orientation returns an unavailable assessment rather than
+reusing the signed threshold. Two-sided magnitude thresholds remain orientation-invariant.
 
 `practical_significance(result, *, threshold) -> PracticalSignificanceResult` selects only the
 named existing quantity and its recorded interval. It reports `point_estimate_relation`,
@@ -396,7 +400,12 @@ plan = assistant.analysis_plan(
     report_style="apa",
 )
 result = assistant.analyze(draft)
-adherence = assistant.plan_adherence(plan, result)
+adherence = assistant.plan_adherence(
+    plan,
+    result,
+    sensitivity=performed_sensitivity,
+    practical_significance=performed_practical_significance,
+)
 ```
 
 `analysis_plan()` accepts one `QuestionDraft` or `AnalysisSpecification`. It performs validation
@@ -405,7 +414,10 @@ threshold are retained. `previous_plan=` plus optional `reason=` records a revis
 is enabled. `StatisticalAnalysisPlan` has schema version 1, `to_dict()`, `to_json()`,
 `from_dict()`, and `to_specification()`. A plan created after this assistant has executed an
 analysis records `created_after_analysis=True`. `plan_adherence()` compares recorded fields with
-a result as `matched`, `changed`, or `not_recorded` and makes no conduct inference.
+a result as `matched`, `changed`, or `not_recorded` and makes no conduct inference. When supplied,
+the optional performed sensitivity and practical-significance records are also compared with the
+planned scenario specifications and meaningful-effect threshold. It does not invent a reason for
+a change.
 
 ```python
 planner = StudyPlanner()

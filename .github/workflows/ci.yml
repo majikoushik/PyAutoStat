@@ -65,6 +65,11 @@ jobs:
         run: python -m build
       - name: Check distribution metadata
         run: twine check dist/*
+      - name: Smoke installed wheel in an isolated environment
+        run: |
+          python -m venv .wheel-smoke
+          .wheel-smoke/bin/python -m pip install dist/*.whl
+          .wheel-smoke/bin/python -I tests/installed_wheel_smoke.py
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

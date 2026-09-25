@@ -353,7 +353,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         required_columns.append(spec.unit_id)
     usable = frame[required_columns].dropna()
 
-    for column in selected:
+    for column in required_columns:
         codes = (spec.data_dictionary or {}).get(column, {}).get("missing_codes", [])
         if codes:
             count = int(frame[column].isin(codes).sum())

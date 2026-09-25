@@ -8,13 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- Phase 12 local implementation pending owner review: schema-versioned analysis plans and
+- Phase 12 implementation checked into `main` with passing GitHub CI: schema-versioned analysis plans and
   adherence comparison; standalone bounded Welch/paired prospective planning; an explicit-unit-ID
   paired two-condition t workflow; reporting completeness without a quality score; General,
   APA-oriented, and IEEE-oriented presentation; safe LaTeX text; styled auditing; a versioned
   UI-independent session snapshot; tests, examples, and readiness documentation. Specification
   schemas 1 and 2 remain readable and paired fields use additive schema 3. No dependency or
-  package-version change was made; this is not a release or CI claim.
+  package-version change was made. A release remains a separate owner decision.
 
 - Phase 11 explicit `ResearchAssistant.sensitivity_analysis()` with ordered, JSON-safe scenario specifications and results; same-estimand estimate/CI comparison, different-estimand labels, group-orientation normalization, complete attempt retention, local provenance, and no p-value ranking or robustness score.
 - Phase 11 researcher-defined `MeaningfulEffectThreshold` and `ResearchAssistant.practical_significance()` with named metric, direction, unit, point-estimate relation, separate confidence-interval relation, partial status when uncertainty is unavailable, and explicit unsupported equivalence/noninferiority requests.

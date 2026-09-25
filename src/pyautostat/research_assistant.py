@@ -876,6 +876,12 @@ class ResearchAssistant:
                             "This scenario targets a different estimand and is not a direct "
                             "robustness replication of the base analysis."
                         )
+                    elif comparability is Comparability.INCOMPATIBLE:
+                        scenario_warning.append(
+                            "This scenario changes the paired scientific comparison identity "
+                            "or contrast orientation and is not a same-estimand robustness "
+                            "comparison."
+                        )
                     values = scenario_values(analysis)
                     missing_numerical = [
                         label
@@ -1056,9 +1062,17 @@ class ResearchAssistant:
         result: AnalysisResult,
         *,
         reason: str | None = None,
+        sensitivity: SensitivityResult | None = None,
+        practical_significance: PracticalSignificanceResult | None = None,
     ) -> PlanAdherenceResult:
         """Compare recorded plan fields with a later result without judging conduct."""
-        comparison = compare_plan_to_result(plan, result, reason=reason)
+        comparison = compare_plan_to_result(
+            plan,
+            result,
+            reason=reason,
+            sensitivity=sensitivity,
+            practical_significance=practical_significance,
+        )
         if self._ledger is not None:
             payload = comparison.to_dict()
             self._ledger._record(
@@ -1067,6 +1081,20 @@ class ResearchAssistant:
                     "analysis_plan": content_reference("analysis_plan", plan.to_dict()),
                     "analysis": content_reference("analysis", result.to_dict()),
                     "plan_adherence": content_reference("plan_adherence", payload),
+                    **(
+                        {"sensitivity": content_reference("sensitivity", sensitivity.to_dict())}
+                        if sensitivity is not None
+                        else {}
+                    ),
+                    **(
+                        {
+                            "practical_significance": content_reference(
+                                "practical_significance", practical_significance.to_dict()
+                            )
+                        }
+                        if practical_significance is not None
+                        else {}
+                    ),
                 },
                 metadata={"status": comparison.status},
             )
@@ -1254,5 +1282,10 @@ def _scenario_incompatibility(
         return (
             "The scenario changes the declared study design; no independent-analysis method "
             "was substituted."
+        )
+    if base.design is StudyDesign.PAIRED and base.unit_id != scenario.unit_id:
+        return (
+            "The scenario changes the paired unit_id, so it does not preserve the scientific "
+            "pairing definition."
         )
     return None

@@ -81,6 +81,10 @@ Null-hypothesis significance is recorded separately and never defines practical 
 `direction="positive"`, `"negative"`, and `"nonnegative"` provide one-sided descriptive
 relations for appropriate metrics. Requests using `"equivalence"` or `"noninferiority"` return
 `unsupported`: PyAutoStat does not implement TOST or noninferiority inference in Phase 11.
+For a positive or negative paired mean-difference threshold, declare
+`contrast_order=(first_condition, second_condition)`. The order identifies the intended signed
+first-minus-second contrast. A missing or reversed declaration leaves that directional assessment
+unavailable; a two-sided magnitude threshold can be used across contrast reversal.
 
 ## Provenance, reporting, audit, and reproduction metadata
 

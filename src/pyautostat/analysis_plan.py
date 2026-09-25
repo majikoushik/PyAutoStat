@@ -8,9 +8,9 @@ from enum import Enum
 from typing import Any
 
 from .exceptions import InvalidDataError
-from .practical_significance import MeaningfulEffectThreshold
+from .practical_significance import MeaningfulEffectThreshold, PracticalSignificanceResult
 from .results import AnalysisResult
-from .sensitivity import SensitivitySpecification, estimate_quantity
+from .sensitivity import SensitivityResult, SensitivitySpecification, estimate_quantity
 from .specifications import AnalysisSpecification, _json_value
 
 ANALYSIS_PLAN_SCHEMA_VERSION = 1
@@ -236,12 +236,27 @@ class PlanAdherenceResult:
 
 
 def compare_plan_to_result(
-    plan: StatisticalAnalysisPlan, result: AnalysisResult, *, reason: str | None = None
+    plan: StatisticalAnalysisPlan,
+    result: AnalysisResult,
+    *,
+    reason: str | None = None,
+    sensitivity: SensitivityResult | None = None,
+    practical_significance: PracticalSignificanceResult | None = None,
 ) -> PlanAdherenceResult:
     if not isinstance(plan, StatisticalAnalysisPlan) or not isinstance(result, AnalysisResult):
         raise InvalidDataError("plan adherence requires a plan and AnalysisResult.")
     if reason is not None and (not isinstance(reason, str) or not reason.strip()):
         raise InvalidDataError("A supplied adherence reason must be non-empty text.")
+    if sensitivity is not None and not isinstance(sensitivity, SensitivityResult):
+        raise InvalidDataError("sensitivity must be a SensitivityResult or None.")
+    if practical_significance is not None and not isinstance(
+        practical_significance, PracticalSignificanceResult
+    ):
+        raise InvalidDataError(
+            "practical_significance must be a PracticalSignificanceResult or None."
+        )
+    if sensitivity is not None and sensitivity.base_result.to_dict() != result.to_dict():
+        raise InvalidDataError("The sensitivity result does not belong to the supplied analysis.")
     executed = result.specification
     fields = {
         "objective": (
@@ -287,7 +302,7 @@ def compare_plan_to_result(
             executed.options.confidence_level if executed else None,
         ),
     }
-    comparisons = tuple(
+    comparisons: list[dict[str, Any]] = [
         {
             "field": field,
             "status": "not_recorded"
@@ -299,9 +314,49 @@ def compare_plan_to_result(
             "executed": actual,
         }
         for field, (planned, actual) in fields.items()
+    ]
+    planned_scenarios = [item.to_dict() for item in plan.sensitivity_scenarios]
+    performed_scenarios = (
+        [item.specification.to_dict() for item in sensitivity.scenario_results]
+        if sensitivity is not None
+        else None
+    )
+    comparisons.append(
+        {
+            "field": "sensitivity_scenarios",
+            "status": (
+                "not_recorded"
+                if not planned_scenarios or performed_scenarios is None
+                else "matched"
+                if planned_scenarios == performed_scenarios
+                else "changed"
+            ),
+            "planned": planned_scenarios,
+            "executed": performed_scenarios,
+        }
+    )
+    planned_threshold = (
+        plan.meaningful_threshold.to_dict() if plan.meaningful_threshold is not None else None
+    )
+    performed_threshold = (
+        practical_significance.threshold.to_dict() if practical_significance is not None else None
+    )
+    comparisons.append(
+        {
+            "field": "meaningful_threshold",
+            "status": (
+                "not_recorded"
+                if planned_threshold is None or performed_threshold is None
+                else "matched"
+                if planned_threshold == performed_threshold
+                else "changed"
+            ),
+            "planned": planned_threshold,
+            "executed": performed_threshold,
+        }
     )
     status = "changed" if any(item["status"] == "changed" for item in comparisons) else "matched"
-    return PlanAdherenceResult(status, comparisons, reason)
+    return PlanAdherenceResult(status, tuple(comparisons), reason)
 
 
 def planned_quantity(method_id: str | None) -> str | None:
