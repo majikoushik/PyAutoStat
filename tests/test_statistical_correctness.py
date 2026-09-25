@@ -1,4 +1,4 @@
-"""Independent arithmetic references and statistical boundary cases for Phase 2."""
+"""Independent arithmetic references and statistical boundary cases."""
 
 import math
 

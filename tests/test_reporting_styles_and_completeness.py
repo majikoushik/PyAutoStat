@@ -1,4 +1,4 @@
-"""Phase 12 reporting completeness, styles, and safe LaTeX exports."""
+"""Reporting completeness, styles, and safe LaTeX exports."""
 
 import json
 from pathlib import Path
@@ -91,7 +91,7 @@ def test_latex_escapes_untrusted_user_text_and_save_is_explicit():
     for token in (r"\&", r"\_", r"\#", r"\%", r"\$", r"\{", r"\}"):
         assert token in latex
     assert r"\input{x}" not in latex
-    destination = Path(".phase12_latex_save_test.tex")
+    destination = Path(".reporting_latex_save_test.tex")
     try:
         destination.unlink(missing_ok=True)
         assert value.save_latex(destination, style="ieee") == destination

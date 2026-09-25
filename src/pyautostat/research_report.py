@@ -946,9 +946,9 @@ def build_research_report(
         warnings.extend(practical_payload["warnings"])
         if status != "unavailable" and practical_payload["status"] != "complete":
             status = "partial"
-    phase11_supplied = sensitivity_payload is not None or practical_payload is not None
+    follow_up_supplied = sensitivity_payload is not None or practical_payload is not None
     payload = {
-        "schema_version": 2 if phase11_supplied else REPORT_SCHEMA_VERSION,
+        "schema_version": 2 if follow_up_supplied else REPORT_SCHEMA_VERSION,
         "status": status,
         "title": title.strip() if title is not None else "Statistical Research Report",
         "analysis": analysis,

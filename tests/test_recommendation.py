@@ -1,4 +1,4 @@
-"""Phase 5 decision scenarios; expected methods come from the published capability contract."""
+"""Decision scenarios whose expected methods follow the published capability contract."""
 
 import json
 
@@ -143,7 +143,7 @@ def test_paired_mean_question_requests_unit_identifier(comparison):
     assert result.missing_information[0].field == "unit_id"
 
 
-def test_unknown_design_preserves_phase4_question(comparison):
+def test_unknown_design_preserves_prepared_question(comparison):
     draft = comparison.prepare_question(
         objective="compare_groups", outcome="score", predictor="group", estimand="mean"
     )
@@ -452,7 +452,7 @@ def test_one_usable_outcome_group_is_blocked():
     assert result.context["availability"]["available_rows"] == 3
 
 
-def test_phase4_data_limit_is_preserved():
+def test_question_data_limit_is_preserved():
     assistant = ResearchAssistant(
         pd.DataFrame({"group": ["A", "A", "A"], "score": [1.1, 2.2, 3.3]})
     )

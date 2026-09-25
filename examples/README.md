@@ -10,12 +10,12 @@ It uses a synthetic examination-score dataset to show a one-call profile, a `nee
 question, immutable draft continuation, Welch execution, interpretation, report audit, and
 reproducibility metadata. It writes no files. Use `workflow.report.save_html(path)` or another
 `ResearchReport` save method when an explicit export is wanted. The exact support and failure-mode matrices
-are in [`docs/CONTROLLED_MVP.md`](../docs/CONTROLLED_MVP.md).
+are in [`docs/CAPABILITIES.md`](../docs/CAPABILITIES.md).
 
 For explicit sensitivity and a researcher-defined meaningful threshold, run:
 
 ```bash
-python examples/phase11_sensitivity_example.py
+python examples/sensitivity_and_practical_significance_example.py
 ```
 
 It retains a pooled-variance same-estimand scenario and a Mann–Whitney different-estimand
@@ -28,7 +28,7 @@ For prospective planning, analysis-plan creation, an explicit-ID paired mean wor
 report completeness, oriented presentation, and a JSON session snapshot, run:
 
 ```bash
-python examples/phase12_planning_and_paired_example.py
+python examples/planning_and_paired_analysis_example.py
 ```
 
 The example writes no files, never derives planning inputs from the observed result, and reports
@@ -79,7 +79,7 @@ print([finding.code for finding in interpretation.findings])
 
 For the canonical research report, run `python examples/research_report_example.py`. It executes a Welch comparison and a Pearson association, then obtains HTML, Markdown, JSON, and CSV content in memory. The Pearson report is partial because the current backend has no correlation confidence interval. The example writes no files. Use explicit `report.save_html(path)` or the other save methods when a file is wanted. This new `ResearchReport` workflow is separate from the legacy `ReportGenerator` showcase.
 
-For the observed-event ledger, report audit, fingerprint check, and explicit replay, run `python examples/phase9_reproducibility_example.py`. It also alters one report value and one observation to demonstrate failed consistency checks. It writes no files or raw-data package.
+For the observed-event ledger, report audit, fingerprint check, and explicit replay, run `python examples/reproducibility_example.py`. It also alters one report value and one observation to demonstrate failed consistency checks. It writes no files or raw-data package.
 
 The showcase also demonstrates an optional data dictionary, row-level missingness,
 categorical summaries, and pairwise correlation sample sizes.

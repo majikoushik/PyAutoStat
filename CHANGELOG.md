@@ -103,6 +103,9 @@ GitHub CI matrix passed. Packaging a new release remains a separate owner decisi
 - Consolidated active documentation into a beginner README, detailed API reference, enduring
   product vision, single future roadmap, contributor guidance, changelog, and focused technical
   documents. Obsolete numbered-development planning documents were removed.
+- Renamed examples and test modules with permanent capability-oriented names, added a focused
+  documentation index, and consolidated overlapping workflow and support matrices into one
+  capabilities document.
 
 ### Chore
 

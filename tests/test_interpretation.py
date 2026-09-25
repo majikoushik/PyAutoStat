@@ -1,4 +1,4 @@
-"""Phase 7 rules consume real Phase 6 results without recomputing statistics."""
+"""Interpretation rules consume real analysis results without recomputing statistics."""
 
 import json
 from copy import deepcopy

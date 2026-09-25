@@ -1,4 +1,4 @@
-"""Phase 11 sensitivity semantics and result-driven selection safeguards."""
+"""Sensitivity semantics and result-driven selection safeguards."""
 
 import json
 import math
@@ -20,7 +20,7 @@ from pyautostat.sensitivity import compare_same_estimand
 
 
 @pytest.fixture
-def phase11_case():
+def sensitivity_case():
     frame = pd.DataFrame(
         {
             "group": ["Treatment"] * 8 + ["Control"] * 8,
@@ -63,9 +63,9 @@ def _mann_whitney(base, name="rank comparison"):
 
 
 def test_explicit_scenarios_execute_once_in_declared_order_and_preserve_inputs(
-    phase11_case, monkeypatch
+    sensitivity_case, monkeypatch
 ):
-    frame, assistant, base = phase11_case
+    frame, assistant, base = sensitivity_case
     original_frame = frame.copy(deep=True)
     original_result = deepcopy(base.to_dict())
     scenarios = [_student(base, "second"), _mann_whitney(base, "first")]
@@ -101,8 +101,8 @@ def test_explicit_scenarios_execute_once_in_declared_order_and_preserve_inputs(
     assert calls == ["student_t", "mann_whitney_u", "student_t", "mann_whitney_u"]
 
 
-def test_student_sensitivity_matches_scipy_and_compares_same_mean_difference(phase11_case):
-    frame, assistant, base = phase11_case
+def test_student_sensitivity_matches_scipy_and_compares_same_mean_difference(sensitivity_case):
+    frame, assistant, base = sensitivity_case
     sensitivity = assistant.sensitivity_analysis(base, scenarios=[_student(base)])
     item = sensitivity.scenario_results[0]
     first = frame.loc[frame.group == "Treatment", "score"]
@@ -122,8 +122,8 @@ def test_student_sensitivity_matches_scipy_and_compares_same_mean_difference(pha
     assert item.effect_size_quantity == "cohens_d"
 
 
-def test_different_estimand_is_visible_without_direct_estimate_change(phase11_case):
-    _, assistant, base = phase11_case
+def test_different_estimand_is_visible_without_direct_estimate_change(sensitivity_case):
+    _, assistant, base = sensitivity_case
     result = assistant.sensitivity_analysis(base, scenarios=[_mann_whitney(base)])
     item = result.scenario_results[0]
 
@@ -136,9 +136,9 @@ def test_different_estimand_is_visible_without_direct_estimate_change(phase11_ca
 
 
 def test_incompatible_unsupported_and_failed_scenarios_all_remain_visible(
-    phase11_case, monkeypatch
+    sensitivity_case, monkeypatch
 ):
-    _, assistant, base = phase11_case
+    _, assistant, base = sensitivity_case
     ledger = assistant.enable_tracking(clock=lambda: "2026-01-01T00:00:00Z")
     paired = SensitivitySpecification(
         "paired",
@@ -186,24 +186,24 @@ def test_incompatible_unsupported_and_failed_scenarios_all_remain_visible(
     assert ledger.events[0]["new_state"][0]["rationale"] is None
 
 
-def test_student_requires_explicit_equal_variance_assumption(phase11_case):
-    _, assistant, base = phase11_case
+def test_student_requires_explicit_equal_variance_assumption(sensitivity_case):
+    _, assistant, base = sensitivity_case
     scenario = SensitivitySpecification("pooled", base.specification, method_id="student_t")
     result = assistant.sensitivity_analysis(base, scenarios=[scenario])
     assert result.scenario_results[0].status.value == "incompatible"
     assert "equal-population-variance" in result.scenario_results[0].error
 
 
-def test_unspecified_method_uses_declared_specification_recommendation(phase11_case):
-    _, assistant, base = phase11_case
+def test_unspecified_method_uses_declared_specification_recommendation(sensitivity_case):
+    _, assistant, base = sensitivity_case
     scenario = SensitivityScenario("repeat Welch", base.specification)
     result = assistant.sensitivity_analysis(base, scenarios=[scenario])
     assert result.scenario_results[0].method_id == "welch_t"
     assert result.scenario_results[0].comparability.value == "same_estimand"
 
 
-def test_reversed_group_contrast_is_normalized_and_documented(phase11_case):
-    _, _, base = phase11_case
+def test_reversed_group_contrast_is_normalized_and_documented(sensitivity_case):
+    _, _, base = sensitivity_case
     metadata = deepcopy(base.metadata)
     metadata["contrast"] = {
         "definition": "first group minus second group",
@@ -225,8 +225,8 @@ def test_reversed_group_contrast_is_normalized_and_documented(phase11_case):
     assert "signs were reversed" in comparison["orientation_transformation"]
 
 
-def test_near_zero_base_omits_unstable_relative_change(phase11_case):
-    _, _, base = phase11_case
+def test_near_zero_base_omits_unstable_relative_change(sensitivity_case):
+    _, _, base = sensitivity_case
     base_values = deepcopy(base.values)
     base_values["primary_estimate"] = 0.0
     scenario_values = deepcopy(base.values)
@@ -238,9 +238,9 @@ def test_near_zero_base_omits_unstable_relative_change(phase11_case):
 
 
 def test_tracking_records_plan_attempts_and_every_outcome_without_preregistration_claim(
-    phase11_case,
+    sensitivity_case,
 ):
-    _, assistant, base = phase11_case
+    _, assistant, base = sensitivity_case
     ledger = assistant.enable_tracking(clock=lambda: "2026-01-01T00:00:00Z")
     result = assistant.sensitivity_analysis(base, scenarios=[_student(base), _mann_whitney(base)])
     event_types = [event["event_type"] for event in ledger.events]
@@ -255,8 +255,8 @@ def test_tracking_records_plan_attempts_and_every_outcome_without_preregistratio
     assert "preregistered" not in ledger.to_json().lower()
 
 
-def test_sensitivity_validates_api_and_base_dataset_identity(phase11_case):
-    _, assistant, base = phase11_case
+def test_sensitivity_validates_api_and_base_dataset_identity(sensitivity_case):
+    _, assistant, base = sensitivity_case
     with pytest.raises(InvalidDataError, match="non-empty"):
         assistant.sensitivity_analysis(base, scenarios=[])
     with pytest.raises(InvalidDataError, match="Every scenario"):
@@ -277,8 +277,8 @@ def test_sensitivity_validates_api_and_base_dataset_identity(phase11_case):
         SensitivitySpecification("x", base.specification, planning_status="prespecified")
 
 
-def test_scenario_serialization_contains_configuration_not_raw_dataframe(phase11_case):
-    frame, _, base = phase11_case
+def test_scenario_serialization_contains_configuration_not_raw_dataframe(sensitivity_case):
+    frame, _, base = sensitivity_case
     scenario = _student(base)
     text = json.dumps(scenario.to_dict(), allow_nan=False)
     assert "DataFrame" not in text
@@ -291,8 +291,8 @@ def test_scenario_serialization_contains_configuration_not_raw_dataframe(phase11
         SensitivitySpecification.from_dict(invalid)
 
 
-def test_unavailable_base_and_nonfinite_scenario_output_are_not_successes(phase11_case):
-    _, assistant, base = phase11_case
+def test_unavailable_base_and_nonfinite_scenario_output_are_not_successes(sensitivity_case):
+    _, assistant, base = sensitivity_case
     unavailable = replace(base, status=AnalysisStatus.UNAVAILABLE)
     with pytest.raises(InvalidDataError, match="available base"):
         assistant.sensitivity_analysis(unavailable, scenarios=[_student(base)])

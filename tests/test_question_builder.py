@@ -1,4 +1,4 @@
-"""Phase 4 question intake: scientific meaning stays explicit and serializable."""
+"""Question intake keeps scientific meaning explicit and serializable."""
 
 import json
 
@@ -295,7 +295,7 @@ def test_specification_round_trip_and_legacy_schema(assistant):
         AnalysisSpecification.from_dict({**payload, "data_dictionary": None})
 
 
-def test_legacy_text_metadata_survives_phase4_migration(assistant):
+def test_legacy_text_metadata_survives_question_contract_migration(assistant):
     legacy = AnalysisSpecification(variable_metadata={"score": "test score"})
     original = legacy.to_dict()
     assert assistant.prepare_question(specification=legacy).specification.to_dict() == original
@@ -322,7 +322,7 @@ def test_assistant_uses_its_construction_snapshot():
     assert frame["score"].isna().sum() == 1
 
 
-def test_original_frame_and_existing_profile_and_phase2_method_are_unchanged():
+def test_original_frame_existing_profile_and_corrected_method_are_unchanged():
     frame = pd.DataFrame(
         {"group": ["A"] * 8 + ["B"] * 8, "score": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] * 2}
     )

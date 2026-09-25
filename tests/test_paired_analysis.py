@@ -1,4 +1,4 @@
-"""Phase 12 explicit paired-data contract and numerical validation."""
+"""Explicit paired-data contract and numerical validation."""
 
 import json
 import math

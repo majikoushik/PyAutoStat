@@ -1,4 +1,4 @@
-"""Phase 8 report assembly and export from genuine Phase 6 results."""
+"""Report assembly and export from genuine analysis results."""
 
 import csv
 import io

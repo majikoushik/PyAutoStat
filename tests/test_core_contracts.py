@@ -1,4 +1,4 @@
-"""Behavior tests for the Phase 1 facade and serializable contracts."""
+"""Behavior tests for the core facade and serializable contracts."""
 
 import json
 import math

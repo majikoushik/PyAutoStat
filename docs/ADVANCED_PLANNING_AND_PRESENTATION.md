@@ -108,5 +108,5 @@ planning, sensitivity, practical-significance, completeness, report, audit, and 
 records. It contains no DataFrame, participant IDs, callables, credentials, or environment
 variables. A future interface must still submit choices to the core validators.
 
-See [the capability matrix](FINAL_CAPABILITY_MATRIX.md) and
+See [the capabilities and support matrix](CAPABILITIES.md) and
 [scientific limitations](SCIENTIFIC_LIMITATIONS.md).

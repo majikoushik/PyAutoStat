@@ -1,4 +1,4 @@
-"""Phase 12 analysis plans, provenance, adherence, and session payloads."""
+"""Analysis plans, provenance, adherence, and session payloads."""
 
 import json
 

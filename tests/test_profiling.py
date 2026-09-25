@@ -1,4 +1,4 @@
-"""Phase 3 dataset-only profiling behavior and independent reference counts."""
+"""Dataset-only profiling behavior and independent reference counts."""
 
 import json
 import warnings

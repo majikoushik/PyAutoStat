@@ -1,4 +1,4 @@
-"""Phase 9 checks for observed decisions, report consistency and explicit replay."""
+"""Checks for observed decisions, report consistency, and explicit replay."""
 
 import csv
 import io

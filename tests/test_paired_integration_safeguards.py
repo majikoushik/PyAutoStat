@@ -1,4 +1,4 @@
-"""Targeted regression tests for the Phase 12 closure safeguards."""
+"""Targeted regression tests for paired integration safeguards."""
 
 from dataclasses import replace
 

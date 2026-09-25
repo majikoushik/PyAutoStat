@@ -30,6 +30,7 @@ from .specifications import AnalysisSpecification, _json_value
 
 _REL_TOL = 1e-10
 _ABS_TOL = 1e-12
+_FOLLOW_UP_METADATA_KEY = "phase11"  # Retained for schema-version-2 wire compatibility.
 _VALUES = (
     "test_statistic",
     "degrees_of_freedom",
@@ -136,19 +137,19 @@ class ReproducibilityRecord:
         ):
             raise InvalidDataError("Reproducibility record has missing or unsupported fields.")
         if self._payload["schema_version"] == 2 and not isinstance(
-            self._payload.get("phase11"), dict
+            self._payload.get(_FOLLOW_UP_METADATA_KEY), dict
         ):
             raise InvalidDataError(
                 "Schema version 2 requires follow-up analysis configuration metadata."
             )
         if self._payload["schema_version"] == 2:
-            phase11 = self._payload["phase11"]
-            if phase11.get("automatic_replay") is not False:
+            follow_up = self._payload[_FOLLOW_UP_METADATA_KEY]
+            if follow_up.get("automatic_replay") is not False:
                 raise InvalidDataError(
                     "Follow-up reproducibility metadata must disable automatic replay."
                 )
-            sensitivity = phase11.get("sensitivity")
-            practical = phase11.get("practical_significance")
+            sensitivity = follow_up.get("sensitivity")
+            practical = follow_up.get("practical_significance")
             if sensitivity is None and practical is None:
                 raise InvalidDataError("Follow-up metadata must contain at least one component.")
             if sensitivity is not None:
@@ -252,9 +253,9 @@ class ReproducibilityRecord:
             "bootstrap_method": interval.get("method") if isinstance(interval, dict) else None,
             "confidence_level": result.specification.options.confidence_level,
         }
-        phase11 = None
+        follow_up = None
         if sensitivity is not None or practical_significance is not None:
-            phase11 = {
+            follow_up = {
                 "sensitivity": (
                     {
                         "configuration": sensitivity.reproducibility,
@@ -276,7 +277,7 @@ class ReproducibilityRecord:
                 "automatic_replay": False,
             }
         payload = {
-            "schema_version": 2 if phase11 is not None else 1,
+            "schema_version": 2 if follow_up is not None else 1,
             "specification": spec,
             "method_id": result.method_id,
             "expected": _projection(result),
@@ -292,8 +293,8 @@ class ReproducibilityRecord:
                 "Software records do not verify data authenticity or preregistration.",
             ],
         }
-        if phase11 is not None:
-            payload["phase11"] = phase11
+        if follow_up is not None:
+            payload[_FOLLOW_UP_METADATA_KEY] = follow_up
         return cls(payload)
 
     @property
@@ -376,7 +377,7 @@ def reproduce(
         raise InvalidDataError("reproduce requires an explicitly supplied DataFrame.")
     payload = record.to_dict()
     warnings: list[str] = []
-    if payload.get("phase11") is not None:
+    if payload.get(_FOLLOW_UP_METADATA_KEY) is not None:
         warnings.append(
             "Follow-up configurations are recorded but sensitivity scenarios are not "
             "automatically replayed."

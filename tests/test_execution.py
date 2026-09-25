@@ -1,4 +1,4 @@
-"""Phase 6 execution checks against genuine analyzer calculations."""
+"""Execution checks against genuine analyzer calculations."""
 
 import json
 import math

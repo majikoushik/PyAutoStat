@@ -1,4 +1,4 @@
-"""Phase 12 prospective planning numerical and validation contracts."""
+"""Prospective planning numerical and validation contracts."""
 
 import json
 import math

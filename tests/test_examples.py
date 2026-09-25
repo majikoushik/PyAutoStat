@@ -10,6 +10,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "examples" / "example_usage.py"
+RENAMED_EXAMPLES = (
+    "reproducibility_example.py",
+    "sensitivity_and_practical_significance_example.py",
+    "planning_and_paired_analysis_example.py",
+)
 
 
 def _run_showcase(*arguments: str) -> subprocess.CompletedProcess[str]:
@@ -25,6 +30,24 @@ def _run_showcase(*arguments: str) -> subprocess.CompletedProcess[str]:
         check=False,
         timeout=90,
     )
+
+
+@pytest.mark.parametrize("filename", RENAMED_EXAMPLES)
+def test_feature_named_examples_run_from_repository_root(filename):
+    environment = os.environ.copy()
+    environment["PYTHONUTF8"] = "1"
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "examples" / filename)],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=90,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_showcase_runs_every_feature_and_writes_reports(tmp_path):

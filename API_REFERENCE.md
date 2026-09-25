@@ -76,7 +76,7 @@ reproducibility-record creation does not replay it. Default audit renders and ch
 Markdown, JSON, and CSV in memory. `audit=False` returns a partial workflow with `audit=None`.
 `include_profile=True` requests one dataset profile for an inferential workflow; descriptive
 execution reuses its existing profile. No files are written. See
-[`docs/CONTROLLED_MVP.md`](docs/CONTROLLED_MVP.md) for the method and failure-mode matrices.
+[`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) for the method and failure-mode matrices.
 
 ### Continue after `needs_input`
 
@@ -484,7 +484,7 @@ JSON-safe workflow state, machine-renderable questions, action identifiers, regi
 capabilities, warnings/blockers, and optional records; it embeds no DataFrame or callable.
 
 See [advanced planning and presentation](docs/ADVANCED_PLANNING_AND_PRESENTATION.md), the
-[final capability matrix](docs/FINAL_CAPABILITY_MATRIX.md), and
+[capabilities and support matrix](docs/CAPABILITIES.md), and
 [scientific limitations](docs/SCIENTIFIC_LIMITATIONS.md).
 
 ## Column detection

@@ -1,4 +1,4 @@
-"""Phase 11 practical thresholds, reporting, audit, and reproducibility."""
+"""Practical thresholds, reporting, audit, and reproducibility checks."""
 
 import json
 import math
@@ -284,7 +284,7 @@ def test_threshold_provenance_records_revisions_without_inventing_timing(mean_ca
     assert events[0]["metadata"]["planning_status"] == "unknown"
 
 
-def _phase11_outputs(assistant, base):
+def _follow_up_outputs(assistant, base):
     scenario = SensitivitySpecification(
         "pooled",
         base.specification,
@@ -302,10 +302,10 @@ def _phase11_outputs(assistant, base):
     return sensitivity, practical
 
 
-def test_optional_report_sections_render_and_default_phase10_report_stays_schema_one(mean_case):
+def test_optional_sections_render_and_base_report_stays_schema_one(mean_case):
     _, assistant, base = mean_case
     ordinary = assistant.report(base)
-    sensitivity, practical = _phase11_outputs(assistant, base)
+    sensitivity, practical = _follow_up_outputs(assistant, base)
     report = assistant.report(base, sensitivity=sensitivity, practical_significance=practical)
     payload = report.to_dict()
 
@@ -332,9 +332,9 @@ def test_optional_report_sections_render_and_default_phase10_report_stays_schema
         ("status", "REPORT_VALUE_MISMATCH"),
     ],
 )
-def test_auditor_detects_deliberate_phase11_report_errors(mean_case, mutation, code):
+def test_auditor_detects_deliberate_follow_up_report_errors(mean_case, mutation, code):
     _, assistant, base = mean_case
-    sensitivity, practical = _phase11_outputs(assistant, base)
+    sensitivity, practical = _follow_up_outputs(assistant, base)
     report = assistant.report(base, sensitivity=sensitivity, practical_significance=practical)
     payload = report.to_dict()
     if mutation == "threshold":
@@ -362,7 +362,7 @@ def test_auditor_detects_deliberate_phase11_report_errors(mean_case, mutation, c
 
 def test_reporting_and_audit_do_not_rerun_sensitivity(mean_case, monkeypatch):
     _, assistant, base = mean_case
-    sensitivity, practical = _phase11_outputs(assistant, base)
+    sensitivity, practical = _follow_up_outputs(assistant, base)
 
     def forbidden(*args, **kwargs):
         raise AssertionError("downstream stages must not rerun statistical analyses")
@@ -372,7 +372,7 @@ def test_reporting_and_audit_do_not_rerun_sensitivity(mean_case, monkeypatch):
     assert assistant.audit(report).status == "passed"
 
 
-def test_phase11_report_retains_noncomparable_and_unsupported_scenarios_safely(mean_case):
+def test_report_retains_noncomparable_and_unsupported_scenarios_safely(mean_case):
     frame, assistant, base = mean_case
     rank_specification = replace(
         base.specification,
@@ -406,17 +406,18 @@ def test_phase11_report_retains_noncomparable_and_unsupported_scenarios_safely(m
     assert "'=FORMULA()" in report.to_csv_tables()["sensitivity_scenarios"]
 
 
-def test_phase11_reproducibility_metadata_is_json_safe_and_replay_remains_explicit(mean_case):
+def test_follow_up_reproducibility_metadata_is_json_safe_and_replay_remains_explicit(mean_case):
     frame, assistant, base = mean_case
-    sensitivity, practical = _phase11_outputs(assistant, base)
+    sensitivity, practical = _follow_up_outputs(assistant, base)
     record = assistant.reproducibility_record(
         base, sensitivity=sensitivity, practical_significance=practical
     )
     payload = record.to_dict()
     assert payload["schema_version"] == 2
-    assert payload["phase11"]["automatic_replay"] is False
-    assert payload["phase11"]["sensitivity"]["configuration"]["scenario_order"] == ["pooled"]
-    assert payload["phase11"]["practical_significance"]["threshold"]["minimum_magnitude"] == 5
+    follow_up = payload["phase11"]  # Legacy schema-version-2 wire key.
+    assert follow_up["automatic_replay"] is False
+    assert follow_up["sensitivity"]["configuration"]["scenario_order"] == ["pooled"]
+    assert follow_up["practical_significance"]["threshold"]["minimum_magnitude"] == 5
     assert "DataFrame" not in json.dumps(payload, allow_nan=False)
     from pyautostat import reproduce
 

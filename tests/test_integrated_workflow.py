@@ -1,4 +1,4 @@
-"""Phase 10 end-to-end checks for the controlled MVP workflow."""
+"""End-to-end checks for the integrated guided workflow."""
 
 import json
 import math
@@ -458,7 +458,7 @@ def test_workflow_is_json_safe_private_and_does_not_write_files(comparison_frame
     assert "private_id" not in workflow.reproducibility.to_json()
 
 
-def test_existing_phase7_interval_regressions_survive_integrated_contract(comparison_frame):
+def test_existing_interval_regressions_survive_integrated_contract(comparison_frame):
     workflow = ResearchAssistant(comparison_frame).run(**_mean_arguments())
     altered = deepcopy(workflow.analysis.values["effect_size"]["confidence_interval"])
     assert altered["method"] == "independent within-group percentile bootstrap"

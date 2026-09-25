@@ -132,7 +132,7 @@ remain distinct from a completed workflow.
   mean power and precision planning.
 - Reporting-completeness checks and UI-independent session snapshots.
 
-See the [capability matrix](docs/FINAL_CAPABILITY_MATRIX.md) for exact supported and unsupported
+See the [capabilities and support matrix](docs/CAPABILITIES.md) for exact supported and unsupported
 method families.
 
 ## Advanced workflows
@@ -299,6 +299,7 @@ report = ReportGenerator(analysis, insights)
 ## Examples and project documents
 
 - [Examples guide](examples/README.md)
+- [Documentation index](docs/README.md)
 - [API reference](API_REFERENCE.md)
 - [Product vision](PRODUCT_VISION.md)
 - [Future roadmap](ROADMAP.md)
@@ -319,7 +320,7 @@ python -m build
 python -m twine check dist/*
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) for contribution guidance.
+See [AGENTS.md](AGENTS.md) for contribution guidance.
 
 ## License
 

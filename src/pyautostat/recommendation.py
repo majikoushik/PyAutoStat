@@ -13,6 +13,8 @@ from .question_builder import QuestionDraft, QuestionStatus
 from .results import MissingInformation, Recommendation, RecommendationStatus
 from .specifications import Objective, StudyDesign
 
+_QUESTION_DATA_BLOCKER_KEY = "phase4_data"  # Retained for decision-trace compatibility.
+
 
 @dataclass(frozen=True)
 class MethodCapability:
@@ -316,7 +318,9 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
     record("availability", draft.availability, "Counts use rows complete for selected variables.")
 
     if draft.status == QuestionStatus.DATA_LIMITED or draft.status == QuestionStatus.UNSUPPORTED:
-        record("blocker", "phase4_data", "Question intake found unusable selected data.")
+        record(
+            "blocker", _QUESTION_DATA_BLOCKER_KEY, "Question intake found unusable selected data."
+        )
         return finish(
             RecommendationStatus.UNSUPPORTED,
             blockers=draft.blockers,
