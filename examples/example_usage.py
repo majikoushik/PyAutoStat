@@ -192,16 +192,24 @@ def show_recommendation(frame: pd.DataFrame) -> None:
     )
     recommendation = assistant.recommend_test(draft)
     print("Status:", recommendation.status.value)
-    print("Method:", recommendation.method_name)
+    print("Method ID / label:", recommendation.method_id, "/", recommendation.method_label)
     print("Reason:", recommendation.rationale)
     print("Decision trace:", recommendation.to_dict()["decision_trace"])
     result = assistant.analyze(draft)
-    print("Executed method:", result.method_id, "status:", result.status.value)
+    print(
+        "Executed method:",
+        result.method_id,
+        "/",
+        result.method_label,
+        "status:",
+        result.status.value,
+    )
     print("Estimate:", result.values.get("primary_estimate"))
     print("P-value:", result.values.get("p_value"))
     print("Sample:", result.metadata["sample"])
     interpretation = assistant.interpret(result)
     print("Interpretation:", interpretation.summary)
+    print(interpretation.findings_plain)
     print("Finding codes:", [finding.code for finding in interpretation.findings])
 
 
@@ -238,6 +246,7 @@ def show_hypothesis_tests(analyzer: StatisticalAnalyzer) -> list[dict]:
         print("  Assumption warnings:", result["assumptions"]["warnings"])
         print("  Effect size and bootstrap interval:")
         pprint(result["effect_size"])
+        print("  Plain interpretation:", result["interpretation"])
         if "confidence_interval" in result:
             print("  Analytical mean-difference interval:")
             pprint(result["confidence_interval"])
@@ -392,6 +401,7 @@ def main(argv: list[str] | None = None) -> int:
     analyzer = StatisticalAnalyzer(frame)
     results = analyzer.analyze_all()
     print("Analyzer uses an input copy:", analyzer.df is not frame)
+    print(ResearchAssistant(frame).summarize())
 
     show_analysis(analyzer, results)
     show_column_intelligence()

@@ -21,7 +21,9 @@ python examples/sensitivity_and_practical_significance_example.py
 It retains a pooled-variance same-estimand scenario and a Mann–Whitney different-estimand
 scenario, classifies the point estimate and interval against a five-point threshold, builds an
 optional schema 2 report, and audits it without rerunning scenarios. It writes no files and does
-not select or rank scenarios by p-value. See
+not select or rank scenarios by p-value. It also prints `sensitivity.compare()` and
+`practical.verdict`; the former reports descriptive same-estimand decision consistency without
+claiming general robustness. See
 [`docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md`](../docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
 
 For prospective planning, analysis-plan creation, an explicit-ID paired mean workflow,
@@ -41,13 +43,32 @@ For a minimal profile:
 import pandas as pd
 from pyautostat import ResearchAssistant
 
-df = pd.DataFrame({
-    "group": ["A"] * 8 + ["B"] * 8,
-    "score": [10.1, 11.2, 12.3, 13.4, 14.5, 15.6, 16.7, 17.8,
-              14.1, 15.2, 16.3, 17.4, 18.5, 19.6, 20.7, 21.8],
-})
+df = pd.DataFrame(
+    {
+        "group": ["A"] * 8 + ["B"] * 8,
+        "score": [
+            10.1,
+            11.2,
+            12.3,
+            13.4,
+            14.5,
+            15.6,
+            16.7,
+            17.8,
+            14.1,
+            15.2,
+            16.3,
+            17.4,
+            18.5,
+            19.6,
+            20.7,
+            21.8,
+        ],
+    }
+)
 profile = ResearchAssistant(df).profile()
 print(profile["overview"])
+print(ResearchAssistant(df).summarize())
 ```
 
 This only profiles the DataFrame. It does not recommend or execute a group test.
@@ -56,7 +77,9 @@ To prepare a group-comparison question without running a test:
 ```python
 assistant = ResearchAssistant(df)
 draft = assistant.prepare_question(
-    objective="compare_groups", outcome="score", predictor="group",
+    objective="compare_groups",
+    outcome="score",
+    predictor="group",
     variable_types={"score": "continuous"},
 )
 print([item.field for item in draft.questions])  # estimand, design
@@ -64,14 +87,16 @@ draft = assistant.update_question(draft, estimand="mean", design="independent")
 print(draft.status)  # ready for later design review, not an executed analysis
 recommendation = assistant.recommend_test(draft)
 print(recommendation.status, recommendation.method_id)  # ready, welch_t
+print(recommendation.method_label)
 print(recommendation.rationale)
 print(recommendation.to_dict()["decision_trace"])
 result = assistant.analyze(draft)
-print(result.method_id, result.status)
+print(result.method_id, result.method_label, result.status)
 print(result.values["primary_estimate"], result.values["p_value"])
 print(result.metadata["sample"], result.metadata["contrast"])
 interpretation = assistant.interpret(result)
 print(interpretation.summary)
+print(interpretation.findings_plain)
 print([finding.code for finding in interpretation.findings])
 ```
 

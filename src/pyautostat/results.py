@@ -10,6 +10,19 @@ from .exceptions import InvalidDataError
 from .specifications import SCHEMA_VERSION, AnalysisSpecification, _json_value
 
 
+def _method_label(method_id: str | None, fallback: str | None = None) -> str:
+    """Resolve a display name from the authoritative capability registry."""
+    if fallback:
+        return fallback
+    if not method_id:
+        return "Not available"
+    # Imported lazily because recommendation records import this module.
+    from .recommendation import METHOD_CAPABILITIES
+
+    capability = METHOD_CAPABILITIES.get(method_id)
+    return capability.name if capability is not None else method_id
+
+
 class RecommendationStatus(str, Enum):
     READY = "ready"
     NEEDS_INPUT = "needs_input"
@@ -34,6 +47,20 @@ class MissingInformation:
             or not self.message.strip()
         ):
             raise InvalidDataError("MissingInformation field and message must be non-empty.")
+
+    def __str__(self) -> str:
+        """Return a human-readable description of the missing field.
+
+        Example::
+
+            str(item)
+            # "Field 'design' requires your input: What was your study design?
+            #  → Fix: assistant.run(..., design=<value>)"
+        """
+        return (
+            f"Field '{self.field}' requires your input: {self.message}\n"
+            f"   Fix: assistant.run(..., {self.field}=<value>)"
+        )
 
     def to_dict(self) -> dict[str, str]:
         return {"field": self.field, "message": self.message}
@@ -97,6 +124,21 @@ class Recommendation:
                 "questions": self.questions,
             }
         )
+
+    @property
+    def method_label(self) -> str:
+        """Human-readable name for the recommended method.
+
+        Returns the full method name (e.g. 'Welch independent-samples t-test')
+        instead of the internal identifier ('welch_t'). Falls back to
+        ``method_name`` if set, then to ``method_id``, then to 'Not available'.
+
+        Example::
+
+            print(recommendation.method_label)
+            # 'Welch independent-samples t-test'
+        """
+        return _method_label(self.method_id, self.method_name)
 
 
 @dataclass(frozen=True)
@@ -179,3 +221,23 @@ class AnalysisResult:
                 else None,
             }
         )
+
+    @property
+    def method_label(self) -> str:
+        """Human-readable name for the executed method.
+
+        Returns the full method name (e.g. 'Welch independent-samples t-test')
+        instead of the internal identifier ('welch_t').
+
+        Example::
+
+            print(result.method_label)
+            # 'Welch independent-samples t-test'
+        """
+        fallback = None
+        if self.recommendation is not None and self.recommendation.method_id == self.method_id:
+            fallback = self.recommendation.method_name
+        if fallback is None:
+            metadata_name = self.metadata.get("method_name")
+            fallback = metadata_name if isinstance(metadata_name, str) else None
+        return _method_label(self.method_id, fallback)

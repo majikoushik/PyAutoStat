@@ -20,6 +20,7 @@ def main() -> None:
 
     profile = assistant.profile()
     print("Profile rows:", profile["overview"]["shape"][0])
+    print(assistant.summarize())
 
     incomplete = assistant.run(
         objective="compare_groups",
@@ -30,11 +31,15 @@ def main() -> None:
     )
     print("Initial status:", incomplete.status.value)
     print("Needed fields:", [item.field for item in incomplete.missing_information])
+    print(incomplete.explain())
 
     revised = assistant.update_question(incomplete.draft, design="independent")
     workflow = assistant.run(draft=revised)
     print("Final status:", workflow.status.value)
-    print("Method:", workflow.analysis.method_id)
+    print("Method ID:", workflow.analysis.method_id)
+    print("Method:", workflow.analysis.method_label)
+    print(workflow.explain())
+    print(workflow.interpretation.findings_plain)
     print("Mean difference:", workflow.analysis.values["primary_estimate"])
     print("Analyzed rows:", workflow.analysis.sample_size)
     print("Audit:", workflow.audit.status)

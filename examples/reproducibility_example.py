@@ -19,8 +19,11 @@ def main() -> None:
     assistant = ResearchAssistant(frame)
     assistant.enable_tracking()
     draft = assistant.prepare_question(
-        objective="compare_groups", outcome="exam_score", predictor="teaching_method",
-        estimand="mean", design="independent",
+        objective="compare_groups",
+        outcome="exam_score",
+        predictor="teaching_method",
+        estimand="mean",
+        design="independent",
         variable_types={"exam_score": "continuous"},
     )
     recommendation = assistant.recommend_test(draft)
@@ -38,7 +41,8 @@ def main() -> None:
     changed_data.loc[0, "exam_score"] += 1
     mismatch = reproduce(record, data=changed_data)
 
-    print("Selected method:", recommendation.method_id, result.method_id)
+    print("Selected method:", recommendation.method_id, recommendation.method_label)
+    print("Executed method:", result.method_id, result.method_label)
     print("Sample and order:", report.to_dict()["sections"]["dataset"])
     print("Report audit:", audit.status)
     print("Deliberate mutation:", failed_audit.status, failed_audit.findings[0].code)

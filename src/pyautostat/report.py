@@ -77,95 +77,146 @@ def _write_text(filepath, content):
 
 
 _REPORT_CSS = """
+        /* ── Reset & base ──────────────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f5f5;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+                         sans-serif;
+            font-size: 15px;
+            line-height: 1.6;
+            margin: 0;
+            padding: 24px 16px 48px;
+            background: #f0f2f5;
+            color: #1e2535;
         }
+        /* ── Layout ─────────────────────────────────────────────────────────── */
         .container {
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: #ffffff;
+            padding: 36px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(30,37,53,.10);
         }
+        /* ── Headings ────────────────────────────────────────────────────────── */
         h1 {
-            color: #333;
-            border-bottom: 3px solid #007bff;
-            padding-bottom: 10px;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e2535;
+            margin: 0 0 6px;
+            padding-bottom: 14px;
+            border-bottom: 3px solid #4f46e5;
         }
         h2 {
-            color: #555;
-            margin-top: 30px;
-            border-left: 4px solid #007bff;
-            padding-left: 10px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #4f46e5;
+            margin: 36px 0 10px;
+            padding: 8px 12px;
+            background: #f5f3ff;
+            border-left: 4px solid #4f46e5;
+            border-radius: 0 6px 6px 0;
         }
         h3 {
-            color: #777;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #374151;
+            margin: 20px 0 8px;
         }
+        /* ── Tables ──────────────────────────────────────────────────────────── */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
+            margin: 12px 0 20px;
+            font-size: 0.9rem;
         }
         th, td {
-            padding: 12px;
+            padding: 10px 14px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #e5e7eb;
         }
         th {
-            background-color: #007bff;
-            color: white;
+            background: #4f46e5;
+            color: #ffffff;
+            font-weight: 600;
+            letter-spacing: .02em;
         }
-        tr:hover {
-            background-color: #f5f5f5;
-        }
+        tr:nth-child(even) { background: #fafafa; }
+        tr:hover { background: #f0f2f5; }
+        /* ── Insights / severity pills ───────────────────────────────────────── */
         .insight {
-            margin: 15px 0;
-            padding: 15px;
-            border-left: 4px solid #dc3545;
-            background-color: #fff3cd;
+            margin: 12px 0;
+            padding: 14px 16px;
+            border-radius: 8px;
+            border-left: 5px solid #9ca3af;
+            background: #f9fafb;
         }
         .insight.high {
-            border-left-color: #dc3545;
-            background-color: #f8d7da;
+            border-left-color: #dc2626;
+            background: #fff1f2;
         }
         .insight.medium {
-            border-left-color: #ffc107;
-            background-color: #fff3cd;
+            border-left-color: #d97706;
+            background: #fffbeb;
         }
         .insight.low {
-            border-left-color: #28a745;
-            background-color: #d4edda;
+            border-left-color: #16a34a;
+            background: #f0fdf4;
         }
+        .severity-badge {
+            display: inline-block;
+            padding: 2px 9px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .severity-badge.high   { background: #dc2626; color: #fff; }
+        .severity-badge.medium { background: #d97706; color: #fff; }
+        .severity-badge.low    { background: #16a34a; color: #fff; }
+        /* ── Metric cards ────────────────────────────────────────────────────── */
         .metric {
             display: inline-block;
-            margin: 10px 20px 10px 0;
-            padding: 10px;
-            background-color: #e7f3ff;
-            border-radius: 4px;
+            margin: 8px 16px 8px 0;
+            padding: 12px 18px;
+            background: #f5f3ff;
+            border: 1px solid #ddd6fe;
+            border-radius: 8px;
         }
         .metric-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #007bff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #4f46e5;
         }
         .metric-label {
-            font-size: 12px;
-            color: #666;
+            font-size: 0.78rem;
+            color: #6b7280;
+            display: block;
+            margin-top: 2px;
         }
         .recommendation {
-            margin: 10px 0;
-            padding: 8px;
-            background-color: #f0f0f0;
-            border-radius: 4px;
+            margin: 8px 0;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            font-size: 0.88rem;
         }
+        /* ── Footer ──────────────────────────────────────────────────────────── */
         .timestamp {
-            color: #999;
-            font-size: 12px;
-            margin-top: 20px;
+            color: #9ca3af;
+            font-size: 0.78rem;
+            margin-top: 32px;
             text-align: right;
+        }
+        /* ── Print ───────────────────────────────────────────────────────────── */
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; border-radius: 0; }
+            tr:hover { background: transparent; }
         }
 """
 
@@ -640,16 +691,14 @@ class ReportGenerator:
             severity = insight.get("severity", "medium")
             severity_class = severity if severity in ("high", "medium", "low") else "medium"
             html += f'<div class="insight {severity_class}">'
-            html += (
-                f"<strong>{_html(insight.get('category'))}</strong> "
-                f"({_html(str(severity).upper())})<br>"
-            )
-            html += f"{_html(insight.get('finding'))}<br>"
+            badge = f'<span class="severity-badge {severity_class}">{_html(severity)}</span>'
+            html += f"<strong>{badge}{_html(insight.get('category'))}</strong>"
+            html += f"<p style='margin:6px 0 0'>{_html(insight.get('finding'))}</p>"
 
             if insight.get("recommendation"):
                 html += '<div style="margin-top: 10px;"><strong>Recommendations:</strong>'
                 for rec in insight["recommendation"]:
-                    html += f'<div class="recommendation">• {_html(rec)}</div>'
+                    html += f'<div class="recommendation">&bull; {_html(rec)}</div>'
                 html += "</div>"
 
             html += "</div>"
@@ -786,12 +835,18 @@ class ReportGenerator:
                         status = "not_rejected" if test_result["is_normal"] else "rejected"
                     if status is None:
                         status = "not_applicable"
+                    verdict = test_result.get("verdict", "")
+                    verdict_cell = (
+                        f'<span title="{_html(verdict)}">{_html(status)}</span>'
+                        if verdict
+                        else _html(status)
+                    )
                     html += f"""<tr>
                         <td>{_html(col)}</td>
                         <td>{_html(test_name)}</td>
                         <td>{_number(test_result.get("statistic"))}</td>
                         <td>{_number(test_result.get("p_value"))}</td>
-                        <td>{_html(status)}</td>
+                        <td>{verdict_cell}</td>
                     </tr>"""
 
         html += "</tbody></table>"
@@ -845,12 +900,37 @@ class ReportGenerator:
 
         html = "<h2>Missing Data Analysis</h2>"
         overall_missing_pct = missing.get("overall_missing_percentage", 0)
+        by_col = missing.get("by_column", {})
+        missing_cols = [col for col, info in by_col.items() if (info.get("count") or 0) > 0]
+        total_cols = len(by_col)
+
+        # Auto-generated summary sentence
+        if not missing_cols:
+            html += f"<p>All {total_cols} column(s) are complete — no missing values detected.</p>"
+        else:
+            threshold_cols = [
+                col for col in missing_cols if (by_col[col].get("percentage") or 0) > 10
+            ]
+            sentence = (
+                f"{len(missing_cols)} of {total_cols} column(s) have missing values. "
+                f"The overall missing rate is {overall_missing_pct:.1f}%."
+            )
+            if threshold_cols:
+                sentence += (
+                    f" {len(threshold_cols)} column(s) exceed the 10% threshold: "
+                    + ", ".join(f"'{c}'" for c in threshold_cols)
+                    + "."
+                )
+            else:
+                sentence += " No column exceeds the 10% threshold."
+            html += f"<p>{_html(sentence)}</p>"
+
         html += self._metric_html(f"{overall_missing_pct:.2f}%", "Overall Missing")
 
         html += "<table><thead>"
         html += "<tr><th>Variable</th><th>Missing Count</th><th>Missing %</th></tr></thead><tbody>"
 
-        for col, info in missing.get("by_column", {}).items():
+        for col, info in by_col.items():
             html += f"""<tr>
                 <td>{_html(col)}</td>
                 <td>{_html(info.get("count", 0))}</td>

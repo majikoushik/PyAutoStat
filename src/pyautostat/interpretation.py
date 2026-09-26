@@ -74,6 +74,25 @@ class InterpretationResult:
             raise InvalidDataError("findings must contain InterpretationFinding records.")
         self.to_dict()
 
+    @property
+    def findings_plain(self) -> str:
+        """Return all finding messages as a numbered, human-readable string.
+
+        Each line is taken directly from the already-generated finding message so
+        that the text is deterministic and consistent with the full result.
+
+        Example usage::
+
+            print(interpretation.findings_plain)
+            # 1. The result provides evidence against the null hypothesis at alpha = 0.05.
+            # 2. The estimated mean difference ('new' minus 'standard') was 7.33 points.
+            # 3. Cohen's d was 1.253 (first minus second, divided by the pooled sample SD).
+        """
+        if not self.findings:
+            return "No findings recorded."
+        lines = [f"{i}. {f.message}" for i, f in enumerate(self.findings, start=1)]
+        return "\n".join(lines)
+
     def to_dict(self) -> dict[str, Any]:
         return _json_value(
             {

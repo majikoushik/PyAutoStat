@@ -302,12 +302,20 @@ class StatisticalAnalyzer:
                     warnings.simplefilter("always", RuntimeWarning)
                     stat, p_value = shapiro(col_data)
                 if not caught and np.isfinite(stat) and np.isfinite(p_value):
+                    _sw_verdict = (
+                        f"Normality not rejected (p = {p_value:.4g}). "
+                        "This does not prove normality."
+                        if p_value > 0.05
+                        else f"Normality rejected (p = {p_value:.4g}). "
+                        "The data distribution departs significantly from normal."
+                    )
                     tests["shapiro_wilk"] = {
                         "statistic": float(stat),
                         "p_value": float(p_value),
                         "is_normal": bool(p_value > 0.05),  # Legacy screening flag.
                         "status": "not_rejected" if p_value > 0.05 else "rejected",
                         "reference_alpha": 0.05,
+                        "verdict": _sw_verdict,
                     }
                 else:
                     self._add_warning(
@@ -325,12 +333,20 @@ class StatisticalAnalyzer:
                     not _advisory_normaltest_warning(item, len(col_data)) for item in caught
                 )
                 if not unreliable_warning and np.isfinite(stat) and np.isfinite(p_value):
+                    _dag_verdict = (
+                        f"Normality not rejected (p = {p_value:.4g}). "
+                        "This does not prove normality."
+                        if p_value > 0.05
+                        else f"Normality rejected (p = {p_value:.4g}). "
+                        "The data distribution departs significantly from normal."
+                    )
                     tests["d_agostino_pearson"] = {
                         "statistic": float(stat),
                         "p_value": float(p_value),
                         "is_normal": bool(p_value > 0.05),  # Legacy screening flag.
                         "status": "not_rejected" if p_value > 0.05 else "rejected",
                         "reference_alpha": 0.05,
+                        "verdict": _dag_verdict,
                     }
                     if len(col_data) < 20:
                         self._add_warning(
@@ -385,10 +401,31 @@ class StatisticalAnalyzer:
                 and (np.diff(significance_levels) < 0).all()
                 and (np.diff(critical_values) > 0).all()
             ):
+                five_percent = np.flatnonzero(np.isclose(significance_levels, 5.0))
+                if len(five_percent) == 1:
+                    critical_5 = float(critical_values[five_percent[0]])
+                    rejected = bool(float(result.statistic) > critical_5)
+                    status = "rejected" if rejected else "not_rejected"
+                    verdict = (
+                        f"Normality rejected at the 5% Anderson-Darling critical value "
+                        f"({critical_5:.4g})."
+                        if rejected
+                        else f"Normality not rejected at the 5% Anderson-Darling critical "
+                        f"value ({critical_5:.4g}). This does not prove normality."
+                    )
+                else:
+                    status = "not_applicable"
+                    verdict = (
+                        "No 5% Anderson-Darling critical value is available; interpret the "
+                        "reported critical-value grid directly."
+                    )
                 tests["anderson_darling"] = {
                     "statistic": float(result.statistic),
                     "critical_values": [float(x) for x in critical_values],
                     "significance_levels": [float(x) for x in significance_levels],
+                    "status": status,
+                    "reference_alpha": 0.05 if len(five_percent) == 1 else None,
+                    "verdict": verdict,
                 }
             else:
                 self._add_warning(
@@ -1189,7 +1226,72 @@ class StatisticalAnalyzer:
                 "Effect-size interval unavailable: fewer than half of requested bootstrap "
                 "resamples were valid (minimum 50)."
             )
+        results["interpretation"] = self._build_interpretation_sentence(results, confidence_level)
         return results
+
+    @staticmethod
+    def _build_interpretation_sentence(results: dict, confidence_level: float) -> str:
+        """Assemble a plain-English interpretation from values already in the result dict.
+
+        This is purely a display helper — no new statistics are calculated. It reads
+        p_value, effect_size, and confidence_interval from the result dict and produces
+        one paragraph a student can read directly.
+
+        Example output::
+
+            p = 0.034 (α = 0.05) — evidence against the null hypothesis of no group
+            difference. Cohen's d = 1.25 (large effect). The 95% confidence interval
+            for the mean difference is 0.64 to 14.02.
+        """
+        parts: list[str] = []
+        alpha = 0.05
+        p_val = results.get("p_value")
+        test_name = results.get("test", "The test")
+        if p_val is not None and np.isfinite(p_val):
+            p_str = "p < 0.001" if p_val < 0.001 else f"p = {p_val:.4g}"
+            groups = results.get("groups", [])
+            if test_name == "t-test" and len(groups) == 2:
+                null_text = f"of equal population means for {groups[0]!r} and {groups[1]!r}"
+            elif test_name == "Mann-Whitney U" and len(groups) == 2:
+                null_text = (
+                    f"of no distributional difference between {groups[0]!r} and {groups[1]!r}"
+                )
+            elif test_name == "One-way ANOVA":
+                null_text = "that all population means are equal"
+            elif test_name == "Kruskal-Wallis":
+                null_text = "that the group distributions do not differ"
+            else:
+                null_text = ""
+            decision = (
+                f"evidence against the null hypothesis {null_text} (alpha = {alpha})"
+                if p_val < alpha
+                else f"insufficient evidence to reject the null hypothesis {null_text} "
+                f"(alpha = {alpha})"
+            )
+            parts.append(f"{test_name}: {p_str} - {decision}.")
+        effect = results.get("effect_size", {})
+        effect_val = effect.get("value")
+        effect_name = effect.get("name", "Effect size")
+        effect_label = effect.get("interpretation")
+        if effect_val is not None and np.isfinite(effect_val):
+            label_str = f" (conventional magnitude label: {effect_label})" if effect_label else ""
+            parts.append(f"{effect_name} = {effect_val:.4g}{label_str}.")
+        ci = results.get("confidence_interval")
+        if isinstance(ci, dict):
+            low, high = ci.get("lower"), ci.get("upper")
+            level = ci.get("level", confidence_level)
+            desc = ci.get("description")
+            if low is not None and high is not None and np.isfinite(low) and np.isfinite(high):
+                pct = int(round(level * 100))
+                label = (
+                    desc
+                    if isinstance(desc, str) and desc.strip()
+                    else (f"{pct}% confidence interval for the primary estimate")
+                )
+                parts.append(f"{label}: {low:.4g} to {high:.4g}.")
+        if not parts:
+            return "Interpretation is unavailable for this result."
+        return " ".join(parts)
 
     @staticmethod
     def _cohens_d(group1, group2):

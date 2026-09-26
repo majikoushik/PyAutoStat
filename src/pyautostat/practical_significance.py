@@ -169,6 +169,63 @@ class PracticalSignificanceResult:
             }
         )
 
+    @property
+    def verdict(self) -> str:
+        """Return a plain-English paragraph summarising the practical significance result.
+
+        Assembles the already-computed ``conclusion``, ``point_estimate_relation``,
+        ``statistical_significance``, and any warnings into one readable block.
+        No new statistics are calculated.
+
+        Example::
+
+            print(practical.verdict)
+            # The observed mean difference (7.33) exceeds your stated minimum
+            # meaningful effect of 5.0. The result is both statistically significant
+            # and practically meaningful by your declared threshold.
+        """
+        parts: list[str] = []
+        thresh = self.threshold
+        q = thresh.quantity.replace("_", " ")
+        mag = thresh.minimum_magnitude
+        unit = f" {thresh.unit}" if thresh.unit else ""
+
+        if self.estimate is not None:
+            parts.append(
+                f"Observed {q}: {self.estimate:.4g}{unit}. "
+                f"Minimum meaningful effect declared: {mag:.4g}{unit}."
+            )
+
+        if self.conclusion:
+            parts.append(self.conclusion)
+
+        if self.statistical_significance and self.statistical_significance != "unavailable":
+            sig_text = {
+                "evidence_against_null": (
+                    "The hypothesis test provides evidence against its recorded null hypothesis."
+                ),
+                "no_evidence_against_null": (
+                    "The hypothesis test does not provide sufficient evidence against its "
+                    "recorded null hypothesis."
+                ),
+            }.get(self.statistical_significance, "")
+            if sig_text:
+                parts.append(sig_text)
+
+        if self.uncertainty_status and self.uncertainty_status not in (
+            "unavailable",
+            "interval_available",
+        ):
+            parts.append(f"Uncertainty status: {self.uncertainty_status.replace('_', ' ')}.")
+
+        if self.warnings:
+            parts.append("Warnings: " + "; ".join(self.warnings))
+
+        if thresh.rationale:
+            parts.append(f"Threshold rationale: {thresh.rationale}.")
+
+        return " ".join(parts) if parts else "Practical significance result is unavailable."
+
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2, allow_nan=False)
 

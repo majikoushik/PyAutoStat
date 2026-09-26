@@ -49,6 +49,7 @@ profile = assistant.profile()
 print(profile["overview"])
 print(profile["data_quality"]["issues"])
 print(profile["resource_info"])
+print(assistant.summarize())  # Plain-text view of the same profile
 ```
 
 The profile includes descriptive summaries, missingness, duplicates, distributions, histograms,
@@ -77,9 +78,11 @@ workflow = assistant.run(
     variable_types={"exam_score": "continuous"},
 )
 
-print(workflow.status)                    # completed
-print(workflow.analysis.method_id)        # welch_t
-print(workflow.interpretation.summary)
+print(workflow.status.value)              # completed
+print(workflow.analysis.method_id)        # welch_t (stable machine identifier)
+print(workflow.analysis.method_label)     # Welch independent-samples t-test
+print(workflow.explain())                 # Qualified, printable result overview
+print(workflow.interpretation.findings_plain)
 print(workflow.audit.status)
 ```
 
@@ -102,7 +105,8 @@ pending = assistant.run(
 )
 
 print(pending.status)  # needs_input
-print(pending.missing_information)
+print(pending.explain())
+print(pending.missing_information[0])
 
 revised = assistant.update_question(
     pending.draft,
@@ -217,11 +221,16 @@ practical = assistant.practical_significance(
     workflow.analysis,
     threshold=threshold,
 )
+
+print(sensitivity.compare())
+print(practical.verdict)
 ```
 
 Every sensitivity attempt remains visible, and different estimands or paired contrasts are not
 presented as ordinary same-estimand robustness checks. Practical and statistical significance are
-reported separately. Formal equivalence and noninferiority inference are not implemented. See
+reported separately. `compare()` describes hypothesis-decision consistency only among completed
+same-estimand comparisons and does not establish robustness. Formal equivalence and
+noninferiority inference are not implemented. See
 [sensitivity and practical significance](docs/ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md).
 
 ### Reports, audit, and replay

@@ -95,6 +95,11 @@ or `"ieee"`. The style changes headings and concise presentation only. The repor
 raw values, alpha, interval, warnings, and limitations remain identical. These are oriented
 templates, not claims of universal APA/IEEE or journal compliance.
 
+Console helpers (`ResearchAssistant.summarize()`, `ResearchWorkflowResult.explain()`,
+`InterpretationResult.findings_plain`, practical `verdict`, and sensitivity `compare()`) are
+presentation views over existing records. They do not alter plans, execute methods, or certify
+scientific conclusions.
+
 LaTeX is generated as inert text and is never compiled. User text escapes backslash, braces,
 dollar, ampersand, hash, underscore, percent, tilde, and caret. `save_latex(path, overwrite=False)`
 writes only after an explicit call and rejects an existing destination by default.

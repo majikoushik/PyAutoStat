@@ -236,6 +236,122 @@ class SensitivityResult:
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2, allow_nan=False)
 
+    def compare(self) -> str:
+        """Return a descriptive text comparison without inferring robustness.
+
+        Values are read from the stored results; no statistics are recalculated.
+        Hypothesis-decision consistency is assessed only for completed scenarios
+        with the same estimand and scientific comparison identity as the primary
+        analysis.
+        """
+        from .results import _method_label
+
+        lines: list[str] = []
+        sep = "-" * 78
+        base = self.base_result
+        specification = base.specification
+        alpha = specification.options.alpha if specification is not None else 0.05
+
+        def decision(p_value: float | None) -> str:
+            if p_value is None:
+                return "unknown"
+            return "reject null" if p_value < alpha else "fail to reject null"
+
+        base_p = _finite(base.values.get("p_value"))
+        base_estimate = _finite(base.values.get("primary_estimate"))
+        base_effect_info = base.values.get("effect_size", {})
+        base_effect = (
+            _finite(base_effect_info.get("value")) if isinstance(base_effect_info, dict) else None
+        )
+        base_effect_name = (
+            base_effect_info.get("name", "effect")
+            if isinstance(base_effect_info, dict)
+            else "effect"
+        )
+        base_p_text = f"p = {base_p:.4g}" if base_p is not None else "p = unavailable"
+        base_estimate_text = (
+            f"est = {base_estimate:.4g}" if base_estimate is not None else "est = unavailable"
+        )
+        base_effect_text = (
+            f"{base_effect_name} = {base_effect:.4g}" if base_effect is not None else ""
+        )
+
+        lines.extend((sep, " SENSITIVITY ANALYSIS - descriptive result comparison", sep))
+        primary_label = f" Primary ({base.method_label}):"
+        lines.append(
+            f"{primary_label:<40} {base_p_text:<18} {base_estimate_text:<20} {base_effect_text}"
+        )
+
+        same_estimand_decisions = [decision(base_p)]
+        completed_same_estimand = 0
+        for scenario in self.scenario_results:
+            method_label = _method_label(scenario.method_id)
+            p_text = (
+                f"p = {scenario.p_value:.4g}" if scenario.p_value is not None else "p = unavailable"
+            )
+            estimate_text = (
+                f"est = {scenario.primary_estimate:.4g}"
+                if scenario.primary_estimate is not None
+                else "est = unavailable"
+            )
+            effect_name = scenario.effect_size_quantity or "effect"
+            effect_text = (
+                f"{effect_name} = {scenario.effect_size:.4g}"
+                if scenario.effect_size is not None
+                else ""
+            )
+            notes = []
+            if scenario.status is not ScenarioStatus.COMPLETED:
+                notes.append(scenario.status.value)
+            if scenario.comparability is Comparability.DIFFERENT_ESTIMAND:
+                notes.append("different estimand")
+            elif scenario.comparability is Comparability.INCOMPATIBLE:
+                notes.append("incompatible comparison")
+            elif scenario.comparability is Comparability.UNAVAILABLE:
+                notes.append("comparison unavailable")
+            note_text = f" [{'; '.join(notes)}]" if notes else ""
+            scenario_label = f" Scenario ({method_label}):"
+            lines.append(
+                f"{scenario_label:<40} {p_text:<18} {estimate_text:<20} {effect_text}{note_text}"
+            )
+            if (
+                scenario.status is ScenarioStatus.COMPLETED
+                and scenario.comparability is Comparability.SAME_ESTIMAND
+            ):
+                completed_same_estimand += 1
+                same_estimand_decisions.append(decision(scenario.p_value))
+
+        lines.append(sep)
+        if completed_same_estimand == 0:
+            lines.append(
+                " No completed scenario shares the primary estimand and comparison identity; "
+                "hypothesis-decision consistency was not assessed."
+            )
+        elif "unknown" in same_estimand_decisions:
+            lines.append(
+                " At least one same-estimand analysis has no finite p-value; "
+                "hypothesis-decision consistency is unavailable."
+            )
+        elif len(set(same_estimand_decisions)) == 1:
+            lines.append(
+                f" The primary analysis and {completed_same_estimand} completed same-estimand "
+                f"scenario(s) have the same recorded hypothesis decision at alpha = "
+                f"{alpha:.4g} ({same_estimand_decisions[0]})."
+            )
+            lines.append(
+                " This descriptive agreement does not by itself establish robustness, "
+                "equivalence, or practical importance."
+            )
+        else:
+            lines.append(
+                " The recorded hypothesis decision differs across the primary analysis and "
+                f"completed same-estimand scenarios at alpha = {alpha:.4g}."
+            )
+            lines.append(" Report the estimates, intervals, assumptions, and all scenarios.")
+
+        lines.append(sep)
+        return "\n".join(lines)
+
 
 def estimate_quantity(method_id: str) -> str | None:
     """Return the stable primary quantity identity for a supported method."""

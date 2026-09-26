@@ -135,6 +135,34 @@ def test_different_estimand_is_visible_without_direct_estimate_change(sensitivit
     assert result.comparison_summary["different_estimand_scenarios"] == 1
 
 
+def test_compare_reports_only_descriptive_same_estimand_decision_consistency(sensitivity_case):
+    _, assistant, base = sensitivity_case
+    result = assistant.sensitivity_analysis(
+        base,
+        scenarios=[_student(base), _mann_whitney(base)],
+    )
+
+    text = result.compare()
+
+    assert "1 completed same-estimand scenario(s)" in text
+    assert "different estimand" in text
+    assert "does not by itself establish robustness" in text
+    assert "appears robust" not in text
+    text.encode("cp1252")
+
+
+def test_compare_uses_declared_alpha(sensitivity_case):
+    _, assistant, base = sensitivity_case
+    options = replace(base.specification.options, alpha=0.01)
+    specification = replace(base.specification, options=options)
+    adjusted_base = replace(base, specification=specification)
+    scenario = _student(adjusted_base)
+
+    result = assistant.sensitivity_analysis(adjusted_base, scenarios=[scenario])
+
+    assert "alpha = 0.01" in result.compare()
+
+
 def test_incompatible_unsupported_and_failed_scenarios_all_remain_visible(
     sensitivity_case, monkeypatch
 ):

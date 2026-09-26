@@ -11,11 +11,13 @@ conditions.
 
 ```python
 profile = ResearchAssistant(df).profile()
+print(ResearchAssistant(df).summarize())
 ```
 
 Profiling needs no research question and performs no inferential test. It returns descriptive,
 quality, variable-intelligence, and advisory resource metadata without sampling or changing the
 source DataFrame.
+`summarize()` is a plain-text view of the same profile and does not create a second analysis.
 
 ### Run a guided analysis
 
@@ -34,6 +36,8 @@ workflow = ResearchAssistant(df).run(
 same `AnalysisResult`, builds the canonical report, audits its in-memory formats by default, and
 creates metadata-only reproducibility information. It writes no files and does not replay the
 analysis.
+`workflow.explain()` formats the recorded workflow for console review; `method_label` and
+`findings_plain` provide readable views while stable IDs and structured records remain available.
 
 ### Continue after missing information
 
@@ -107,7 +111,7 @@ observed post-hoc power.
 
 | Capability | Current contract | Main limit |
 | --- | --- | --- |
-| Sensitivity analysis | Ordered researcher-declared scenarios; every attempt retained; estimand, pairing, and contrast comparability recorded | No p-value ranking, automatic scenario selection, or universal robustness score |
+| Sensitivity analysis | Ordered researcher-declared scenarios; every attempt retained; estimand, pairing, and contrast comparability recorded; descriptive `compare()` output | Matching hypothesis decisions do not establish robustness; no p-value ranking, automatic scenario selection, or universal robustness score |
 | Practical significance | Researcher-defined quantity, magnitude, direction, unit, and paired contrast where required | No universal threshold and no formal equivalence or noninferiority inference |
 | Statistical analysis plan | JSON-safe plan, method rationale, missing-data rule, sensitivity scenarios, threshold, multiplicity state, reporting settings, and local revision record | Local record is not verified preregistration |
 | Plan adherence | Structured comparison of recorded plan, result, performed sensitivity scenarios, and practical assessment | Makes no misconduct judgment and invents no reason |

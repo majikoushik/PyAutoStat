@@ -54,6 +54,9 @@ def test_to_html_contains_title_and_sections(sample_report):
     assert "Test Report" in html
     assert "Dataset Overview" in html
     assert "Descriptive Statistics" in html
+    assert 'class="severity-badge medium"' in html
+    assert 'class="severity-badge medium>' not in html
+    assert "column(s) are complete" in html
 
 
 def test_to_html_writes_file(sample_report, tmp_path):

@@ -69,6 +69,7 @@ def main() -> None:
     audit = assistant.audit(report)
 
     print("Primary method:", workflow.analysis.method_id)
+    print(sensitivity.compare())
     for scenario in sensitivity.scenario_results:
         print(
             scenario.name,
@@ -78,6 +79,7 @@ def main() -> None:
         )
     print("Point estimate relation:", practical.point_estimate_relation)
     print("Interval relation:", practical.confidence_interval_relation)
+    print(practical.verdict)
     print("Report schema:", report.to_dict()["schema_version"])
     print("Audit:", audit.status)
 

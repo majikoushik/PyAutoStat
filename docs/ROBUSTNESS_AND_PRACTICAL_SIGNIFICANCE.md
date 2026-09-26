@@ -20,6 +20,7 @@ sensitivity = assistant.sensitivity_analysis(
     workflow.analysis,
     scenarios=[pooled],
 )
+print(sensitivity.compare())
 ```
 
 The supplied order is preserved and each scenario runs at most once. Completed, unavailable,
@@ -42,6 +43,11 @@ contrast is normalized only in the comparison fields, with the sign transformati
 the scenario's raw result is retained. Relative change is omitted when the base estimate is too
 close to zero. Interval overlap is descriptive and is not a hypothesis test.
 
+`compare()` prints the stored primary and scenario values. Its decision-consistency statement uses
+the declared primary alpha and only completed `same_estimand` scenarios. Other attempts remain
+visible but are excluded from that statement. Matching reject/fail-to-reject decisions do not by
+themselves establish robustness, equivalence, effect stability, or practical importance.
+
 The first implementation supports same-DataFrame specification sensitivity. It does not create
 changed datasets, remove outliers, winsorize, impute, merge categories, or alter missing-data
 rules. Every result stores a dataset fingerprint and ordered scenario configuration without raw
@@ -63,6 +69,7 @@ practical = assistant.practical_significance(
     workflow.analysis,
     threshold=threshold,
 )
+print(practical.verdict)
 ```
 
 Supported signed quantities are `mean_difference`, `cohens_d`, `pearson_r`, and
@@ -77,6 +84,8 @@ the researcher-defined negligible region. This is not a formal equivalence concl
 interval crossing a threshold produces an uncertain relation even if its point estimate exceeds
 the threshold. A missing interval yields a `partial` assessment and no invented uncertainty.
 Null-hypothesis significance is recorded separately and never defines practical importance.
+`verdict` formats this validated assessment for display; it does not recalculate the relation or
+turn statistical significance into a meaningful-effect decision.
 
 `direction="positive"`, `"negative"`, and `"nonnegative"` provide one-sided descriptive
 relations for appropriate metrics. Requests using `"equivalence"` or `"noninferiority"` return

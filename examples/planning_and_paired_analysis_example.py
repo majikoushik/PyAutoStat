@@ -46,7 +46,8 @@ def main() -> None:
     )
 
     print("Plan:", plan.status.value, plan.primary_method_id)
-    print("Workflow:", workflow.status.value, workflow.analysis.method_id)
+    print("Workflow:", workflow.status.value, workflow.analysis.method_label)
+    print(workflow.explain())
     print("Complete pairs:", workflow.analysis.metadata["sample"]["complete_pairs"])
     print("Mean paired difference:", workflow.analysis.values["primary_estimate"])
     print("Completeness:", completeness.status)

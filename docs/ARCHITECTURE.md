@@ -23,6 +23,10 @@ workflow:
 7. `run()` coordinates the bounded guided path and returns `needs_input`, `data_limited`,
    `unsupported`, `failed`, `partial`, or `completed` as appropriate.
 
+Presentation helpers such as `summarize()`, `explain()`, `findings_plain`, `verdict`, and
+`compare()` read existing records. They do not select methods, rerun calculations, or change a
+serialized contract. Display method names resolve from the capability registry.
+
 Optional sensitivity, practical-significance, prospective-planning, analysis-plan, completeness,
 and session-snapshot operations remain explicit. They do not silently replace the primary
 analysis.

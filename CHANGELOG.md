@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added plain-text `ResearchAssistant.summarize()`, `ResearchWorkflowResult.explain()`,
+  `InterpretationResult.findings_plain`, method display labels, actionable missing-information
+  rendering, practical-significance `verdict`, and descriptive sensitivity `compare()` helpers.
+- Added readable normality verdicts and legacy hypothesis-test interpretation text, normalized
+  insight fields with column-specific guidance, and refreshed printable legacy HTML styling.
 - Added structured profiling resource metadata based on deep pandas memory usage, with advisory
   large-memory and wide-correlation warnings. The diagnostics explicitly record that no sampling,
   truncation, or source-data modification occurred.
@@ -63,6 +68,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Usability rendering preserves zero-percent completeness, produces portable console text, avoids
+  duplicated punctuation and confidence-interval labels, and emits valid severity-badge HTML.
+- Sensitivity comparison text now uses the declared alpha and restricts decision-consistency
+  summaries to completed same-estimand comparisons; it does not infer general robustness from
+  matching p-value decisions.
+- Human method labels resolve from the existing capability registry instead of duplicating method
+  metadata, while the legacy distribution-insight `columns` alias remains available.
 - Directional paired practical-significance thresholds now require a matching first-minus-second
   contrast; two-sided magnitude thresholds remain orientation invariant.
 - Paired sensitivity comparisons now include unit ID, condition variable, design, estimand, and

@@ -120,6 +120,132 @@ class ResearchAssistant:
         self._data_dictionary = deepcopy(result["data_dictionary"])
         return result
 
+    def summarize(self, *, data_dictionary=None, histogram_bins: int = 20) -> str:
+        """Return a readable plain-text overview of the dataset.
+
+        Calls :meth:`profile` and then formats the most important findings —
+        shape, missing data, distribution flags, strong correlations, and data
+        quality — into a single printable block.  No new statistics are
+        calculated beyond what :meth:`profile` already produces.
+
+        Example usage::
+
+            assistant = ResearchAssistant(df)
+            print(assistant.summarize())
+
+        Returns
+        -------
+        str
+            A multi-section plain-text summary suitable for printing or logging.
+        """
+        result = self.profile(data_dictionary=data_dictionary, histogram_bins=histogram_bins)
+        sep = "=" * 68
+        thin = "-" * 68
+        lines: list[str] = [sep]
+
+        # ── Shape ────────────────────────────────────────────────────────────
+        overview = result.get("overview", {})
+        rows = overview.get("total_rows", "?")
+        cols = overview.get("total_columns", "?")
+        num_cols = overview.get("numeric_columns", 0)
+        cat_cols = overview.get("categorical_columns", 0)
+        lines.append(f" DATASET PROFILE | {rows} rows x {cols} columns")
+        lines.append(sep)
+        lines.append(f" Numeric columns     : {num_cols}")
+        lines.append(f" Categorical columns : {cat_cols}")
+
+        # ── Missing data ─────────────────────────────────────────────────────
+        missing = result.get("missing_data", {})
+        overall_pct = missing.get("overall_missing_percentage", 0) or 0
+        by_col = missing.get("by_column", {})
+        missing_cols = {
+            col: info
+            for col, info in by_col.items()
+            if isinstance(info, dict) and (info.get("count") or 0) > 0
+        }
+        lines.append(thin)
+        lines.append(" MISSING DATA")
+        if not missing_cols:
+            lines.append("   OK: No missing values; dataset is complete.")
+        else:
+            lines.append(f"   Overall missing rate : {overall_pct:.1f}%")
+            for col, info in missing_cols.items():
+                pct = info.get("percentage", 0) or 0
+                cnt = info.get("count", 0) or 0
+                flag = "  WARNING: >10%" if pct > 10 else ""
+                lines.append(f"   {col:<22}: {pct:5.1f}%  ({cnt} values){flag}")
+
+        # ── Distribution shape ────────────────────────────────────────────────
+        distributions = result.get("distributions", {})
+        normality = result.get("normality", {})
+        lines.append(thin)
+        lines.append(" DISTRIBUTIONS  (numeric columns)")
+        if not distributions:
+            lines.append("   No numeric columns to summarise.")
+        else:
+            for col, dist in distributions.items():
+                skew_text = dist.get("skewness_interpretation", "Unknown")
+                col_norm = normality.get(col, {})
+                sw = col_norm.get("shapiro_wilk", {})
+                dag = col_norm.get("d_agostino_pearson", {})
+                norm_verdict = (
+                    sw.get("verdict") or dag.get("verdict") or "Normality test not available"
+                )
+                bimodal = dist.get("is_bimodal")
+                bimodal_note = "  [possible bimodal shape]" if bimodal else ""
+                lines.append(f"   {col:<22}: {skew_text}{bimodal_note}")
+                lines.append(f"   {'':>22}  Result: {norm_verdict}")
+
+        # ── Correlations ─────────────────────────────────────────────────────
+        corr_data = result.get("correlation", {})
+        pearson_matrix = corr_data.get("pearson", {}).get("matrix", {})
+        strong_pairs: list[tuple[str, str, float]] = []
+        seen: set[frozenset[str]] = set()
+        for col1, row_vals in pearson_matrix.items():
+            for col2, r in (row_vals or {}).items():
+                pair = frozenset({col1, col2})
+                if col1 != col2 and pair not in seen and isinstance(r, (int, float)):
+                    seen.add(pair)
+                    if abs(r) >= 0.7:
+                        strong_pairs.append((col1, col2, float(r)))
+        lines.append(thin)
+        lines.append(" CORRELATIONS  (|r| >= 0.70)")
+        if not strong_pairs:
+            lines.append("   No strong correlations detected.")
+        else:
+            for col1, col2, r in sorted(strong_pairs, key=lambda x: -abs(x[2])):
+                direction = "positive" if r > 0 else "negative"
+                lines.append(f"   {col1} <-> {col2} : r = {r:.3f}  ({direction})")
+
+        # ── Data quality ─────────────────────────────────────────────────────
+        quality = result.get("data_quality", {})
+        completeness = quality.get("completeness", 1.0)
+        if not isinstance(completeness, (int, float)):
+            completeness = 1.0
+        dupes_pct = quality.get("duplicate_rows_percentage", 0) or 0
+        dupes_n = quality.get("duplicate_rows", 0) or 0
+        lines.append(thin)
+        lines.append(" DATA QUALITY")
+        lines.append(f"   Completeness    : {completeness * 100:.1f}%")
+        dup_flag = "  WARNING" if dupes_pct > 1 else "  OK"
+        lines.append(f"   Duplicate rows  : {dupes_n}  ({dupes_pct:.1f}%){dup_flag}")
+
+        # ── Warnings ─────────────────────────────────────────────────────────
+        warnings_list = result.get("analysis_warnings", [])
+        if warnings_list:
+            lines.append(thin)
+            lines.append(f" ANALYSIS WARNINGS  ({len(warnings_list)} total)")
+            for w in warnings_list[:5]:
+                msg = w.get("message", str(w)) if isinstance(w, dict) else str(w)
+                lines.append(f"   ! {msg}")
+            if len(warnings_list) > 5:
+                lines.append(
+                    f"   ... and {len(warnings_list) - 5} more; see profile()['analysis_warnings']"
+                )
+
+        lines.append(sep)
+        return "\n".join(lines)
+
     def complete_case_count(self, columns: list[str]) -> dict:
         """Count rows available for a specified set of columns."""
         return complete_case_count(self._analyzer.df, columns)
@@ -170,6 +296,47 @@ class ResearchAssistant:
         Scientific design facts are never inferred. Supplying a draft or specification
         is mutually exclusive with raw question arguments. No files are written and no
         reproduction is attempted.
+
+        Parameters
+        ----------
+        objective : {"descriptive", "compare_groups", "association"}, optional
+            Research objective. Descriptive workflows profile data, group comparisons
+            compare an outcome across groups or paired conditions, and association
+            workflows study a stated relationship.
+        outcome : str, optional
+            Outcome or first analysis variable column.
+        predictor : str, optional
+            Group, condition, or second analysis variable column.
+        design : {"independent", "paired", "repeated", "clustered", "unknown"}, optional
+            Researcher-declared study design. The current inferential engine supports
+            independent observations and explicit two-condition paired data. Other
+            accepted design values remain visible as unsupported rather than being
+            silently reinterpreted.
+        estimand : str, optional
+            Scientific target. Supported targets depend on the objective: ``mean`` or
+            ``distribution`` for group comparison; ``linear``, ``monotonic``, or
+            ``categorical_independence`` for association. Some targets are recorded but
+            unavailable when the package has no matching inferential method.
+        variable_types : dict[str, str], optional
+            Explicit analytical types using ``continuous``, ``discrete``, ``nominal``,
+            ``ordinal``, or ``identifier``. Supply these when values alone cannot resolve
+            their scientific role.
+        unit_id : str, optional
+            Unit identifier required for paired long-format analyses.
+        condition_order : tuple, optional
+            Ordered pair defining the signed paired contrast: first condition minus second.
+        draft : QuestionDraft, optional
+            A previously returned draft, usually after ``update_question()``.
+        specification : AnalysisSpecification, optional
+            A complete structured request. Do not combine it with raw question arguments.
+
+        Returns
+        -------
+        ResearchWorkflowResult
+            A completed result or a structured ``needs_input``, ``data_limited``, or
+            ``unsupported`` result. For ``needs_input``, either call ``run()`` again with
+            the requested fields or update ``result.draft`` with ``update_question()`` and
+            pass the revised draft back to ``run(draft=...)``.
         """
         for name, value in (
             ("include_profile", include_profile),

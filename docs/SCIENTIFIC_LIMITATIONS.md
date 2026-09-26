@@ -13,7 +13,7 @@ It is not a substitute for scientific design review or subject-matter judgment.
 - Outliers are reported for review. They are never deleted automatically.
 - Sensitivity analysis executes only researcher-declared scenarios, preserves different
   estimands, and never selects or ranks results by p-value. It cannot supply a universal
-  robustness conclusion.
+  robustness conclusion. Matching decisions in its plain-text comparison remain descriptive.
 - Practical importance requires a researcher-defined quantity and threshold. PyAutoStat supplies
   no universal threshold or generic decision rule. Nonsignificance is not equivalence; formal
   equivalence and noninferiority tests are unsupported.

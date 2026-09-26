@@ -42,12 +42,16 @@ assistant = ResearchAssistant(df)
 profile = assistant.profile()
 print(profile["overview"])
 print(profile["resource_info"])
+print(assistant.summarize())
 ```
 
 The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns
 the same statistical dictionary as `analyze_all()` plus structured profiling metadata. It needs no
 research question. `resource_info` contains deep-memory and correlation-width performance
 advisories without sampling, truncating, modifying, or skipping calculations.
+`summarize(data_dictionary=None, histogram_bins=20)` runs the same profile operation and formats
+shape, missingness, distribution diagnostics, strong correlations, quality metrics, and warnings
+as portable plain text. The dictionary returned by `profile()` remains the structured source.
 
 ### Integrated guided workflow
 
@@ -63,6 +67,11 @@ workflow = assistant.run(
 `specification` for continuation, `include_profile=False`, `audit=True`, `fingerprint=True`,
 `title=None`, and `include_figures=False`. A draft/specification is mutually exclusive with raw
 question arguments. Invalid API types and conflicting inputs raise `InvalidDataError`.
+Valid objectives are `descriptive`, `compare_groups`, and `association`. Accepted design values
+are `independent`, `paired`, `repeated`, `clustered`, and `unknown`; only documented supported
+designs execute. Comparison estimands are `mean` and `distribution`. Association targets include
+`linear`, `monotonic`, and `categorical_independence`, with unavailable targets retained as
+unsupported rather than replaced.
 
 `ResearchWorkflowResult` exposes `status`, `specification`, `draft`, `recommendation`, `analysis`,
 `interpretation`, `report`, `audit`, `reproducibility`, optional `profile`,
@@ -70,6 +79,12 @@ question arguments. Invalid API types and conflicting inputs raise `InvalidDataE
 `needs_input`, `data_limited`, `unsupported`, and `failed`. A stage that did not run stays `None`.
 `to_dict()` and `to_json()` use workflow schema version 1, reject nonfinite JSON values, and do
 not embed the source DataFrame.
+`workflow.explain()` returns a portable plain-text view assembled from the recorded specification,
+analysis, interpretation, limitations, warnings, and structured clarification questions.
+`str(workflow)` delegates to this view. `analysis.method_label` and
+`recommendation.method_label` expose human display names while `method_id` remains the stable
+machine identifier. `workflow.interpretation.findings_plain` numbers the existing finding messages
+without changing their meaning.
 
 The default successful path performs one statistical execution. Later stages consume that result;
 reproducibility-record creation does not replay it. Default audit renders and checks HTML,
@@ -91,13 +106,16 @@ pending = assistant.run(
     estimand="mean",
 )
 assert pending.status == "needs_input"
+print(pending.explain())
 
 revised = assistant.update_question(pending.draft, design="independent")
 workflow = assistant.run(draft=revised)
 ```
 
 The draft retains confirmed values. Its questions explain each missing field, and continuation
-passes through the same validation and recommendation rules as a new request.
+passes through the same validation and recommendation rules as a new request. The explanation
+shows both supported continuation paths: call `run()` again with the missing raw fields, or update
+the retained draft and pass it back through `run(draft=...)`.
 
 ### Sensitivity analysis
 
@@ -114,6 +132,7 @@ sensitivity = assistant.sensitivity_analysis(
     workflow.analysis,
     scenarios=[scenario],
 )
+print(sensitivity.compare())
 ```
 
 `sensitivity_analysis(result, *, scenarios) -> SensitivityResult` requires an available base
@@ -140,6 +159,12 @@ Welch mean difference versus Mann–Whitney rank distribution, have no direct es
 calculation. There is no p-value ordering, scenario selection, robustness score, or automatic
 changed-data analysis.
 
+`sensitivity.compare()` provides a printable table of the stored primary and scenario values.
+Its decision-consistency statement includes only completed `same_estimand` scenarios and uses the
+primary specification's alpha. Other attempts remain displayed but do not enter that statement.
+Matching decisions are descriptive and do not establish robustness, equivalence, or practical
+importance.
+
 ### Practical significance
 
 ```python
@@ -154,6 +179,7 @@ practical = assistant.practical_significance(
     workflow.analysis,
     threshold=threshold,
 )
+print(practical.verdict)
 ```
 
 `MeaningfulEffectThreshold` supports signed `mean_difference`, `cohens_d`, `pearson_r`, and
@@ -174,6 +200,9 @@ named existing quantity and its recorded interval. It reports `point_estimate_re
 `unavailable`; formal equivalence/noninferiority requests return `unsupported`. An interval wholly
 inside a two-sided negligible region is described without claiming formal equivalence. Generic
 small/medium/large labels are not used as meaningful-effect criteria.
+`practical.verdict` formats the already validated estimate, threshold, conclusion, statistical
+significance field, uncertainty status, warnings, and rationale. It does not calculate a new
+comparison or merge statistical and practical significance into one decision.
 
 Both models serialize with schema version 1. `assistant.report(..., sensitivity=...,
 practical_significance=...)`, `assistant.audit(...)`, and
@@ -258,7 +287,7 @@ print(result.metadata["sample"], result.metadata["group_order"])
 
 The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable **legacy explicit calculations**, but the guided recommender does not select them automatically. They remain available through `StatisticalAnalyzer.hypothesis_tests()`; `analyze()` never substitutes them for a Welch or unsupported multi-group mean request. The guided engine supports `paired_t` only for an explicit unit ID and exactly two conditions. Spearman/Kendall inference, repeated designs with more than two conditions, clustered methods, Welch ANOVA, and sparse-table exact tests are unavailable.
 
-`AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
+`AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. The `method_label` property resolves a display name from the existing method metadata without changing serialization. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
 
 Group and categorical effect intervals use the existing 499-resample bootstrap with effective seed 0 when no seed was specified; this default and any explicit seed are recorded in metadata and diagnostics. The specification's alpha and confidence level remain available through `result.specification.options`; alpha is not used to alter the numerical p-value. No missing rows are imputed, no outliers are removed, and declared missing codes still block execution until normalized externally. JSON export is `json.dumps(result.to_dict(), allow_nan=False)`.
 
@@ -268,11 +297,12 @@ Group and categorical effect intervals use the existing 499-resample bootstrap w
 result = assistant.analyze(draft)
 interpretation = assistant.interpret(result)
 print(interpretation.summary)
+print(interpretation.findings_plain)
 print(interpretation.status, [finding.code for finding in interpretation.findings])
 payload = interpretation.to_dict()  # json.dumps(payload, allow_nan=False)
 ```
 
-`interpret(result: AnalysisResult) -> InterpretationResult` reads the completed analysis record only; it runs no statistical test or report writer. `InterpretationEngine().interpret(result)` is the independently usable rule engine. The result has `status` (`available`, `partial`, `unavailable`), `execution_status`, `method_id`, `summary`, `method_explanation`, `hypothesis_interpretation`, `effect_interpretation`, `uncertainty_interpretation`, `assumption_notes`, `limitations`, `conclusion`, `warnings`, `metadata`, and `findings`. Each `InterpretationFinding` has a stable `code`, display `message`, and `supporting_fields` pointing to the source result. `to_dict()` is JSON compatible and leaves the original `AnalysisResult` unchanged.
+`interpret(result: AnalysisResult) -> InterpretationResult` reads the completed analysis record only; it runs no statistical test or report writer. `InterpretationEngine().interpret(result)` is the independently usable rule engine. The result has `status` (`available`, `partial`, `unavailable`), `execution_status`, `method_id`, `summary`, `method_explanation`, `hypothesis_interpretation`, `effect_interpretation`, `uncertainty_interpretation`, `assumption_notes`, `limitations`, `conclusion`, `warnings`, `metadata`, and `findings`. Each `InterpretationFinding` has a stable `code`, display `message`, and `supporting_fields` pointing to the source result. `findings_plain` numbers the existing messages for display without changing codes or serialization. `to_dict()` is JSON compatible and leaves the original `AnalysisResult` unchanged.
 
 Supported guided results are `dataset_profile`, `welch_t`, `mann_whitney_u`, `kruskal_wallis`, `pearson_correlation`, and `pearson_chi_square`. Templates also accept valid `student_t` and `one_way_anova` adapter results; the guided selector does not choose these. Spearman and Kendall are coefficient-only in legacy profiling, so there is no successful guided inferential interpretation for them. Unrecognized or unavailable results return an unavailable interpretation. A missing p-value, effect, or primary confidence interval gives a partial interpretation, preserving factual components without inventing the missing result. Pearson's current result has no CI, so its interpretation is normally partial.
 
@@ -350,7 +380,7 @@ analysis = analyzer.analyze_all()
 | `resource_info` | Deep memory estimate, analytical numeric width, advisory resource level, correlation size, and structured performance warnings |
 | `profile_metadata` | Schema version and disclosed binning, missingness, row-position and outlier defaults |
 
-An unavailable numeric result is `None`. Some tests are skipped for all-missing, constant or short columns; inspect `analysis_warnings`. For D'Agostino-Pearson at 8-19 observations, a finite result is retained with a small-sample approximation warning; other numerical warnings or nonfinite output make it unavailable. Anderson-Darling is omitted if SciPy supplies an unusable critical-value grid, including nonpositive values sometimes returned for very small samples. Correlation uses pairwise nonmissing observations. Only Pearson pairs include p-values.
+An unavailable numeric result is `None`. Some tests are skipped for all-missing, constant or short columns; inspect `analysis_warnings`. Available normality records include a qualified `verdict`; non-rejection explicitly does not prove normality. For D'Agostino-Pearson at 8-19 observations, a finite result is retained with a small-sample approximation warning; other numerical warnings or nonfinite output make it unavailable. Anderson-Darling uses the validated five-percent critical value when present and is omitted if SciPy supplies an unusable critical-value grid, including nonpositive values sometimes returned for very small samples. Correlation uses pairwise nonmissing observations. Only Pearson pairs include p-values.
 
 ### Profile details and optional declarations
 
@@ -388,7 +418,7 @@ result = analyzer.hypothesis_tests(
 
 `test_type` can be `auto`, `ttest`, `mannwhitney`, `anova` or `kruskal`. `auto` now requires the keyword-only `estimand="mean"` or `"distribution"`. For two groups, `mean` selects Welch's t-test and `distribution` selects Mann-Whitney U. For three or more groups, `distribution` selects Kruskal-Wallis; `mean` raises `InvalidTestError` because automatic Welch ANOVA is not available. Diagnostics never switch the estimand. Explicit methods remain available. For an explicit `ttest`, `equal_var=False` (default) uses Welch; `equal_var=True` requests Student's equal-variance version. Supplying an incompatible estimand with an explicit method raises `InvalidTestError`. The library cannot verify independence or decide whether a research design justifies a chosen test.
 
-The result retains `test`, `statistic`, `p_value`, `groups`, `assumptions` and `effect_size`. Additions are `sample_size`, `excluded_rows`, `group_sizes`, degrees of freedom where applicable, and `mean_difference` for t-tests. Assumption diagnostics include `not_rejected`, `rejected` or `unknown` at the documented reference alpha 0.05; they do not certify population assumptions. The effect-size record contains its name, value, interpretation when supported, and a percentile bootstrap confidence interval or `None`. Rank-biserial correlation and rank epsilon-squared have no qualitative magnitude label. T-tests return an analytical `confidence_interval` for first minus second group's mean and a Boolean `equal_variance` indicating the method used.
+The result retains `test`, `statistic`, `p_value`, `groups`, `assumptions` and `effect_size`. Additions are `sample_size`, `excluded_rows`, `group_sizes`, degrees of freedom where applicable, `mean_difference` for t-tests, and a display-only `interpretation` assembled from those recorded values. Assumption diagnostics include `not_rejected`, `rejected` or `unknown` at the documented reference alpha 0.05; they do not certify population assumptions. The effect-size record contains its name, value, interpretation when supported, and a percentile bootstrap confidence interval or `None`. Conventional effect labels are not practical-significance decisions. Rank-biserial correlation and rank epsilon-squared have no qualitative magnitude label. T-tests return an analytical `confidence_interval` for first minus second group's mean and a Boolean `equal_variance` indicating the method used.
 
 Rows missing a group or outcome are excluded. Every group needs at least two usable numeric values. The Kruskal-Wallis minimum of five per group is this library's conservative chi-square approximation policy. Use `bootstrap_samples=0` to omit effect-size intervals, or an integer of at least 100 for resampling. `random_state` controls a local random generator. Bootstrap metadata records the requested and valid counts and seed; an interval is `None` with a warning if fewer than `max(50, floor(requested/2))` resamples are valid.
 
@@ -506,7 +536,11 @@ findings = engine.generate_insights()
 summary = engine.get_summary()
 ```
 
-`generate_insights()` returns a list of findings with category, severity, finding and recommendations. `get_summary()` generates findings if needed and returns `total_insights`, `high_severity`, `medium_severity`, `low_severity` and `insights`.
+`generate_insights()` returns advisory records with `category`, `severity`, `finding`, `details`,
+and `recommendation`; the last two are always lists. Distribution findings also preserve the
+legacy `columns` alias. Recommendations identify relevant columns but do not switch estimands,
+delete outliers, or impute values automatically. `get_summary()` generates findings if needed and
+returns `total_insights`, `high_severity`, `medium_severity`, `low_severity` and `insights`.
 
 ## `ReportGenerator`
 
@@ -523,6 +557,10 @@ csv_tables = report.to_csv()
 html_text = report.to_html()
 interactive_html = report.to_interactive_html()  # requires the "report" extra
 ```
+
+The static legacy HTML uses escaped content, styled severity badges, responsive tables, and print
+rules. Its missing-data section includes a plain-language summary derived from the same counts;
+the structured analysis dictionary remains authoritative.
 
 `insights` and `hypothesis_results` are optional. A comparison can be one result dictionary or a list of results. Pass a path to write a format instead of returning its content:
 
