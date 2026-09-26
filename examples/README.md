@@ -26,6 +26,7 @@ python examples/01_quick_start.py
 [01_quick_start.py](01_quick_start.py) demonstrates:
 
 - **ResearchAssistant.summarize()** for a compact beginner view;
+- opt-in **ResearchAssistant.summarize(mode="story")** for a connected profile narrative;
 - declared data meaning for numeric category codes;
 - the structured **ResearchAssistant.profile()** result;
 - normality and IQR diagnostics without automatic deletion or method switching;
@@ -132,6 +133,7 @@ from pyautostat import ResearchAssistant
 frame = pd.read_csv("your_data.csv")
 assistant = ResearchAssistant(frame)
 print(assistant.summarize())
+print(assistant.summarize(mode="story"))
 ~~~
 
 For detailed signatures and supported method families, see the

@@ -33,8 +33,11 @@ from .interpretation import (
 )
 from .narrate import (
     assumption_grade,
+    column_story,
+    dataset_opening,
     effect_narrative,
     hypothesis_verdict,
+    insight_narrative,
     interval_verdict,
     sensitivity_verdict,
 )
@@ -117,6 +120,9 @@ __all__ = [
     "effect_narrative",
     "hypothesis_verdict",
     "assumption_grade",
+    "column_story",
+    "dataset_opening",
+    "insight_narrative",
     "interval_verdict",
     "sensitivity_verdict",
     "SensitivitySpecification",

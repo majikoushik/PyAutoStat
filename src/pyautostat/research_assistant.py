@@ -24,6 +24,7 @@ from .decision_ledger import DecisionLedger
 from .exceptions import InvalidDataError, PyAutoStatError
 from .execution import execute_selected_method, execute_specification
 from .interpretation import InterpretationEngine, InterpretationResult
+from .narrate import _dataset_story
 from .practical_significance import (
     MeaningfulEffectThreshold,
     PracticalSignificanceResult,
@@ -120,13 +121,21 @@ class ResearchAssistant:
         self._data_dictionary = deepcopy(result["data_dictionary"])
         return result
 
-    def summarize(self, *, data_dictionary=None, histogram_bins: int = 20) -> str:
+    def summarize(
+        self,
+        *,
+        data_dictionary=None,
+        histogram_bins: int = 20,
+        mode: str = "profile",
+    ) -> str:
         """Return a readable plain-text overview of the dataset.
 
         Calls :meth:`profile` and then formats the most important findings —
         shape, missing data, distribution flags, strong correlations, and data
         quality — into a single printable block.  No new statistics are
-        calculated beyond what :meth:`profile` already produces.
+        calculated beyond what :meth:`profile` already produces. ``mode="profile"``
+        preserves the established summary. ``mode="story"`` returns the
+        deterministic connected narrative.
 
         Example usage::
 
@@ -138,7 +147,11 @@ class ResearchAssistant:
         str
             A multi-section plain-text summary suitable for printing or logging.
         """
+        if mode not in {"profile", "story"}:
+            raise InvalidDataError("summary mode must be 'profile' or 'story'.")
         result = self.profile(data_dictionary=data_dictionary, histogram_bins=histogram_bins)
+        if mode == "story":
+            return _dataset_story(result)
         sep = "=" * 68
         thin = "-" * 68
         lines: list[str] = [sep]

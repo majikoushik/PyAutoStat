@@ -8,8 +8,11 @@ import pytest
 from pyautostat import (
     ResearchAssistant,
     assumption_grade,
+    column_story,
+    dataset_opening,
     effect_narrative,
     hypothesis_verdict,
+    insight_narrative,
     interval_verdict,
     sensitivity_verdict,
 )
@@ -17,6 +20,10 @@ from pyautostat.narrate import (
     ASSUMPTION_SEVERITY_DESCRIPTIONS,
     _confidence_interval_narrative,
     _confidence_interval_width,
+    _data_quality_story,
+    _distribution_story,
+    _prioritised_actions,
+    _top_correlation_pair,
 )
 
 
@@ -380,3 +387,238 @@ def test_sensitivity_verdict_states(base, scenarios, same, completed, mixed, exp
         mixed_estimands=mixed,
         alpha=0.05,
     )
+
+
+@pytest.mark.parametrize(
+    ("rows", "size_label"),
+    [
+        (0, "very small"),
+        (29, "very small"),
+        (30, "small sample"),
+        (99, "small sample"),
+        (100, "moderate sample"),
+        (499, "moderate sample"),
+        (500, "medium-sized"),
+        (4999, "medium-sized"),
+        (5000, "large dataset"),
+    ],
+)
+def test_dataset_opening_size_boundaries(rows, size_label):
+    profile = {"overview": {"total_rows": rows, "total_columns": 4}}
+    text = dataset_opening(profile)
+    assert f"{rows:,}" in text
+    assert "4 columns" in text
+    assert size_label in text
+    assert text == dataset_opening(profile)
+
+
+def test_dataset_opening_handles_unavailable_dimensions():
+    assert "unavailable" in dataset_opening({}).lower()
+
+
+@pytest.mark.parametrize(
+    ("matrix", "expected"),
+    [
+        (
+            {"a": {"a": 1.0, "b": 0.8}, "b": {"a": 0.8, "b": 1.0}},
+            ("a", "b", 0.8),
+        ),
+        (
+            {"a": {"b": -0.9}, "b": {"a": -0.9}},
+            ("a", "b", -0.9),
+        ),
+        (
+            {"z": {"a": 0.8}, "a": {"z": 0.8, "b": -0.8}, "b": {"a": -0.8}},
+            ("a", "b", -0.8),
+        ),
+        ({"a": {"a": 1.0, "b": 0.4}, "b": {"a": 0.4, "b": 1.0}}, None),
+        ({"a": {"a": 1.0, "b": math.nan}, "b": {"a": math.nan}}, None),
+    ],
+)
+def test_top_correlation_pair_is_signed_finite_and_deterministic(matrix, expected):
+    profile = {"correlation": {"pearson": {"matrix": matrix}}}
+    assert _top_correlation_pair(profile) == expected
+    assert _top_correlation_pair(profile) == expected
+
+
+def test_data_quality_story_covers_missingness_duplicates_and_unavailable_metadata():
+    clean = {
+        "missing_data": {"total_missing_cells": 0, "by_column": {}},
+        "data_quality": {"completeness": 1.0, "duplicate_rows": 0},
+    }
+    assert "No missing values" in _data_quality_story(clean)
+    one = {
+        "missing_data": {"by_column": {"x": {"count": 4, "percentage": 20.0}}},
+        "data_quality": {"completeness": 0.8, "duplicate_rows": 0},
+    }
+    assert "concentrated in 'x'" in _data_quality_story(one)
+    multiple = {
+        "missing_data": {
+            "by_column": {
+                "x": {"count": 4, "percentage": 20.0},
+                "y": {"count": 2, "percentage": 10.0},
+            }
+        },
+        "data_quality": {
+            "completeness": 0.7,
+            "duplicate_rows": 3,
+            "duplicate_rows_percentage": 15.0,
+            "issues": [
+                {
+                    "code": "declared_range_violation",
+                    "severity": "review",
+                    "section": "data_dictionary",
+                    "message": "Two values fall outside the declared range.",
+                    "recommendation": "Review values and the declared range.",
+                }
+            ],
+        },
+    }
+    text = _data_quality_story(multiple)
+    assert "Multiple columns" in text
+    assert "3 duplicate row" in text
+    assert "outside the declared range" in text
+    assert "unavailable" in _data_quality_story({}).lower()
+
+
+@pytest.mark.parametrize(
+    ("normality", "phrase"),
+    [
+        (
+            {"a": {"shapiro_wilk": {"status": "not_rejected"}}},
+            "did not reject normality",
+        ),
+        (
+            {
+                "a": {"shapiro_wilk": {"status": "rejected"}},
+                "b": {"shapiro_wilk": {"status": "not_rejected"}},
+                "c": {"shapiro_wilk": {"status": "not_rejected"}},
+            },
+            "some evaluated",
+        ),
+        (
+            {
+                "a": {"shapiro_wilk": {"status": "rejected"}},
+                "b": {"shapiro_wilk": {"status": "rejected"}},
+                "c": {"shapiro_wilk": {"status": "not_rejected"}},
+            },
+            "most evaluated",
+        ),
+        (
+            {
+                "a": {"shapiro_wilk": {"status": "rejected"}},
+                "b": {"shapiro_wilk": {"status": "rejected"}},
+                "c": {"shapiro_wilk": {"status": "rejected"}},
+            },
+            "all 3 evaluated",
+        ),
+        ({}, "unavailable for all"),
+    ],
+)
+def test_distribution_story_covers_rejection_states(normality, phrase):
+    columns = list(normality) or ["a", "b"]
+    profile = {"descriptive": {column: {} for column in columns}, "normality": normality}
+    assert phrase in _distribution_story(profile)
+
+
+def test_profile_actions_are_prioritized_deduplicated_and_stable():
+    profile = {
+        "descriptive": {"x": {}, "y": {}},
+        "normality": {
+            "x": {"shapiro_wilk": {"status": "rejected"}},
+            "y": {"shapiro_wilk": {"status": "not_rejected"}},
+        },
+        "missing_data": {
+            "by_column": {
+                "x": {"count": 4, "percentage": 40.0},
+                "y": {"count": 2, "percentage": 20.0},
+            }
+        },
+        "data_quality": {"duplicate_rows": 2},
+        "correlation": {"pearson": {"matrix": {"x": {"y": 0.9}, "y": {"x": 0.9}}}},
+    }
+    actions = _prioritised_actions(profile)
+    assert len(actions) == len(set(actions)) == 3
+    assert "missing-data" in actions[0]
+    assert "duplicate" in actions[1]
+    assert actions == _prioritised_actions(profile)
+
+
+def test_profile_actions_prioritize_recorded_high_quality_issue_and_detected_outliers():
+    profile = {
+        "data_quality": {
+            "issues": [
+                {
+                    "code": "custom_recorded_issue",
+                    "severity": "high",
+                    "section": "data_quality",
+                    "recommendation": "Review the recorded high-priority quality issue.",
+                }
+            ]
+        },
+        "outliers": {"x": {"iqr": {"percentage": 12.0}}},
+    }
+    actions = _prioritised_actions(profile)
+    assert actions[0] == "Review the recorded high-priority quality issue."
+    assert "IQR-flagged" in actions[1]
+
+
+@pytest.mark.parametrize(
+    ("skewness", "shape"),
+    [
+        (0.1, "approximately symmetric"),
+        (0.5, "mild right skew"),
+        (1.0, "moderate right skew"),
+        (2.0, "strong right skew"),
+        (-0.5, "mild left skew"),
+        (-1.0, "moderate left skew"),
+        (-2.0, "strong left skew"),
+    ],
+)
+def test_column_story_skewness_states(skewness, shape):
+    stats = {
+        "count": 10,
+        "mean": 5.0,
+        "median": 5.0,
+        "std": 2.0,
+        "min": 1.0,
+        "max": 9.0,
+        "skewness": skewness,
+    }
+    text = column_story("score", stats, unit="points")
+    assert shape in text
+    assert "points" in text
+    assert text == column_story("score", stats, unit="points")
+
+
+def test_column_story_mean_median_constant_and_unavailable_states():
+    equal = {"count": 3, "mean": 2, "median": 2, "std": 1, "min": 1, "max": 3}
+    assert "effectively equal" in column_story("equal", equal)
+    small = {"count": 10, "mean": 5.2, "median": 5, "std": 2, "min": 1, "max": 9}
+    assert "differ slightly" in column_story("small", small)
+    large = {"count": 10, "mean": 8, "median": 5, "std": 2, "min": 1, "max": 10}
+    assert "differ materially" in column_story("large", large)
+    constant = {"count": 4, "mean": 7, "median": 7, "std": 0, "min": 7, "max": 7}
+    assert "constant" in column_story("constant", constant)
+    missing_sd = {"count": 4, "mean": 2, "median": 2, "min": 1, "max": 3}
+    assert "SD is unavailable" in column_story("missing_sd", missing_sd)
+    assert "Skewness is unavailable" in column_story("missing_sd", missing_sd)
+    assert "no finite" in column_story("empty", {"count": 0, "mean": None}).lower()
+    assert "no finite" in column_story("bad", {"count": 3, "mean": math.inf}).lower()
+
+
+def test_insight_narrative_uses_lead_other_findings_context_and_severity():
+    findings = [
+        {"pair": ["b", "c"], "correlation": 0.8},
+        {"pair": ["a", "b"], "correlation": -0.95},
+        {"pair": ["c", "d"], "correlation": 0.75},
+        {"pair": ["d", "e"], "correlation": 0.72},
+    ]
+    context = {"severity": "medium", "objective": "regression"}
+    text = insight_narrative("Multicollinearity", findings, context)
+    assert text.startswith("[MEDIUM]")
+    assert "'a' and 'b'" in text
+    assert "Other findings (3 more)" in text
+    assert "standard errors" in text
+    assert "'d' and 'e'" not in text
+    assert text == insight_narrative("Multicollinearity", findings, context)

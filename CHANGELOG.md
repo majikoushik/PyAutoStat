@@ -136,6 +136,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   complete practical-threshold interval verdicts and ratio text, and estimand-protected sensitivity
   decision narratives. Existing structured relations, schema versions, and statistical values are
   unchanged.
+- Added opt-in dataset story mode, recorded-statistic column narratives, connected InsightEngine
+  prose, and deterministic profile/insight action prioritization. The established summary and
+  structured profile/insight outputs remain available.
 
 ## [0.2.0] - 2026-09-25
 

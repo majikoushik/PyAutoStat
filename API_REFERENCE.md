@@ -28,7 +28,10 @@ from pyautostat import (
     StudyDesign,
     SensitivitySpecification,
     WorkflowStatus,
+    column_story,
+    dataset_opening,
     detect_column_types,
+    insight_narrative,
     suggest_column_roles,
 )
 ```
@@ -43,15 +46,43 @@ profile = assistant.profile()
 print(profile["overview"])
 print(profile["resource_info"])
 print(assistant.summarize())
+print(assistant.summarize(mode="story"))
 ```
 
 The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `profile()` returns
 the same statistical dictionary as `analyze_all()` plus structured profiling metadata. It needs no
 research question. `resource_info` contains deep-memory and correlation-width performance
 advisories without sampling, truncating, modifying, or skipping calculations.
-`summarize(data_dictionary=None, histogram_bins=20)` runs the same profile operation and formats
+`summarize(data_dictionary=None, histogram_bins=20, mode="profile")` runs the same profile operation and formats
 shape, missingness, distribution diagnostics, strong correlations, quality metrics, and warnings
-as portable plain text. The dictionary returned by `profile()` remains the structured source.
+as portable plain text. The established `mode="profile"` output remains the default.
+`mode="story"` instead assembles an opt-in dataset narrative with a sample-size description, the
+strongest eligible recorded Pearson pair, data-quality and distribution summaries, and at most
+three deterministically prioritized first steps. It does not recalculate correlations or
+diagnostics, infer domain causes, or mutate the DataFrame. Any other mode raises
+`InvalidDataError`. The dictionary returned by `profile()` remains the structured source.
+
+### Deterministic profile narration
+
+`dataset_opening(profile) -> str` narrates the recorded row and column counts. Its sample-size
+bands are 0-29 (very small), 30-99 (small), 100-499 (moderate), 500-4,999 (medium), and 5,000 or
+more (large). These are communication categories, not guarantees that a method is suitable.
+
+`column_story(column_name, stats, unit=None) -> str` consumes an existing numeric record such as
+`profile["descriptive"][column_name]`. It reports available center, spread, range, and skewness;
+handles constant, all-missing, nonfinite, and partially unavailable records; and never invents a
+unit. Skewness retains the established `abs(skew) < 0.5` symmetric boundary and refines nonzero
+shape into mild (`0.5` to `<1`), moderate (`1` to `<2`), and strong (`>=2`) left/right states.
+Mean/median equality uses numerical closeness. Otherwise the gap is scaled by the first available
+positive SD, IQR, or range; a gap at most 0.25 of that spread is described as small.
+
+`insight_narrative(category, findings, context=None) -> str` provides deterministic connected
+prose for existing insight details. `InsightEngine(results, objective=None).get_narrative()`
+assembles these sections. `get_summary()` retains all established counts and the complete
+structured `insights` list and adds JSON-safe `narrative` and `recommended_actions` keys. Actions
+are ranked by the explicit legacy severity order `high`, `medium`, `low`, then category priority,
+then original order; duplicate text is suppressed and output is capped at five actions. At most
+three finding examples appear in prose, while the structured detail remains available.
 
 ### Integrated guided workflow
 

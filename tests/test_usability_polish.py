@@ -16,6 +16,7 @@ from pyautostat import (
     RecommendationStatus,
     ResearchAssistant,
     StatisticalAnalyzer,
+    column_story,
 )
 from pyautostat.exceptions import InvalidDataError
 from pyautostat.recommendation import METHOD_CAPABILITIES
@@ -156,6 +157,42 @@ class TestSummarize:
 
     def test_plain_text_summary_prints_on_cp1252_terminals(self, two_group_df):
         ResearchAssistant(two_group_df).summarize().encode("cp1252")
+
+    def test_story_mode_is_opt_in_deterministic_readable_and_nonmutating(self):
+        frame = pd.DataFrame(
+            {
+                "x": [1.0, 2.0, 3.0, 4.0, 100.0, 100.0],
+                "y": [2.0, 4.0, 6.0, 8.0, 200.0, 200.0],
+                "group": ["a", "a", "b", "b", None, None],
+            }
+        )
+        before = frame.copy(deep=True)
+        assistant = ResearchAssistant(frame)
+
+        legacy = assistant.summarize()
+        assert legacy == assistant.summarize(mode="profile")
+        story = assistant.summarize(mode="story")
+
+        assert "DATASET STORY" in story
+        assert "6 rows" in story and "3 columns" in story
+        assert "KEY FINDING" in story
+        assert "DATA QUALITY" in story
+        assert "DISTRIBUTION" in story
+        assert "RECOMMENDED FIRST STEPS" in story
+        assert "{'" not in story
+        assert story == assistant.summarize(mode="story")
+        pd.testing.assert_frame_equal(frame, before)
+
+    def test_story_mode_rejects_unknown_mode(self, two_group_df):
+        with pytest.raises(InvalidDataError, match="summary mode"):
+            ResearchAssistant(two_group_df).summarize(mode="future")
+
+    def test_profile_statistics_feed_public_column_story_without_recalculation(self):
+        assistant = ResearchAssistant(pd.DataFrame({"score": [1.0, 2.0, 3.0, 4.0]}))
+        profile = assistant.profile()
+        text = column_story("score", profile["descriptive"]["score"], unit="points")
+        assert "Mean = 2.5 points" in text
+        assert "median = 2.5 points" in text
 
 
 class TestMissingInformationDisplay:

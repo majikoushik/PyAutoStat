@@ -50,11 +50,23 @@ print(profile["overview"])
 print(profile["data_quality"]["issues"])
 print(profile["resource_info"])
 print(assistant.summarize())  # Plain-text view of the same profile
+print(assistant.summarize(mode="story"))  # Opt-in connected dataset narrative
 ```
 
 The profile includes descriptive summaries, missingness, duplicates, distributions, histograms,
 outlier review cues, correlation records, type and role suggestions, and structured resource
 advisories. Profiling never samples, truncates, imputes, or modifies the source DataFrame.
+Story mode reads those same recorded values, prioritizes at most three profile-driven first steps,
+and does not infer domain explanations. The established `summarize()` output remains the default.
+
+An individual numerical column can be narrated from its existing descriptive record without
+rerunning statistics:
+
+```python
+from pyautostat import column_story
+
+print(column_story("exam_score", profile["descriptive"]["exam_score"]))
+```
 
 ## Guided analysis
 

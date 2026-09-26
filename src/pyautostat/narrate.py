@@ -722,11 +722,696 @@ def effect_narrative(
     return " ".join(details)
 
 
+_SIZE_COMMENTS = (
+    (
+        5000,
+        "This is a large dataset; many standard methods can have high power when their design "
+        "and effect-size assumptions are appropriate.",
+    ),
+    (
+        500,
+        "This is a medium-sized dataset; standard methods are often appropriate when their "
+        "assumptions match the study design.",
+    ),
+    (100, "This is a moderate sample; use care with methods that require large groups."),
+    (30, "This is a small sample; method assumptions and uncertainty need particular attention."),
+    (0, "This is a very small dataset; most inferential methods will be unreliable."),
+)
+
+_STORY_CORRELATION_THRESHOLD = 0.70
+_COLUMN_SKEW_THRESHOLDS = (0.5, 1.0, 2.0)
+_MEAN_MEDIAN_SMALL_STANDARDIZED_GAP = 0.25
+_INSIGHT_EXAMPLE_LIMIT = 3
+_ACTION_LIMIT = 5
+
+_INSIGHT_CONSEQUENCES = {
+    "Multicollinearity": {
+        "regression": (
+            "Highly correlated predictors can inflate standard errors and make individual "
+            "regression coefficients unstable."
+        ),
+        "exploration": (
+            "These variables carry overlapping linear information, so retaining all of them "
+            "may obscure the main patterns."
+        ),
+        "general": (
+            "Strong association can make it difficult to distinguish the variables' separate "
+            "contributions in a joint analysis."
+        ),
+    },
+    "Missing Data": {
+        "general": (
+            "Missing observations can change the available sample and should be handled through "
+            "an explicit, documented analysis policy."
+        )
+    },
+    "Outliers": {
+        "general": (
+            "Flagged values may affect summaries and model estimates, but their legitimacy "
+            "cannot be determined from the values alone."
+        )
+    },
+    "Normality": {
+        "general": (
+            "A rejected diagnostic qualifies methods that rely on distributional assumptions; "
+            "it does not by itself select a different estimand or test."
+        )
+    },
+    "Distribution Shape": {
+        "general": (
+            "Distribution shape can affect summaries and method assumptions and should be "
+            "considered alongside the sample size and research target."
+        )
+    },
+    "Data Quality": {
+        "general": (
+            "Recorded quality issues should be reviewed before inferential analysis; the profile "
+            "does not alter or remove source rows."
+        )
+    },
+}
+
+_INSIGHT_ACTIONS = {
+    "Multicollinearity": (
+        "Review each strongly correlated pair and choose variables according to the research "
+        "question before fitting a joint model."
+    ),
+    "Missing Data": "Define and document a missing-data policy before analysis.",
+    "Outliers": "Verify flagged values and document any exclusion decision.",
+    "Normality": (
+        "Inspect the recorded diagnostics and choose a method that preserves the estimand."
+    ),
+    "Distribution Shape": "Review distribution shape when selecting summaries and methods.",
+    "Data Quality": "Resolve or document the recorded quality issues before analysis.",
+}
+
+_INSIGHT_SEVERITY_PRIORITY = {"high": 0, "medium": 1, "low": 2}
+_INSIGHT_CATEGORY_PRIORITY = {
+    "Data Quality": 0,
+    "Missing Data": 1,
+    "Outliers": 2,
+    "Multicollinearity": 3,
+    "Normality": 4,
+    "Distribution Shape": 5,
+}
+
+
+def _profile_overview(profile: Mapping[str, Any]) -> tuple[int | None, int | None]:
+    overview = profile.get("overview")
+    if not isinstance(overview, Mapping):
+        return None, None
+    rows = overview.get("total_rows")
+    columns = overview.get("total_columns")
+    safe_rows = rows if isinstance(rows, int) and not isinstance(rows, bool) and rows >= 0 else None
+    safe_columns = (
+        columns
+        if isinstance(columns, int) and not isinstance(columns, bool) and columns >= 0
+        else None
+    )
+    return safe_rows, safe_columns
+
+
+def dataset_opening(profile: Mapping[str, Any]) -> str:
+    """Narrate the recorded dataset dimensions without recalculating the profile."""
+    if not isinstance(profile, Mapping):
+        return "Dataset dimensions are unavailable from the recorded profile."
+    rows, columns = _profile_overview(profile)
+    if rows is None or columns is None:
+        return "Dataset dimensions are unavailable from the recorded profile."
+    size_comment = next(comment for minimum, comment in _SIZE_COMMENTS if rows >= minimum)
+    return (
+        f"The dataset contains {rows:,} row{'s' if rows != 1 else ''} across {columns:,} "
+        f"column{'s' if columns != 1 else ''}. {size_comment}"
+    )
+
+
+def _top_correlation_pair(profile: Mapping[str, Any]) -> tuple[str, str, float] | None:
+    correlation = profile.get("correlation")
+    if not isinstance(correlation, Mapping):
+        return None
+    pearson = correlation.get("pearson")
+    matrix = pearson.get("matrix") if isinstance(pearson, Mapping) else None
+    if not isinstance(matrix, Mapping):
+        return None
+    candidates: dict[tuple[str, str], float] = {}
+    for first, row in matrix.items():
+        if not isinstance(first, str) or not isinstance(row, Mapping):
+            continue
+        for second, raw_value in row.items():
+            if not isinstance(second, str) or first == second:
+                continue
+            value = _finite(raw_value)
+            if value is None or abs(value) > 1:
+                continue
+            first_name, second_name = sorted((first, second))
+            pair = (first_name, second_name)
+            previous = candidates.get(pair)
+            if previous is None or abs(value) > abs(previous):
+                candidates[pair] = value
+    eligible = [
+        (first, second, value)
+        for (first, second), value in candidates.items()
+        if abs(value) >= _STORY_CORRELATION_THRESHOLD
+    ]
+    if not eligible:
+        return None
+    return min(eligible, key=lambda item: (-abs(item[2]), item[0], item[1]))
+
+
+def _correlation_story(profile: Mapping[str, Any]) -> str:
+    pair = _top_correlation_pair(profile)
+    if pair is None:
+        return (
+            "No eligible Pearson pair reached the recorded strong-correlation threshold "
+            f"(|r| >= {_STORY_CORRELATION_THRESHOLD:.2f})."
+        )
+    first, second, value = pair
+    direction = "positive" if value > 0 else "negative"
+    return (
+        f"'{first}' and '{second}' have the strongest eligible linear association "
+        f"(r = {_fmt(value)}, {direction}). Review whether both variables provide distinct "
+        "information for the intended analysis. Correlation does not establish causation."
+    )
+
+
+def _missing_columns(profile: Mapping[str, Any]) -> list[tuple[str, int, float]]:
+    missing = profile.get("missing_data")
+    by_column = missing.get("by_column") if isinstance(missing, Mapping) else None
+    if not isinstance(by_column, Mapping):
+        return []
+    entries: list[tuple[str, int, float, int]] = []
+    for position, (column, raw) in enumerate(by_column.items()):
+        if not isinstance(column, str) or not isinstance(raw, Mapping):
+            continue
+        count = raw.get("count")
+        percentage = _finite(raw.get("percentage"))
+        if (
+            isinstance(count, int)
+            and not isinstance(count, bool)
+            and count > 0
+            and percentage is not None
+            and percentage >= 0
+        ):
+            entries.append((column, count, percentage, position))
+    ranked = sorted(entries, key=lambda item: (-item[2], item[3]))
+    return [(column, count, percentage) for column, count, percentage, _ in ranked]
+
+
+def _quality_issues(profile: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    quality = profile.get("data_quality")
+    raw_issues = quality.get("issues") if isinstance(quality, Mapping) else None
+    if not isinstance(raw_issues, Sequence) or isinstance(raw_issues, str):
+        return []
+    priority = {"high": 0, "review": 1, "info": 2}
+    issues = [item for item in raw_issues if isinstance(item, Mapping)]
+    return [
+        item
+        for _, item in sorted(
+            enumerate(issues),
+            key=lambda pair: (priority.get(str(pair[1].get("severity", "")), 3), pair[0]),
+        )
+    ]
+
+
+def _data_quality_story(profile: Mapping[str, Any]) -> str:
+    missing = profile.get("missing_data")
+    quality = profile.get("data_quality")
+    if not isinstance(missing, Mapping) and not isinstance(quality, Mapping):
+        return "Data-quality metadata are unavailable in the recorded profile."
+    completeness = _finite(quality.get("completeness")) if isinstance(quality, Mapping) else None
+    duplicate_count = quality.get("duplicate_rows") if isinstance(quality, Mapping) else None
+    duplicate_pct = (
+        _finite(quality.get("duplicate_rows_percentage")) if isinstance(quality, Mapping) else None
+    )
+    missing_columns = _missing_columns(profile)
+    parts: list[str] = []
+    if completeness is not None and 0 <= completeness <= 1:
+        parts.append(f"The profile is {_fmt(completeness * 100)}% complete.")
+    if not missing_columns:
+        total_missing = missing.get("total_missing_cells") if isinstance(missing, Mapping) else None
+        if total_missing == 0:
+            parts.append("No missing values were recorded.")
+        elif isinstance(missing, Mapping):
+            parts.append("No column-level missingness issue was recorded.")
+    elif len(missing_columns) == 1:
+        column, count, percentage = missing_columns[0]
+        parts.append(
+            f"Missingness is concentrated in '{column}': {count:,} value(s), "
+            f"or {_fmt(percentage)}% of its rows, are missing."
+        )
+    else:
+        shown = "; ".join(
+            f"'{column}' ({count:,}, {_fmt(percentage)}%)"
+            for column, count, percentage in missing_columns[:3]
+        )
+        extra = f"; plus {len(missing_columns) - 3} more" if len(missing_columns) > 3 else ""
+        parts.append(f"Multiple columns contain missing values: {shown}{extra}.")
+    if (
+        isinstance(duplicate_count, int)
+        and not isinstance(duplicate_count, bool)
+        and duplicate_count > 0
+    ):
+        pct_text = f" ({_fmt(duplicate_pct)}%)" if duplicate_pct is not None else ""
+        parts.append(
+            f"The profile recorded {duplicate_count:,} duplicate row(s){pct_text}; confirm "
+            "whether they are genuine duplicates before changing the data."
+        )
+    elif duplicate_count == 0:
+        parts.append("No duplicate rows were recorded.")
+    already_narrated = {"missing_values", "all_missing", "exact_duplicate_rows"}
+    additional = next(
+        (
+            issue
+            for issue in _quality_issues(profile)
+            if issue.get("code") not in already_narrated
+            and issue.get("section") in {"data_dictionary", "data_quality", "variable_intelligence"}
+        ),
+        None,
+    )
+    if additional is not None:
+        message = additional.get("message")
+        if isinstance(message, str) and message.strip():
+            parts.append(f"Additional recorded issue: {message.strip()}")
+    return " ".join(parts) if parts else "No major recorded data-quality issue was identified."
+
+
+def _distribution_counts(profile: Mapping[str, Any]) -> tuple[int, int, int]:
+    descriptive = profile.get("descriptive")
+    normality = profile.get("normality")
+    columns = list(descriptive) if isinstance(descriptive, Mapping) else []
+    if not columns:
+        overview = profile.get("overview")
+        numeric_count = (
+            overview.get("analytical_numeric_columns") if isinstance(overview, Mapping) else None
+        )
+        count = numeric_count if isinstance(numeric_count, int) and numeric_count >= 0 else 0
+        return count, 0, count
+    rejected = 0
+    unavailable = 0
+    for column in columns:
+        tests = normality.get(column) if isinstance(normality, Mapping) else None
+        statuses = (
+            [
+                item.get("status")
+                for item in tests.values()
+                if isinstance(item, Mapping) and isinstance(item.get("status"), str)
+            ]
+            if isinstance(tests, Mapping)
+            else []
+        )
+        if any(status == "rejected" for status in statuses):
+            rejected += 1
+        elif not statuses:
+            unavailable += 1
+    return len(columns), rejected, unavailable
+
+
+def _distribution_story(profile: Mapping[str, Any]) -> str:
+    total, rejected, unavailable = _distribution_counts(profile)
+    if total == 0:
+        return "No analytical numeric variables are available for distribution diagnostics."
+    available = total - unavailable
+    if available == 0:
+        opening = f"Normality diagnostics are unavailable for all {total} numeric variable(s)."
+    elif rejected == 0:
+        opening = (
+            f"The recorded diagnostics did not reject normality for any of the {available} "
+            "evaluated numeric variable(s); non-rejection does not prove normality."
+        )
+    elif rejected == available:
+        opening = (
+            f"At least one recorded normality diagnostic rejected normality for all {available} "
+            "evaluated numeric variable(s)."
+        )
+    elif rejected > available / 2:
+        opening = (
+            f"At least one recorded normality diagnostic rejected normality for most evaluated "
+            f"numeric variables ({rejected} of {available})."
+        )
+    else:
+        opening = (
+            f"At least one recorded normality diagnostic rejected normality for some evaluated "
+            f"numeric variables ({rejected} of {available})."
+        )
+    if unavailable:
+        opening += f" Diagnostics were unavailable for {unavailable} additional variable(s)."
+    return opening + " These diagnostics qualify method assumptions but do not select an estimand."
+
+
+def _prioritised_actions(profile: Mapping[str, Any], *, limit: int = 3) -> tuple[str, ...]:
+    candidates: list[tuple[int, int, str]] = []
+    order = 0
+    quality_issue = next(
+        (
+            issue
+            for issue in _quality_issues(profile)
+            if issue.get("severity") in {"high", "review"}
+            and issue.get("code") not in {"missing_values", "all_missing", "exact_duplicate_rows"}
+            and issue.get("section") in {"data_dictionary", "data_quality", "variable_intelligence"}
+            and isinstance(issue.get("recommendation"), str)
+        ),
+        None,
+    )
+    if quality_issue is not None:
+        quality_priority = -1 if quality_issue.get("severity") == "high" else 1
+        candidates.append((quality_priority, order, quality_issue["recommendation"].strip()))
+        order += 1
+    missing_columns = _missing_columns(profile)
+    if missing_columns:
+        severe = [entry for entry in missing_columns if entry[2] >= 20]
+        selected = severe or missing_columns
+        names = ", ".join(f"'{column}'" for column, _, _ in selected[:3])
+        priority = 0 if severe else 2
+        candidates.append(
+            (
+                priority,
+                order,
+                f"Define and document a missing-data policy for {names} before analysis.",
+            )
+        )
+        order += 1
+    outliers = profile.get("outliers")
+    flagged_columns: list[str] = []
+    if isinstance(outliers, Mapping):
+        for column, methods in outliers.items():
+            iqr = methods.get("iqr") if isinstance(methods, Mapping) else None
+            percentage = _finite(iqr.get("percentage")) if isinstance(iqr, Mapping) else None
+            if isinstance(column, str) and percentage is not None and percentage > 5:
+                flagged_columns.append(column)
+    if flagged_columns:
+        names = ", ".join(f"'{column}'" for column in flagged_columns[:3])
+        candidates.append(
+            (
+                2,
+                order,
+                f"Review IQR-flagged observations in {names}; do not remove values without a "
+                "documented reason.",
+            )
+        )
+        order += 1
+    quality = profile.get("data_quality")
+    duplicate_count = quality.get("duplicate_rows") if isinstance(quality, Mapping) else None
+    if isinstance(duplicate_count, int) and duplicate_count > 0:
+        candidates.append(
+            (
+                1,
+                order,
+                f"Verify the {duplicate_count:,} recorded duplicate row(s) before deciding "
+                "whether any should be removed.",
+            )
+        )
+        order += 1
+    pair = _top_correlation_pair(profile)
+    if pair is not None:
+        candidates.append(
+            (
+                3,
+                order,
+                f"Review whether '{pair[0]}' and '{pair[1]}' both provide distinct information "
+                "for the intended analysis.",
+            )
+        )
+        order += 1
+    total, rejected, unavailable = _distribution_counts(profile)
+    if rejected:
+        candidates.append(
+            (
+                4,
+                order,
+                f"Review the rejected normality diagnostics for {rejected} numeric variable(s) "
+                "when choosing methods.",
+            )
+        )
+        order += 1
+    if total and unavailable == total:
+        candidates.append(
+            (5, order, "Record that normality diagnostics were unavailable before inferential use.")
+        )
+    actions: list[str] = []
+    for _, _, action in sorted(candidates, key=lambda item: (item[0], item[1])):
+        if action not in actions:
+            actions.append(action)
+        if len(actions) >= limit:
+            break
+    return tuple(actions)
+
+
+def _dataset_story(profile: Mapping[str, Any]) -> str:
+    """Assemble an opt-in dataset story from one recorded profile."""
+    if not isinstance(profile, Mapping):
+        return "DATASET STORY\n=============\n\nThe recorded profile is unavailable."
+    actions = _prioritised_actions(profile)
+    lines = [
+        "DATASET STORY",
+        "=============",
+        "",
+        dataset_opening(profile),
+        "",
+        "KEY FINDING",
+        _correlation_story(profile),
+        "",
+        "DATA QUALITY",
+        _data_quality_story(profile),
+        "",
+        "DISTRIBUTION",
+        _distribution_story(profile),
+        "",
+        "RECOMMENDED FIRST STEPS",
+    ]
+    if actions:
+        lines.extend(f"  {index}. {action}" for index, action in enumerate(actions, start=1))
+    else:
+        lines.append("  No profile-driven corrective action was identified.")
+    return "\n".join(lines)
+
+
+def _skewness_story(skewness: float | None) -> str:
+    value = _finite(skewness)
+    if value is None:
+        return "Skewness is unavailable."
+    magnitude = abs(value)
+    if magnitude < _COLUMN_SKEW_THRESHOLDS[0]:
+        label = "approximately symmetric"
+    elif magnitude < _COLUMN_SKEW_THRESHOLDS[1]:
+        label = f"mild {'right' if value > 0 else 'left'} skew"
+    elif magnitude < _COLUMN_SKEW_THRESHOLDS[2]:
+        label = f"moderate {'right' if value > 0 else 'left'} skew"
+    else:
+        label = f"strong {'right' if value > 0 else 'left'} skew"
+    return f"The distribution shows {label} (skewness = {_fmt(value)})."
+
+
+def _mean_median_story(stats: Mapping[str, Any]) -> str:
+    mean = _finite(stats.get("mean"))
+    median = _finite(stats.get("median"))
+    if mean is None or median is None:
+        return "The mean-to-median relationship is unavailable."
+    if math.isclose(mean, median, rel_tol=1e-9, abs_tol=1e-12):
+        return "The mean and median are effectively equal in the recorded statistics."
+    minimum = _finite(stats.get("min"))
+    maximum = _finite(stats.get("max"))
+    recorded_range = maximum - minimum if maximum is not None and minimum is not None else None
+    spread = next(
+        (
+            value
+            for value in (
+                _finite(stats.get("std")),
+                _finite(stats.get("iqr")),
+                recorded_range,
+            )
+            if value is not None and value > 0
+        ),
+        None,
+    )
+    if spread is None:
+        return (
+            "The mean and median differ, but no finite positive spread is available to scale "
+            "the difference."
+        )
+    standardized_gap = abs(mean - median) / spread
+    if standardized_gap <= _MEAN_MEDIAN_SMALL_STANDARDIZED_GAP:
+        return (
+            "The mean and median differ slightly relative to the recorded spread "
+            f"(scaled gap = {_fmt(standardized_gap)})."
+        )
+    return (
+        "The mean and median differ materially relative to the recorded spread "
+        f"(scaled gap = {_fmt(standardized_gap)}), which is consistent with an asymmetric center."
+    )
+
+
+def column_story(
+    column_name: str,
+    stats: Mapping[str, Any],
+    unit: str | None = None,
+) -> str:
+    """Narrate an existing numeric descriptive-statistics record."""
+    if not isinstance(column_name, str) or not column_name:
+        return "Column narrative unavailable: a column name is required."
+    if not isinstance(stats, Mapping):
+        return f"{column_name}: descriptive statistics are unavailable."
+    count = stats.get("count")
+    safe_count = (
+        count if isinstance(count, int) and not isinstance(count, bool) and count >= 0 else None
+    )
+    values = {
+        key: _finite(stats.get(key)) for key in ("mean", "median", "std", "min", "max", "skewness")
+    }
+    if safe_count == 0 or all(value is None for value in values.values()):
+        return f"{column_name}: no finite non-missing numerical values are available to narrate."
+    suffix = f" {unit.strip()}" if isinstance(unit, str) and unit.strip() else ""
+    mean_text = (
+        f"Mean = {_fmt(values['mean'])}{suffix}"
+        if values["mean"] is not None
+        else "Mean unavailable"
+    )
+    median_text = (
+        f"median = {_fmt(values['median'])}{suffix}"
+        if values["median"] is not None
+        else "median unavailable"
+    )
+    if values["std"] == 0 or (
+        values["min"] is not None and values["max"] is not None and values["min"] == values["max"]
+    ):
+        spread_text = "The recorded values are constant; standard deviation is 0."
+    else:
+        sd_text = (
+            f"SD = {_fmt(values['std'])}{suffix}"
+            if values["std"] is not None
+            else "SD is unavailable"
+        )
+        range_text = (
+            f" Values range from {_fmt(values['min'])}{suffix} to {_fmt(values['max'])}{suffix}."
+            if values["min"] is not None and values["max"] is not None
+            else " The recorded range is unavailable."
+        )
+        spread_text = sd_text + "." + range_text
+    count_text = f" Based on {safe_count:,} non-missing value(s)." if safe_count is not None else ""
+    return "\n".join(
+        [
+            f"{column_name}:",
+            f"Central tendency: {mean_text}; {median_text}.{count_text}",
+            f"Spread: {spread_text}",
+            f"Shape: {_skewness_story(values['skewness'])}",
+            f"Note: {_mean_median_story(stats)}",
+        ]
+    )
+
+
+def _detail_note(category: str, detail: Mapping[str, Any]) -> str | None:
+    if category == "Multicollinearity":
+        pair = detail.get("pair")
+        value = _finite(detail.get("correlation"))
+        if (
+            isinstance(pair, Sequence)
+            and not isinstance(pair, str)
+            and len(pair) == 2
+            and all(isinstance(item, str) for item in pair)
+            and value is not None
+        ):
+            return f"'{pair[0]}' and '{pair[1]}' (r = {_fmt(value)})"
+    note = detail.get("note")
+    if isinstance(note, str) and note.strip():
+        return note.strip().rstrip(".")
+    column = detail.get("column")
+    if isinstance(column, str):
+        return f"'{column}'"
+    return None
+
+
+def insight_narrative(
+    category: str,
+    findings: Sequence[Mapping[str, Any]] | Mapping[str, Any],
+    context: Mapping[str, Any] | None = None,
+) -> str:
+    """Assemble connected prose from existing structured insight findings."""
+    details = [findings] if isinstance(findings, Mapping) else list(findings)
+    clean_details = [item for item in details if isinstance(item, Mapping)]
+    context_map = context if isinstance(context, Mapping) else {}
+    severity = context_map.get("severity")
+    severity_text = severity.upper() if isinstance(severity, str) else "INFO"
+    objective = context_map.get("objective")
+    objective_key = objective if isinstance(objective, str) else "general"
+    if category == "Multicollinearity":
+        clean_details.sort(
+            key=lambda item: (
+                -abs(_finite(item.get("correlation")) or 0),
+                tuple(item.get("pair", ())),
+            )
+        )
+    header = f"[{severity_text}] {category.upper()} - {len(clean_details)} finding(s)"
+    notes = [note for item in clean_details if (note := _detail_note(category, item)) is not None]
+    paragraphs: list[str] = [header]
+    if notes:
+        paragraphs.append(f"Lead finding: {notes[0]}.")
+        if len(notes) > 1:
+            examples = "; ".join(notes[1:_INSIGHT_EXAMPLE_LIMIT])
+            remaining = len(notes) - 1
+            extra = f" Examples: {examples}." if examples else ""
+            paragraphs.append(f"Other findings ({remaining} more).{extra}")
+    else:
+        finding = context_map.get("finding")
+        if isinstance(finding, str) and finding.strip():
+            paragraphs.append(finding.strip())
+        else:
+            paragraphs.append("No detailed finding text is available.")
+    consequence_map = _INSIGHT_CONSEQUENCES.get(category, {})
+    consequence = consequence_map.get(objective_key) or consequence_map.get("general")
+    if consequence:
+        paragraphs.append(consequence)
+    recommendations = context_map.get("recommendation")
+    action = (
+        next(
+            (item.strip() for item in recommendations if isinstance(item, str) and item.strip()),
+            None,
+        )
+        if isinstance(recommendations, Sequence) and not isinstance(recommendations, str)
+        else None
+    )
+    action = action or _INSIGHT_ACTIONS.get(category)
+    if action:
+        paragraphs.append(f"Recommended action: {action}")
+    return "\n\n".join(paragraphs)
+
+
+def _ranked_insight_actions(
+    insights: Sequence[Mapping[str, Any]], *, limit: int = _ACTION_LIMIT
+) -> tuple[str, ...]:
+    """Rank existing insight recommendations by explicit severity/category rules."""
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+        return ()
+    ranked = sorted(
+        enumerate(insights),
+        key=lambda item: (
+            _INSIGHT_SEVERITY_PRIORITY.get(str(item[1].get("severity", "")).lower(), 3),
+            _INSIGHT_CATEGORY_PRIORITY.get(str(item[1].get("category", "")), 99),
+            item[0],
+        ),
+    )
+    actions: list[str] = []
+    for _, insight in ranked:
+        recommendations = insight.get("recommendation")
+        if not isinstance(recommendations, Sequence) or isinstance(recommendations, str):
+            continue
+        for raw_action in recommendations:
+            if not isinstance(raw_action, str) or not raw_action.strip():
+                continue
+            action = raw_action.strip()
+            if action not in actions:
+                actions.append(action)
+            if len(actions) >= limit:
+                return tuple(actions)
+    return tuple(actions)
+
+
 __all__ = [
     "ASSUMPTION_SEVERITY_DESCRIPTIONS",
     "assumption_grade",
+    "column_story",
+    "dataset_opening",
     "effect_narrative",
     "hypothesis_verdict",
+    "insight_narrative",
     "interval_verdict",
     "sensitivity_verdict",
 ]

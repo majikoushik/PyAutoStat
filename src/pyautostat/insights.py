@@ -5,6 +5,7 @@ Insight Engine - Generates actionable insights and recommendations
 from collections.abc import Mapping
 
 from .exceptions import InvalidDataError
+from .narrate import _ranked_insight_actions, insight_narrative
 
 
 def _normalise(
@@ -40,7 +41,7 @@ def _normalise(
 class InsightEngine:
     """Generate actionable insights and recommendations from analysis results"""
 
-    def __init__(self, analysis_results):
+    def __init__(self, analysis_results, *, objective: str | None = None):
         """
         Initialize with analysis results.
 
@@ -51,8 +52,11 @@ class InsightEngine:
         """
         if not isinstance(analysis_results, Mapping):
             raise InvalidDataError("InsightEngine expects analysis results to be a mapping.")
+        if objective is not None and (not isinstance(objective, str) or not objective.strip()):
+            raise InvalidDataError("InsightEngine objective must be non-empty text when supplied.")
         self.results = analysis_results
-        self.insights = []
+        self.objective = objective.strip().lower() if objective is not None else None
+        self.insights: list[dict] = []
         self._generated = False
 
     def generate_insights(self):
@@ -277,7 +281,7 @@ class InsightEngine:
                         f"Strong Pearson correlations (|r| > 0.70) detected between "
                         f"{len(high_corr_pairs)} variable pair(s): {pair_summary}"
                     ),
-                    details=high_corr_pairs[:5],  # Show top 5
+                    details=high_corr_pairs,
                     recommendation=recs,
                 )
             )
@@ -375,8 +379,29 @@ class InsightEngine:
                 )
             )
 
+    def get_narrative(self) -> str:
+        """Return connected deterministic prose without replacing structured insights."""
+        if not self._generated:
+            self.generate_insights()
+        if not self.insights:
+            return "No profile-based insight met the current deterministic alert thresholds."
+        sections = [
+            insight_narrative(
+                insight["category"],
+                insight.get("details", []),
+                {
+                    "severity": insight.get("severity"),
+                    "finding": insight.get("finding"),
+                    "recommendation": insight.get("recommendation", []),
+                    "objective": self.objective,
+                },
+            )
+            for insight in self.insights
+        ]
+        return "\n\n".join(sections)
+
     def get_summary(self):
-        """Get summary of insights"""
+        """Get structured insights plus additive narrative and ranked actions."""
         if not self._generated:
             self.generate_insights()
 
@@ -386,6 +411,8 @@ class InsightEngine:
             "medium_severity": sum(1 for i in self.insights if i.get("severity") == "medium"),
             "low_severity": sum(1 for i in self.insights if i.get("severity") == "low"),
             "insights": self.insights,
+            "narrative": self.get_narrative(),
+            "recommended_actions": list(_ranked_insight_actions(self.insights)),
         }
 
         return summary

@@ -12,12 +12,22 @@ conditions.
 ```python
 profile = ResearchAssistant(df).profile()
 print(ResearchAssistant(df).summarize())
+print(ResearchAssistant(df).summarize(mode="story"))
 ```
 
 Profiling needs no research question and performs no inferential test. It returns descriptive,
 quality, variable-intelligence, and advisory resource metadata without sampling or changing the
 source DataFrame.
-`summarize()` is a plain-text view of the same profile and does not create a second analysis.
+`summarize()` is the established plain-text view of the same profile and does not create a second
+analysis. Opt-in `summarize(mode="story")` assembles recorded dimensions, strongest eligible
+Pearson pair, data quality, normality-diagnostic coverage, and up to three explicitly prioritized
+actions into connected prose. It does not infer causes, choose a method, or modify data.
+
+`column_story()` narrates one existing descriptive-statistics mapping with scale-aware
+mean/median comparison and seven deterministic skewness states. `InsightEngine.get_narrative()`
+adds connected category prose; `get_summary()` preserves the full structured insight records and
+adds JSON-safe narrative and ranked-action fields. Insight actions use the existing
+`high`/`medium`/`low` severities without merging them with assumption severity terminology.
 
 ### Run a guided analysis
 
