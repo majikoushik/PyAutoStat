@@ -1,4 +1,6 @@
-"""The published showcase should run from the repository root without input files."""
+"""The published examples should run and preserve the package's scientific contract."""
+
+from __future__ import annotations
 
 import json
 import os
@@ -6,106 +8,111 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "examples" / "example_usage.py"
-RENAMED_EXAMPLES = (
-    "reproducibility_example.py",
-    "sensitivity_and_practical_significance_example.py",
-    "planning_and_paired_analysis_example.py",
+EXAMPLES = ROOT / "examples"
+SCRIPTS = (
+    "01_quick_start.py",
+    "02_hypothesis_testing.py",
+    "03_advanced_workflow.py",
 )
 
 
-def _run_showcase(*arguments: str) -> subprocess.CompletedProcess[str]:
+def _run_example(filename: str, *arguments: str) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["PYTHONUTF8"] = "1"
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *arguments],
+        [sys.executable, str(EXAMPLES / filename), *arguments],
         cwd=ROOT,
         env=environment,
         capture_output=True,
         text=True,
         check=False,
-        timeout=90,
+        timeout=180,
     )
 
 
-@pytest.mark.parametrize("filename", RENAMED_EXAMPLES)
-def test_feature_named_examples_run_from_repository_root(filename):
-    environment = os.environ.copy()
-    environment["PYTHONUTF8"] = "1"
-    environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "examples" / filename)],
-        cwd=ROOT,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=90,
-    )
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    (
+        ("01_quick_start.py", "PRIORITIZED INSIGHTS"),
+        ("02_hypothesis_testing.py", "TRACEABLE SUMMARY"),
+    ),
+)
+def test_introductory_examples_run_from_repository_root(filename, expected):
+    result = _run_example(filename)
 
     assert result.returncode == 0, result.stderr
+    assert expected in result.stdout
+    assert "0002-GTOKLU-YVY" not in result.stdout
 
 
-def test_showcase_runs_every_feature_and_writes_reports(tmp_path):
-    output_dir = tmp_path / "showcase"
-    result = _run_showcase(
-        "--sample-size", "60", "--output-dir", str(output_dir), "--skip-interactive"
-    )
+def test_advanced_example_runs_full_lifecycle_and_writes_canonical_exports(tmp_path):
+    output_dir = tmp_path / "advanced"
+    result = _run_example("03_advanced_workflow.py", "--output-dir", str(output_dir))
 
     assert result.returncode == 0, result.stderr
     for heading in (
-        "analyze_all(): every analysis section",
-        "detect_column_types() and suggest_column_roles()",
-        "InsightEngine: severity-rated findings",
-        "hypothesis_tests(): selection",
-        "categorical_association(): chi-square",
-        "ReportGenerator: dict, JSON, CSV, HTML",
-        "Bad-data and error-handling examples",
+        "STRUCTURED CLARIFICATION",
+        "PLAN THE ESTIMAND",
+        "COMPARE DECLARED SENSITIVITY",
+        "PRACTICAL IMPORTANCE",
+        "REPORT, AUDIT, REPLAY",
+        "EXPLICIT PAIRED ANALYSIS",
     ):
         assert heading in result.stdout
-    for error in (
-        "InvalidDataError",
-        "ColumnNotFoundError",
-        "InsufficientGroupsError",
-        "InsufficientDataError",
-        "InvalidTestError",
-        "ReportError",
+    for evidence in (
+        "Initial workflow status: needs_input",
+        "Plan created after analysis: False",
+        "comparability: same_estimand",
+        "comparability: different_estimand",
+        "Same-data replay: reproduced",
+        "Identifier values are used for matching",
     ):
-        assert f"{error}:" in result.stdout
-    assert "Interactive HTML skipped" in result.stdout
-    assert not (output_dir / "interactive.html").exists()
-    assert (output_dir / "analysis.html").exists()
-    assert set(path.name for path in (output_dir / "csv").iterdir()) == {
-        "descriptive_stats.csv",
-        "outliers.csv",
-        "missing_data.csv",
-        "insights.csv",
-        "hypothesis_tests.csv",
+        assert evidence in result.stdout
+    assert "0002-GTOKLU-YVY" not in result.stdout
+
+    expected_files = {
+        "customer_analysis.html",
+        "customer_analysis.md",
+        "customer_analysis.json",
+        "decision_ledger.json",
+        "session_snapshot.json",
     }
-    report = json.loads((output_dir / "analysis.json").read_text(encoding="utf-8"))
-    assert len(report["hypothesis_tests"]) == 8
-    assert "analysis_warnings" in report["analysis"]
+    assert expected_files <= {path.name for path in output_dir.iterdir()}
+    assert (output_dir / "customer_analysis_tables").is_dir()
+
+    report = json.loads((output_dir / "customer_analysis.json").read_text(encoding="utf-8"))
+    assert report["schema_version"] == 2
+    assert "CustomerID" not in (output_dir / "customer_analysis.html").read_text(encoding="utf-8")
+    snapshot = json.loads((output_dir / "session_snapshot.json").read_text(encoding="utf-8"))
+    assert snapshot["schema_version"] == 1
 
 
-def test_showcase_rejects_too_small_sample(tmp_path):
-    result = _run_showcase("--sample-size", "10", "--output-dir", str(tmp_path / "unused"))
-    assert result.returncode != 0
-    assert "--sample-size must be at least 60" in result.stderr
-    assert not (tmp_path / "unused").exists()
+def test_bundled_workbook_matches_documented_shape_and_has_unique_pairing_ids():
+    pytest.importorskip("openpyxl")
+    frame = pd.read_excel(EXAMPLES / "CustomerDataset.xlsx")
+
+    assert frame.shape == (5000, 40)
+    assert frame["CustomerID"].notna().all()
+    assert frame["CustomerID"].is_unique
+    assert {
+        "Gender",
+        "TotalAvgMonthlySpend",
+        "MonthlySpend_ProductA",
+        "MonthlySpend_ProductB",
+    } <= set(frame)
 
 
-def test_showcase_writes_interactive_report_when_plotly_available(tmp_path):
-    pytest.importorskip("plotly")
-    output_dir = tmp_path / "showcase"
-    result = _run_showcase("--sample-size", "60", "--output-dir", str(output_dir))
+def test_example_copy_does_not_claim_diagnostics_change_the_estimand():
+    text = "\n".join(
+        (EXAMPLES / name).read_text(encoding="utf-8") for name in (*SCRIPTS, "README.md")
+    ).lower()
 
-    assert result.returncode == 0, result.stderr
-    interactive_html = (output_dir / "interactive.html").read_text(encoding="utf-8")
-    assert "Correlation Heatmap" in interactive_html
-    assert "Plotly.newPlot" in interactive_html
-    assert "to_interactive_html() returned" in result.stdout
-    assert "Open interactive.html" in result.stdout
+    assert "picks the appropriate test based on your data" not in text
+    assert "based on normality and sample size" not in text
+    assert "if both methods agree the conclusion is more robust" not in text
+    assert "bootstrap confidence intervals — for effect sizes, always" not in text
