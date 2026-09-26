@@ -111,8 +111,8 @@ observed post-hoc power.
 
 | Capability | Current contract | Main limit |
 | --- | --- | --- |
-| Sensitivity analysis | Ordered researcher-declared scenarios; every attempt retained; estimand, pairing, and contrast comparability recorded; descriptive `compare()` output | Matching hypothesis decisions do not establish robustness; no p-value ranking, automatic scenario selection, or universal robustness score |
-| Practical significance | Researcher-defined quantity, magnitude, direction, unit, and paired contrast where required | No universal threshold and no formal equivalence or noninferiority inference |
+| Sensitivity analysis | Ordered researcher-declared scenarios; every attempt retained; estimand, pairing, and contrast comparability recorded; deterministic consistency verdict and descriptive `compare()` output | A `ROBUST` label means only matching decisions among supplied comparable methods; no p-value ranking, automatic scenario selection, or universal robustness score |
+| Practical significance | Researcher-defined quantity, magnitude, direction, unit, and paired contrast where required; deterministic interval-region and ratio narration | No universal threshold and no formal equivalence or noninferiority inference |
 | Statistical analysis plan | JSON-safe plan, method rationale, missing-data rule, sensitivity scenarios, threshold, multiplicity state, reporting settings, and local revision record | Local record is not verified preregistration |
 | Plan adherence | Structured comparison of recorded plan, result, performed sensitivity scenarios, and practical assessment | Makes no misconduct judgment and invents no reason |
 | Reporting completeness | Machine-readable `present`, `missing`, `partial`, and `not_applicable` items | Not a study-quality or publication-readiness score |

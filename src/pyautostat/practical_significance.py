@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .exceptions import InvalidDataError
+from .narrate import interval_verdict
 from .results import AnalysisResult, AnalysisStatus
 from .sensitivity import estimate_quantity
 from .specifications import _json_value
@@ -184,17 +185,26 @@ class PracticalSignificanceResult:
             # meaningful effect of 5.0. The result is both statistically significant
             # and practically meaningful by your declared threshold.
         """
-        parts: list[str] = []
         thresh = self.threshold
-        q = thresh.quantity.replace("_", " ")
-        mag = thresh.minimum_magnitude
-        unit = f" {thresh.unit}" if thresh.unit else ""
-
-        if self.estimate is not None:
-            parts.append(
-                f"Observed {q}: {self.estimate:.4g}{unit}. "
-                f"Minimum meaningful effect declared: {mag:.4g}{unit}."
+        contrast = self.provenance.get("result_contrast_order")
+        orientation = (
+            f"{contrast[0]!r} minus {contrast[1]!r}"
+            if isinstance(contrast, (list, tuple)) and len(contrast) == 2
+            else None
+        )
+        parts = [
+            interval_verdict(
+                self.point_estimate_relation,
+                self.confidence_interval_relation,
+                self.estimate,
+                thresh.minimum_magnitude,
+                quantity=self.quantity,
+                unit=thresh.unit,
+                confidence_interval=self.confidence_interval,
+                direction=thresh.direction,
+                orientation=orientation,
             )
+        ]
 
         if self.conclusion:
             parts.append(self.conclusion)

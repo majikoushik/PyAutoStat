@@ -132,6 +132,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   including established magnitude labels, the explicit very-large Cohen threshold, safe
   confidence-interval width commentary, orientation preservation, and integration with structured
   interpretation without changing statistical results or schemas.
+- Added deterministic four-quadrant hypothesis narration, sample-aware assumption severity,
+  complete practical-threshold interval verdicts and ratio text, and estimand-protected sensitivity
+  decision narratives. Existing structured relations, schema versions, and statistical values are
+  unchanged.
 
 ## [0.2.0] - 2026-09-25
 

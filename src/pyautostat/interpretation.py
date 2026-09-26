@@ -11,7 +11,12 @@ from enum import Enum
 from typing import Any
 
 from .exceptions import InvalidDataError
-from .narrate import _confidence_interval_width, effect_narrative
+from .narrate import (
+    _confidence_interval_width,
+    assumption_grade,
+    effect_narrative,
+    hypothesis_verdict,
+)
 from .results import AnalysisResult, AnalysisStatus
 from .specifications import SCHEMA_VERSION, _json_value
 
@@ -256,26 +261,22 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
 
 def _assumption_notes(result: AnalysisResult) -> tuple[str, ...]:
     notes: list[str] = []
+
+    def graded(*args: Any, **kwargs: Any) -> str:
+        severity, message = assumption_grade(*args, **kwargs)
+        return f"[{severity}] {message}"
+
     if result.method_id in {"student_t", "one_way_anova"}:
-        notes.append(
-            "This pooled method assumes equal population variances; "
-            "Levene's test cannot prove this."
-        )
+        notes.append(graded("equal_variance", "required", method_id=result.method_id))
     elif result.method_id == "welch_t":
-        notes.append(
-            "Welch's test does not require equal population variances; independence "
-            "and appropriate mean-inference conditions still matter."
-        )
+        notes.append(graded("equal_variance", "not_required", method_id=result.method_id))
     elif result.method_id == "paired_t":
-        notes.append(
-            "The paired t-test models within-unit differences; complete pairs must be "
-            "independent across units and suitable for mean inference."
-        )
+        notes.append(graded("paired_structure", "required", method_id=result.method_id))
     if result.assumptions:
         notes.append(
-            "Required conditions: "
+            "[CAUTION] Required conditions: "
             + "; ".join(result.assumptions)
-            + ". Calculation alone does not verify them."
+            + ". Calculation alone does not verify them. Worth noting; low risk given context."
         )
     diagnostics = result.metadata.get("diagnostics")
     if isinstance(diagnostics, dict):
@@ -286,27 +287,27 @@ def _assumption_notes(result: AnalysisResult) -> tuple[str, ...]:
                     continue
                 status = item.get("status")
                 group = item.get("group")
-                if status == "not_rejected":
+                if status:
                     notes.append(
-                        f"Normality was not rejected for group {group!r}; "
-                        "this does not establish normality."
+                        graded(
+                            "normality",
+                            str(status),
+                            n=item.get("sample_size"),
+                            p_value=item.get("p_value"),
+                            group=group,
+                            method_id=result.method_id,
+                        )
                     )
-                elif status == "rejected":
-                    notes.append(
-                        f"The normality diagnostic rejected normality for group {group!r}."
-                    )
-                elif status:
-                    notes.append(f"Normality diagnostic for group {group!r}: {status}.")
         variance = diagnostics.get("equal_variance_status")
-        if variance == "not_rejected":
+        if variance and variance != "not_applicable":
             notes.append(
-                "The equal-variance diagnostic did not reject equal variances; "
-                "it does not prove them."
+                graded(
+                    "equal_variance",
+                    str(variance),
+                    p_value=diagnostics.get("levene_p_value"),
+                    method_id=result.method_id,
+                )
             )
-        elif variance == "rejected":
-            notes.append("The equal-variance diagnostic rejected equal variances.")
-        elif variance and variance != "not_applicable":
-            notes.append(f"Equal-variance diagnostic: {variance}.")
     recommendation = result.recommendation
     if recommendation is not None:
         checks = recommendation.context.get("assumption_checks")
@@ -317,10 +318,7 @@ def _assumption_notes(result: AnalysisResult) -> tuple[str, ...]:
                     and check.get("assumption") == "independent_observations"
                     and check.get("status") == "confirmed"
                 ):
-                    notes.append(
-                        "Independence was declared in the study design; "
-                        "numerical values do not verify it."
-                    )
+                    notes.append(graded("independence", "confirmed"))
                     break
     return tuple(dict.fromkeys(notes))
 
@@ -511,7 +509,7 @@ class InterpretationEngine:
                     "its exact magnitude is unknown."
                 )
             null_text = (
-                f" The recorded null hypothesis is: {null}"
+                f"The recorded null hypothesis is: {null} "
                 if isinstance(null, str) and null
                 else ""
             )
@@ -531,9 +529,16 @@ class InterpretationEngine:
                 _finding(
                     findings, code, conclusion, "values.p_value", "specification.options.alpha"
                 )
-                hypothesis = f"{p_text}.{null_text} {conclusion}"
+                measure = effect.get("name") if isinstance(effect, dict) else ""
+                hypothesis = null_text + hypothesis_verdict(
+                    p,
+                    alpha,
+                    effect_value,
+                    str(measure),
+                    n=result.sample_size,
+                )
             else:
-                hypothesis = f"{p_text}.{null_text} No threshold decision is available."
+                hypothesis = f"{p_text}. {null_text}No threshold decision is available."
                 _finding(findings, "p_value_without_decision", hypothesis, "values.p_value")
         else:
             hypothesis = (

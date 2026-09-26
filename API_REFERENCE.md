@@ -159,11 +159,14 @@ Welch mean difference versus Mann–Whitney rank distribution, have no direct es
 calculation. There is no p-value ordering, scenario selection, robustness score, or automatic
 changed-data analysis.
 
-`sensitivity.compare()` provides a printable table of the stored primary and scenario values.
-Its decision-consistency statement includes only completed `same_estimand` scenarios and uses the
-primary specification's alpha. Other attempts remain displayed but do not enter that statement.
-Matching decisions are descriptive and do not establish robustness, equivalence, or practical
-importance.
+`sensitivity.verdict` and `sensitivity.compare()` provide deterministic plain-language decision
+consistency. The printable comparison retains every scenario and labels the comparable conclusion
+as `ROBUST`, `CONSISTENT across methods`, `INCONSISTENT`, `DESCRIPTIVE`, or `UNAVAILABLE`.
+Only completed `same_estimand` scenarios enter decision agreement, using the primary
+specification's alpha and strict `p < alpha` rule. A mixed-estimand result explicitly prevents
+direct numerical comparison. The `ROBUST` display label means only that the supplied comparable
+methods have the same recorded hypothesis decision; the accompanying qualification states that
+this does not establish general robustness, equivalence, or practical importance.
 
 ### Practical significance
 
@@ -200,9 +203,13 @@ named existing quantity and its recorded interval. It reports `point_estimate_re
 `unavailable`; formal equivalence/noninferiority requests return `unsupported`. An interval wholly
 inside a two-sided negligible region is described without claiming formal equivalence. Generic
 small/medium/large labels are not used as meaningful-effect criteria.
-`practical.verdict` formats the already validated estimate, threshold, conclusion, statistical
-significance field, uncertainty status, warnings, and rationale. It does not calculate a new
-comparison or merge statistical and practical significance into one decision.
+`practical.verdict` formats the already validated estimate, threshold, point/interval relations,
+conclusion, statistical-significance field, uncertainty status, warnings, and rationale. It adds a
+deterministic interval-region label and the display ratio `abs(estimate) / threshold` when the
+researcher supplied a positive threshold; zero thresholds never produce infinite prose. Missing
+intervals are labelled point-estimate-only, and unknown future relation values receive an explicit
+unavailable fallback. This narration does not alter the stored comparison or merge null-hypothesis
+significance with practical significance.
 
 Both models serialize with schema version 1. `assistant.report(..., sensitivity=...,
 practical_significance=...)`, `assistant.audit(...)`, and
@@ -317,6 +324,24 @@ a zero estimate is described as wide because relative width cannot be divided by
 narration is used by `InterpretationEngine`; existing result and interpretation schemas are
 unchanged.
 
+`hypothesis_verdict(p, alpha, effect_val, measure, magnitude_label=None, n=None) -> str` combines
+the existing strict `p < alpha` decision with the recorded effect magnitude in four deterministic
+quadrants. `large`, `very large`, `moderate`, and `strong` labels are treated as non-trivial; an
+unavailable or unlabelled effect is never silently treated as small. Very small finite p-values use
+compact significant-digit formatting, and computational zero is shown as an inequality.
+
+`assumption_grade(assumption, status, *, n=None, p_value=None, group=None, method_id=None)` returns
+`(severity, message)` using the centralized `INFO`, `CAUTION`, `WARNING`, and `CRITICAL` scale.
+Rejected normality is `WARNING` below 15 observations, `CAUTION` from 15 through 29, and `INFO`
+from 30 onward. Missing group size is conservatively `WARNING`. A rejected equal-variance
+diagnostic is `INFO` for Welch because equal variance is not assumed, but `WARNING` for pooled
+methods. Diagnostic p-values are included only when recorded.
+
+`interval_verdict(...)` narrates all current point/interval relation combinations and the safe
+magnitude ratio described above. `sensitivity_verdict(...)` narrates comparable structured
+hypothesis decisions while preserving mixed-estimand and unavailable states. These public helpers
+are side-effect-free presentation functions; they do not run analyses or construct intervals.
+
 ```python
 result = assistant.analyze(draft)
 interpretation = assistant.interpret(result)
@@ -330,7 +355,7 @@ payload = interpretation.to_dict()  # json.dumps(payload, allow_nan=False)
 
 Supported guided results are `dataset_profile`, `welch_t`, `mann_whitney_u`, `kruskal_wallis`, `pearson_correlation`, and `pearson_chi_square`. Templates also accept valid `student_t` and `one_way_anova` adapter results; the guided selector does not choose these. Spearman and Kendall are coefficient-only in legacy profiling, so there is no successful guided inferential interpretation for them. Unrecognized or unavailable results return an unavailable interpretation. A missing p-value, effect, or primary confidence interval gives a partial interpretation, preserving factual components without inventing the missing result. Pearson's current result has no CI, so its interpretation is normally partial.
 
-The decision rule is `p < result.specification.options.alpha`; equality does not reject. It uses the original numeric p-value and formats very small values separately; computational zero displays as `p < 0.001` with a numerical warning. The engine does not claim multiplicity adjustment, equivalence, causation, or practical importance. Two-group directions follow `metadata.contrast`; confidence intervals retain their own `quantity`, `method`, and `level`. Finite ordered percentile-bootstrap bounds may exclude the original point estimate; containment is required for the analytical t mean-difference interval. The analytical t interval is checked against a two-sided p-value only when its level matches `1-alpha`. Apparent disagreement produces a warning and partial status. A valid raw mean difference remains interpretable when Cohen's d is missing or inconsistent, with partial status and a warning; conflicting signs invalidate the d interpretation. Bootstrap effect intervals are not treated as interchangeable with the analytical mean-difference interval. Assumption diagnostics describe rejection or non-rejection, never proof; source warnings and excluded-row counts remain visible.
+The decision rule is `p < result.specification.options.alpha`; equality does not reject. It uses the original numeric p-value and formats very small values separately; computational zero displays as `p < 0.001` with a numerical warning. The hypothesis paragraph uses the four-quadrant verdict without changing the stable coded finding or conclusion. Assumption notes retain their recorded diagnostics and add bracketed severity; normality severity uses each diagnostic's stored group size, and Welch variance narration uses the recorded Levene result when available. The engine does not claim multiplicity adjustment, equivalence, causation, or practical importance. Two-group directions follow `metadata.contrast`; confidence intervals retain their own `quantity`, `method`, and `level`. Finite ordered percentile-bootstrap bounds may exclude the original point estimate; containment is required for the analytical t mean-difference interval. The analytical t interval is checked against a two-sided p-value only when its level matches `1-alpha`. Apparent disagreement produces a warning and partial status. A valid raw mean difference remains interpretable when Cohen's d is missing or inconsistent, with partial status and a warning; conflicting signs invalidate the d interpretation. Bootstrap effect intervals are not treated as interchangeable with the analytical mean-difference interval. Diagnostic non-rejection never proves an assumption; source warnings and excluded-row counts remain visible.
 
 ### Research reports
 

@@ -119,6 +119,28 @@ def test_missing_interval_returns_partial_without_manufacturing_uncertainty(mean
     assert result.confidence_interval is None
     assert result.confidence_interval_relation == "unavailable"
     assert result.uncertainty_status == "confidence_interval_unavailable"
+    assert "POINT ESTIMATE ONLY" in result.verdict
+
+
+def test_practical_verdict_adds_threshold_ratio_interval_and_preserves_payload(mean_case):
+    _, assistant, base = mean_case
+    result = assistant.practical_significance(
+        _mean_result(base, 8, 6, 10),
+        threshold=MeaningfulEffectThreshold(
+            "mean_difference", 5, unit="points", rationale="Decision threshold."
+        ),
+    )
+    before = result.to_dict()
+    narrative = result.verdict
+    assert "VERDICT: CONFIRMED ABOVE THRESHOLD" in narrative
+    assert "declared minimum meaningful mean difference is 5 points" in narrative
+    assert "ratio = 1.60" in narrative
+    assert "95% confidence interval" in narrative
+    assert "researcher-declared threshold" in narrative
+    assert result.conclusion in narrative
+    assert "Threshold rationale: Decision threshold." in narrative
+    assert result.to_dict() == before
+    assert "verdict" not in before
 
 
 def test_pearson_threshold_is_partial_because_current_backend_has_no_interval():

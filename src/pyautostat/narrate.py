@@ -7,7 +7,7 @@ sizes or confidence intervals and it does not select statistical methods.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -105,6 +105,118 @@ _D_CONSEQUENCES = {
     ),
 }
 
+ASSUMPTION_SEVERITY_DESCRIPTIONS = {
+    "CRITICAL": "The result cannot be trusted without resolving this.",
+    "WARNING": "This may materially affect interpretation.",
+    "CAUTION": "Worth noting; low risk given context.",
+    "INFO": "For transparency only; no action required.",
+}
+
+_NONTRIVIAL_MAGNITUDES = {"large", "very large", "moderate", "strong"}
+_KNOWN_MAGNITUDES = _NONTRIVIAL_MAGNITUDES | {"negligible", "small", "medium"}
+
+_POINT_RELATIONS = {
+    "positive_meaningful_region",
+    "negative_meaningful_region",
+    "below_meaningful_magnitude",
+    "meets_positive_threshold",
+    "below_positive_threshold",
+    "meets_negative_threshold",
+    "above_negative_threshold",
+    "meets_nonnegative_threshold",
+    "below_nonnegative_threshold",
+}
+_INTERVAL_RELATIONS = {
+    "entirely_positive_meaningful",
+    "entirely_negative_meaningful",
+    "entirely_within_negligible_region",
+    "spans_both_directions",
+    "crosses_meaningful_boundary",
+    "entirely_above_positive_threshold",
+    "entirely_below_positive_threshold",
+    "crosses_positive_threshold",
+    "entirely_below_negative_threshold",
+    "entirely_above_negative_threshold",
+    "crosses_negative_threshold",
+    "entirely_at_or_above_nonnegative_threshold",
+    "entirely_below_nonnegative_threshold",
+    "crosses_nonnegative_threshold",
+    "unavailable",
+}
+_POINT_CONFIRMING_INTERVALS = {
+    "positive_meaningful_region": {"entirely_positive_meaningful"},
+    "negative_meaningful_region": {"entirely_negative_meaningful"},
+    "below_meaningful_magnitude": {"entirely_within_negligible_region"},
+    "meets_positive_threshold": {"entirely_above_positive_threshold"},
+    "below_positive_threshold": {"entirely_below_positive_threshold"},
+    "meets_negative_threshold": {"entirely_below_negative_threshold"},
+    "above_negative_threshold": {"entirely_above_negative_threshold"},
+    "meets_nonnegative_threshold": {"entirely_at_or_above_nonnegative_threshold"},
+    "below_nonnegative_threshold": {"entirely_below_nonnegative_threshold"},
+}
+_MEANINGFUL_POINTS = {
+    "positive_meaningful_region",
+    "negative_meaningful_region",
+    "meets_positive_threshold",
+    "meets_negative_threshold",
+    "meets_nonnegative_threshold",
+}
+_CROSSING_INTERVALS = {
+    "spans_both_directions",
+    "crosses_meaningful_boundary",
+    "crosses_positive_threshold",
+    "crosses_negative_threshold",
+    "crosses_nonnegative_threshold",
+}
+
+
+def _interval_table_entry(point: str, interval: str) -> tuple[str, str]:
+    if interval == "unavailable":
+        return (
+            "POINT ESTIMATE ONLY",
+            "The point estimate was compared with the declared threshold, but no confidence "
+            "interval is available to assess precision around that judgment.",
+        )
+    if interval in _POINT_CONFIRMING_INTERVALS[point]:
+        if point in _MEANINGFUL_POINTS:
+            return (
+                "CONFIRMED ABOVE THRESHOLD",
+                "The observed effect exceeds the declared threshold and the entire confidence "
+                "interval remains in the corresponding meaningful region. The conclusion is "
+                "strongly supported by the recorded interval.",
+            )
+        return (
+            "BELOW THRESHOLD",
+            "Both the point estimate and the entire confidence interval fall below the declared "
+            "meaningful effect. The effect is not practically meaningful by the stated criterion.",
+        )
+    if interval in _CROSSING_INTERVALS:
+        if point in _MEANINGFUL_POINTS:
+            return (
+                "LIKELY ABOVE THRESHOLD",
+                "The point estimate exceeds the threshold, but the confidence interval crosses "
+                "a meaningful boundary. The effect is plausibly above the threshold, but "
+                "uncertainty remains; consider whether greater precision is needed.",
+            )
+        return (
+            "INCONCLUSIVE",
+            "The point estimate is below the threshold, but the confidence interval reaches or "
+            "crosses a meaningful region. Precision is insufficient to decide from the recorded "
+            "interval.",
+        )
+    return (
+        "INCONCLUSIVE",
+        "The point estimate and confidence interval occupy different threshold regions. Report "
+        "both recorded relations; the practical-significance judgment is inconclusive.",
+    )
+
+
+_INTERVAL_VERDICT_TABLE = {
+    (point, interval): _interval_table_entry(point, interval)
+    for point in _POINT_RELATIONS
+    for interval in _INTERVAL_RELATIONS
+}
+
 
 def _finite(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -131,6 +243,202 @@ def _magnitude_label(rule: _EffectRule, value: float) -> str | None:
         if magnitude >= cutoff:
             return label
     return None
+
+
+def _p_value_text(value: float) -> str:
+    if value == 0:
+        return "p < 0.001 (computational zero)"
+    return f"p = {_fmt(value)}"
+
+
+def hypothesis_verdict(
+    p: float | None,
+    alpha: float | None,
+    effect_val: float | None,
+    measure: str,
+    magnitude_label: str | None = None,
+    n: int | None = None,
+) -> str:
+    """Narrate the recorded p-value/effect quadrant without recomputing either value."""
+    p_value = _finite(p)
+    alpha_value = _finite(alpha)
+    if p_value is None or alpha_value is None or not 0 <= p_value <= 1 or not 0 < alpha_value < 1:
+        return "Hypothesis verdict unavailable: a finite p-value and valid alpha are required."
+
+    canonical = _canonical_measure(measure)
+    effect = _finite(effect_val)
+    significant = p_value < alpha_value
+    p_text = _p_value_text(p_value)
+    significance_text = (
+        f"{p_text}. The result is statistically significant at alpha = {_fmt(alpha_value)}"
+        if significant
+        else f"{p_text}. The result does not reach significance at alpha = {_fmt(alpha_value)}"
+    )
+    if canonical is None or effect is None:
+        return (
+            f"{significance_text}. The effect magnitude is unavailable, so the four-quadrant "
+            "verdict cannot be assigned."
+        )
+    rule = _RULES[canonical]
+    label = magnitude_label or _magnitude_label(rule, effect)
+    if label is None or label not in _KNOWN_MAGNITUDES:
+        return (
+            f"{significance_text}. {rule.display_name} = {_fmt(effect)}, but no supported "
+            "magnitude label is available; the effect was not classified as trivial."
+        )
+
+    effect_text = f"{rule.display_name} = {_fmt(effect)}"
+    nontrivial = label in _NONTRIVIAL_MAGNITUDES
+    if significant and nontrivial:
+        return (
+            f"{significance_text}, and the effect size is {label} ({effect_text}). Both "
+            "significance and conventional magnitude support a non-trivial difference."
+        )
+    if significant:
+        sample_text = (
+            f" With n = {n:,}, even a trivial effect can produce a small p-value."
+            if isinstance(n, int) and not isinstance(n, bool) and n > 0
+            else " A small p-value can occur even when the observed effect is limited."
+        )
+        return (
+            f"{significance_text}, but the effect is {label} ({effect_text}).{sample_text} "
+            "Check the confidence interval and a researcher-declared practical threshold before "
+            "acting. Statistical significance does not establish effect size, practical "
+            "importance, or replication."
+        )
+    if nontrivial:
+        return (
+            f"{significance_text}, yet the observed {effect_text} ({label}) is non-trivial. "
+            "The data may be under-powered for this effect; consider prospective power analysis "
+            "rather than treating non-significance as proof of no effect."
+        )
+    return (
+        f"{significance_text}, and the observed effect is {label} ({effect_text}). There is "
+        "little evidence here of a non-trivial difference, although this is not an equivalence "
+        "test."
+    )
+
+
+def assumption_grade(
+    assumption: str,
+    status: str,
+    *,
+    n: int | None = None,
+    p_value: float | None = None,
+    group: Any = None,
+    method_id: str | None = None,
+) -> tuple[str, str]:
+    """Return a deterministic ``(severity, message)`` for a recorded assumption state."""
+    assumption_key = assumption.strip().lower() if isinstance(assumption, str) else "unknown"
+    status_key = status.strip().lower() if isinstance(status, str) else "unknown"
+    checked_n = n if isinstance(n, int) and not isinstance(n, bool) and n >= 0 else None
+    checked_p = _finite(p_value)
+    p_text = f" ({_p_value_text(checked_p)})" if checked_p is not None else ""
+    group_text = f" for group {group!r}" if group is not None else ""
+
+    if assumption_key == "normality":
+        if status_key == "rejected":
+            if checked_n is None:
+                severity = "WARNING"
+                message = (
+                    f"The normality diagnostic rejected normality{group_text}{p_text}; the group "
+                    "sample size is unavailable, so large-sample robustness cannot be assessed."
+                )
+            elif checked_n >= 30:
+                severity = "INFO"
+                message = (
+                    f"The normality diagnostic rejected normality{group_text}{p_text}, but "
+                    f"n = {checked_n}. Large-group central-limit robustness generally reduces "
+                    "the risk for mean inference; inspect severe skew or outliers separately."
+                )
+            elif checked_n >= 15:
+                severity = "CAUTION"
+                message = (
+                    f"The normality diagnostic rejected normality{group_text}{p_text}; n = "
+                    f"{checked_n}. This is a moderate-risk issue: inspect the distribution and "
+                    "consider whether a method targeting a different estimand is appropriate."
+                )
+            else:
+                severity = "WARNING"
+                message = (
+                    f"The normality diagnostic rejected normality{group_text}{p_text}; n = "
+                    f"{checked_n}. This small group may make parametric mean inference unreliable."
+                )
+        elif status_key == "not_rejected":
+            severity = "INFO"
+            message = (
+                f"Normality was not rejected{group_text}{p_text}; this does not establish "
+                "normality."
+            )
+        else:
+            severity = "CAUTION"
+            message = f"Normality diagnostic{group_text}: {status_key}; normality was not verified."
+    elif assumption_key == "equal_variance":
+        if status_key == "rejected" and method_id == "welch_t":
+            severity = "INFO"
+            detail = (
+                f" Levene's test reported {_p_value_text(checked_p)}."
+                if checked_p is not None
+                else ""
+            )
+            message = (
+                "The equal-variance diagnostic rejected equal variances. Welch's correction was "
+                f"used, so equal variances were not assumed.{detail}"
+            )
+        elif status_key == "rejected":
+            severity = "WARNING"
+            detail = (
+                f" Levene's test reported {_p_value_text(checked_p)}."
+                if checked_p is not None
+                else ""
+            )
+            message = f"The equal-variance diagnostic rejected equal variances.{detail}"
+        elif status_key == "not_rejected":
+            severity = "INFO"
+            message = (
+                "The equal-variance diagnostic did not reject equal variances; this does not "
+                "prove equal population variances."
+            )
+        elif status_key == "required" and method_id in {"student_t", "one_way_anova"}:
+            severity = "CAUTION"
+            message = (
+                "This pooled method assumes equal population variances; Levene's test cannot "
+                "prove this condition."
+            )
+        elif status_key == "not_required" and method_id == "welch_t":
+            severity = "INFO"
+            message = (
+                "Welch's test does not require equal population variances; independence and "
+                "appropriate mean-inference conditions still matter."
+            )
+        else:
+            severity = "CAUTION"
+            message = f"Equal-variance diagnostic: {status_key}."
+    elif assumption_key == "independence":
+        severity = "CAUTION"
+        message = (
+            "Independence must be verified from the study design; numerical values cannot "
+            "establish independent observations."
+        )
+    elif assumption_key == "paired_structure":
+        severity = "CAUTION"
+        message = (
+            "The paired t-test models within-unit differences; complete pairs must be independent "
+            "across units and suitable for mean inference."
+        )
+    elif status_key in {"critical", "failed", "violated"}:
+        severity = "CRITICAL"
+        message = f"The recorded {assumption_key.replace('_', ' ')} condition was {status_key}."
+    elif status_key in {"rejected", "warning"}:
+        severity = "WARNING"
+        message = f"The recorded {assumption_key.replace('_', ' ')} condition was {status_key}."
+    elif status_key in {"unknown", "unverified", "required"}:
+        severity = "CAUTION"
+        message = f"The recorded {assumption_key.replace('_', ' ')} condition is {status_key}."
+    else:
+        severity = "INFO"
+        message = f"The recorded {assumption_key.replace('_', ' ')} condition is {status_key}."
+    return severity, f"{message} {ASSUMPTION_SEVERITY_DESCRIPTIONS[severity]}"
 
 
 def _confidence_interval_width(estimate: float, lower: float, upper: float) -> str | None:
@@ -201,6 +509,141 @@ def _confidence_interval_narrative(
     if width == "moderate width":
         return f"{interval} has {width}."
     return f"{interval} is {width}."
+
+
+def _ratio_sentence(estimate: float, threshold: float) -> str:
+    if threshold == 0:
+        return "The declared threshold is zero, so a finite magnitude ratio is not reported."
+    ratio = abs(estimate) / threshold
+    if ratio >= 5:
+        return f"The observed effect is {ratio:.1f}x the declared threshold."
+    if ratio >= 2:
+        return f"The observed effect is {ratio:.1f} times the threshold — clearly above it."
+    if ratio >= 1:
+        return f"The observed effect just exceeds the threshold (ratio = {ratio:.2f})."
+    return f"The observed effect is {ratio:.2f}x the threshold — below it."
+
+
+def interval_verdict(
+    point_relation: str,
+    interval_relation: str,
+    estimate: float | None,
+    threshold: float,
+    *,
+    quantity: str,
+    unit: str | None = None,
+    confidence_interval: Mapping[str, Any] | None = None,
+    direction: str = "two_sided",
+    orientation: str | None = None,
+) -> str:
+    """Narrate existing practical-significance relations and their recorded values."""
+    estimate_value = _finite(estimate)
+    threshold_value = _finite(threshold)
+    key = (point_relation, interval_relation)
+    if estimate_value is None or threshold_value is None or threshold_value < 0:
+        return "VERDICT: UNAVAILABLE. A finite estimate and nonnegative threshold are required."
+    entry = _INTERVAL_VERDICT_TABLE.get(key)
+    if entry is None:
+        return (
+            "VERDICT: UNAVAILABLE. The recorded practical-significance relations are unsupported; "
+            "no narrative conclusion was assigned."
+        )
+    label, narrative = entry
+    quantity_text = quantity.replace("_", " ") if isinstance(quantity, str) else "effect"
+    unit_text = f" {unit}" if isinstance(unit, str) and unit.strip() else ""
+    direction_text = (
+        f" in the declared {direction.replace('_', ' ')} direction"
+        if direction in {"positive", "negative", "nonnegative"}
+        else ""
+    )
+    parts = [
+        f"VERDICT: {label}.",
+        f"The declared minimum meaningful {quantity_text} is {_fmt(threshold_value)}{unit_text}"
+        f"{direction_text}.",
+        f"The observed {quantity_text} is {_fmt(estimate_value)}{unit_text}.",
+        _ratio_sentence(estimate_value, threshold_value),
+        narrative,
+    ]
+    if orientation is not None and orientation.strip():
+        parts.append(f"The recorded contrast is {orientation.strip()}.")
+    if confidence_interval is not None:
+        lower = _finite(confidence_interval.get("lower"))
+        upper = _finite(confidence_interval.get("upper"))
+        level = _finite(confidence_interval.get("level"))
+        if lower is not None and upper is not None and lower <= upper:
+            level_text = f"{_fmt(100 * level)}% " if level is not None and 0 < level < 1 else ""
+            parts.append(
+                f"The recorded {level_text}confidence interval is "
+                f"[{_fmt(lower)}, {_fmt(upper)}]{unit_text}."
+            )
+    parts.append(
+        "This judgment applies only to the researcher-declared threshold; it does not establish "
+        "causation, equivalence, or replication."
+    )
+    return " ".join(parts)
+
+
+def sensitivity_verdict(
+    base_decision: str | None,
+    scenario_decisions: Sequence[str | None],
+    *,
+    same_estimand: bool,
+    completed_scenarios: int | None = None,
+    mixed_estimands: bool = False,
+    alpha: float | None = None,
+) -> str:
+    """Narrate stored sensitivity decisions without comparing unlike effect estimates."""
+    allowed = {"reject null", "fail to reject null"}
+    completed = (
+        completed_scenarios
+        if isinstance(completed_scenarios, int) and completed_scenarios >= 0
+        else len(scenario_decisions)
+    )
+    if completed == 0:
+        return (
+            "UNAVAILABLE: No sensitivity scenario completed; hypothesis-decision consistency "
+            "cannot be assessed."
+        )
+    if not same_estimand or not scenario_decisions:
+        return (
+            "DESCRIPTIVE: No completed alternative shares the primary estimand and comparison "
+            "identity. Numerical p-values and effect estimates cannot be directly compared."
+        )
+    decisions = [base_decision, *scenario_decisions]
+    if any(item not in allowed for item in decisions):
+        return (
+            "UNAVAILABLE: At least one same-estimand analysis has no valid hypothesis decision; "
+            "consistency cannot be classified."
+        )
+    alpha_value = _finite(alpha)
+    alpha_text = (
+        f" at alpha = {_fmt(alpha_value)}"
+        if alpha_value is not None and 0 < alpha_value < 1
+        else " at the declared alpha level"
+    )
+    if len(set(decisions)) != 1:
+        return (
+            "INCONSISTENT: Methods disagree on the hypothesis decision. The hypothesis decision "
+            "differs across analyses. Report all results, effect sizes, and assumptions, and "
+            "consider which assumptions are most appropriate."
+        )
+    decision = decisions[0]
+    agreement = (
+        f"All comparable analyses reject the null hypothesis{alpha_text}."
+        if decision == "reject null"
+        else f"All comparable analyses fail to reject the null hypothesis{alpha_text}."
+    )
+    if mixed_estimands:
+        return (
+            "CONSISTENT across methods (note: not all test the same estimand). "
+            f"{agreement} Direct numerical comparison across different estimands is not "
+            "appropriate. This descriptive agreement does not by itself establish robustness."
+        )
+    return (
+        f"ROBUST: All comparable methods agree on the hypothesis decision. {agreement} The "
+        "conclusion is consistent across methods. This descriptive agreement does not by itself "
+        "establish general robustness, equivalence, or practical importance."
+    )
 
 
 def effect_narrative(
@@ -279,4 +722,11 @@ def effect_narrative(
     return " ".join(details)
 
 
-__all__ = ["effect_narrative"]
+__all__ = [
+    "ASSUMPTION_SEVERITY_DESCRIPTIONS",
+    "assumption_grade",
+    "effect_narrative",
+    "hypothesis_verdict",
+    "interval_verdict",
+    "sensitivity_verdict",
+]

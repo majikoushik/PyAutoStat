@@ -43,10 +43,13 @@ contrast is normalized only in the comparison fields, with the sign transformati
 the scenario's raw result is retained. Relative change is omitted when the base estimate is too
 close to zero. Interval overlap is descriptive and is not a hypothesis test.
 
-`compare()` prints the stored primary and scenario values. Its decision-consistency statement uses
+`verdict` and `compare()` narrate the stored primary and scenario values. Decision consistency uses
 the declared primary alpha and only completed `same_estimand` scenarios. Other attempts remain
-visible but are excluded from that statement. Matching reject/fail-to-reject decisions do not by
-themselves establish robustness, equivalence, effect stability, or practical importance.
+visible but are excluded from that decision. Mixed-estimand analyses receive an explicit warning
+against direct numerical comparison; no-same-estimand and no-completed-scenario states are
+descriptive or unavailable. The `ROBUST` display label means only matching reject/fail-to-reject
+decisions among the supplied comparable methods and is always qualified: it does not establish
+general robustness, equivalence, effect stability, or practical importance.
 
 The first implementation supports same-DataFrame specification sensitivity. It does not create
 changed datasets, remove outliers, winsorize, impute, merge categories, or alter missing-data
@@ -84,8 +87,11 @@ the researcher-defined negligible region. This is not a formal equivalence concl
 interval crossing a threshold produces an uncertain relation even if its point estimate exceeds
 the threshold. A missing interval yields a `partial` assessment and no invented uncertainty.
 Null-hypothesis significance is recorded separately and never defines practical importance.
-`verdict` formats this validated assessment for display; it does not recalculate the relation or
-turn statistical significance into a meaningful-effect decision.
+`verdict` formats this validated assessment with a complete interval-region narrative and a ratio
+of the recorded estimate magnitude to a positive declared threshold. It does not recalculate the
+stored relations or turn statistical significance into a meaningful-effect decision. Zero
+thresholds omit the ratio, missing intervals are labelled point-estimate-only, and unknown future
+relation values receive an unavailable fallback.
 
 `direction="positive"`, `"negative"`, and `"nonnegative"` provide one-sided descriptive
 relations for appropriate metrics. Requests using `"equivalence"` or `"noninferiority"` return

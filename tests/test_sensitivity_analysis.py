@@ -151,6 +151,35 @@ def test_compare_reports_only_descriptive_same_estimand_decision_consistency(sen
     text.encode("cp1252")
 
 
+def test_sensitivity_verdict_exposes_methods_decisions_and_estimand_qualification(
+    sensitivity_case,
+):
+    _, assistant, base = sensitivity_case
+    result = assistant.sensitivity_analysis(
+        base,
+        scenarios=[_student(base), _mann_whitney(base)],
+    )
+    before = result.to_dict()
+    text = result.compare()
+    assert "Primary (Welch" in text
+    assert "Scenario (Student" in text
+    assert "Scenario (Mann-Whitney" in text
+    assert "CONSISTENT across methods" in result.verdict
+    assert "not all test the same estimand" in result.verdict
+    assert "different estimand" in text
+    assert result.to_dict() == before
+    assert "verdict" not in before
+
+
+def test_sensitivity_verdict_is_descriptive_when_no_completed_alternative_shares_estimand(
+    sensitivity_case,
+):
+    _, assistant, base = sensitivity_case
+    result = assistant.sensitivity_analysis(base, scenarios=[_mann_whitney(base)])
+    assert result.verdict.startswith("DESCRIPTIVE")
+    assert "cannot be directly compared" in result.verdict
+
+
 def test_compare_uses_declared_alpha(sensitivity_case):
     _, assistant, base = sensitivity_case
     options = replace(base.specification.options, alpha=0.01)
@@ -201,6 +230,7 @@ def test_incompatible_unsupported_and_failed_scenarios_all_remain_visible(
         "failed",
     ]
     assert result.status.value == "unavailable"
+    assert result.verdict.startswith("UNAVAILABLE")
     assert "deliberate numerical failure" in result.scenario_results[2].error
     assert [event["event_type"] for event in ledger.events] == [
         "sensitivity_plan_created",
