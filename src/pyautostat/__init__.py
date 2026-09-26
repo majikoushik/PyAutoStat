@@ -31,6 +31,7 @@ from .interpretation import (
     InterpretationResult,
     InterpretationStatus,
 )
+from .narrate import effect_narrative
 from .practical_significance import (
     MeaningfulEffectThreshold,
     PracticalSignificanceResult,
@@ -107,6 +108,7 @@ __all__ = [
     "InterpretationFinding",
     "InterpretationResult",
     "InterpretationStatus",
+    "effect_narrative",
     "SensitivitySpecification",
     "SensitivityScenario",
     "SensitivityScenarioResult",

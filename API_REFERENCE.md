@@ -293,6 +293,30 @@ Group and categorical effect intervals use the existing 499-resample bootstrap w
 
 ### Deterministic interpretation
 
+`pyautostat.effect_narrative(measure, value, n=None, ci=None, *, confidence_level=None,
+orientation=None, definition=None) -> str` converts an already-computed effect value into
+deterministic researcher-readable text. It accepts the public quantity identifiers `cohens_d`,
+`rank_biserial`, `eta_squared`, `epsilon_squared`, `cramers_v`, and `pearson_r`, their result-record
+display names, and the existing paired effect `cohens_dz`/`Cohen's dz`. It performs no statistical
+calculation, method selection, or interval construction. Unsupported measures and missing,
+nonfinite, or out-of-range values return an explicit unavailable narrative rather than raising or
+substituting zero.
+
+Magnitude labels preserve PyAutoStat's established bands: Cohen's d/dz use negligible, small,
+medium, and large, with the `very large` band beginning at an absolute value of 2;
+eta-squared and Pearson r/Cramer's V retain their existing eta-squared and correlation bands.
+Rank-biserial correlation and epsilon-squared remain deliberately unlabelled because the package
+does not currently assign them a conventional qualitative magnitude. Signed effects use absolute
+magnitude for classification while retaining their sign and optional recorded orientation in the
+text.
+
+`ci` may be a `(lower, upper)` tuple or an existing interval mapping. Valid finite bounds receive
+relative-width commentary based on the recorded estimate. A stored interval `level` and bootstrap
+method are reported when present; no confidence level is invented. A nonzero-width interval around
+a zero estimate is described as wide because relative width cannot be divided by zero. The same
+narration is used by `InterpretationEngine`; existing result and interpretation schemas are
+unchanged.
+
 ```python
 result = assistant.analyze(draft)
 interpretation = assistant.interpret(result)

@@ -126,6 +126,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added deterministic `effect_narrative()` prose for the package's existing effect measures,
+  including established magnitude labels, the explicit very-large Cohen threshold, safe
+  confidence-interval width commentary, orientation preservation, and integration with structured
+  interpretation without changing statistical results or schemas.
+
 ## [0.2.0] - 2026-09-25
 
 This release substantially expands PyAutoStat from its initial analysis utilities into an explainable and reproducible research-analysis assistant. It adds guided research workflows, study planning, sensitivity and practical-significance analysis, paired-data support, reproducibility tooling, richer reporting, and stronger statistical safeguards.

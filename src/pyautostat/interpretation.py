@@ -11,6 +11,7 @@ from enum import Enum
 from typing import Any
 
 from .exceptions import InvalidDataError
+from .narrate import _confidence_interval_width, effect_narrative
 from .results import AnalysisResult, AnalysisStatus
 from .specifications import SCHEMA_VERSION, _json_value
 
@@ -573,12 +574,16 @@ class InterpretationEngine:
                             "metadata.contrast",
                         )
                     if effect_value is not None:
-                        d_text = (
-                            f"Cohen's dz was {_fmt(effect_value)} "
-                            "(mean paired difference divided by the SD of paired differences)."
-                            if method == "paired_t"
-                            else f"Cohen's d was {_fmt(effect_value)} "
-                            "(first minus second, divided by the pooled sample SD)."
+                        assert isinstance(effect, dict)
+                        definition = effect.get("definition")
+                        d_text = effect_narrative(
+                            str(effect.get("name")),
+                            effect_value,
+                            orientation=contrast,
+                            definition=definition if isinstance(definition, str) else None,
+                        )
+                        d_text = d_text.replace(
+                            f"{effect.get('name')} = ", f"{effect.get('name')} was ", 1
                         )
                         effect_text = f"{effect_text} {d_text}" if effect_text else d_text
                         _finding(
@@ -601,26 +606,35 @@ class InterpretationEngine:
                     direction = (
                         "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
                     )
-                    effect_text = (
-                        f"Rank-biserial correlation ({contrast}) was {_fmt(estimate)}. "
-                        "Its sign describes the observed rank ordering; "
-                        "it is not a median difference."
+                    assert isinstance(effect, dict)
+                    definition = effect.get("definition")
+                    effect_text = effect_narrative(
+                        str(effect.get("name")),
+                        estimate,
+                        orientation=contrast,
+                        definition=definition if isinstance(definition, str) else None,
                     )
                 elif (
                     estimate is not None and effect_value is not None and method == "one_way_anova"
                 ):
                     direction = "positive" if estimate > 0 else "zero"
-                    effect_text = (
-                        f"Eta-squared was {_fmt(estimate)}, the reported sample proportion of "
-                        "variance associated with group membership."
+                    assert isinstance(effect, dict)
+                    definition = effect.get("definition")
+                    effect_text = effect_narrative(
+                        str(effect.get("name")),
+                        estimate,
+                        definition=definition if isinstance(definition, str) else None,
                     )
                 elif (
                     estimate is not None and effect_value is not None and method == "kruskal_wallis"
                 ):
                     direction = "positive" if estimate > 0 else "zero"
-                    effect_text = (
-                        f"Epsilon-squared was {_fmt(estimate)}, "
-                        "the reported truncated rank effect measure."
+                    assert isinstance(effect, dict)
+                    definition = effect.get("definition")
+                    effect_text = effect_narrative(
+                        str(effect.get("name")),
+                        estimate,
+                        definition=definition if isinstance(definition, str) else None,
                     )
                 elif (
                     estimate is not None
@@ -630,18 +644,21 @@ class InterpretationEngine:
                     direction = (
                         "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
                     )
-                    effect_text = (
-                        f"Pearson r was {_fmt(estimate)}, indicating "
-                        f"{direction} linear association in the analyzed observations."
-                        if estimate != 0
-                        else "The observed Pearson r was zero; this does not establish "
-                        "population independence."
+                    assert isinstance(effect, dict)
+                    definition = effect.get("definition")
+                    effect_text = effect_narrative(
+                        str(effect.get("name")),
+                        estimate,
+                        definition=definition if isinstance(definition, str) else None,
                     )
                 elif estimate is not None and effect_value is not None:
                     direction = "positive" if estimate > 0 else "zero"
-                    effect_text = (
-                        f"Cramer's V was {_fmt(estimate)}, a nonnegative measure of categorical "
-                        "association without a direction."
+                    assert isinstance(effect, dict)
+                    definition = effect.get("definition")
+                    effect_text = effect_narrative(
+                        str(effect.get("name")),
+                        estimate,
+                        definition=definition if isinstance(definition, str) else None,
                     )
                 if not is_mean_test and effect_text is not None:
                     _finding(
@@ -699,6 +716,11 @@ class InterpretationEngine:
                             f" Its {_fmt(100 * effect_level)}% bootstrap interval was "
                             f"{_fmt(effect_low)} to {_fmt(effect_high)}."
                         )
+                        width = _confidence_interval_width(effect_value, effect_low, effect_high)
+                        if width == "moderate width":
+                            effect_text += f" Relative to Cohen's d, it has {width}."
+                        elif width is not None:
+                            effect_text += f" Relative to Cohen's d, it is {width}."
                         _finding(
                             findings,
                             "effect_interval_reported",
@@ -769,6 +791,21 @@ class InterpretationEngine:
                     f"The {_fmt(100 * level)}% confidence interval for {quantity} was "
                     f"{_fmt(low)} to {_fmt(high)}{unit_text}."
                 )
+                if (
+                    method
+                    in {
+                        "mann_whitney_u",
+                        "one_way_anova",
+                        "kruskal_wallis",
+                        "pearson_chi_square",
+                    }
+                    and estimate is not None
+                ):
+                    width = _confidence_interval_width(estimate, low, high)
+                    if width == "moderate width":
+                        interval_text += f" Relative to the effect estimate, it has {width}."
+                    elif width is not None:
+                        interval_text += f" Relative to the effect estimate, it is {width}."
                 null_value = _finite(result.metadata.get("null_value"))
                 if (
                     method in _SIGNED_GROUP | {"pearson_correlation"}
