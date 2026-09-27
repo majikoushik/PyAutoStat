@@ -51,6 +51,12 @@ _RULES = {
     "rank_biserial": _EffectRule(
         "Rank-biserial correlation", "rank-based group separation", None, signed=True
     ),
+    "paired_rank_biserial": _EffectRule(
+        "Matched-pairs rank-biserial correlation",
+        "signed paired-rank separation",
+        None,
+        signed=True,
+    ),
     "eta_squared": _EffectRule(
         "Eta-squared",
         "proportion-style variance association for ANOVA",
@@ -69,15 +75,22 @@ _RULES = {
     "pearson_r": _EffectRule(
         "Pearson r", "linear association strength", _CORRELATION_BANDS, signed=True
     ),
+    "spearman_rho": _EffectRule(
+        "Spearman rho", "monotonic rank-association strength", _CORRELATION_BANDS, signed=True
+    ),
+    "odds_ratio": _EffectRule("Sample odds ratio", "2x2 odds association", None),
 }
 
 _MEASURE_ALIASES = {
     "cohens_d": "cohens_d",
     "cohen's d": "cohens_d",
+    "one-sample cohen's d": "cohens_d",
     "cohens_dz": "cohens_dz",
     "cohen's dz": "cohens_dz",
     "rank_biserial": "rank_biserial",
     "rank-biserial correlation": "rank_biserial",
+    "paired_rank_biserial": "paired_rank_biserial",
+    "matched-pairs rank-biserial correlation": "paired_rank_biserial",
     "eta_squared": "eta_squared",
     "eta-squared": "eta_squared",
     "epsilon_squared": "epsilon_squared",
@@ -87,6 +100,10 @@ _MEASURE_ALIASES = {
     "cramer's v": "cramers_v",
     "pearson_r": "pearson_r",
     "pearson r": "pearson_r",
+    "spearman_rho": "spearman_rho",
+    "spearman rho": "spearman_rho",
+    "odds_ratio": "odds_ratio",
+    "sample odds ratio": "odds_ratio",
 }
 
 _D_CONSEQUENCES = {
@@ -422,10 +439,16 @@ def assumption_grade(
         )
     elif assumption_key == "paired_structure":
         severity = "CAUTION"
-        message = (
-            "The paired t-test models within-unit differences; complete pairs must be independent "
-            "across units and suitable for mean inference."
-        )
+        if method_id == "wilcoxon_signed_rank":
+            message = (
+                "The Wilcoxon signed-rank test models ordered within-unit differences; complete "
+                "pairs must be independent across units and suitable for signed-rank inference."
+            )
+        else:
+            message = (
+                "The paired t-test models within-unit differences; complete pairs must be "
+                "independent across units and suitable for mean inference."
+            )
     elif status_key in {"critical", "failed", "violated"}:
         severity = "CRITICAL"
         message = f"The recorded {assumption_key.replace('_', ' ')} condition was {status_key}."
@@ -674,7 +697,10 @@ def effect_narrative(
         return f"{rule.display_name} is unavailable; no effect magnitude was narrated."
     if (
         (rule.nonnegative and estimate < 0)
-        or (canonical in {"rank_biserial", "pearson_r"} and abs(estimate) > 1)
+        or (
+            canonical in {"rank_biserial", "paired_rank_biserial", "pearson_r", "spearman_rho"}
+            and abs(estimate) > 1
+        )
         or (canonical in {"eta_squared", "cramers_v"} and estimate > 1)
     ):
         return f"{rule.display_name} is outside its valid range; no effect magnitude was narrated."
@@ -705,14 +731,25 @@ def effect_narrative(
         details.append(
             "Its sign describes the observed rank ordering; it is not a median difference."
         )
-    elif canonical == "pearson_r":
-        direction = "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
+    elif canonical == "paired_rank_biserial":
         details.append(
-            f"The observed linear association is {direction}; a zero value does not establish "
-            "population independence."
+            "Its sign follows the declared paired contrast; it is not universally a median "
+            "difference."
+        )
+    elif canonical in {"pearson_r", "spearman_rho"}:
+        direction = "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
+        relationship = "linear" if canonical == "pearson_r" else "monotonic rank-order"
+        details.append(
+            f"The observed {relationship} association is {direction}; a zero value does not "
+            "establish population independence."
         )
     elif canonical == "cramers_v":
         details.append("The measure is nonnegative and has no direction.")
+    elif canonical == "odds_ratio":
+        details.append(
+            "Values above 1 and below 1 depend on the recorded row and column level order; "
+            "the measure does not establish causation."
+        )
 
     if isinstance(n, int) and not isinstance(n, bool) and n > 0:
         details.append(f"The recorded effect sample size is n = {n}.")
@@ -1631,6 +1668,14 @@ def _why_this_recommendation(
                 diagnostic += f" (Levene {_p_value_text(levene_p)})"
             return opening + diagnostic + "; Welch's correction remains appropriate."
         return opening
+    if method_id == "one_sample_t":
+        reference = _finite(context.get("reference_value"))
+        reference_text = f" {_fmt(reference)}" if reference is not None else ""
+        return (
+            f"The specification declares one continuous outcome, a population-mean estimand, "
+            f"and the reference value{reference_text}. The one-sample t-test targets the signed "
+            "observed-mean-minus-reference contrast."
+        )
     if method_id == "paired_t":
         order = context.get("condition_order")
         order_text = (
@@ -1649,6 +1694,20 @@ def _why_this_recommendation(
             f"The specification declares paired observations for {selected}, a two-condition "
             "mean estimand, and an explicit unit identifier. The paired t-test targets the "
             f"population mean within-unit difference.{order_text}{pair_text}"
+        )
+    if method_id == "wilcoxon_signed_rank":
+        order = context.get("condition_order")
+        order_text = (
+            f" The signed contrast follows {order[0]!r} minus {order[1]!r}."
+            if isinstance(order, Sequence)
+            and not isinstance(order, (str, bytes))
+            and len(order) == 2
+            else ""
+        )
+        return (
+            f"The specification declares paired observations for {selected}, an ordered "
+            "rank-distribution target, and an explicit unit identifier. Wilcoxon evaluates "
+            f"signed ranks of nonzero paired differences.{order_text}"
         )
     if method_id == "mann_whitney_u":
         return (
@@ -1683,6 +1742,18 @@ def _why_this_recommendation(
             "independence. Pearson's chi-square test assesses evidence of association without "
             f"assigning direction or causation.{shape_text}{expected_text}"
         )
+    if method_id == "fisher_exact":
+        expected_text = (
+            f" The smallest expected count is {_fmt(minimum_expected)}, below the current "
+            "chi-square threshold."
+            if minimum_expected is not None
+            else ""
+        )
+        return (
+            f"Both {selected} are categorical and form a 2x2 table for the declared "
+            "independence target. Fisher's exact test retains that target when sparse expected "
+            f"counts block chi-square under package policy.{expected_text}"
+        )
     if method_id == "pearson_correlation":
         pair_text = (
             f" The recommendation checks recorded {complete_pairs} complete pair(s)."
@@ -1693,6 +1764,12 @@ def _why_this_recommendation(
             f"Both {selected} are declared quantitative variables, and the estimand is linear "
             "association. Pearson correlation targets that linear relationship; it does not "
             f"establish causation.{pair_text}"
+        )
+    if method_id == "spearman_correlation":
+        return (
+            f"Both {selected} are ordered numeric variables, and the declared estimand is "
+            "monotonic association. Spearman correlation targets rank-order association; it "
+            "does not assert linearity or causation."
         )
     rationale = _recommendation_value(recommendation, "rationale")
     return (
@@ -1737,12 +1814,31 @@ def _why_not_recommendation(method_id: str, recommendation: Any) -> tuple[tuple[
                 ),
             ),
         )
+    if method_id == "one_sample_t":
+        return (
+            (
+                "AN INDEPENDENT-SAMPLES TEST",
+                "There is one outcome sample and one declared numeric reference, not two "
+                "observed groups.",
+            ),
+        )
     if method_id == "paired_t":
         return (
             (
                 "AN INDEPENDENT-SAMPLES TEST",
                 "Independent-samples methods discard the declared within-unit pairing and "
                 "target a different sampling structure.",
+            ),
+        )
+    if method_id == "wilcoxon_signed_rank":
+        return (
+            (
+                "PAIRED T-TEST",
+                str(
+                    recorded.get("paired_t", {}).get("reason")
+                    or "It targets the population mean paired difference rather than the "
+                    "declared rank-distribution target."
+                ),
             ),
         )
     if method_id == "mann_whitney_u":
@@ -1775,14 +1871,35 @@ def _why_not_recommendation(method_id: str, recommendation: Any) -> tuple[tuple[
                 "is not a substitute for categorical independence.",
             ),
         )
+    if method_id == "fisher_exact":
+        return (
+            (
+                "PEARSON CHI-SQUARE",
+                str(
+                    recorded.get("pearson_chi_square", {}).get("reason")
+                    or "At least one expected count is below PyAutoStat's chi-square threshold."
+                ),
+            ),
+        )
     if method_id == "pearson_correlation":
         return (
             (
                 "SPEARMAN CORRELATION",
                 str(
-                    recorded.get("spearman_coefficient", {}).get("reason")
-                    or "It targets monotonic rank association, and the current backend exposes "
-                    "only its descriptive coefficient."
+                    recorded.get("spearman_correlation", {}).get("reason")
+                    or "It targets monotonic rank association rather than the declared linear "
+                    "association target."
+                ),
+            ),
+        )
+    if method_id == "spearman_correlation":
+        return (
+            (
+                "PEARSON CORRELATION",
+                str(
+                    recorded.get("pearson_correlation", {}).get("reason")
+                    or "It targets linear association rather than the declared monotonic "
+                    "rank-association target."
                 ),
             ),
         )
@@ -1824,6 +1941,16 @@ def _verification_notes(method_id: str, recommendation: Any) -> tuple[str, ...]:
             "Verify sampling relevance and whether paired differences are suitable for "
             "population-mean inference; these facts are not established by the values.",
         )
+    if method_id == "wilcoxon_signed_rank":
+        return (
+            "Verify that the unit identifier links the same or matched unit across both "
+            "conditions and that different pairs are independent.",
+            "Verify that the declared first-minus-second condition order matches the intended "
+            "effect direction.",
+            "For a location-shift interpretation, review whether the paired-difference "
+            "distribution is suitably symmetric; do not assume a universal median test.",
+            "Zero paired differences are omitted from ranks under the recorded 'wilcox' policy.",
+        )
     notes = [
         "Verify from the study design that observational units are independent; numerical "
         "values cannot establish independence.",
@@ -1835,6 +1962,11 @@ def _verification_notes(method_id: str, recommendation: Any) -> tuple[str, ...]:
             "Review group distributions, influential observations, and mean-inference "
             "conditions; Welch's correction addresses unequal variances, not every design or "
             "distribution issue."
+        )
+    elif method_id == "one_sample_t":
+        notes.append(
+            "Verify that the reference value is scientifically justified and that independent "
+            "observations and distributional conditions support population-mean inference."
         )
     elif method_id in {"mann_whitney_u", "kruskal_wallis"}:
         notes.append(
@@ -1852,10 +1984,20 @@ def _verification_notes(method_id: str, recommendation: Any) -> tuple[str, ...]:
             "Verify that categories and each observational unit were defined independently of "
             "the analyzed outcome."
         )
+    elif method_id == "fisher_exact":
+        notes.append(
+            "Verify the 2x2 category definitions, ordered levels, observational independence, "
+            "and whether the table margins support the intended exact-test interpretation."
+        )
     elif method_id == "pearson_correlation":
         notes.append(
             "Review linearity, influential observations, and scale suitability; the "
             "recommendation does not infer these scientific conditions or causation."
+        )
+    elif method_id == "spearman_correlation":
+        notes.append(
+            "Verify meaningful ordering, observational independence, and a scientifically "
+            "relevant monotonic target; ties are permitted but should be reported."
         )
     return tuple(notes)
 

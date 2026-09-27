@@ -34,6 +34,18 @@ from .exceptions import (
     InvalidDataError,
     InvalidTestError,
 )
+from .inference import (
+    fisher_exact_test as _fisher_exact_test,
+)
+from .inference import (
+    one_sample_t_test as _one_sample_t_test,
+)
+from .inference import (
+    paired_wilcoxon as _paired_wilcoxon,
+)
+from .inference import (
+    spearman_correlation as _spearman_correlation,
+)
 
 _VALID_TEST_TYPES = ("auto", "ttest", "mannwhitney", "anova", "kruskal")
 _DEFAULT_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
@@ -955,6 +967,48 @@ class StatisticalAnalyzer:
             bootstrap_samples=bootstrap_samples,
             random_state=random_state,
         )
+
+    def one_sample_t_test(
+        self, value_col: str, reference_value: float, *, confidence_level: float = 0.95
+    ) -> dict:
+        """Run two-sided one-sample mean inference against an explicit reference."""
+        return _one_sample_t_test(
+            self.df, value_col, reference_value, confidence_level=confidence_level
+        )
+
+    def paired_wilcoxon(
+        self,
+        unit_id: str,
+        condition_col: str,
+        value_col: str,
+        *,
+        condition_order: tuple | list | None = None,
+    ) -> dict:
+        """Run a two-sided paired Wilcoxon test using explicit unit identity."""
+        return _paired_wilcoxon(self.df, unit_id, condition_col, value_col, condition_order)
+
+    def spearman_correlation(
+        self,
+        first: str,
+        second: str,
+        *,
+        confidence_level: float = 0.95,
+        bootstrap_samples: int = 499,
+        random_state: int | None = 0,
+    ) -> dict:
+        """Run inferential Spearman correlation with a paired bootstrap interval."""
+        return _spearman_correlation(
+            self.df,
+            first,
+            second,
+            confidence_level=confidence_level,
+            bootstrap_samples=bootstrap_samples,
+            random_state=random_state,
+        )
+
+    def fisher_exact(self, row_variable: str, column_variable: str) -> dict:
+        """Run a two-sided Fisher exact test for an observed 2x2 table."""
+        return _fisher_exact_test(self.df, row_variable, column_variable)
 
     def hypothesis_tests(
         self,

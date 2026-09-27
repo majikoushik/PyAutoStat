@@ -157,7 +157,13 @@ class ResearchWorkflowResult:
         lines.append(sep)
         lines.append(f" Status    : {status_val}")
         lines.append(f" Outcome   : {outcome}")
-        lines.append(f" Predictor : {predictor}")
+        if (
+            spec.question.objective is not None
+            and spec.question.objective.value != "compare_reference"
+        ):
+            lines.append(f" Predictor : {predictor}")
+        if spec.question.reference_value is not None:
+            lines.append(f" Reference : {spec.question.reference_value}")
         if self.analysis is not None:
             group_order = self.analysis.metadata.get("group_order")
             if isinstance(group_order, (list, tuple)) and group_order:
@@ -169,6 +175,9 @@ class ResearchWorkflowResult:
                 f" Sample    : {self.analysis.sample_size} rows analysed"
                 + (f" ({excl} excluded)" if excl else "")
             )
+            complete_pairs = self.analysis.metadata.get("sample", {}).get("complete_pairs")
+            if isinstance(complete_pairs, int):
+                lines.append(f" Pairs     : {complete_pairs} complete pairs")
 
         # ── Needs-input / blocked ────────────────────────────────────────────
         if self.missing_information:
@@ -218,6 +227,14 @@ class ResearchWorkflowResult:
             lines.append(" BLOCKED")
             for blocker in self.blockers:
                 lines.append(f"   BLOCKER: {blocker}")
+
+        if self.recommendation is not None and self.recommendation.status.value == "ready":
+            lines.append(thin)
+            lines.append(" WHY THIS METHOD")
+            lines.extend(
+                f"   {line}" if line else ""
+                for line in self.recommendation.explain().replace("?", "").splitlines()
+            )
 
         # ── Interpretation sections ──────────────────────────────────────────
         interp = self.interpretation

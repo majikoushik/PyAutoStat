@@ -268,7 +268,7 @@ def test_unspecified_numerical_target_asks_one_question(numerical_association):
     ]
 
 
-def test_monotonic_target_discloses_coefficient_only(numerical_association):
+def test_monotonic_target_selects_spearman_inference(numerical_association):
     result = question(
         numerical_association,
         objective="association",
@@ -277,14 +277,9 @@ def test_monotonic_target_discloses_coefficient_only(numerical_association):
         estimand="monotonic",
         design="independent",
     )
-    assert result.status == "unsupported"
-    assert result.method_id is None
-    assert {item["method_id"] for item in result.alternatives} == {
-        "spearman_coefficient",
-        "kendall_coefficient",
-    }
-    assert all(item["availability"] == "coefficient_only" for item in result.alternatives)
-    assert "p-values" in result.blockers[0]
+    assert result.status == "ready"
+    assert result.method_id == "spearman_correlation"
+    assert result.alternatives[0]["method_id"] == "pearson_correlation"
 
 
 def test_pearson_requires_three_complete_varying_pairs():
@@ -352,10 +347,10 @@ def test_categorical_association_expected_counts_and_sparse_block():
         predictor="method",
         design="independent",
     )
-    assert blocked.status == "unsupported"
-    assert blocked.method_id is None
+    assert blocked.status == "ready"
+    assert blocked.method_id == "fisher_exact"
     assert blocked.context["minimum_expected_count"] == 2
-    assert blocked.alternatives[0]["availability"] == "not_implemented"
+    assert blocked.alternatives[0]["method_id"] == "pearson_chi_square"
 
 
 def test_identifier_and_unordered_outcome_not_treated_as_quantitative():
@@ -666,8 +661,8 @@ def test_ordinal_numeric_association_keeps_its_scale():
         design="independent",
         variable_types=declarations,
     )
-    assert monotonic.status == "unsupported"
-    assert {item["availability"] for item in monotonic.alternatives} == {"coefficient_only"}
+    assert monotonic.status == "ready"
+    assert monotonic.method_id == "spearman_correlation"
     linear = question(
         assistant,
         objective="association",

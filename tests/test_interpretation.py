@@ -224,7 +224,6 @@ def test_unsupported_incomplete_question_is_unavailable(group_case):
 @pytest.mark.parametrize(
     ("change", "fragment"),
     [
-        ({"method_id": "spearman_correlation"}, "not supported"),
         ({"method_id": "unknown"}, "not supported"),
         ({"sample_size": None}, "sample size"),
     ],

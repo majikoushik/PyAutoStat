@@ -32,7 +32,12 @@ def capability_payload() -> dict[str, Any]:
     ]
     return _json_value(
         {
-            "objectives": ["descriptive", "compare_groups", "association"],
+            "objectives": [
+                "descriptive",
+                "compare_groups",
+                "compare_reference",
+                "association",
+            ],
             "designs": ["independent", "paired", "repeated", "clustered"],
             "methods": methods,
             "report_styles": REPORT_STYLES,

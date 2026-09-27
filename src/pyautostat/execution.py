@@ -7,11 +7,11 @@ from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from scipy import stats
 
 from .analyzer import StatisticalAnalyzer
 from .exceptions import InsufficientDataError, InvalidTestError, PyAutoStatError
+from .inference import paired_values
 from .question_builder import prepare_question
 from .recommendation import METHOD_CAPABILITIES, recommend_from_draft
 from .report import _json_safe
@@ -43,6 +43,12 @@ _NULL_HYPOTHESES = {
     "pearson_correlation": "The population Pearson linear correlation is zero.",
     "pearson_chi_square": "The two categorical variables are independent.",
     "paired_t": "The population mean paired difference is zero.",
+    "one_sample_t": "The population mean equals the declared reference value.",
+    "wilcoxon_signed_rank": (
+        "The paired-difference distribution is centered at zero under the signed-rank model."
+    ),
+    "spearman_correlation": "The population Spearman monotonic correlation is zero.",
+    "fisher_exact": "The two binary categorical variables are independent.",
 }
 
 
@@ -277,7 +283,6 @@ def _pearson_result(
     profile = StatisticalAnalyzer(subset).analyze_all(
         data_dictionary=declarations if declarations else None
     )
-
     correlation = profile.get("correlation", {})
     pearson = correlation.get("pearson", {})
     coefficient = pearson.get("matrix", {}).get(first, {}).get(second)
@@ -342,6 +347,100 @@ def _pearson_result(
     )
 
 
+def _one_sample_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    outcome = specification.question.outcome
+    reference = specification.question.reference_value
+    assert outcome is not None and reference is not None
+    raw = analyzer.one_sample_t_test(
+        outcome,
+        reference,
+        confidence_level=specification.options.confidence_level,
+    )
+    statistic = (
+        _number(raw["statistic"], "one-sample t statistic")
+        if raw.get("statistic") is not None
+        else None
+    )
+    p_raw = raw.get("p_value")
+    p_value = (
+        _number(p_raw, "one-sample t p-value", probability=True) if p_raw is not None else None
+    )
+    difference = _number(raw["mean_difference"], "mean difference")
+    sample_mean = _number(raw["sample_mean"], "sample mean")
+    standard_error = _number(raw["standard_error"], "standard error")
+    interval_raw = raw.get("confidence_interval")
+    if not isinstance(interval_raw, dict):
+        raise InsufficientDataError("The one-sample backend did not provide its mean interval.")
+    interval = {
+        **_json_safe(interval_raw),
+        "quantity": "mean difference from reference",
+    }
+    effect_value = raw.get("effect_size", {}).get("value")
+    effect = _number(effect_value, "one-sample Cohen's d") if effect_value is not None else None
+    analyzed = int(raw["sample_size"])
+    excluded = int(raw["excluded_rows"])
+    unit = (specification.data_dictionary or {}).get(outcome, {}).get("unit")
+    return AnalysisResult(
+        method_id="one_sample_t",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values={
+            "test_statistic": statistic,
+            "degrees_of_freedom": int(raw["degrees_of_freedom"]),
+            "p_value": p_value,
+            "primary_estimate": difference,
+            "estimate_name": "mean difference from reference",
+            "estimate_unit": unit,
+            "sample_mean": sample_mean,
+            "reference_value": float(reference),
+            "standard_error": standard_error,
+            "effect_size": {
+                "name": "one-sample Cohen's d",
+                "value": effect,
+                "definition": (
+                    "Observed sample mean minus reference value, divided by the sample SD."
+                ),
+                "confidence_interval": None,
+                "status": "available" if effect is not None else "unavailable_zero_variance",
+            },
+            "confidence_interval": interval,
+        },
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.ttest_1samp",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed,
+                "excluded_rows": excluded,
+            },
+            "reference_value": float(reference),
+            "contrast": {
+                "definition": "observed sample mean minus reference value",
+                "reference_value": float(reference),
+            },
+            "null_hypothesis": _NULL_HYPOTHESES["one_sample_t"],
+            "null_value": 0.0,
+            "null_quantity": "mean difference from reference",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "sample_mean": sample_mean,
+                "sample_standard_deviation": raw["sample_standard_deviation"],
+                "standard_error": standard_error,
+                "independent_observations": "Declared design; not verified from values.",
+            },
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
 def _paired_result(
     analyzer: StatisticalAnalyzer,
     specification: AnalysisSpecification,
@@ -351,22 +450,11 @@ def _paired_result(
     condition = specification.question.predictor
     unit_id = specification.unit_id
     assert outcome is not None and condition is not None and unit_id is not None
-    usable = analyzer.df[[unit_id, condition, outcome]].dropna()
-    if usable.duplicated([unit_id, condition]).any():
-        raise InsufficientDataError(
-            "A unit has multiple usable observations in one condition; aggregation is required."
-        )
-    observed = list(pd.unique(analyzer.df[condition].dropna()))
-    order = list(specification.condition_order or tuple(observed))
-    if len(observed) != 2 or len(order) != 2 or set(order) != set(observed):
-        raise InsufficientDataError("Paired execution requires exactly two ordered conditions.")
-    pivot = usable.pivot(index=unit_id, columns=condition, values=outcome)
-    complete = pivot.dropna(subset=order)
-    first = np.asarray(complete[order[0]], dtype=float)
-    second = np.asarray(complete[order[1]], dtype=float)
-    if len(first) < 2 or not np.isfinite(first).all() or not np.isfinite(second).all():
-        raise InsufficientDataError("At least two finite complete pairs are required.")
-    differences = first - second
+    pairs = paired_values(analyzer.df, unit_id, condition, outcome, specification.condition_order)
+    first = pairs["first"]
+    second = pairs["second"]
+    differences = pairs["differences"]
+    order = pairs["condition_order"]
     mean_difference = float(np.mean(differences))
     sd_difference = float(np.std(differences, ddof=1))
     if not math.isfinite(sd_difference) or sd_difference <= 0:
@@ -374,7 +462,7 @@ def _paired_result(
     test = stats.ttest_rel(first, second, nan_policy="raise")
     statistic = _number(test.statistic, "paired t statistic")
     p_value = _number(test.pvalue, "paired t p-value", probability=True)
-    complete_pairs = int(len(differences))
+    complete_pairs = int(pairs["complete_pairs"])
     degrees = complete_pairs - 1
     standard_error = sd_difference / math.sqrt(complete_pairs)
     critical = float(stats.t.ppf((1 + specification.options.confidence_level) / 2, degrees))
@@ -389,11 +477,11 @@ def _paired_result(
         "method": "analytical paired t interval",
     }
     effect = mean_difference / sd_difference
-    analyzed_rows = 2 * complete_pairs
-    excluded_rows = len(analyzer.df) - analyzed_rows
-    total_units = int(analyzer.df[unit_id].dropna().nunique())
-    incomplete_units = total_units - complete_pairs
-    missing_unit_rows = int(analyzer.df[unit_id].isna().sum())
+    analyzed_rows = int(pairs["analyzed_rows"])
+    excluded_rows = int(pairs["excluded_rows"])
+    total_units = int(pairs["total_units"])
+    incomplete_units = int(pairs["incomplete_units"])
+    missing_unit_rows = int(pairs["missing_unit_rows"])
     labels = [_label(item) for item in order]
     contrast = {
         "definition": "first condition minus second condition",
@@ -451,6 +539,175 @@ def _paired_result(
                 "paired_difference_sd": sd_difference,
                 "independent_pairs": "Declared design; not verified from values.",
             },
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _wilcoxon_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    outcome = specification.question.outcome
+    condition = specification.question.predictor
+    unit_id = specification.unit_id
+    assert outcome is not None and condition is not None and unit_id is not None
+    raw = analyzer.paired_wilcoxon(
+        unit_id,
+        condition,
+        outcome,
+        condition_order=specification.condition_order,
+    )
+    statistic = _number(raw["statistic"], "Wilcoxon statistic")
+    p_value = _number(raw["p_value"], "Wilcoxon p-value", probability=True)
+    effect = _number(raw["effect_size"]["value"], "matched-pairs rank-biserial correlation")
+    labels = [_label(item) for item in raw["condition_order"]]
+    contrast = {
+        "definition": "first condition minus second condition",
+        "first": labels[0],
+        "second": labels[1],
+    }
+    analyzed = int(raw["analyzed_rows"])
+    excluded = int(raw["excluded_rows"])
+    return AnalysisResult(
+        method_id="wilcoxon_signed_rank",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values={
+            "test_statistic": statistic,
+            "degrees_of_freedom": None,
+            "p_value": p_value,
+            "primary_estimate": effect,
+            "estimate_name": "matched-pairs rank-biserial correlation",
+            "estimate_unit": None,
+            "effect_size": {
+                "name": "matched-pairs rank-biserial correlation",
+                "value": effect,
+                "definition": (
+                    "Positive minus negative signed-rank sums divided by their total; positive "
+                    "values favor the first declared condition."
+                ),
+                "confidence_interval": None,
+            },
+            "confidence_interval": None,
+        },
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.wilcoxon",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed,
+                "excluded_rows": excluded,
+                "total_units": int(raw["total_units"]),
+                "complete_pairs": int(raw["complete_pairs"]),
+                "incomplete_units": int(raw["incomplete_units"]),
+                "excluded_units": int(raw["incomplete_units"]),
+                "missing_unit_rows": int(raw["missing_unit_rows"]),
+                "complete_pair_rule": "one usable observation in each declared condition",
+                "nonzero_differences": int(raw["nonzero_differences"]),
+                "zero_differences": int(raw["zero_differences"]),
+            },
+            "unit_id": unit_id,
+            "group_order": labels,
+            "condition_order": labels,
+            "contrast": contrast,
+            "zero_method": raw["zero_method"],
+            "p_value_method": raw["method"],
+            "p_value_method_parameter": raw["method_parameter"],
+            "p_value_method_detail": raw["method_detail"],
+            "rank_sums": {
+                "positive": raw["positive_rank_sum"],
+                "negative": raw["negative_rank_sum"],
+            },
+            "null_hypothesis": _NULL_HYPOTHESES["wilcoxon_signed_rank"],
+            "null_value": 0.0,
+            "null_quantity": "matched-pairs rank-biserial correlation",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "zero_method": "wilcox (zero differences omitted from ranks)",
+                "independent_pairs": "Declared design; not verified from values.",
+            },
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _spearman_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    first = specification.question.outcome
+    second = specification.question.predictor
+    assert first is not None and second is not None
+    seed = specification.options.random_seed
+    effective_seed = 0 if seed is None else seed
+    raw = analyzer.spearman_correlation(
+        first,
+        second,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=499,
+        random_state=effective_seed,
+    )
+    rho = _number(raw["statistic"], "Spearman rho")
+    p_value = _number(raw["p_value"], "Spearman p-value", probability=True)
+    interval = _interval(
+        raw.get("confidence_interval"),
+        "Spearman rho",
+        "paired-observation percentile bootstrap",
+        specification.options.confidence_level,
+    )
+    analyzed = int(raw["sample_size"])
+    excluded = int(raw["excluded_rows"])
+    return AnalysisResult(
+        method_id="spearman_correlation",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values={
+            "test_statistic": rho,
+            "degrees_of_freedom": None,
+            "p_value": p_value,
+            "primary_estimate": rho,
+            "estimate_name": "Spearman rho",
+            "estimate_unit": None,
+            "effect_size": {
+                "name": "Spearman rho",
+                "value": rho,
+                "definition": "Signed monotonic rank correlation between paired observations.",
+                "confidence_interval": interval,
+            },
+            "confidence_interval": interval,
+        },
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.spearmanr",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed,
+                "excluded_rows": excluded,
+                "effective_pair_count": analyzed,
+            },
+            "variable_order": [first, second],
+            "ties": _json_safe(raw["ties"]),
+            "null_hypothesis": _NULL_HYPOTHESES["spearman_correlation"],
+            "null_value": 0.0,
+            "null_quantity": "Spearman rho",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "ties": _json_safe(raw["ties"]),
+                "independent_observational_pairs": "Declared design; not verified from values.",
+            },
+            "bootstrap_default_resamples": 499,
+            "effective_random_seed": effective_seed,
         },
         specification=specification,
         recommendation=recommendation,
@@ -543,6 +800,86 @@ def _categorical_result(
     )
 
 
+def _fisher_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    row_variable = specification.question.outcome
+    column_variable = specification.question.predictor
+    assert row_variable is not None and column_variable is not None
+    raw = analyzer.fisher_exact(row_variable, column_variable)
+    odds_raw = raw.get("odds_ratio")
+    odds_ratio = _number(odds_raw, "sample odds ratio") if odds_raw is not None else None
+    p_value = _number(raw["p_value"], "Fisher p-value", probability=True)
+    observed = raw["observed_counts"]
+    analyzed = int(raw["sample_size"])
+    excluded = int(raw["excluded_rows"])
+    if (
+        len(observed) != 2
+        or any(not isinstance(row, list) or len(row) != 2 for row in observed)
+        or sum(map(sum, observed)) != analyzed
+        or analyzed + excluded != len(analyzer.df)
+    ):
+        raise InsufficientDataError("Fisher contingency counts disagree with the dataset.")
+    row_levels = [_label(item) for item in raw["row_levels"]]
+    column_levels = [_label(item) for item in raw["column_levels"]]
+    return AnalysisResult(
+        method_id="fisher_exact",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values={
+            "test_statistic": odds_ratio,
+            "degrees_of_freedom": None,
+            "p_value": p_value,
+            "primary_estimate": odds_ratio,
+            "estimate_name": "sample odds ratio",
+            "estimate_unit": None,
+            "effect_size": {
+                "name": "sample odds ratio",
+                "value": odds_ratio,
+                "definition": raw["odds_ratio_definition"],
+                "confidence_interval": None,
+                "status": raw["odds_ratio_status"],
+            },
+            "confidence_interval": None,
+        },
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.fisher_exact",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed,
+                "excluded_rows": excluded,
+                "row_totals": [int(sum(row)) for row in observed],
+            },
+            "variable_order": [row_variable, column_variable],
+            "row_variable": row_variable,
+            "column_variable": column_variable,
+            "row_order": row_levels,
+            "column_order": column_levels,
+            "row_ordering": raw["row_ordering"],
+            "column_ordering": raw["column_ordering"],
+            "observed_counts": _json_safe(observed),
+            "odds_ratio_status": raw["odds_ratio_status"],
+            "null_hypothesis": _NULL_HYPOTHESES["fisher_exact"],
+            "null_value": 1.0,
+            "null_quantity": "sample odds ratio",
+            "alternative_hypothesis": "association",
+            "diagnostics": {
+                "table_shape": [2, 2],
+                "confidence_interval_status": "not_supported",
+                "independent_observations": "Declared design; not verified from values.",
+            },
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
 def execute_specification(
     analyzer: StatisticalAnalyzer, specification: AnalysisSpecification
 ) -> AnalysisResult:
@@ -603,12 +940,20 @@ def execute_specification(
             )
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, recommendation)
+        if method_id == "one_sample_t":
+            return _one_sample_result(analyzer, specification, recommendation)
         if method_id == "paired_t":
             return _paired_result(analyzer, specification, recommendation)
+        if method_id == "wilcoxon_signed_rank":
+            return _wilcoxon_result(analyzer, specification, recommendation)
         if method_id == "pearson_correlation":
             return _pearson_result(analyzer, specification, recommendation)
+        if method_id == "spearman_correlation":
+            return _spearman_result(analyzer, specification, recommendation)
         if method_id == "pearson_chi_square":
             return _categorical_result(analyzer, specification, recommendation)
+        if method_id == "fisher_exact":
+            return _fisher_result(analyzer, specification, recommendation)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, recommendation, str(exc))
@@ -679,12 +1024,20 @@ def execute_selected_method(
     try:
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, explicit)
+        if method_id == "one_sample_t":
+            return _one_sample_result(analyzer, specification, explicit)
         if method_id == "paired_t":
             return _paired_result(analyzer, specification, explicit)
+        if method_id == "wilcoxon_signed_rank":
+            return _wilcoxon_result(analyzer, specification, explicit)
         if method_id == "pearson_correlation":
             return _pearson_result(analyzer, specification, explicit)
+        if method_id == "spearman_correlation":
+            return _spearman_result(analyzer, specification, explicit)
         if method_id == "pearson_chi_square":
             return _categorical_result(analyzer, specification, explicit)
+        if method_id == "fisher_exact":
+            return _fisher_result(analyzer, specification, explicit)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, explicit, str(exc))

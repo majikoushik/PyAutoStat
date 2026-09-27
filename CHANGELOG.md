@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added complete one-sample t inference against a finite researcher-declared reference, preserving
+  observed-minus-reference orientation, analytical raw-difference intervals, and one-sample
+  Cohen's d when defined.
+- Added explicit unit-ID paired Wilcoxon signed-rank inference with recorded condition order,
+  `wilcox` zero handling, matched-pairs rank-biserial effect, and complete/incomplete-pair
+  accounting.
+- Added inferential Spearman correlation for declared monotonic targets, including rho, p-value,
+  ties metadata, and a deterministic paired-observation percentile bootstrap interval.
+- Added two-sided Fisher exact inference for sparse 2x2 categorical tables using the shared
+  contingency builder, ordered observed counts, and SciPy's sample odds ratio; adequate tables
+  continue to use Pearson chi-square.
+- Integrated all four methods with deterministic explanation, canonical reports, completeness,
+  semantic audit checks, analysis planning, sensitivity identity, practical-significance
+  boundaries, reproducibility/replay, session capabilities, examples, and installed-wheel tests.
+
 - Added default and custom linear-interpolation percentile profiles, with P50 tied to the existing
   median calculation and deterministic percentile narration.
 - Added JSON-safe categorical frequency tables and descriptive cross-tabs with explicit valid,

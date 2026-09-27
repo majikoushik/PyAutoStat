@@ -130,7 +130,9 @@ def test_unavailable_or_nonfinite_effect_does_not_become_zero(value):
 
 
 def test_unsupported_and_out_of_range_effects_are_safe():
-    assert "unsupported" in effect_narrative("odds_ratio", 1.2)
+    odds = effect_narrative("odds_ratio", 1.2)
+    assert "Sample odds ratio = 1.2" in odds
+    assert "does not assign a conventional magnitude" in odds
     assert "outside its valid range" in effect_narrative("pearson_r", 1.1)
     assert "outside its valid range" in effect_narrative("eta_squared", -0.1)
 

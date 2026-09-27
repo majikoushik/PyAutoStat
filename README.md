@@ -165,9 +165,13 @@ remain distinct from a completed workflow.
 - Dataset profiling with structured quality and resource metadata.
 - Welch independent-means analysis and explicit Student t-test.
 - Explicit two-condition paired t-test using a declared unit-ID column.
+- One-sample t inference against an explicit reference mean, including the raw signed mean
+  difference, analytical interval, and one-sample Cohen's d when defined.
+- Explicit paired Wilcoxon signed-rank inference for a declared paired rank/distribution target.
 - Mann-Whitney U, standard one-way ANOVA, and Kruskal-Wallis calculations within their documented
   selection and explicit-use boundaries.
-- Pearson numerical association and Pearson chi-square categorical association.
+- Pearson linear and Spearman monotonic numerical association inference.
+- Pearson chi-square categorical association plus Fisher's exact fallback for sparse 2x2 tables.
 - Effect estimates, supported confidence intervals, sample accounting, assumptions, and warnings.
 - Deterministic interpretation and canonical research reports.
 - Static HTML, Markdown, JSON, CSV tables, safe LaTeX, and optional interactive Plotly HTML.
@@ -209,6 +213,11 @@ paired_workflow = ResearchAssistant(paired).run(
 
 Duplicate unit/condition rows are blocked rather than averaged. Incomplete pairs are counted and
 excluded transparently. See [advanced planning and presentation](docs/ADVANCED_PLANNING_AND_PRESENTATION.md).
+
+For concise synthetic examples of one-sample t, paired Wilcoxon, inferential Spearman, and sparse
+2x2 Fisher workflows, run `python examples/basic_inference.py`. Wilcoxon is a signed-rank analysis,
+not universally a median test; Spearman targets monotonic rank association, not “Pearson for
+non-normal data”; and Fisher support does not extend beyond 2x2 tables.
 
 ### Analysis and study planning
 

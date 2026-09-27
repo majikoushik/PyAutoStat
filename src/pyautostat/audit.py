@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -166,6 +167,114 @@ def _csv_rows(value: str) -> list[list[str]]:
     return list(csv.reader(io.StringIO(value)))
 
 
+def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...]:
+    """Check stored method identity and accounting without recalculating statistics."""
+    if source.status.value != "available":
+        return ()
+    if source.method_id == "dataset_profile":
+        return ()
+    findings: list[AuditFinding] = []
+    specification = source.specification
+    recommendation = source.recommendation
+    if specification is None:
+        _mismatch("analysis.specification", "present", None, findings)
+        return tuple(findings)
+    if recommendation is None or recommendation.method_id != source.method_id:
+        _mismatch(
+            "analysis.recommendation.method_id",
+            source.method_id,
+            recommendation.method_id if recommendation is not None else None,
+            findings,
+        )
+    values = source.values
+    p_value = values.get("p_value")
+    allowed_missing_p_value = (
+        source.method_id == "one_sample_t"
+        and values.get("effect_size", {}).get("status") == "unavailable_zero_variance"
+    )
+    valid_p_value = (
+        isinstance(p_value, (int, float))
+        and not isinstance(p_value, bool)
+        and math.isfinite(float(p_value))
+        and 0 <= float(p_value) <= 1
+    )
+    if not valid_p_value and not allowed_missing_p_value:
+        _mismatch("analysis.values.p_value", "finite probability", p_value, findings)
+    statistic = values.get("test_statistic")
+    allowed_missing_statistic = (
+        source.method_id == "one_sample_t"
+        and values.get("effect_size", {}).get("status") == "unavailable_zero_variance"
+    ) or (
+        source.method_id == "fisher_exact"
+        and source.metadata.get("odds_ratio_status") in {"positive_infinity", "undefined"}
+    )
+    valid_statistic = (
+        isinstance(statistic, (int, float))
+        and not isinstance(statistic, bool)
+        and math.isfinite(float(statistic))
+    )
+    if not valid_statistic and not allowed_missing_statistic:
+        _mismatch("analysis.values.test_statistic", "finite statistic", statistic, findings)
+    interval = values.get("confidence_interval")
+    if isinstance(interval, dict) and interval.get("quantity") != values.get("estimate_name"):
+        _mismatch(
+            "analysis.values.confidence_interval.quantity",
+            values.get("estimate_name"),
+            interval.get("quantity"),
+            findings,
+        )
+    sample = source.metadata.get("sample")
+    if isinstance(sample, dict):
+        original = sample.get("original_rows")
+        if (
+            isinstance(original, int)
+            and source.sample_size is not None
+            and source.excluded_rows is not None
+            and original != source.sample_size + source.excluded_rows
+        ):
+            _mismatch(
+                "analysis.metadata.sample.original_rows",
+                source.sample_size + source.excluded_rows,
+                original,
+                findings,
+            )
+    method = source.method_id
+    question = specification.question
+    if method == "one_sample_t":
+        reference = question.reference_value
+        for path, actual in (
+            ("analysis.values.reference_value", values.get("reference_value")),
+            ("analysis.metadata.reference_value", source.metadata.get("reference_value")),
+        ):
+            if actual != reference:
+                _mismatch(path, reference, actual, findings)
+    if method in {"paired_t", "wilcoxon_signed_rank"}:
+        contrast = source.metadata.get("contrast")
+        order = source.metadata.get("condition_order")
+        if (
+            not isinstance(order, list)
+            or len(order) != 2
+            or not isinstance(contrast, dict)
+            or contrast.get("first") != order[0]
+            or contrast.get("second") != order[1]
+            or contrast.get("definition") != "first condition minus second condition"
+        ):
+            _mismatch("analysis.metadata.contrast", "declared condition order", contrast, findings)
+        if isinstance(sample, dict) and sample.get("complete_pairs") is not None:
+            expected_rows = 2 * int(sample["complete_pairs"])
+            if source.sample_size != expected_rows:
+                _mismatch("analysis.sample_size", expected_rows, source.sample_size, findings)
+    if method == "fisher_exact":
+        observed = source.metadata.get("observed_counts")
+        if (
+            not isinstance(observed, list)
+            or len(observed) != 2
+            or any(not isinstance(row, list) or len(row) != 2 for row in observed)
+        ):
+            _mismatch("analysis.metadata.observed_counts", "2x2 table", observed, findings)
+    return tuple(findings)
+
+
 class StatisticalResultAuditor:
     """Check consistency; a pass is not independent scientific validation."""
 
@@ -229,6 +338,8 @@ class StatisticalResultAuditor:
                 )
             )
             return AuditResult("failed", tuple(findings), (), (), references)
+        findings.extend(_method_contract_findings(source))
+        checked.append("method_contract")
         expected_payload = expected.to_dict()
         references["specification"] = content_reference(
             "specification", source_payload["specification"]

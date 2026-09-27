@@ -41,11 +41,15 @@ _QUANTITIES = {
     "welch_t": "mean_difference",
     "student_t": "mean_difference",
     "paired_t": "mean_difference",
+    "one_sample_t": "mean_difference",
+    "wilcoxon_signed_rank": "matched_pairs_rank_biserial",
     "mann_whitney_u": "rank_biserial",
     "one_way_anova": "eta_squared",
     "kruskal_wallis": "epsilon_squared",
     "pearson_correlation": "pearson_r",
+    "spearman_correlation": "spearman_rho",
     "pearson_chi_square": "cramers_v",
+    "fisher_exact": "odds_ratio",
 }
 
 
@@ -370,6 +374,7 @@ def _identity(result: AnalysisResult) -> dict[str, Any]:
         "predictor": question.predictor,
         "design": specification.design.value,
         "estimand": question.estimand,
+        "reference_value": question.reference_value,
         "unit_id": specification.unit_id,
         "estimate_quantity": estimate_quantity(result.method_id),
         "contrast": result.metadata.get("contrast"),
@@ -386,7 +391,13 @@ def classify_comparability(base: AnalysisResult, scenario: AnalysisResult) -> Co
     left, right = _identity(base), _identity(scenario)
     if not left or not right:
         return Comparability.UNAVAILABLE
-    for field_name in ("objective", "outcome", "predictor", "design"):
+    for field_name in (
+        "objective",
+        "outcome",
+        "predictor",
+        "design",
+        "reference_value",
+    ):
         if left[field_name] != right[field_name]:
             return Comparability.INCOMPATIBLE
     if left["design"] == "paired" and left["unit_id"] != right["unit_id"]:

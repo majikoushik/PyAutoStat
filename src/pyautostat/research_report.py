@@ -613,7 +613,12 @@ def build_research_report(
         visible["confidence_interval"] = validated.get("confidence_interval")
         finding_codes = {item["code"] for item in interpreted["findings"]}
         effect = values.get("effect_size")
-        if analysis["method_id"] in {"welch_t", "student_t", "paired_t"}:
+        if analysis["method_id"] in {
+            "welch_t",
+            "student_t",
+            "paired_t",
+            "one_sample_t",
+        }:
             if isinstance(effect, dict) and "standardized_effect_reported" in finding_codes:
                 effect = deepcopy(effect)
                 if "effect_interval_reported" not in finding_codes:
@@ -646,6 +651,9 @@ def build_research_report(
         "bootstrap_resamples": metadata.get("bootstrap_default_resamples"),
         "required_assumptions": analysis["assumptions"],
         "unit_id": spec.get("unit_id"),
+        "reference_value": question.get("reference_value"),
+        "zero_method": metadata.get("zero_method"),
+        "p_value_method": metadata.get("p_value_method"),
     }
     dataset = {
         "original_rows": original,
@@ -660,6 +668,8 @@ def build_research_report(
         "excluded_units": sample.get("excluded_units"),
         "missing_unit_rows": sample.get("missing_unit_rows"),
         "complete_pair_rule": sample.get("complete_pair_rule"),
+        "nonzero_differences": sample.get("nonzero_differences"),
+        "zero_differences": sample.get("zero_differences"),
         "contrast": metadata.get("contrast"),
     }
     if isinstance(dataset["group_sizes"], list) and analyzed is not None:
@@ -684,6 +694,9 @@ def build_research_report(
         "estimate_unit": visible.get("estimate_unit"),
         "effect_size": visible.get("effect_size"),
         "confidence_interval": visible.get("confidence_interval"),
+        "sample_mean": visible.get("sample_mean"),
+        "reference_value": visible.get("reference_value"),
+        "standard_error": visible.get("standard_error"),
     }
     interpretation_section = {
         "status": interpreted["status"],
@@ -722,7 +735,14 @@ def build_research_report(
         )
     pair_fields = {
         name: dataset[name]
-        for name in ("total_units", "complete_pairs", "incomplete_units", "excluded_units")
+        for name in (
+            "total_units",
+            "complete_pairs",
+            "incomplete_units",
+            "excluded_units",
+            "nonzero_differences",
+            "zero_differences",
+        )
         if dataset[name] is not None
     }
     if pair_fields:
@@ -833,6 +853,9 @@ def build_research_report(
                 "degrees_of_freedom": visible.get("degrees_of_freedom"),
                 "p_value": visible.get("p_value"),
                 "primary_estimate": visible.get("primary_estimate"),
+                "sample_mean": visible.get("sample_mean"),
+                "reference_value": visible.get("reference_value"),
+                "standard_error": visible.get("standard_error"),
             }
             tables.append(
                 _table(
@@ -900,6 +923,43 @@ def build_research_report(
                         interval_rows,
                     )
                 )
+            if analysis["method_id"] == "fisher_exact":
+                observed = metadata.get("observed_counts")
+                row_levels = metadata.get("row_order")
+                column_levels = metadata.get("column_order")
+                if (
+                    isinstance(observed, list)
+                    and len(observed) == 2
+                    and all(isinstance(row, list) and len(row) == 2 for row in observed)
+                    and isinstance(row_levels, list)
+                    and len(row_levels) == 2
+                    and isinstance(column_levels, list)
+                    and len(column_levels) == 2
+                ):
+                    tables.append(
+                        _table(
+                            "observed_contingency_table",
+                            "Observed 2x2 contingency table",
+                            [metadata.get("row_variable"), *column_levels],
+                            [
+                                [
+                                    _cell(
+                                        row_levels[index],
+                                        f"analysis.metadata.row_order[{index}]",
+                                    ),
+                                    *[
+                                        _cell(
+                                            count,
+                                            "analysis.metadata.observed_counts"
+                                            f"[{index}][{column_index}]",
+                                        )
+                                        for column_index, count in enumerate(row)
+                                    ],
+                                ]
+                                for index, row in enumerate(observed)
+                            ],
+                        )
+                    )
     figures: list[dict[str, Any]] = []
     if include_figures and analysis["method_id"] == "dataset_profile" and status != "unavailable":
         profile = values.get("profile", {})
@@ -962,6 +1022,7 @@ def build_research_report(
             "declared_design": spec["design"],
             "unit_id": spec.get("unit_id"),
             "condition_order": spec.get("condition_order"),
+            "reference_value": question.get("reference_value"),
             "data_dictionary": spec.get("data_dictionary"),
         },
         "dataset": dataset,

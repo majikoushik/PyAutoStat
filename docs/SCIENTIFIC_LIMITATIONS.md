@@ -12,7 +12,20 @@ It is not a substitute for scientific design review or subject-matter judgment.
   researcher-declared quantity, direction, and threshold.
 - The statistical catalogue is deliberately limited. Repeated measures with more than two
   conditions, clustered models, regression families, mixed models, survival analysis, causal
-  inference, sparse exact-table alternatives, and broad multiplicity procedures are unsupported.
+  inference, exact-table extensions beyond Fisher's 2x2 test, and broad multiplicity procedures
+  are unsupported.
+- The one-sample t-test targets the population mean difference from a researcher-declared
+  reference. With zero sample variance the raw contrast is retained, but t, p, and standardized d
+  are unavailable; this is not converted into ordinary finite inference.
+- Paired Wilcoxon uses explicit unit-ID matching and the `wilcox` zero-difference convention. It
+  evaluates signed ranks of paired differences and is not universally a median-difference test;
+  a location-shift interpretation needs an appropriate symmetry assumption.
+- Inferential Spearman targets monotonic rank association. Its percentile interval resamples
+  observation pairs together; ties are allowed. It neither guarantees linearity nor establishes
+  causation.
+- Fisher's exact test is limited to ordered 2x2 tables. Its primary effect is SciPy's
+  unconditional sample odds ratio. Nonfinite zero-cell ratios are recorded as unavailable with a
+  status, and no odds-ratio confidence interval is currently supplied.
 - Missing data use analysis-specific complete cases. There is no automatic imputation or
   missing-data mechanism model.
 - Outliers are reported for review. They are never deleted automatically.

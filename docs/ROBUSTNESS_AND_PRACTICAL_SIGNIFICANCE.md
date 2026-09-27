@@ -75,7 +75,7 @@ practical = assistant.practical_significance(
 print(practical.verdict)
 ```
 
-Supported signed quantities are `mean_difference`, `cohens_d`, `pearson_r`, and
+Supported signed quantities are `mean_difference`, `cohens_d`, `pearson_r`, `spearman_rho`, and
 `rank_biserial`. Supported nonnegative quantities are `cramers_v`, `eta_squared`, and
 `epsilon_squared`. The named quantity must exist in the result. Raw and standardized effects are
 never converted or substituted. A known raw unit must match the threshold unit; when result-unit
@@ -135,8 +135,11 @@ follow-up configurations were recorded but were not automatically replayed.
 - Sensitivity results describe only the scenarios supplied by the researcher.
 - Different-estimand scenarios are supplementary analyses, not direct replications.
 - Pearson uncertainty remains partial because the current backend has no Pearson interval.
-- Changed-data sensitivity, cross-design paired/independent substitutions, exact sparse-table methods, and rank-correlation
-  inference are not implemented.
+- Changed-data sensitivity and cross-design paired/independent substitutions are not implemented.
+  Paired t versus Wilcoxon and Pearson versus Spearman retain different estimand identities;
+  chi-square versus Fisher retains the categorical target but different primary effect quantities.
+  Practical thresholds for Wilcoxon matched-pairs rank-biserial effects and Fisher odds ratios are
+  intentionally unsupported; Spearman uses the existing signed-correlation threshold contract.
 - Thresholds express researcher context. PyAutoStat does not supply universal practical-importance
   cutoffs or generic small, medium, and large labels for this decision.
 - Formal equivalence and noninferiority tests remain unsupported.

@@ -212,17 +212,6 @@ def test_data_limits_stop_before_recommendation(frame, expected_text):
                 variable_types={"x": "continuous", "y": "continuous"},
             ),
         ),
-        (
-            pd.DataFrame({"x": ["a", "a", "b", "b"], "y": ["u", "v", "u", "v"]}),
-            dict(
-                objective="association",
-                outcome="x",
-                predictor="y",
-                estimand="categorical_independence",
-                design="independent",
-                variable_types={"x": "nominal", "y": "nominal"},
-            ),
-        ),
     ],
 )
 def test_recommendation_stage_data_limits_have_a_distinct_status(frame, arguments):

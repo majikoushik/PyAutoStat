@@ -14,7 +14,13 @@ from .sensitivity import estimate_quantity
 from .specifications import _json_value
 
 PRACTICAL_SIGNIFICANCE_SCHEMA_VERSION = 1
-SIGNED_QUANTITIES = {"mean_difference", "cohens_d", "pearson_r", "rank_biserial"}
+SIGNED_QUANTITIES = {
+    "mean_difference",
+    "cohens_d",
+    "pearson_r",
+    "spearman_rho",
+    "rank_biserial",
+}
 NONNEGATIVE_QUANTITIES = {"cramers_v", "eta_squared", "epsilon_squared"}
 SUPPORTED_QUANTITIES = SIGNED_QUANTITIES | NONNEGATIVE_QUANTITIES
 _DIRECTIONS = {"two_sided", "positive", "negative", "nonnegative"}
@@ -268,6 +274,8 @@ def _metric(
             "epsilon-squared": "epsilon_squared",
             "Cramer's V": "cramers_v",
             "Pearson r": "pearson_r",
+            "Spearman rho": "spearman_rho",
+            "one-sample Cohen's d": "cohens_d",
         }
         observed = aliases.get(str(effect.get("name")))
         if observed != quantity:
@@ -289,12 +297,14 @@ def _metric(
         interval_aliases = {
             "mean difference": "mean_difference",
             "mean paired difference": "mean_difference",
+            "mean difference from reference": "mean_difference",
             "Cohen's d": "cohens_d",
             "rank-biserial correlation": "rank_biserial",
             "eta-squared": "eta_squared",
             "epsilon-squared": "epsilon_squared",
             "Cramer's V": "cramers_v",
             "Pearson r": "pearson_r",
+            "Spearman rho": "spearman_rho",
         }
         if interval_aliases.get(str(interval.get("quantity"))) != quantity:
             raise InvalidDataError(
@@ -311,9 +321,13 @@ def _metric(
         and float(checked_interval["lower"]) < 0
     ):
         raise InvalidDataError("A nonnegative effect quantity has an invalid negative interval.")
-    if quantity in {"pearson_r", "rank_biserial"} and abs(estimate) > 1:
+    if quantity in {"pearson_r", "spearman_rho", "rank_biserial"} and abs(estimate) > 1:
         raise InvalidDataError("A correlation quantity is outside its valid range.")
-    if checked_interval is not None and quantity in {"pearson_r", "rank_biserial"}:
+    if checked_interval is not None and quantity in {
+        "pearson_r",
+        "spearman_rho",
+        "rank_biserial",
+    }:
         if float(checked_interval["lower"]) < -1 or float(checked_interval["upper"]) > 1:
             raise InvalidDataError("A correlation interval is outside its valid range.")
     return estimate, checked_interval, unit if isinstance(unit, str) else None

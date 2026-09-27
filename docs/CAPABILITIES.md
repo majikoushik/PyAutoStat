@@ -110,15 +110,19 @@ implemented. `audit=False` also makes an otherwise successful workflow partial.
 | Objective and target | Design | Method | Access | Estimate and uncertainty | Main limit |
 | --- | --- | --- | --- | --- | --- |
 | Dataset description | Not applicable | Dataset profile | Guided and direct | Descriptive records; no inferential p-value | Descriptive only |
+| One population mean versus reference | Independent | One-sample t-test | Automatically guided and direct | Observed-minus-reference mean difference, analytical CI, one-sample Cohen's d when defined | Explicit finite reference and continuous outcome required; zero variance leaves inferential quantities unavailable |
 | Two-group population means | Independent | Welch t-test | Automatically guided | First-minus-second mean, analytical CI, Cohen's d | At least two usable values per group and representable spread |
 | Pooled two-group population means | Independent | Student t-test | Explicitly runnable and available to sensitivity scenarios | First-minus-second mean, analytical CI, Cohen's d | Requires an explicit equal-variance justification |
 | Two-condition paired population mean difference | Paired with explicit unit ID | Paired t-test | Automatically guided | First-minus-second paired mean, analytical CI, Cohen's dz | Unique unit/condition rows, at least two complete pairs, nonzero difference variance |
+| Two-condition paired rank/distribution target | Paired with explicit unit ID | Wilcoxon signed-rank | Automatically guided and direct | Signed-rank statistic, matched-pairs rank-biserial effect; CI explicitly unavailable | `wilcox` zero policy; not universally a median test; location-shift reading needs symmetry |
 | Two-group rank distributions | Independent | Mann-Whitney U | Automatically guided | U, rank-biserial effect, optional bootstrap CI | Distribution target; no universal median claim |
 | Standard multi-group population means | Independent | One-way ANOVA | Explicitly runnable and available to sensitivity scenarios | Omnibus F and eta-squared | Guided selector does not choose it; equal-variance assumptions require justification |
 | Three-or-more rank distributions | Independent | Kruskal-Wallis | Automatically guided | Omnibus H, epsilon-squared, optional bootstrap CI | At least five usable values per group; no post-hoc comparisons |
 | Linear numerical association | Independent rows | Pearson correlation | Automatically guided | r and p-value | Confidence interval unavailable, so interpretation is partial |
 | Categorical independence | Independent rows | Pearson chi-square | Automatically guided when the expected-count policy passes | Chi-square, Cramer's V, optional bootstrap CI | At least two levels per axis and every expected cell at least five |
-| Monotonic numerical association | Independent rows | Spearman and Kendall coefficients | Descriptive coefficient matrices only | Coefficients | Guided inferential p-values and intervals unavailable |
+| Monotonic numerical association | Independent rows | Spearman rank correlation | Automatically guided and direct | rho, p-value, deterministic paired-observation bootstrap CI | Ties allowed; does not establish linearity or causation |
+| Sparse 2x2 categorical independence | Independent rows | Fisher's exact test | Automatically guided fallback and direct | Two-sided p and ordered sample odds ratio; CI explicitly unavailable | Exactly 2x2; no category collapsing or RxC extension |
+| Kendall association | Independent rows | Kendall coefficient | Descriptive coefficient matrix only | Coefficient | Inferential workflow unavailable |
 
 Diagnostics never silently change a declared mean target into a rank-distribution target. Group
 and paired directions follow the recorded contrast. Missing rows use the documented
@@ -159,10 +163,11 @@ Common blockers remain explicit:
 - Missing objective, variables, estimand, design, unit ID, or relationship target returns
   structured missing information rather than a guessed answer.
 - All-missing selections, too few observations, constant outcomes, nonrepresentable spread,
-  duplicate paired unit/condition rows, unusable pairs, or sparse contingency tables return a
-  data-limited or unsupported result as documented.
+  duplicate paired unit/condition rows, unusable pairs, or unsupported sparse tables return a
+  data-limited or unsupported result as documented. Sparse 2x2 tables use Fisher; larger sparse
+  tables remain unsupported.
 - Repeated measures with more than two conditions, clustered models, mixed models, generic
-  regression, survival analysis, causal inference, Welch ANOVA, exact sparse-table alternatives,
+  regression, survival analysis, causal inference, Welch ANOVA, Fisher extensions beyond 2x2,
   broad multiplicity or post-hoc families, and formal equivalence or noninferiority tests are not
   implemented.
 - Numerical backend failure never becomes a successful result. Invalid report metadata or audit

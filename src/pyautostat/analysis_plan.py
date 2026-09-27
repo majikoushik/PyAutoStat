@@ -364,16 +364,26 @@ def planned_quantity(method_id: str | None) -> str | None:
 
 
 def planned_interval_quantity(method_id: str | None) -> str | None:
-    if method_id in {"welch_t", "student_t", "paired_t"}:
+    if method_id in {"welch_t", "student_t", "paired_t", "one_sample_t"}:
         return "mean_difference"
+    if method_id == "spearman_correlation":
+        return "spearman_rho"
     return None
 
 
 def _alternative_hypothesis(method_id: str | None) -> str | None:
-    if method_id in {"welch_t", "student_t", "paired_t", "pearson_correlation"}:
+    if method_id in {
+        "welch_t",
+        "student_t",
+        "paired_t",
+        "one_sample_t",
+        "wilcoxon_signed_rank",
+        "pearson_correlation",
+        "spearman_correlation",
+    }:
         return "two-sided"
     if method_id in {"one_way_anova", "kruskal_wallis"}:
         return "at least one group differs"
-    if method_id == "pearson_chi_square":
+    if method_id in {"pearson_chi_square", "fisher_exact"}:
         return "variables are associated"
     return None

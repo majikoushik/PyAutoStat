@@ -278,7 +278,7 @@ def test_chi_square_uses_backend_table_and_records_nonnegative_effect():
     assert result.metadata["observed_counts"] == [[15, 5], [5, 15]]
 
 
-def test_sparse_chi_square_is_blocked_before_backend(monkeypatch):
+def test_sparse_2x2_selects_fisher_without_running_chi_square(monkeypatch):
     frame = pd.DataFrame({"group": ["A"] * 4 + ["B"] * 4, "response": ["yes", "no"] * 4})
     assistant = ResearchAssistant(frame)
 
@@ -291,9 +291,9 @@ def test_sparse_chi_square_is_blocked_before_backend(monkeypatch):
             objective="association", outcome="response", predictor="group", design="independent"
         )
     )
-    assert result.status == "unavailable"
-    assert result.recommendation.status == "unsupported"
-    assert "expected cell count" in result.warnings[-1]
+    assert result.status == "available"
+    assert result.method_id == "fisher_exact"
+    assert result.recommendation.status == "ready"
 
 
 def test_descriptive_profile_has_no_invented_inference(two_groups):

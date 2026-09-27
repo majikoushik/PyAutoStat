@@ -317,6 +317,7 @@ class ResearchAssistant:
         variable_types: dict[str, str] | None = None,
         unit_id: str | None = None,
         condition_order: tuple[Any, Any] | None = None,
+        reference_value: float | None = None,
         draft: QuestionDraft | None = None,
         specification: AnalysisSpecification | None = None,
         include_profile: bool = False,
@@ -333,7 +334,7 @@ class ResearchAssistant:
 
         Parameters
         ----------
-        objective : {"descriptive", "compare_groups", "association"}, optional
+        objective : {"descriptive", "compare_groups", "compare_reference", "association"}, optional
             Research objective. Descriptive workflows profile data, group comparisons
             compare an outcome across groups or paired conditions, and association
             workflows study a stated relationship.
@@ -394,6 +395,7 @@ class ResearchAssistant:
             variable_types,
             unit_id,
             condition_order,
+            reference_value,
         )
         if (draft is not None or specification is not None) and any(
             value is not None for value in raw_values
@@ -421,6 +423,7 @@ class ResearchAssistant:
                 variable_types=variable_types,
                 unit_id=unit_id,
                 condition_order=condition_order,
+                reference_value=reference_value,
             )
 
         profile = None
@@ -574,6 +577,7 @@ class ResearchAssistant:
         variable_types: dict[str, str] | None = None,
         unit_id: str | None = None,
         condition_order: tuple[Any, Any] | None = None,
+        reference_value: float | None = None,
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
@@ -596,6 +600,7 @@ class ResearchAssistant:
             variable_types=variable_types,
             unit_id=unit_id,
             condition_order=condition_order,
+            reference_value=reference_value,
             specification=specification,
         )
         if self._ledger is not None:
@@ -628,6 +633,7 @@ class ResearchAssistant:
             "variable_types",
             "unit_id",
             "condition_order",
+            "reference_value",
         }
         unknown = set(changes) - allowed
         if unknown:
@@ -640,7 +646,8 @@ class ResearchAssistant:
                 new_objective = Objective(changes["objective"])
             except (ValueError, TypeError) as exc:
                 raise InvalidDataError(
-                    "objective must be descriptive, compare_groups, or association."
+                    "objective must be descriptive, compare_groups, compare_reference, "
+                    "or association."
                 ) from exc
         else:
             new_objective = cast(Objective | None, changes.get("objective", previous.objective))
@@ -651,11 +658,13 @@ class ResearchAssistant:
             "predictor": previous.predictor,
             "estimand": previous.estimand,
             "description": previous.description,
+            "reference_value": previous.reference_value,
         }
         selected_design: StudyDesign | str = old.design
         if switched:
             values["predictor"] = None
             values["estimand"] = None
+            values["reference_value"] = None
             selected_design = StudyDesign.UNKNOWN
             selected_unit_id = None
             selected_condition_order = None
@@ -664,7 +673,7 @@ class ResearchAssistant:
         else:
             selected_unit_id = old.unit_id
             selected_condition_order = old.condition_order
-        for key in ("outcome", "predictor", "estimand", "description"):
+        for key in ("outcome", "predictor", "estimand", "description", "reference_value"):
             if key in changes:
                 values[key] = changes[key]
         if "design" in changes:
@@ -683,10 +692,10 @@ class ResearchAssistant:
         if changes.get("unit_id", selected_unit_id) is None:
             selected_condition_order = None
         if new_objective == Objective.DESCRIPTIVE and any(
-            key in changes for key in ("predictor", "estimand", "design")
+            key in changes for key in ("predictor", "estimand", "design", "reference_value")
         ):
             raise InvalidDataError(
-                "Descriptive questions do not use predictor, estimand, or design."
+                "Descriptive questions do not use predictor, estimand, reference_value, or design."
             )
         revised = AnalysisSpecification(
             question=ResearchQuestion(**values),

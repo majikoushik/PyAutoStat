@@ -18,6 +18,7 @@ SCRIPTS = (
     "02_hypothesis_testing.py",
     "03_advanced_workflow.py",
     "data_understanding.py",
+    "basic_inference.py",
     "explainable_recommendation_and_report.py",
 )
 
@@ -44,6 +45,7 @@ def _run_example(filename: str, *arguments: str) -> subprocess.CompletedProcess[
         ("02_hypothesis_testing.py", "TRACEABLE SUMMARY"),
         ("explainable_recommendation_and_report.py", "ANALYSIS RESULT"),
         ("data_understanding.py", "DESCRIPTIVE CROSS-TAB"),
+        ("basic_inference.py", "FISHER EXACT 2x2 INFERENCE"),
     ),
 )
 def test_introductory_examples_run_from_repository_root(filename, expected):

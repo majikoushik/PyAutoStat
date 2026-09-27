@@ -77,6 +77,7 @@ def assess_reporting_completeness(
         "welch_t",
         "student_t",
         "paired_t",
+        "one_sample_t",
         "one_way_anova",
         "kruskal_wallis",
         "pearson_chi_square",
@@ -124,6 +125,8 @@ def assess_reporting_completeness(
             (
                 "profile"
                 if method == "dataset_profile"
+                else [question["outcome"]]
+                if method == "one_sample_t" and question.get("outcome") is not None
                 else [question["outcome"], question["predictor"]]
                 if question.get("outcome") is not None and question.get("predictor") is not None
                 else None
@@ -201,7 +204,8 @@ def assess_reporting_completeness(
             "sections.results.confidence_interval",
             applicable=inference,
             unavailable=(
-                source_values.get("confidence_interval") is None and method == "pearson_correlation"
+                source_values.get("confidence_interval") is None
+                and method in {"pearson_correlation", "wilcoxon_signed_rank", "fisher_exact"}
             ),
         ),
         item(

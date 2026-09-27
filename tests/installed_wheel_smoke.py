@@ -75,6 +75,61 @@ paired_guided = ResearchAssistant(paired).run(
 )
 assert paired_guided.status.value == "completed"
 
+one_sample = ResearchAssistant(pd.DataFrame({"score": [48.0, 51.0, 53.0, 55.0]})).run(
+    objective="compare_reference",
+    outcome="score",
+    reference_value=50.0,
+    design="independent",
+    estimand="mean",
+    variable_types={"score": "continuous"},
+)
+assert one_sample.status.value == "completed"
+assert one_sample.analysis.method_id == "one_sample_t"
+
+paired_rank = ResearchAssistant(paired).run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="condition",
+    design="paired",
+    estimand="distribution",
+    unit_id="participant",
+    condition_order=("before", "after"),
+    variable_types={"score": "continuous", "condition": "nominal"},
+)
+assert paired_rank.status.value == "partial"
+assert paired_rank.analysis.method_id == "wilcoxon_signed_rank"
+
+monotonic = ResearchAssistant(
+    pd.DataFrame({"hours": [1, 2, 3, 4, 5, 6], "score": [2, 4, 3, 7, 8, 10]})
+).run(
+    objective="association",
+    outcome="score",
+    predictor="hours",
+    design="independent",
+    estimand="monotonic",
+    variable_types={"score": "continuous", "hours": "continuous"},
+)
+assert monotonic.status.value == "completed"
+assert monotonic.analysis.method_id == "spearman_correlation"
+
+sparse = ResearchAssistant(
+    pd.DataFrame(
+        {
+            "treatment": ["A"] * 5 + ["B"] * 7,
+            "response": ["yes"] + ["no"] * 4 + ["yes"] * 5 + ["no"] * 2,
+        }
+    )
+).run(
+    objective="association",
+    outcome="response",
+    predictor="treatment",
+    design="independent",
+    estimand="categorical_independence",
+    variable_types={"response": "nominal", "treatment": "nominal"},
+)
+assert sparse.status.value == "partial"
+assert sparse.analysis.method_id == "fisher_exact"
+
 planning = StudyPlanner().independent_mean_power(
     target_difference=2,
     sd_group1=3,

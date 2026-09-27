@@ -104,6 +104,7 @@ class QuestionDraft:
 _OBJECTIVE_OPTIONS = (
     ("descriptive", "Describe data"),
     ("compare_groups", "Compare groups or conditions"),
+    ("compare_reference", "Compare a mean with a reference value"),
     ("association", "Study a relationship"),
 )
 _DESIGN_OPTIONS = (
@@ -138,6 +139,7 @@ def prepare_question(
     variable_metadata: dict[str, str] | None = None,
     unit_id: str | None = None,
     condition_order: tuple[Any, Any] | None = None,
+    reference_value: float | None = None,
 ) -> QuestionDraft:
     """Build or revalidate a question against the assistant's copied DataFrame."""
     if specification is not None and not isinstance(specification, AnalysisSpecification):
@@ -150,6 +152,7 @@ def prepare_question(
         predictor=predictor if predictor is not None else prior.predictor,
         estimand=estimand if estimand is not None else prior.estimand,
         description=description if description is not None else prior.description,
+        reference_value=(reference_value if reference_value is not None else prior.reference_value),
     )
     selected_design = cast(StudyDesign, design if design is not None else base.design)
     selected_options = options if options is not None else base.options
@@ -162,11 +165,19 @@ def prepare_question(
     if question.objective == Objective.DESCRIPTIVE and (
         question.predictor is not None
         or question.estimand is not None
+        or question.reference_value is not None
         or selected_design not in (StudyDesign.UNKNOWN, "unknown")
     ):
         raise InvalidDataError(
-            "Descriptive questions cannot retain a predictor, estimand, or inferential design."
+            "Descriptive questions cannot retain a predictor, estimand, reference value, "
+            "or inferential design."
         )
+    if question.objective != Objective.COMPARE_REFERENCE and question.reference_value is not None:
+        raise InvalidDataError(
+            "reference_value is supported only for objective='compare_reference'."
+        )
+    if question.objective == Objective.COMPARE_REFERENCE and question.predictor is not None:
+        raise InvalidDataError("A reference comparison does not use a predictor column.")
     dictionary = validate_data_dictionary(
         frame, data_dictionary if data_dictionary is not None else base.data_dictionary
     )
@@ -299,6 +310,39 @@ def prepare_question(
                 "Pairing cannot be inferred from row order or identifier-like values.",
                 "column",
                 column_options,
+            )
+    elif question.objective == Objective.COMPARE_REFERENCE:
+        column_options = tuple((column, column) for column in frame.columns)
+        if question.outcome is None:
+            ask(
+                "outcome",
+                "Which continuous outcome should be compared with a reference value?",
+                "Choose the measured outcome column.",
+                "column",
+                column_options,
+            )
+        if question.estimand is None:
+            ask(
+                "estimand",
+                "What population quantity should be compared with the reference?",
+                "The one-sample t workflow currently supports a population-mean target.",
+                "select",
+                (("mean", "Population mean"),),
+            )
+        if question.reference_value is None:
+            ask(
+                "reference_value",
+                "What finite reference value should the population mean be compared with?",
+                "This value defines the null hypothesis and must come from the researcher.",
+                "number",
+            )
+        if spec.design == StudyDesign.UNKNOWN:
+            ask(
+                "design",
+                "Are the observations independent units?",
+                "Independence cannot be established from the values alone.",
+                "select",
+                _DESIGN_OPTIONS,
             )
 
     if spec.unit_id is not None and spec.unit_id in {

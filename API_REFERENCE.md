@@ -136,7 +136,9 @@ workflow = assistant.run(
 `specification` for continuation, `include_profile=False`, `audit=True`, `fingerprint=True`,
 `title=None`, and `include_figures=False`. A draft/specification is mutually exclusive with raw
 question arguments. Invalid API types and conflicting inputs raise `InvalidDataError`.
-Valid objectives are `descriptive`, `compare_groups`, and `association`. Accepted design values
+Valid objectives are `descriptive`, `compare_groups`, `compare_reference`, and `association`.
+`compare_reference` requires one continuous `outcome`, `estimand="mean"`, and a finite explicit
+`reference_value`; it has no predictor. Accepted design values
 are `independent`, `paired`, `repeated`, `clustered`, and `unknown`; only documented supported
 designs execute. Comparison estimands are `mean` and `distribution`. Association targets include
 `linear`, `monotonic`, and `categorical_independence`, with unavailable targets retained as
@@ -337,13 +339,15 @@ print(recommendation.explain(diagnostics=result.metadata["diagnostics"]))
 | Objective and target | Conditions | Result |
 | --- | --- | --- |
 | Description | Valid DataFrame | `dataset_profile` (`ResearchAssistant.profile()`), descriptive only |
+| Reference comparison, mean | One continuous outcome, independent units, finite explicit reference, at least two observations | `one_sample_t`; estimate is observed mean minus reference |
 | Group comparison, mean | Two independent groups, quantitative outcome, at least two usable outcomes per group, representable spread | `welch_t`; Student t is an explicit, equal-variance alternative |
 | Group comparison, distribution | Two independent groups, ordered numeric outcome, at least two usable outcomes per group | `mann_whitney_u`; tied small samples have an approximation warning |
 | Group comparison, distribution | Three or more independent groups, ordered numeric outcome, at least five usable outcomes per group | `kruskal_wallis`; no post-hoc comparisons |
 | Group comparison, mean | Three or more independent groups | `unsupported`; standard one-way ANOVA is a conditional explicit option, while variance-robust Welch ANOVA is unavailable |
+| Group comparison, distribution | Paired two-condition data with explicit unit ID and condition order, at least two nonzero differences | `wilcoxon_signed_rank`; zeros use the recorded `wilcox` policy |
 | Association, linear | Two quantitative variables, independent observational pairs, at least three complete varying pairs | `pearson_correlation`, including the existing pairwise p-value when numerically valid |
-| Association, monotonic | Two varying ordered numeric variables | `unsupported` for inference; Spearman/Kendall coefficients are listed as `coefficient_only` alternatives |
-| Association, categorical independence | Two categorical variables, independent observations, at least two categories per axis, expected counts at least five in every cell | `pearson_chi_square`; sparse tables return `unsupported` |
+| Association, monotonic | Two varying ordered numeric variables and at least three complete pairs | `spearman_correlation` with rho, p-value, and paired-observation bootstrap CI when available |
+| Association, categorical independence | Two categorical variables, independent observations, at least two categories per axis | `pearson_chi_square` when every expected count is at least five; otherwise `fisher_exact` for 2x2 only |
 
 Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. A paired mean question without a unit ID returns `needs_input`; compatible two-condition paired data select `paired_t`. Repeated and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
 
@@ -352,9 +356,10 @@ Numeric association with no specified relationship target requests one clarifica
 `recommendation.rationale_text` and `recommendation.explain(diagnostics=None)` derive a readable
 `RECOMMENDED TEST`, `WHY THIS TEST?`, context-specific `WHY NOT ...?`, and
 `WHAT YOU NEED TO VERIFY` explanation from the same stored record. Coverage includes every
-automatically recommended method: dataset profile, Welch t, paired t, Mann-Whitney U,
-Kruskal-Wallis, Pearson correlation, and Pearson chi-square. The prose distinguishes mean,
-rank-distribution, paired, linear, and categorical-independence targets. Independence,
+automatically recommended method: dataset profile, one-sample t, Welch t, paired t, paired
+Wilcoxon, Mann-Whitney U, Kruskal-Wallis, Pearson correlation, Spearman correlation, Pearson
+chi-square, and Fisher exact. The prose distinguishes mean, rank-distribution, paired, linear,
+monotonic, and categorical-independence targets. Independence,
 representativeness, unit identity, and contrast order remain researcher-verification items.
 Diagnostics are never run by narration: for example, Levene's result appears only when the caller
 passes an actual recorded diagnostic mapping. The original `rationale`, decision trace, version 1
@@ -376,13 +381,21 @@ print(result.metadata["sample"], result.metadata["group_order"])
 | Selected method ID | Existing numerical source | Main outputs |
 | --- | --- | --- |
 | `dataset_profile` | `StatisticalAnalyzer.analyze_all()` | JSON-safe profile; no hypothesis statistic or p-value |
+| `one_sample_t` | `one_sample_t_test()` / `scipy.stats.ttest_1samp` | Sample mean, explicit reference, observed-minus-reference mean difference, SE, t/df/p, analytical raw-difference CI, and one-sample Cohen's d when defined |
 | `welch_t` | `hypothesis_tests(test_type="ttest", equal_var=False)` | Mean difference, Welch statistic/df/p, Cohen's d, analytical mean-difference CI, optional bootstrap d CI |
 | `mann_whitney_u` | `hypothesis_tests(test_type="mannwhitney")` | First-group U, two-sided p, rank-biserial effect and optional bootstrap CI |
 | `kruskal_wallis` | `hypothesis_tests(test_type="kruskal")` | H, df, p, rank epsilon-squared and optional bootstrap CI |
 | `pearson_correlation` | Pair-only `analyze_all()` correlation profile | Pearson r and its pairwise p-value; no CI |
+| `paired_t` | `scipy.stats.ttest_rel` over explicit unit-ID pairs | First-minus-second paired mean, analytical CI, Cohen's dz, and complete/incomplete-pair accounting |
+| `wilcoxon_signed_rank` | `paired_wilcoxon()` / `scipy.stats.wilcoxon` | Signed-rank statistic/p, matched-pairs rank-biserial correlation, zero policy and pair accounting; effect CI unavailable |
+| `spearman_correlation` | `spearman_correlation()` / `scipy.stats.spearmanr` | Spearman rho/p and deterministic paired-observation bootstrap CI when enough valid resamples exist |
 | `pearson_chi_square` | `categorical_association()` | Chi-square, df, p, observed/expected table, Cramer's V and optional bootstrap CI |
+| `fisher_exact` | `fisher_exact()` / `scipy.stats.fisher_exact` | Ordered observed 2x2 table, two-sided p, and SciPy's unconditional sample odds ratio; CI unavailable |
 
-The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable **legacy explicit calculations**, but the guided recommender does not select them automatically. They remain available through `StatisticalAnalyzer.hypothesis_tests()`; `analyze()` never substitutes them for a Welch or unsupported multi-group mean request. The guided engine supports `paired_t` only for an explicit unit ID and exactly two conditions. Spearman/Kendall inference, repeated designs with more than two conditions, clustered methods, Welch ANOVA, and sparse-table exact tests are unavailable.
+The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable
+**legacy explicit calculations**, but the guided recommender does not select them automatically.
+Kendall remains coefficient-only in profiling. Repeated designs with more than two conditions,
+clustered methods, Welch ANOVA, and Fisher tests beyond 2x2 remain unavailable.
 
 `AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. The `method_label` property resolves a display name from the existing method metadata without changing serialization. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
 
@@ -393,8 +406,9 @@ Group and categorical effect intervals use the existing 499-resample bootstrap w
 `pyautostat.effect_narrative(measure, value, n=None, ci=None, *, confidence_level=None,
 orientation=None, definition=None) -> str` converts an already-computed effect value into
 deterministic researcher-readable text. It accepts the public quantity identifiers `cohens_d`,
-`rank_biserial`, `eta_squared`, `epsilon_squared`, `cramers_v`, and `pearson_r`, their result-record
-display names, and the existing paired effect `cohens_dz`/`Cohen's dz`. It performs no statistical
+`rank_biserial`, `paired_rank_biserial`, `eta_squared`, `epsilon_squared`, `cramers_v`,
+`pearson_r`, `spearman_rho`, and `odds_ratio`, their result-record display names, and the existing
+paired effect `cohens_dz`/`Cohen's dz`. It performs no statistical
 calculation, method selection, or interval construction. Unsupported measures and missing,
 nonfinite, or out-of-range values return an explicit unavailable narrative rather than raising or
 substituting zero.
@@ -443,7 +457,12 @@ payload = interpretation.to_dict()  # json.dumps(payload, allow_nan=False)
 
 `interpret(result: AnalysisResult) -> InterpretationResult` reads the completed analysis record only; it runs no statistical test or report writer. `InterpretationEngine().interpret(result)` is the independently usable rule engine. The result has `status` (`available`, `partial`, `unavailable`), `execution_status`, `method_id`, `summary`, `method_explanation`, `hypothesis_interpretation`, `effect_interpretation`, `uncertainty_interpretation`, `assumption_notes`, `limitations`, `conclusion`, `warnings`, `metadata`, and `findings`. Each `InterpretationFinding` has a stable `code`, display `message`, and `supporting_fields` pointing to the source result. `findings_plain` numbers the existing messages for display without changing codes or serialization. `to_dict()` is JSON compatible and leaves the original `AnalysisResult` unchanged.
 
-Supported guided results are `dataset_profile`, `welch_t`, `mann_whitney_u`, `kruskal_wallis`, `pearson_correlation`, and `pearson_chi_square`. Templates also accept valid `student_t` and `one_way_anova` adapter results; the guided selector does not choose these. Spearman and Kendall are coefficient-only in legacy profiling, so there is no successful guided inferential interpretation for them. Unrecognized or unavailable results return an unavailable interpretation. A missing p-value, effect, or primary confidence interval gives a partial interpretation, preserving factual components without inventing the missing result. Pearson's current result has no CI, so its interpretation is normally partial.
+Supported guided results include the four additions `one_sample_t`, `wilcoxon_signed_rank`,
+`spearman_correlation`, and `fisher_exact` alongside the established methods. One-sample and
+Spearman results are complete when their intervals are available. Wilcoxon and Fisher
+interpretations are intentionally partial because no supported primary-effect interval is
+fabricated. Constant one-sample data retain the raw mean contrast but leave t, p, and standardized
+effect unavailable. Unrecognized or unavailable results remain unavailable.
 
 The decision rule is `p < result.specification.options.alpha`; equality does not reject. It uses the original numeric p-value and formats very small values separately; computational zero displays as `p < 0.001` with a numerical warning. The hypothesis paragraph uses the four-quadrant verdict without changing the stable coded finding or conclusion. Assumption notes retain their recorded diagnostics and add bracketed severity; normality severity uses each diagnostic's stored group size, and Welch variance narration uses the recorded Levene result when available. The engine does not claim multiplicity adjustment, equivalence, causation, or practical importance. Two-group directions follow `metadata.contrast`; confidence intervals retain their own `quantity`, `method`, and `level`. Finite ordered percentile-bootstrap bounds may exclude the original point estimate; containment is required for the analytical t mean-difference interval. The analytical t interval is checked against a two-sided p-value only when its level matches `1-alpha`. Apparent disagreement produces a warning and partial status. A valid raw mean difference remains interpretable when Cohen's d is missing or inconsistent, with partial status and a warning; conflicting signs invalidate the d interpretation. Bootstrap effect intervals are not treated as interchangeable with the analytical mean-difference interval. Diagnostic non-rejection never proves an assumption; source warnings and excluded-row counts remain visible.
 
@@ -506,7 +525,15 @@ replay = reproduce(record, data=df)  # explicit supplied-data rerun
 
 `reproducibility_record(result, *, fingerprint=True, sensitivity=None, practical_significance=None) -> ReproducibilityRecord` stores a JSON-safe specification, method, restricted expected-result projection, actual runtime versions, recorded seed and bootstrap configuration, and an optional hash of the assistant's current DataFrame. Base-only records remain schema version 1. Optional sensitivity configuration produces schema version 2 with ordered scenarios, actual methods/statuses/seeds, fingerprint metadata, and the meaningful threshold. `ReproducibilityRecord.from_dict(...)` reloads this metadata. `record.save_package(path, data_reference=None, overwrite=False)` writes a metadata-only ZIP to an explicit path; no raw data or script are included. `reproduce(record, *, data=df, allow_changed_data=False) -> ReproductionOutcome` checks the fingerprint, revalidates the recorded base method, executes only on explicit request, and compares actual numeric fields under the documented tolerance. It does not automatically replay sensitivity scenarios. A changed dataset is a mismatch by default; an allowed changed-data rerun remains labelled as such. A missing fingerprint cannot establish same-data reproduction. See [the precise fingerprint, comparison, privacy, and export policy](docs/PROVENANCE_AND_REPLAY.md).
 
-`to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and `AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no data dictionary and `schema_version: 2` when `data_dictionary` is present. Version 1 payloads round-trip unchanged; version 2 adds that field without overloading version 1's text-only `variable_metadata`. A legacy caller can keep using `variable_metadata` for descriptions. The data dictionary is authoritative for analytical types and roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details. `pyautostat.results` exposes `MissingInformation`, `Recommendation`, `Diagnostic`, and `AnalysisResult` as serializable records. No recommendation, inferential result, or report is manufactured by question preparation.
+`to_dict()` and `from_dict()` are supported by `ResearchQuestion`, `AnalysisOptions`, and
+`AnalysisSpecification`. The root specification uses `schema_version: 1` when it has no data
+dictionary and `schema_version: 2` when `data_dictionary` is present. Existing payloads remain
+readable; the optional `ResearchQuestion.reference_value` is additive within the current schema
+and defaults to `None` when absent. Version 2 adds the data dictionary without overloading version
+1's text-only `variable_metadata`. The data dictionary is authoritative for analytical types and
+roles. See [the architecture document](docs/ARCHITECTURE.md) for migration details.
+`pyautostat.results` exposes the serializable result records. Question preparation manufactures
+no recommendation, inferential result, or report.
 
 ## `StatisticalAnalyzer`
 
@@ -518,6 +545,18 @@ analysis = analyzer.analyze_all()
 # Both entry points also accept data_dictionary=..., histogram_bins=20,
 # and include_row_positions=False as optional keyword arguments.
 ```
+
+Direct basic-inference methods are:
+
+- `one_sample_t_test(value_col, reference_value, *, confidence_level=.95)`;
+- `paired_wilcoxon(unit_id, condition_col, value_col, *, condition_order=None)`;
+- `spearman_correlation(first, second, *, confidence_level=.95, bootstrap_samples=499,
+  random_state=0)`; and
+- `fisher_exact(row_variable, column_variable)` for 2x2 tables only.
+
+All exclude missing rows transparently and never mutate the input. Paired Wilcoxon constructs
+pairs by unit ID, never row order. Fisher retains level order with its observed table. The
+profile-wide Spearman matrix remains descriptive and separate from two-variable inference.
 
 `df` must be a nonempty pandas DataFrame with unique, nonempty string column names and scalar values. Numeric values must be finite and real; missing values are allowed. The analyzer copies the DataFrame and exposes `df`, `numeric_cols`, `categorical_cols`, and `all_results`.
 

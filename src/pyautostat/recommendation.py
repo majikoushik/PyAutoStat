@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .categorical import contingency_counts
 from .question_builder import QuestionDraft, QuestionStatus
 from .results import MissingInformation, Recommendation, RecommendationStatus
 from .specifications import Objective, StudyDesign
@@ -38,6 +39,25 @@ class MethodCapability:
 METHOD_CAPABILITIES: dict[str, MethodCapability] = {
     item.identifier: item
     for item in (
+        MethodCapability(
+            "one_sample_t",
+            "One-sample t-test",
+            "compare_reference",
+            "mean",
+            ("continuous",),
+            ("independent",),
+            "not_applicable",
+            "At least 2 usable observations and a finite declared reference value",
+            (
+                "Independent observations",
+                "Continuous outcome supporting population-mean inference",
+                "Appropriate one-sample mean-inference conditions",
+            ),
+            True,
+            "runnable",
+            "The signed contrast is observed sample mean minus the declared reference value.",
+            "StatisticalAnalyzer.one_sample_t_test",
+        ),
         MethodCapability(
             "dataset_profile",
             "Dataset profile",
@@ -103,6 +123,26 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             "scipy.stats.ttest_rel",
         ),
         MethodCapability(
+            "wilcoxon_signed_rank",
+            "Paired Wilcoxon signed-rank test",
+            "compare_groups",
+            "distribution",
+            ("ordered_numeric", "condition", "unit_identifier"),
+            ("paired",),
+            "exactly 2 conditions",
+            "At least 2 complete pairs with at least 2 nonzero paired differences",
+            (
+                "Explicit paired or matched units",
+                "Independent pairs",
+                "Meaningful ordering and signed paired differences",
+                "Symmetric paired-difference distribution for a location-shift interpretation",
+            ),
+            True,
+            "runnable",
+            "Zero differences use SciPy's explicit 'wilcox' convention.",
+            "StatisticalAnalyzer.paired_wilcoxon",
+        ),
+        MethodCapability(
             "mann_whitney_u",
             "Mann-Whitney U",
             "compare_groups",
@@ -163,6 +203,21 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             "StatisticalAnalyzer.analyze_all()['correlation']['pearson']",
         ),
         MethodCapability(
+            "spearman_correlation",
+            "Spearman rank correlation",
+            "association",
+            "monotonic",
+            ("ordered_numeric", "ordered_numeric"),
+            ("independent",),
+            "not_applicable",
+            "At least 3 complete varying numeric pairs",
+            ("Independent observational pairs", "Meaningful ordering"),
+            True,
+            "runnable",
+            "Targets monotonic rank association; it does not establish linearity or causation.",
+            "StatisticalAnalyzer.spearman_correlation",
+        ),
+        MethodCapability(
             "spearman_coefficient",
             "Spearman rank correlation",
             "association",
@@ -204,8 +259,23 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             ("Independent observations", "Adequate expected frequencies"),
             True,
             "runnable",
-            "Sparse tables are blocked; no exact alternative is implemented.",
+            "Sparse tables are blocked unless the shared observed table is 2x2.",
             "StatisticalAnalyzer.categorical_association",
+        ),
+        MethodCapability(
+            "fisher_exact",
+            "Fisher's exact test",
+            "association",
+            "categorical_independence",
+            ("categorical", "categorical"),
+            ("independent",),
+            "exactly 2 categories per variable",
+            "Observed 2x2 table with at least one observation in each margin",
+            ("Independent observations", "Fixed or otherwise justified table margins"),
+            True,
+            "runnable",
+            "Supported only for 2x2 tables; the odds-ratio interval is unavailable.",
+            "StatisticalAnalyzer.fisher_exact",
         ),
     )
 }
@@ -350,8 +420,11 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             "an inferential hypothesis test.",
         )
 
-    assert question.outcome is not None and question.predictor is not None
     assert objective is not None
+    if objective == Objective.COMPARE_REFERENCE:
+        assert question.outcome is not None
+        return _compare_reference(frame, question.outcome, types, spec, context, record, finish)
+    assert question.outcome is not None and question.predictor is not None
     required_columns = [question.outcome, question.predictor]
     if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
         required_columns.append(spec.unit_id)
@@ -374,13 +447,17 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 )
 
     if spec.design == StudyDesign.PAIRED:
-        if objective != Objective.COMPARE_GROUPS or question.estimand != "mean":
+        if objective != Objective.COMPARE_GROUPS or question.estimand not in {
+            "mean",
+            "distribution",
+        }:
             return finish(
                 RecommendationStatus.UNSUPPORTED,
                 blockers=(
-                    "Paired support is limited to a two-condition quantitative mean comparison.",
+                    "Paired support is limited to two-condition mean or rank-distribution "
+                    "comparisons.",
                 ),
-                rationale="Paired distributional and association methods remain unsupported.",
+                rationale="The declared paired target has no supported method.",
             )
         assert spec.unit_id is not None
         return _paired_compare(
@@ -457,6 +534,80 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
     )
 
 
+def _compare_reference(
+    frame: pd.DataFrame,
+    outcome: str,
+    types: dict[str, str],
+    specification: Any,
+    context: dict[str, Any],
+    record: Any,
+    finish: Any,
+) -> Recommendation:
+    question = specification.question
+    if specification.design != StudyDesign.INDEPENDENT:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("One-sample mean inference requires independent observational units.",),
+            rationale="A paired, repeated, clustered, or unresolved design needs another model.",
+        )
+    if question.estimand != "mean":
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("The one-sample workflow currently supports only a population-mean target.",),
+            rationale="The declared target was preserved rather than changed.",
+        )
+    if types.get(outcome) != "continuous_numerical":
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("One-sample t inference requires an analytically continuous outcome.",),
+            rationale="A stored number is not silently treated as a continuous measurement.",
+        )
+    if question.reference_value is None:
+        return finish(
+            RecommendationStatus.NEEDS_INPUT,
+            missing=(MissingInformation("reference_value", "Supply a finite reference value."),),
+            rationale="The null reference must be declared by the researcher.",
+        )
+    codes = (specification.data_dictionary or {}).get(outcome, {}).get("missing_codes", [])
+    if codes and int(frame[outcome].isin(codes).sum()):
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("Declared missing codes remain observed in the outcome.",),
+            rationale="Normalize declared missing codes before mean inference.",
+        )
+    values = _numeric(frame[outcome].dropna())
+    if values is None or len(values) < 2:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("At least two finite observed outcome values are required.",),
+            rationale="The mean contrast and its sampling uncertainty need observed data.",
+        )
+    context.update(
+        {
+            "reference_value": question.reference_value,
+            "available_observations": int(len(values)),
+            "excluded_rows": int(len(frame) - len(values)),
+        }
+    )
+    context["assumption_checks"].append(
+        {
+            "assumption": "independent_observations",
+            "category": "researcher_design_fact",
+            "status": "confirmed",
+        }
+    )
+    record("reference_value", question.reference_value, "Researcher-declared null mean.")
+    record("method", "one_sample_t", "Continuous outcome and declared mean target.")
+    return finish(
+        RecommendationStatus.READY,
+        method_id="one_sample_t",
+        rationale=(
+            "One continuous outcome is compared with the declared reference mean; the signed "
+            "estimate is observed sample mean minus reference value."
+        ),
+    )
+
+
 def _paired_compare(
     frame: pd.DataFrame,
     outcome: str,
@@ -469,17 +620,19 @@ def _paired_compare(
     finish: Any,
     warnings: list[str],
 ) -> Recommendation:
-    if types[outcome] not in _QUANTITATIVE or _numeric(frame[outcome].dropna()) is None:
+    target = context.get("estimand")
+    valid_types = _QUANTITATIVE if target == "mean" else _ORDERED
+    if types[outcome] not in valid_types or _numeric(frame[outcome].dropna()) is None:
         return finish(
             RecommendationStatus.UNSUPPORTED,
-            blockers=("A paired mean comparison needs a quantitative numeric outcome.",),
-            rationale="The paired t-test targets a population mean paired difference.",
+            blockers=("A paired comparison needs an ordered numeric outcome.",),
+            rationale="The declared paired target requires meaningful numeric ordering.",
         )
     observed_conditions = list(pd.unique(frame[condition].dropna()))
     if len(observed_conditions) != 2:
         return finish(
             RecommendationStatus.UNSUPPORTED,
-            blockers=("A paired t-test requires exactly two observed condition levels.",),
+            blockers=("Paired inference requires exactly two observed condition levels.",),
             rationale="More than two repeated conditions need a different dependent-design method.",
         )
     order = list(condition_order) if condition_order is not None else observed_conditions
@@ -534,8 +687,8 @@ def _paired_compare(
     if complete_pairs < 2:
         return finish(
             RecommendationStatus.UNSUPPORTED,
-            blockers=("At least two complete pairs are required for a paired t-test.",),
-            rationale="The paired-difference variance and t reference require complete pairs.",
+            blockers=("At least two complete pairs are required for paired inference.",),
+            rationale="The paired methods require complete within-unit contrasts.",
         )
     first = _numeric(complete[order[0]])
     second = _numeric(complete[order[1]])
@@ -546,6 +699,41 @@ def _paired_compare(
             rationale="The paired numerical backend cannot use nonfinite outcomes.",
         )
     differences = first - second
+    if target == "distribution":
+        nonzero = int(np.count_nonzero(differences))
+        context["zero_differences"] = int(len(differences) - nonzero)
+        context["nonzero_differences"] = nonzero
+        if nonzero < 2:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "Wilcoxon signed-rank inference needs at least two nonzero paired differences.",
+                ),
+                rationale="Zero differences are omitted under the recorded 'wilcox' policy.",
+            )
+        context["assumption_checks"].append(
+            {
+                "assumption": "independent_pairs",
+                "category": "researcher_design_fact",
+                "status": "confirmed",
+            }
+        )
+        record(
+            "method",
+            "wilcoxon_signed_rank",
+            "Explicit paired design and two-condition rank-distribution target.",
+        )
+        return finish(
+            RecommendationStatus.READY,
+            method_id="wilcoxon_signed_rank",
+            rationale=(
+                "The declared paired design, unit identifier, condition order, and "
+                "rank-distribution target support a Wilcoxon signed-rank analysis."
+            ),
+            alternatives=(
+                _alternative("paired_t", "Targets the population mean paired difference."),
+            ),
+        )
     spread = _spread(differences)
     if spread is None or spread <= 0:
         return finish(
@@ -788,25 +976,34 @@ def _association(
                 rationale="Choose a relationship target before selecting a correlation method.",
             )
         if target == "monotonic":
-            if n < 2 or any(usable[column].nunique() < 2 for column in (first, second)):
+            if n < 3 or any(usable[column].nunique() < 2 for column in (first, second)):
                 return finish(
                     RecommendationStatus.UNSUPPORTED,
                     blockers=(
-                        "Rank coefficients need at least two complete, varying numeric pairs.",
+                        "Spearman inference needs at least three complete, varying numeric pairs.",
                     ),
-                    rationale="A coefficient is undefined without paired variation.",
+                    rationale="An inferential coefficient needs paired variation and sample size.",
                 )
-            record("blocker", "rank_inference_unavailable", "Rank coefficients lack p-values here.")
+            arrays = [_numeric(usable[column]) for column in (first, second)]
+            if any(item is None for item in arrays):
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=("The ordered pair must contain finite numeric values.",),
+                    rationale="The Spearman backend cannot use nonfinite or unencoded values.",
+                )
+            record("method", "spearman_correlation", "Explicit monotonic association target.")
             return finish(
-                RecommendationStatus.UNSUPPORTED,
-                blockers=(
-                    "Spearman and Kendall coefficients are available descriptively, "
-                    "but their inferential tests and p-values are not implemented.",
+                RecommendationStatus.READY,
+                method_id="spearman_correlation",
+                rationale=(
+                    "Spearman inference targets the declared monotonic rank association between "
+                    "the two ordered numeric variables."
                 ),
-                rationale="No inferential monotonic-association method is currently runnable.",
                 alternatives=(
-                    _alternative("spearman_coefficient", "Descriptive coefficient only."),
-                    _alternative("kendall_coefficient", "Descriptive coefficient only."),
+                    _alternative(
+                        "pearson_correlation",
+                        "Targets linear rather than monotonic association.",
+                    ),
                 ),
             )
         if target != "linear":
@@ -857,7 +1054,10 @@ def _association(
             rationale="Pearson addresses linear association between two quantitative variables; "
             "the existing profile reports pairwise p-values when numerically valid.",
             alternatives=(
-                _alternative("spearman_coefficient", "Rank-based target and coefficient only."),
+                _alternative(
+                    "spearman_correlation",
+                    "Targets monotonic rather than linear association.",
+                ),
             ),
         )
     if categorical_pair:
@@ -867,10 +1067,12 @@ def _association(
                 blockers=(f"Target {target!r} is incompatible with categorical independence.",),
                 rationale="Categorical association is not a linear correlation.",
             )
-        left_codes, left_levels = pd.factorize(usable[first], sort=False)
-        right_codes, right_levels = pd.factorize(usable[second], sort=False)
-        context["contingency_shape"] = [len(left_levels), len(right_levels)]
-        if len(left_levels) < 2 or len(right_levels) < 2:
+        table = contingency_counts(usable, first, second)
+        observed = table["counts"]
+        context["contingency_shape"] = list(observed.shape)
+        context["row_levels"] = table["row_levels"]
+        context["column_levels"] = table["column_levels"]
+        if observed.shape[0] < 2 or observed.shape[1] < 2:
             return finish(
                 RecommendationStatus.UNSUPPORTED,
                 blockers=(
@@ -878,8 +1080,6 @@ def _association(
                 ),
                 rationale="The current contingency table has only one level on an axis.",
             )
-        observed = np.zeros((len(left_levels), len(right_levels)), dtype=int)
-        np.add.at(observed, (left_codes, right_codes), 1)
         row_totals = observed.sum(axis=1)
         col_totals = observed.sum(axis=0)
         expected = np.outer(row_totals, col_totals) / n
@@ -891,20 +1091,41 @@ def _association(
             "Computed from observed margins; no chi-square test was run.",
         )
         if not math.isfinite(minimum) or minimum < 5:
+            if observed.shape == (2, 2):
+                record(
+                    "method",
+                    "fisher_exact",
+                    "Sparse expected counts in a 2x2 table block chi-square under policy.",
+                )
+                return finish(
+                    RecommendationStatus.READY,
+                    method_id="fisher_exact",
+                    rationale=(
+                        "The declared target is categorical independence, but the observed 2x2 "
+                        "table has expected counts below PyAutoStat's chi-square threshold; "
+                        "Fisher's exact test addresses the same categorical association target."
+                    ),
+                    alternatives=(
+                        _alternative(
+                            "pearson_chi_square",
+                            "Blocked because at least one expected count is below 5.",
+                        ),
+                    ),
+                )
             return finish(
                 RecommendationStatus.UNSUPPORTED,
                 blockers=(
                     "The contingency table has an expected cell count below 5; "
-                    "the current chi-square implementation rejects sparse tables. "
-                    "No exact alternative is implemented.",
+                    "the current chi-square implementation rejects sparse tables. Fisher's "
+                    "exact support is limited to 2x2 tables.",
                 ),
                 rationale="The current conservative expected-frequency policy is unmet.",
                 alternatives=(
                     {
                         "method_id": "fisher_exact",
                         "name": "Fisher exact test",
-                        "availability": "not_implemented",
-                        "reason": "Mentioned only as an external or future option.",
+                        "availability": "incompatible",
+                        "reason": "The observed sparse table is larger than 2x2.",
                     },
                 ),
             )

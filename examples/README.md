@@ -13,6 +13,7 @@ For a small synthetic example with no workbook dependency, run:
 ~~~bash
 python examples/explainable_recommendation_and_report.py
 python examples/data_understanding.py
+python examples/basic_inference.py
 ~~~
 
 It prints the dataset story, deterministic recommendation rationale (why this
@@ -24,6 +25,11 @@ is used.
 `data_understanding.py` demonstrates default percentiles, a safeguarded CV, categorical frequency
 tables, ordered cumulative percentages, a descriptive cross-tab with four explicit table views,
 and their deterministic narratives using synthetic data only.
+
+`basic_inference.py` demonstrates the complete one-sample t, paired Wilcoxon signed-rank,
+inferential Spearman, and sparse 2x2 Fisher paths. It prints researcher-readable workflow
+explanations and requires no external files. Wilcoxon and Fisher explicitly disclose that their
+primary-effect confidence intervals are unavailable.
 
 ## Install
 

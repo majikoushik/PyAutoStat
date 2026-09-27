@@ -78,6 +78,15 @@ def _projection(result: AnalysisResult) -> dict[str, Any]:
         "sample": payload["metadata"].get("sample"),
         "group_order": payload["metadata"].get("group_order"),
         "contrast": payload["metadata"].get("contrast"),
+        "reference_value": payload["metadata"].get("reference_value"),
+        "condition_order": payload["metadata"].get("condition_order"),
+        "zero_method": payload["metadata"].get("zero_method"),
+        "p_value_method": payload["metadata"].get("p_value_method"),
+        "p_value_method_parameter": payload["metadata"].get("p_value_method_parameter"),
+        "variable_order": payload["metadata"].get("variable_order"),
+        "row_order": payload["metadata"].get("row_order"),
+        "column_order": payload["metadata"].get("column_order"),
+        "observed_counts": payload["metadata"].get("observed_counts"),
         "warnings": payload["warnings"],
     }
     if payload["method_id"] == "dataset_profile" and "profile" in values:

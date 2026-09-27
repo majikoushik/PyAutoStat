@@ -126,15 +126,30 @@ _METHODS = {
     "welch_t": ("Welch's independent-samples t-test", "Cohen's d"),
     "student_t": ("Student's pooled-variance t-test", "Cohen's d"),
     "paired_t": ("Paired-samples t-test", "Cohen's dz"),
+    "one_sample_t": ("One-sample t-test", "one-sample Cohen's d"),
+    "wilcoxon_signed_rank": (
+        "Paired Wilcoxon signed-rank test",
+        "matched-pairs rank-biserial correlation",
+    ),
     "mann_whitney_u": ("Mann-Whitney U test", "rank-biserial correlation"),
     "one_way_anova": ("One-way ANOVA", "eta-squared"),
     "kruskal_wallis": ("Kruskal-Wallis test", "epsilon-squared (rank)"),
     "pearson_correlation": ("Pearson correlation", "Pearson r"),
+    "spearman_correlation": ("Spearman rank correlation", "Spearman rho"),
     "pearson_chi_square": ("Pearson chi-square independence test", "Cramer's V"),
+    "fisher_exact": ("Fisher's exact test", "sample odds ratio"),
 }
-_SIGNED_GROUP = {"welch_t", "student_t", "paired_t", "mann_whitney_u"}
+_SIGNED_GROUP = {
+    "welch_t",
+    "student_t",
+    "paired_t",
+    "wilcoxon_signed_rank",
+    "mann_whitney_u",
+}
 _GROUP = _SIGNED_GROUP | {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
 _NONNEGATIVE = {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
+_CORRELATIONS = {"pearson_correlation", "spearman_correlation"}
+_TWO_SIDED = _SIGNED_GROUP | _CORRELATIONS | {"one_sample_t"}
 
 
 def _finite(value: Any) -> float | None:
@@ -180,6 +195,17 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
     method = result.method_id
     assert result.specification is not None
     question = result.specification.question
+    if method == "one_sample_t":
+        reference = question.reference_value
+        sample_mean = _finite(result.values.get("sample_mean"))
+        if not question.outcome or reference is None or sample_mean is None:
+            raise InvalidDataError("The one-sample outcome, mean, or reference value is missing.")
+        return (
+            f"One-sample t-test compared the population mean of {question.outcome} with the "
+            f"declared reference value {_fmt(reference)}; the observed sample mean was "
+            f"{_fmt(sample_mean)}.",
+            f"observed mean minus reference value {_fmt(reference)}",
+        )
     if method in _GROUP:
         if not question.outcome or not question.predictor:
             raise InvalidDataError("The group comparison lacks outcome or group variables.")
@@ -207,7 +233,7 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
             contrast = result.metadata.get("contrast")
             expected_definition = (
                 "first condition minus second condition"
-                if method == "paired_t"
+                if method in {"paired_t", "wilcoxon_signed_rank"}
                 else "first group minus second group"
             )
             if (
@@ -217,7 +243,7 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
                 or contrast.get("second") != order[1]
             ):
                 raise InvalidDataError("The recorded first-minus-second contrast is inconsistent.")
-            if method == "paired_t":
+            if method in {"paired_t", "wilcoxon_signed_rank"}:
                 pairs = result.metadata.get("sample", {}).get("complete_pairs")
                 return (
                     f"{_METHODS[method][0]} compared paired {question.outcome} values across "
@@ -244,16 +270,41 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
             f"{len(order)} {question.predictor} groups.",
             None,
         )
-    if method == "pearson_correlation":
+    if method in _CORRELATIONS:
         order = result.metadata.get("variable_order")
         if (
             not question.outcome
             or not question.predictor
             or order != [question.outcome, question.predictor]
         ):
-            raise InvalidDataError("Pearson variable ordering is missing or inconsistent.")
+            raise InvalidDataError("Correlation variable ordering is missing or inconsistent.")
+        target = "linear" if method == "pearson_correlation" else "monotonic rank"
         return (
-            f"Pearson correlation assessed linear association between {order[0]} and {order[1]}.",
+            f"{_METHODS[method][0]} assessed {target} association between "
+            f"{order[0]} and {order[1]}.",
+            None,
+        )
+    if method == "fisher_exact":
+        order = result.metadata.get("variable_order")
+        rows = result.metadata.get("row_order")
+        columns = result.metadata.get("column_order")
+        observed = result.metadata.get("observed_counts")
+        if (
+            not question.outcome
+            or not question.predictor
+            or order != [question.outcome, question.predictor]
+            or not isinstance(rows, list)
+            or len(rows) != 2
+            or not isinstance(columns, list)
+            or len(columns) != 2
+            or not isinstance(observed, list)
+            or len(observed) != 2
+            or any(not isinstance(row, list) or len(row) != 2 for row in observed)
+        ):
+            raise InvalidDataError("The Fisher 2x2 table context is missing or inconsistent.")
+        return (
+            f"Fisher's exact test assessed association between {order[0]} and {order[1]} "
+            "using the recorded ordered 2x2 table.",
             None,
         )
     raise InvalidDataError("The method has no inferential interpretation.")
@@ -270,7 +321,7 @@ def _assumption_notes(result: AnalysisResult) -> tuple[str, ...]:
         notes.append(graded("equal_variance", "required", method_id=result.method_id))
     elif result.method_id == "welch_t":
         notes.append(graded("equal_variance", "not_required", method_id=result.method_id))
-    elif result.method_id == "paired_t":
+    elif result.method_id in {"paired_t", "wilcoxon_signed_rank"}:
         notes.append(graded("paired_structure", "required", method_id=result.method_id))
     if result.assumptions:
         notes.append(
@@ -433,7 +484,7 @@ class InterpretationEngine:
         expected_effect = _METHODS[method][1]
         effect = values.get("effect_size")
         effect_value = _finite(effect.get("value")) if isinstance(effect, dict) else None
-        is_mean_test = method in {"welch_t", "student_t", "paired_t"}
+        is_mean_test = method in {"welch_t", "student_t", "paired_t", "one_sample_t"}
         if estimate is None:
             partial = True
             warnings.append("The primary estimate is unavailable or nonfinite.")
@@ -461,8 +512,18 @@ class InterpretationEngine:
             estimate = None
         if estimate is not None and (
             (method in _NONNEGATIVE and estimate < 0)
-            or (method in {"pearson_correlation", "mann_whitney_u"} and abs(estimate) > 1)
+            or (
+                method
+                in {
+                    "pearson_correlation",
+                    "spearman_correlation",
+                    "mann_whitney_u",
+                    "wilcoxon_signed_rank",
+                }
+                and abs(estimate) > 1
+            )
             or (method in {"one_way_anova", "pearson_chi_square"} and estimate > 1)
+            or (method == "fisher_exact" and estimate < 0)
         ):
             partial = True
             warnings.append("The effect estimate is outside the range of its named measure.")
@@ -492,9 +553,9 @@ class InterpretationEngine:
             and bool(alternative.strip())
             and (
                 alternative == "two-sided"
-                if method in _SIGNED_GROUP | {"pearson_correlation"}
+                if method in _TWO_SIDED
                 else alternative == "association"
-                if method == "pearson_chi_square"
+                if method in {"pearson_chi_square", "fisher_exact"}
                 else alternative == "at least one group differs"
             )
         )
@@ -561,7 +622,13 @@ class InterpretationEngine:
                             "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
                         )
                         direction_note = (
-                            "The first group's observed mean was higher."
+                            "The observed sample mean was above the reference."
+                            if method == "one_sample_t" and estimate > 0
+                            else "The observed sample mean was below the reference."
+                            if method == "one_sample_t" and estimate < 0
+                            else "The observed sample mean equaled the reference."
+                            if method == "one_sample_t"
+                            else "The first group's observed mean was higher."
                             if estimate > 0
                             else "The first group's observed mean was lower."
                             if estimate < 0
@@ -641,11 +708,7 @@ class InterpretationEngine:
                         estimate,
                         definition=definition if isinstance(definition, str) else None,
                     )
-                elif (
-                    estimate is not None
-                    and effect_value is not None
-                    and method == "pearson_correlation"
-                ):
+                elif estimate is not None and effect_value is not None and method in _CORRELATIONS:
                     direction = (
                         "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
                     )
@@ -751,16 +814,23 @@ class InterpretationEngine:
             high = _finite(interval.get("upper"))
             level = _finite(interval.get("level"))
             quantity = interval.get("quantity")
-            expected_method = (
-                "analytical paired t interval"
+            expected_methods = (
+                {
+                    "analytical one-sample t interval",
+                    "analytical one-sample t interval (degenerate zero-variance sample)",
+                }
+                if method == "one_sample_t"
+                else {"analytical paired t interval"}
                 if method == "paired_t"
-                else "analytical t interval"
+                else {"analytical t interval"}
                 if is_mean_test
-                else "observation-row percentile bootstrap"
+                else {"paired-observation percentile bootstrap"}
+                if method == "spearman_correlation"
+                else {"observation-row percentile bootstrap"}
                 if method == "pearson_chi_square"
-                else "independent within-group percentile bootstrap"
+                else {"independent within-group percentile bootstrap"}
                 if method in {"mann_whitney_u", "one_way_anova", "kruskal_wallis"}
-                else None
+                else set()
             )
             if (
                 low is None
@@ -772,8 +842,8 @@ class InterpretationEngine:
                 )
                 or low > high
                 or quantity != values.get("estimate_name")
-                or expected_method is None
-                or interval.get("method") != expected_method
+                or not expected_methods
+                or interval.get("method") not in expected_methods
                 or (is_mean_test and (estimate is None or not low <= estimate <= high))
             ):
                 partial = True
@@ -813,7 +883,7 @@ class InterpretationEngine:
                         interval_text += f" Relative to the effect estimate, it is {width}."
                 null_value = _finite(result.metadata.get("null_value"))
                 if (
-                    method in _SIGNED_GROUP | {"pearson_correlation"}
+                    method in _TWO_SIDED
                     and null_value is not None
                     and result.metadata.get("null_quantity") == quantity
                 ):
@@ -835,12 +905,17 @@ class InterpretationEngine:
                         findings, "interval_reported", interval_text, "values.confidence_interval"
                     )
                 if (
-                    method in {"welch_t", "student_t", "paired_t"}
+                    method in {"welch_t", "student_t", "paired_t", "one_sample_t"}
                     and p is not None
                     and alpha is not None
                     and null_value is not None
                     and interval.get("method")
-                    in {"analytical t interval", "analytical paired t interval"}
+                    in {
+                        "analytical t interval",
+                        "analytical paired t interval",
+                        "analytical one-sample t interval",
+                        "analytical one-sample t interval (degenerate zero-variance sample)",
+                    }
                     and result.metadata.get("alternative_hypothesis") == "two-sided"
                     and math.isclose(level, 1 - alpha, abs_tol=1e-12)
                     and ((p < alpha) == (low <= null_value <= high))
@@ -858,8 +933,28 @@ class InterpretationEngine:
 
         if method in {"one_way_anova", "kruskal_wallis"}:
             limitations.append("The omnibus test does not identify specific group differences.")
-        if method in {"pearson_correlation", "pearson_chi_square"}:
+        if method in {
+            "pearson_correlation",
+            "spearman_correlation",
+            "pearson_chi_square",
+            "fisher_exact",
+        }:
             limitations.append("Observed association alone does not establish causation.")
+        if method == "spearman_correlation":
+            limitations.append(
+                "Spearman correlation describes monotonic rank association, not necessarily "
+                "a linear relationship."
+            )
+        if method == "wilcoxon_signed_rank":
+            limitations.append(
+                "A location-shift interpretation requires a suitably symmetric paired-"
+                "difference distribution; this is not universally a median-difference test."
+            )
+        if method == "fisher_exact":
+            limitations.append(
+                "The primary sample odds ratio has no supported confidence interval in this "
+                "release, and its direction depends on the recorded level order."
+            )
         if result.excluded_rows:
             limitations.append(f"{result.excluded_rows} row(s) were excluded from this analysis.")
         if conclusion is not None:

@@ -17,6 +17,7 @@ PAIRED_SCHEMA_VERSION = 3
 class Objective(str, Enum):
     DESCRIPTIVE = "descriptive"
     COMPARE_GROUPS = "compare_groups"
+    COMPARE_REFERENCE = "compare_reference"
     ASSOCIATION = "association"
 
 
@@ -81,12 +82,22 @@ class ResearchQuestion:
     predictor: str | None = None
     estimand: str | None = None
     description: str | None = None
+    reference_value: float | None = None
 
     def __post_init__(self) -> None:
         if self.objective is not None:
             object.__setattr__(self, "objective", _enum(self.objective, Objective, "objective"))
         for name in ("outcome", "predictor", "estimand", "description"):
             _name(getattr(self, name), name)
+        if self.reference_value is not None:
+            value = self.reference_value
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+            ):
+                raise InvalidDataError("reference_value must be a finite numeric value.")
+            object.__setattr__(self, "reference_value", float(value))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -95,6 +106,7 @@ class ResearchQuestion:
             "predictor": self.predictor,
             "estimand": self.estimand,
             "description": self.description,
+            "reference_value": self.reference_value,
         }
 
     @classmethod
