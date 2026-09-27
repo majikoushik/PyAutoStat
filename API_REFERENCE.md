@@ -28,11 +28,15 @@ from pyautostat import (
     StudyDesign,
     SensitivitySpecification,
     WorkflowStatus,
+    coefficient_of_variation_narrative,
     column_story,
+    crosstab_narrative,
     dataset_opening,
     detect_column_types,
     executive_summary,
+    frequency_narrative,
     insight_narrative,
+    percentile_narrative,
     recommendation_rationale,
     suggest_column_roles,
 )
@@ -44,7 +48,7 @@ All documented exception classes are also exported from `pyautostat`.
 
 ```python
 assistant = ResearchAssistant(df)
-profile = assistant.profile()
+profile = assistant.profile()  # Default quantiles: .05, .25, .50, .75, .95
 print(profile["overview"])
 print(profile["resource_info"])
 print(assistant.summarize())
@@ -55,7 +59,12 @@ The assistant validates and copies the DataFrame using `StatisticalAnalyzer`; `p
 the same statistical dictionary as `analyze_all()` plus structured profiling metadata. It needs no
 research question. `resource_info` contains deep-memory and correlation-width performance
 advisories without sampling, truncating, modifying, or skipping calculations.
-`summarize(data_dictionary=None, histogram_bins=20, mode="profile")` runs the same profile operation and formats
+`profile(data_dictionary=None, histogram_bins=20, include_row_positions=False,
+quantiles=(.05, .25, .5, .75, .95))` stores percentiles under each numerical descriptive record.
+Quantiles are finite values in `[0, 1]`, deduplicated and sorted, and use pandas `linear`
+interpolation after per-column missing-value exclusion. P50 therefore matches the recorded median.
+
+`summarize(data_dictionary=None, histogram_bins=20, mode="profile", quantiles=(...))` runs the same profile operation and formats
 shape, missingness, distribution diagnostics, strong correlations, quality metrics, and warnings
 as portable plain text. The established `mode="profile"` output remains the default.
 `mode="story"` instead assembles an opt-in dataset narrative with a sample-size description, the
@@ -77,6 +86,33 @@ unit. Skewness retains the established `abs(skew) < 0.5` symmetric boundary and 
 shape into mild (`0.5` to `<1`), moderate (`1` to `<2`), and strong (`>=2`) left/right states.
 Mean/median equality uses numerical closeness. Otherwise the gap is scaled by the first available
 positive SD, IQR, or range; a gap at most 0.25 of that spread is described as small.
+It also narrates stored quartiles and the safeguarded coefficient of variation. CV is reported as
+`100 * sample SD / abs(mean)` only for a finite, numerically nonzero mean and finite sample SD.
+Its metadata always notes that CV is most interpretable for ratio-scale measurements with a
+meaningful zero; PyAutoStat does not infer that scale from a numeric dtype.
+
+### Categorical description
+
+`assistant.frequency_table(column, data_dictionary=None) -> dict` (also available on
+`StatisticalAnalyzer`) accepts nominal, ordinal, and Boolean analytical variables. It returns
+ordered `levels` with `level`, `count`, valid-observation `percent`, and `total_percent`, plus
+`valid_n`, `missing_n`, `total_n`, exclusion policy, ordering metadata, and deterministic
+`narrative`. Missing values are never turned into a level. Declared `ordinal_order` has priority,
+then an ordered pandas categorical dtype, then descending frequency with first-observed tie
+breaking (the established profile-summary policy). Cumulative percentages appear only for ordinal
+variables with one of the first two complete meaningful orders; unordered or incompletely ordered
+ordinal results record why they were omitted. Full tables are returned, while narration is capped
+at ten levels and profile previews at twenty.
+
+`assistant.cross_tab(row_variable, column_variable, data_dictionary=None) -> dict` returns JSON-safe
+axis labels and separate `counts`, `row_percent`, `column_percent`, and `total_percent` matrices.
+It uses complete cases for exactly the two columns and records original, valid, and excluded row
+counts. Its narration identifies one largest row percentage deterministically and explicitly says
+the table is descriptive. The Pearson chi-square backend reuses the same contingency-count
+construction; descriptive cross-tabs do not calculate significance.
+
+`percentile_narrative()`, `coefficient_of_variation_narrative()`, `frequency_narrative()`, and
+`crosstab_narrative()` consume existing structured values and never recalculate them.
 
 `insight_narrative(category, findings, context=None) -> str` provides deterministic connected
 prose for existing insight details. `InsightEngine(results, objective=None).get_narrative()`

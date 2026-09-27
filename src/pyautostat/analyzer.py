@@ -17,7 +17,15 @@ from scipy.stats import (
     ttest_ind,
 )
 
-from .categorical import categorical_association as _categorical_association
+from .categorical import (
+    categorical_association as _categorical_association,
+)
+from .categorical import (
+    cross_tabulation as _cross_tabulation,
+)
+from .categorical import (
+    frequency_table as _frequency_table,
+)
 from .detection import detect_column_types, suggest_column_roles
 from .exceptions import (
     ColumnNotFoundError,
@@ -28,6 +36,7 @@ from .exceptions import (
 )
 
 _VALID_TEST_TYPES = ("auto", "ttest", "mannwhitney", "anova", "kruskal")
+_DEFAULT_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
 
 
 def _finite_or_none(value):
@@ -51,6 +60,45 @@ def _advisory_normaltest_warning(item, sample_size):
             )
         )
     )
+
+
+def _quantile_key(value):
+    percentage = value * 100
+    text = f"{percentage:.12g}".replace(".", "_")
+    if percentage < 10 and "_" not in text:
+        text = "0" + text
+    return "p" + text
+
+
+def _coefficient_of_variation(values, mean, std):
+    caveat = (
+        "CV is a relative-spread statistic and is most interpretable for ratio-scale "
+        "measurements with a meaningful zero."
+    )
+    detail = {
+        "status": "unavailable",
+        "ratio": None,
+        "percent": None,
+        "formula": "sample standard deviation / absolute mean",
+        "applicability": caveat,
+        "reason": None,
+    }
+    if mean is None:
+        detail["reason"] = "mean_unavailable"
+        return detail
+    if std is None:
+        detail["reason"] = "sample_standard_deviation_unavailable"
+        return detail
+    scale = float(np.max(np.abs(np.asarray(values, dtype=float))))
+    if abs(mean) <= np.finfo(float).eps * scale:
+        detail["reason"] = "mean_zero_or_numerically_near_zero"
+        return detail
+    ratio = _finite_or_none(std / abs(mean))
+    if ratio is None:
+        detail["reason"] = "nonfinite_result"
+        return detail
+    detail.update({"status": "available", "ratio": ratio, "percent": ratio * 100})
+    return detail
 
 
 class StatisticalAnalyzer:
@@ -147,17 +195,27 @@ class StatisticalAnalyzer:
         self._profile_numeric_cols = self.numeric_cols
         self._profile_include_positions = False
         self._profile_resource_info = None
+        self._profile_quantiles = _DEFAULT_QUANTILES
 
     def _add_warning(self, code, section, column, message):
         warning = {"code": code, "section": section, "column": column, "message": message}
         if warning not in self.analysis_warnings:
             self.analysis_warnings.append(warning)
 
-    def analyze_all(self, *, data_dictionary=None, histogram_bins=20, include_row_positions=False):
+    def analyze_all(
+        self,
+        *,
+        data_dictionary=None,
+        histogram_bins=20,
+        include_row_positions=False,
+        quantiles=_DEFAULT_QUANTILES,
+    ):
         """Profile the DataFrame with optional declared metadata and histogram bins."""
         from .profiling import DatasetProfiler
 
-        return DatasetProfiler(self, data_dictionary, histogram_bins, include_row_positions).run()
+        return DatasetProfiler(
+            self, data_dictionary, histogram_bins, include_row_positions, quantiles
+        ).run()
 
     def _base_profile(self, histogram_bins):
         """Run established profiling calculations for the selected numeric columns."""
@@ -228,6 +286,14 @@ class StatisticalAnalyzer:
             col_data = self.df[col].dropna()
             mean = _finite_or_none(col_data.mean())
             std = _finite_or_none(col_data.std())
+            quantile_values = col_data.quantile(
+                list(self._profile_quantiles), interpolation="linear"
+            )
+            percentiles = {
+                _quantile_key(quantile): _finite_or_none(quantile_values.loc[quantile])
+                for quantile in self._profile_quantiles
+            }
+            cv = _coefficient_of_variation(col_data, mean, std)
 
             stats_dict[col] = {
                 "count": len(col_data),
@@ -242,9 +308,10 @@ class StatisticalAnalyzer:
                 "iqr": _finite_or_none(col_data.quantile(0.75) - col_data.quantile(0.25)),
                 "skewness": _finite_or_none(col_data.skew()),
                 "kurtosis": _finite_or_none(col_data.kurtosis()),
-                "coefficient_of_variation": (
-                    _finite_or_none(std / mean * 100) if std is not None and mean else None
-                ),
+                "percentiles": percentiles,
+                "percentile_method": "pandas linear interpolation",
+                "coefficient_of_variation": cv["percent"],
+                "coefficient_of_variation_details": cv,
             }
             if col_data.empty:
                 self._add_warning(
@@ -264,6 +331,14 @@ class StatisticalAnalyzer:
                 stats_dict[col]["std"] = None
                 stats_dict[col]["variance"] = None
                 stats_dict[col]["coefficient_of_variation"] = None
+                stats_dict[col]["coefficient_of_variation_details"].update(
+                    {
+                        "status": "unavailable",
+                        "ratio": None,
+                        "percent": None,
+                        "reason": "numeric_underflow",
+                    }
+                )
                 self._add_warning(
                     "numeric_underflow",
                     "descriptive",
@@ -272,6 +347,63 @@ class StatisticalAnalyzer:
                 )
 
         return stats_dict
+
+    def _categorical_context(self, columns, data_dictionary):
+        from .profiling import validate_data_dictionary, variable_intelligence_only
+
+        dictionary = validate_data_dictionary(self.df, data_dictionary)
+        intelligence = variable_intelligence_only(self.df, dictionary)
+        contexts = []
+        for column in columns:
+            if column not in self.df.columns:
+                raise ColumnNotFoundError(f"'{column}' is not a column in this DataFrame.")
+            info = intelligence[column]
+            analytical_type = info["suggested_type"]
+            if info["suggested_role"] == "identifier" or analytical_type == "identifier":
+                raise InvalidDataError(
+                    f"'{column}' is identifier-like. Declare a categorical measurement type "
+                    "and non-identifier role before requesting a frequency table or cross-tab."
+                )
+            if not self.df[column].dropna().empty and analytical_type not in {
+                "nominal_categorical",
+                "ordinal_categorical",
+                "boolean",
+            }:
+                raise InvalidDataError(
+                    f"'{column}' is classified as {analytical_type}, not an analytical "
+                    "categorical variable. Declare type='nominal' or type='ordinal' when justified."
+                )
+            contexts.append((analytical_type, dictionary.get(column, {}).get("ordinal_order")))
+        return contexts
+
+    def frequency_table(self, column, *, data_dictionary=None):
+        """Describe one categorical variable without treating missing values as a level."""
+        from .narrate import frequency_narrative
+
+        ((analytical_type, order),) = self._categorical_context([column], data_dictionary)
+        result = _frequency_table(
+            self.df,
+            column,
+            analytical_type=analytical_type,
+            explicit_order=order,
+        )
+        result["narrative"] = frequency_narrative(result)
+        return result
+
+    def cross_tab(self, row_variable, column_variable, *, data_dictionary=None):
+        """Describe two categorical variables with counts and explicit percentages."""
+        from .narrate import crosstab_narrative
+
+        contexts = self._categorical_context([row_variable, column_variable], data_dictionary)
+        result = _cross_tabulation(
+            self.df,
+            row_variable,
+            column_variable,
+            row_order=contexts[0][1],
+            column_order=contexts[1][1],
+        )
+        result["narrative"] = crosstab_narrative(result)
+        return result
 
     def _normality_tests(self):
         """Test for normality using multiple methods"""

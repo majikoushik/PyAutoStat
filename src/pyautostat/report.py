@@ -388,6 +388,22 @@ class ReportGenerator:
             desc_df = pd.DataFrame(self.analysis_results["descriptive"]).T
             csvs["descriptive_stats"] = desc_df
 
+        intelligence = self.analysis_results.get("variable_intelligence", {})
+        frequency_index = 0
+        for column, summary in self.analysis_results.get("categorical_summary", {}).items():
+            info = intelligence.get(column, {}) if isinstance(intelligence, Mapping) else {}
+            if isinstance(info, Mapping) and (
+                info.get("suggested_role") == "identifier"
+                or info.get("suggested_type") == "identifier"
+            ):
+                continue
+            frequencies = summary.get("frequencies", []) if isinstance(summary, Mapping) else []
+            if frequencies:
+                frequency_index += 1
+                frame = pd.DataFrame(frequencies)
+                frame.insert(0, "variable", column)
+                csvs[f"frequency_{frequency_index}"] = frame
+
         # Outliers summary
         if "outliers" in self.analysis_results:
             outlier_data = []
@@ -483,6 +499,7 @@ class ReportGenerator:
         {self._generate_insights_html()}
         {self._generate_hypothesis_html()}
         {self._generate_descriptive_html()}
+        {self._generate_categorical_html()}
         {self._generate_normality_html()}
         {self._generate_outliers_html()}
         {self._generate_correlation_html()}
@@ -844,22 +861,66 @@ class ReportGenerator:
         html += "<table><thead>"
         html += (
             "<tr><th>Variable</th><th>Mean</th><th>Median</th><th>Std Dev</th>"
+            "<th>P5</th><th>P25</th><th>P75</th><th>P95</th><th>CV</th>"
             "<th>Min</th><th>Max</th><th>Skewness</th></tr></thead><tbody>"
         )
 
         for col, stats in descriptive.items():
+            percentiles = stats.get("percentiles", {})
             html += f"""<tr>
                 <td>{_html(col)}</td>
                 <td>{_number(stats.get("mean"))}</td>
                 <td>{_number(stats.get("median"))}</td>
                 <td>{_number(stats.get("std"))}</td>
+                <td>{_number(percentiles.get("p05"))}</td>
+                <td>{_number(percentiles.get("p25"))}</td>
+                <td>{_number(percentiles.get("p75"))}</td>
+                <td>{_number(percentiles.get("p95"))}</td>
+                <td>{_percent(stats.get("coefficient_of_variation"))}</td>
                 <td>{_number(stats.get("min"))}</td>
                 <td>{_number(stats.get("max"))}</td>
                 <td>{_number(stats.get("skewness"))}</td>
             </tr>"""
 
         html += "</tbody></table>"
+        html += (
+            "<p>CV is most interpretable for ratio-scale measurements with a meaningful zero; "
+            "whether the relative spread is large depends on context.</p>"
+        )
 
+        return html
+
+    def _generate_categorical_html(self):
+        """Render bounded frequency summaries already present in the profile."""
+        summaries = self.analysis_results.get("categorical_summary")
+        if not isinstance(summaries, Mapping) or not summaries:
+            return ""
+        html = "<h2>Categorical Frequency Summaries</h2>"
+        intelligence = self.analysis_results.get("variable_intelligence", {})
+        for column, summary in summaries.items():
+            info = intelligence.get(column, {}) if isinstance(intelligence, Mapping) else {}
+            if isinstance(info, Mapping) and (
+                info.get("suggested_role") == "identifier"
+                or info.get("suggested_type") == "identifier"
+            ):
+                continue
+            if not isinstance(summary, Mapping):
+                continue
+            frequencies = summary.get("frequencies")
+            if not isinstance(frequencies, list) or not frequencies:
+                continue
+            html += f"<h3>{_html(column)}</h3><table><thead>"
+            html += "<tr><th>Level</th><th>Count</th><th>Valid percent</th></tr></thead><tbody>"
+            for row in frequencies:
+                html += (
+                    f"<tr><td>{_html(row.get('value'))}</td>"
+                    f"<td>{_html(row.get('count'))}</td>"
+                    f"<td>{_percent(row.get('percentage'))}</td></tr>"
+                )
+            html += "</tbody></table>"
+            remaining = summary.get("other_category_count", 0)
+            if isinstance(remaining, int) and remaining:
+                html += f"<p>{remaining} additional level(s) are retained outside this summary.</p>"
         return html
 
     def _generate_normality_html(self):

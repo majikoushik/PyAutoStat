@@ -22,6 +22,23 @@ assistant = ResearchAssistant(independent)
 profile = assistant.profile()
 assert profile["overview"]["total_rows"] == 12
 assert profile["resource_info"]["sampling_applied"] is False
+assert list(profile["descriptive"]["score"]["percentiles"]) == [
+    "p05",
+    "p25",
+    "p50",
+    "p75",
+    "p95",
+]
+frequency = assistant.frequency_table("group")
+assert frequency["valid_n"] == 12
+assert "GROUP DISTRIBUTION" in frequency["narrative"]
+cross_tab = assistant.cross_tab(
+    "group",
+    "score",
+    data_dictionary={"score": {"type": "ordinal", "ordinal_order": sorted(set(independent.score))}},
+)
+assert sum(map(sum, cross_tab["counts"])) == 12
+assert "observed distribution only" in cross_tab["narrative"]
 story = assistant.summarize(mode="story")
 assert "DATASET STORY" in story
 guided = assistant.run(

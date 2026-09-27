@@ -16,6 +16,13 @@ It is not a substitute for scientific design review or subject-matter judgment.
 - Missing data use analysis-specific complete cases. There is no automatic imputation or
   missing-data mechanism model.
 - Outliers are reported for review. They are never deleted automatically.
+- Coefficient of variation is a relative-spread description, not a universal quality score. It is
+  most interpretable for ratio-scale measurements with a meaningful zero; numeric dtype alone
+  cannot establish that meaning. Zero or numerically near-zero means and unavailable/nonfinite
+  sample SDs produce an unavailable CV rather than infinity or NaN.
+- Frequency tables and cross-tabs describe observed distributions. They do not establish
+  association, statistical significance, causation, importance, or population representativeness.
+  Cross-tabs exclude rows missing either selected variable and do not create a missing category.
 - Sensitivity analysis executes only researcher-declared scenarios, preserves different
   estimands, and never selects or ranks results by p-value. It cannot supply a universal
   robustness conclusion. Matching decisions in its plain-text comparison remain descriptive.

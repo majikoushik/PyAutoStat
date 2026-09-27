@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added default and custom linear-interpolation percentile profiles, with P50 tied to the existing
+  median calculation and deterministic percentile narration.
+- Added JSON-safe categorical frequency tables and descriptive cross-tabs with explicit valid,
+  missing, and excluded row accounting; separate valid/total, row, column, and total percentages;
+  meaningful ordinal ordering; bounded narration; and shared contingency construction for the
+  existing chi-square workflow.
+- Added safeguarded coefficient-of-variation metadata and narration using sample SD divided by the
+  absolute mean, with zero/near-zero and measurement-scale caveats.
+- Integrated the new descriptions into profiles, story mode, insights, legacy/canonical reports,
+  a synthetic example, and installed-wheel smoke coverage.
+
 ## [0.3.0] - 2026-09-27
 
 This release adds a deterministic, researcher-readable narration layer across profiling,

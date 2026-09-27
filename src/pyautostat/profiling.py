@@ -47,6 +47,7 @@ _TOP_PATTERN_LIMIT = 10
 _LARGE_DATAFRAME_BYTES = 256 * 1024**2
 _VERY_LARGE_DATAFRAME_BYTES = 1024 * 1024**2
 _WIDE_CORRELATION_COLUMN_COUNT = 100
+_DEFAULT_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
 
 
 def _dataset_resource_info(frame: pd.DataFrame, numeric_column_count: int) -> dict[str, Any]:
@@ -161,6 +162,27 @@ def _plain_scalar(value: Any) -> bool:
     )
 
 
+def validate_quantiles(quantiles: Any) -> tuple[float, ...]:
+    """Validate, deduplicate, and sort requested linear-interpolation quantiles."""
+    if quantiles is None:
+        quantiles = _DEFAULT_QUANTILES
+    if isinstance(quantiles, (str, bytes)) or not isinstance(quantiles, Sequence):
+        raise InvalidDataError("quantiles must be a nonempty sequence of numbers from 0 to 1.")
+    clean = []
+    for value in quantiles:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or not 0 <= value <= 1
+        ):
+            raise InvalidDataError("Every quantile must be a finite number from 0 to 1.")
+        clean.append(float(value))
+    if not clean:
+        raise InvalidDataError("quantiles must contain at least one value.")
+    return tuple(sorted(set(clean)))
+
+
 def validate_data_dictionary(frame: pd.DataFrame, data_dictionary: Any) -> dict[str, dict]:
     """Validate and copy a small JSON-compatible column declaration mapping."""
     if data_dictionary is None:
@@ -254,6 +276,7 @@ class DatasetProfiler:
         data_dictionary: Any,
         histogram_bins: int,
         include_row_positions: bool,
+        quantiles: Any = _DEFAULT_QUANTILES,
     ) -> None:
         self.analyzer = analyzer
         self.frame = analyzer.df
@@ -263,6 +286,7 @@ class DatasetProfiler:
             raise InvalidDataError("include_row_positions must be true or false.")
         self.histogram_bins = histogram_bins
         self.include_row_positions = include_row_positions
+        self.quantiles = validate_quantiles(quantiles)
         self.dictionary = validate_data_dictionary(self.frame, data_dictionary)
 
     def run(self) -> dict:
@@ -282,6 +306,7 @@ class DatasetProfiler:
             )
         ]
         self.analyzer._profile_include_positions = self.include_row_positions
+        self.analyzer._profile_quantiles = self.quantiles
         resource_info = _dataset_resource_info(self.frame, len(self.analyzer._profile_numeric_cols))
         self.analyzer._profile_resource_info = resource_info
         results = self.analyzer._base_profile(self.histogram_bins)
@@ -305,6 +330,8 @@ class DatasetProfiler:
             "row_positions_included": self.include_row_positions,
             "correlation_missing_policy": "pairwise_complete",
             "outlier_missing_policy": "per_column_nonmissing",
+            "quantiles": list(self.quantiles),
+            "quantile_interpolation": "linear",
         }
         self.analyzer.all_results = results
         return results
@@ -415,6 +442,9 @@ class DatasetProfiler:
                 "other_category_count": max(0, int(len(counts) - len(top))),
                 "other_observation_count": int(len(observed) - top.sum()),
                 "percentage_denominator": "nonmissing observations",
+                "ordering": "descending count; first-observed order breaks ties",
+                "frequency_table_api": f"frequency_table({col!r})",
+                "full_table_in_profile": False,
             }
         return summaries
 

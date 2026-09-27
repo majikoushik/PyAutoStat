@@ -1,4 +1,4 @@
-"""Independent-sample association tests for categorical columns."""
+"""Categorical descriptions and independent-sample association tests."""
 
 import warnings
 
@@ -6,7 +6,207 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency
 
-from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidTestError
+from .exceptions import (
+    ColumnNotFoundError,
+    InsufficientDataError,
+    InvalidDataError,
+    InvalidTestError,
+)
+
+
+def _json_scalar(value):
+    """Return a stable JSON scalar for an observed category label."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _validate_columns(df, first, second=None):
+    names = (first,) if second is None else (first, second)
+    for name in names:
+        if not isinstance(name, str) or not name.strip():
+            raise InvalidDataError("Categorical column names must be non-empty strings.")
+        if name not in df.columns:
+            raise ColumnNotFoundError(f"'{name}' is not a column in this DataFrame.")
+    if second is not None and first == second:
+        raise InvalidDataError("Cross-tabulation requires two different columns.")
+
+
+def _observed_levels(series, explicit_order=None, *, respect_dtype_order=True):
+    observed = list(pd.unique(series.dropna()))
+    preferred = explicit_order
+    source = "declared_order"
+    if (
+        preferred is None
+        and respect_dtype_order
+        and isinstance(series.dtype, pd.CategoricalDtype)
+        and series.dtype.ordered
+    ):
+        preferred = list(series.dtype.categories)
+        source = "ordered_categorical_dtype"
+    if preferred is None:
+        return observed, "first_observed"
+    ordered = [level for level in preferred if any(level == value for value in observed)]
+    extras = [value for value in observed if not any(value == level for level in ordered)]
+    ordered.extend(extras)
+    if source == "declared_order" and extras:
+        source = "declared_order_incomplete"
+    return ordered, source
+
+
+def contingency_counts(
+    df,
+    row_variable,
+    column_variable,
+    *,
+    row_order=None,
+    column_order=None,
+    respect_dtype_order=True,
+):
+    """Build one complete-case contingency table for description and inference."""
+    _validate_columns(df, row_variable, column_variable)
+    usable = df[[row_variable, column_variable]].dropna()
+    if usable.empty:
+        raise InsufficientDataError(
+            "Cross-tabulation has no complete rows after excluding missing values."
+        )
+    row_levels, row_ordering = _observed_levels(
+        usable[row_variable], row_order, respect_dtype_order=respect_dtype_order
+    )
+    column_levels, column_ordering = _observed_levels(
+        usable[column_variable], column_order, respect_dtype_order=respect_dtype_order
+    )
+    row_codes = pd.Categorical(usable[row_variable], categories=row_levels).codes
+    column_codes = pd.Categorical(usable[column_variable], categories=column_levels).codes
+    observed = np.zeros((len(row_levels), len(column_levels)), dtype=int)
+    np.add.at(observed, (row_codes, column_codes), 1)
+    return {
+        "usable": usable,
+        "row_levels_raw": row_levels,
+        "column_levels_raw": column_levels,
+        "row_levels": [_json_scalar(value) for value in row_levels],
+        "column_levels": [_json_scalar(value) for value in column_levels],
+        "counts": observed,
+        "row_ordering": row_ordering,
+        "column_ordering": column_ordering,
+    }
+
+
+def frequency_table(df, column, *, analytical_type, explicit_order=None):
+    """Return a JSON-safe categorical frequency table using valid-value percentages."""
+    _validate_columns(df, column)
+    series = df[column]
+    valid = series.dropna()
+    if valid.empty:
+        raise InsufficientDataError(
+            f"Frequency table for '{column}' has no non-missing observations."
+        )
+    levels, ordering = _observed_levels(series, explicit_order)
+    counts = [int((valid == level).sum()) for level in levels]
+    if ordering == "first_observed":
+        ranked = sorted(zip(levels, counts, strict=True), key=lambda item: -item[1])
+        levels = [item[0] for item in ranked]
+        counts = [item[1] for item in ranked]
+        ordering = "descending_frequency_first_observed_ties"
+    valid_n = int(len(valid))
+    total_n = int(len(series))
+    include_cumulative = analytical_type == "ordinal_categorical" and ordering in {
+        "declared_order",
+        "ordered_categorical_dtype",
+    }
+    cumulative = 0.0
+    rows = []
+    for level, count in zip(levels, counts, strict=True):
+        percent = float(count / valid_n * 100)
+        row = {
+            "level": _json_scalar(level),
+            "count": count,
+            "percent": percent,
+            "total_percent": float(count / total_n * 100),
+        }
+        if include_cumulative:
+            cumulative += percent
+            row["cumulative_percent"] = cumulative
+        rows.append(row)
+    return {
+        "column": column,
+        "analytical_type": analytical_type,
+        "levels": rows,
+        "valid_n": valid_n,
+        "missing_n": total_n - valid_n,
+        "total_n": total_n,
+        "excluded_rows": total_n - valid_n,
+        "percentage_denominator": "non-missing observations",
+        "missing_values_as_category": False,
+        "ordering": ordering,
+        "cumulative_percentage_status": (
+            "available"
+            if include_cumulative
+            else "omitted_unordered"
+            if analytical_type == "ordinal_categorical"
+            else "not_applicable"
+        ),
+        "high_cardinality": len(rows) > 20,
+        "level_count": len(rows),
+    }
+
+
+def cross_tabulation(
+    df,
+    row_variable,
+    column_variable,
+    *,
+    row_order=None,
+    column_order=None,
+):
+    """Return counts and explicitly named row, column, and total percentages."""
+    table = contingency_counts(
+        df,
+        row_variable,
+        column_variable,
+        row_order=row_order,
+        column_order=column_order,
+    )
+    counts = table["counts"]
+    valid_n = int(counts.sum())
+    row_totals = counts.sum(axis=1, keepdims=True)
+    column_totals = counts.sum(axis=0, keepdims=True)
+    row_percent = np.divide(
+        counts * 100.0,
+        row_totals,
+        out=np.zeros(counts.shape, dtype=float),
+        where=row_totals != 0,
+    )
+    column_percent = np.divide(
+        counts * 100.0,
+        column_totals,
+        out=np.zeros(counts.shape, dtype=float),
+        where=column_totals != 0,
+    )
+    return {
+        "row_variable": row_variable,
+        "column_variable": column_variable,
+        "row_levels": table["row_levels"],
+        "column_levels": table["column_levels"],
+        "counts": counts.tolist(),
+        "row_percent": row_percent.tolist(),
+        "column_percent": column_percent.tolist(),
+        "total_percent": (counts / valid_n * 100.0).tolist(),
+        "original_rows": int(len(df)),
+        "valid_n": valid_n,
+        "excluded_rows": int(len(df) - valid_n),
+        "missing_policy": "complete cases for the two selected columns",
+        "missing_values_as_category": False,
+        "row_ordering": table["row_ordering"],
+        "column_ordering": table["column_ordering"],
+        "shape": [int(counts.shape[0]), int(counts.shape[1])],
+        "cell_count": int(counts.size),
+        "large_table": counts.size > 100,
+    }
 
 
 def _interval(estimates, level, requested, random_state):
@@ -75,9 +275,13 @@ def categorical_association(
     ):
         raise InvalidTestError("random_state must be a nonnegative integer or None.")
 
-    usable = df[[group_col, outcome_col]].dropna()
-    group_codes, groups = pd.factorize(usable[group_col], sort=False)
-    outcome_codes, outcomes = pd.factorize(usable[outcome_col], sort=False)
+    # Preserve this established inferential API's first-appearance contrast order.
+    table = contingency_counts(df, group_col, outcome_col, respect_dtype_order=False)
+    usable = table["usable"]
+    groups = pd.Index(table["row_levels_raw"])
+    outcomes = pd.Index(table["column_levels_raw"])
+    group_codes = pd.Categorical(usable[group_col], categories=groups).codes
+    outcome_codes = pd.Categorical(usable[outcome_col], categories=outcomes).codes
     if len(groups) < 2 or len(outcomes) < 2:
         raise InsufficientDataError(
             "Chi-square association needs at least 2 observed categories in each column "
@@ -89,8 +293,7 @@ def categorical_association(
         not pd.api.types.is_scalar(success_value) or pd.isna(success_value)
     ):
         raise InvalidTestError("success_value must be one non-missing scalar outcome category.")
-    observed = np.zeros((len(groups), len(outcomes)), dtype=int)
-    np.add.at(observed, (group_codes, outcome_codes), 1)
+    observed = table["counts"]
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", RuntimeWarning)

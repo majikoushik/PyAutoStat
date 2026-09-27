@@ -68,6 +68,7 @@ class InsightEngine:
         self._check_missing_data()
         self._check_correlations()
         self._check_distributions()
+        self._check_categorical_summaries()
         self._check_data_quality()
 
         self._generated = True
@@ -376,6 +377,35 @@ class InsightEngine:
                     finding=", ".join(issues) + ".",
                     details=details,
                     recommendation=recs,
+                )
+            )
+
+    def _check_categorical_summaries(self):
+        """Flag profile summaries whose full level set exceeds the bounded preview."""
+        summaries = self.results.get("categorical_summary")
+        if not isinstance(summaries, Mapping):
+            return
+        details = []
+        for column, summary in summaries.items():
+            if not isinstance(summary, Mapping):
+                continue
+            level_count = summary.get("observed_categories")
+            if isinstance(level_count, int) and level_count > 20:
+                details.append({"column": column, "observed_categories": level_count})
+        if details:
+            self.insights.append(
+                _normalise(
+                    category="Categorical Cardinality",
+                    severity="low",
+                    finding=(
+                        f"{len(details)} categorical column(s) have more than 20 observed "
+                        "levels; profile previews are bounded."
+                    ),
+                    details=details,
+                    recommendation=[
+                        "Inspect the full frequency table and confirm that levels represent "
+                        "intended categories rather than identifiers or inconsistent labels."
+                    ],
                 )
             )
 

@@ -755,11 +755,26 @@ def build_research_report(
             profile = values.get("profile", {})
             descriptive = profile.get("descriptive", {}) if isinstance(profile, dict) else {}
             if descriptive:
+                limitations.append(
+                    "Coefficient of variation is most interpretable for ratio-scale measurements "
+                    "with a meaningful zero; no universal magnitude label is applied."
+                )
                 tables.append(
                     _table(
                         "descriptive_statistics",
                         "Observed descriptive statistics",
-                        ["Variable", "N", "Mean", "Median", "SD"],
+                        [
+                            "Variable",
+                            "N",
+                            "Mean",
+                            "Median",
+                            "SD",
+                            "P5",
+                            "P25",
+                            "P75",
+                            "P95",
+                            "CV (%)",
+                        ],
                         [
                             [_cell(name)]
                             + [
@@ -769,11 +784,49 @@ def build_research_report(
                                 )
                                 for key in ("count", "mean", "median", "std")
                             ]
+                            + [
+                                _cell(
+                                    stats.get("percentiles", {}).get(key),
+                                    f"analysis.values.profile.descriptive.{name}.percentiles.{key}",
+                                )
+                                for key in ("p05", "p25", "p75", "p95")
+                            ]
+                            + [
+                                _cell(
+                                    stats.get("coefficient_of_variation"),
+                                    "analysis.values.profile.descriptive."
+                                    f"{name}.coefficient_of_variation",
+                                )
+                            ]
                             for name, stats in descriptive.items()
                             if isinstance(stats, dict)
                         ],
                     )
                 )
+            categorical = profile.get("categorical_summary", {})
+            if isinstance(categorical, dict):
+                frequency_index = 0
+                for name, summary in categorical.items():
+                    frequencies = (
+                        summary.get("frequencies", []) if isinstance(summary, dict) else []
+                    )
+                    if frequencies:
+                        frequency_index += 1
+                        tables.append(
+                            _table(
+                                f"frequency_{frequency_index}",
+                                f"Frequency summary: {name}",
+                                ["Level", "Count", "Valid percent"],
+                                [
+                                    [
+                                        _cell(row.get("value")),
+                                        _cell(row.get("count")),
+                                        _cell(row.get("percentage")),
+                                    ]
+                                    for row in frequencies
+                                ],
+                            )
+                        )
         else:
             fields = {
                 "test_statistic": visible.get("test_statistic"),

@@ -28,6 +28,10 @@ print(ResearchAssistant(df).summarize(mode="story"))
 Profiling needs no research question and performs no inferential test. It returns descriptive,
 quality, variable-intelligence, and advisory resource metadata without sampling or changing the
 source DataFrame.
+Numerical descriptions include linear-interpolation P5/P25/P50/P75/P95 values and a safeguarded
+CV record. `frequency_table()` provides full categorical counts and valid/total percentages;
+`cross_tab()` provides count, row-percent, column-percent, and total-percent matrices using paired
+complete cases. Both retain explicit row accounting and bounded deterministic narration.
 `summarize()` is the established plain-text view of the same profile and does not create a second
 analysis. Opt-in `summarize(mode="story")` assembles recorded dimensions, strongest eligible
 Pearson pair, data quality, normality-diagnostic coverage, and up to three explicitly prioritized
@@ -38,6 +42,10 @@ mean/median comparison and seven deterministic skewness states. `InsightEngine.g
 adds connected category prose; `get_summary()` preserves the full structured insight records and
 adds JSON-safe narrative and ranked-action fields. Insight actions use the existing
 `high`/`medium`/`low` severities without merging them with assumption severity terminology.
+Story mode adds at most two categorical distribution observations. Profile frequency previews are
+bounded to twenty levels; the dedicated API retains the full requested table. Declared ordinal
+order, then ordered categorical dtype, governs cumulative percentages. Nominal and Boolean tables
+do not receive cumulative percentages.
 
 ### Run a guided analysis
 

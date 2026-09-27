@@ -37,7 +37,7 @@ from pyautostat import ResearchAssistant
 
 df = pd.DataFrame(
     {
-        "student": ["A", "B", "C", "D", "E", "F"],
+        "class_section": ["A", "A", "B", "B", "A", "B"],
         "hours_studied": [2, 3, 4, 5, 6, 7],
         "exam_score": [55, 61, 67, 74, 81, 88],
     }
@@ -53,7 +53,8 @@ print(assistant.summarize())  # Plain-text view of the same profile
 print(assistant.summarize(mode="story"))  # Opt-in connected dataset narrative
 ```
 
-The profile includes descriptive summaries, missingness, duplicates, distributions, histograms,
+The profile includes descriptive summaries (including P5, P25, P50, P75, P95 and a safeguarded
+coefficient of variation), missingness, duplicates, distributions, histograms,
 outlier review cues, correlation records, type and role suggestions, and structured resource
 advisories. Profiling never samples, truncates, imputes, or modifies the source DataFrame.
 Story mode reads those same recorded values, prioritizes at most three profile-driven first steps,
@@ -67,6 +68,30 @@ from pyautostat import column_story
 
 print(column_story("exam_score", profile["descriptive"]["exam_score"]))
 ```
+
+Categorical exploration is similarly direct. Results remain JSON-safe and include narration as a
+separate field over the structured counts and percentages:
+
+```python
+frequency = assistant.frequency_table("class_section")
+print(frequency["levels"])
+print(frequency["narrative"])
+
+cross_tab = assistant.cross_tab(
+    "class_section",
+    "exam_score",
+    data_dictionary={
+        "exam_score": {"type": "ordinal", "ordinal_order": [55, 61, 67, 74, 81, 88]}
+    },
+)
+print(cross_tab["counts"])
+print(cross_tab["row_percent"])
+```
+
+Frequency percentages use non-missing observations; missing counts are separate. Cross-tabs use
+complete cases for the selected pair and expose counts, row percentages, column percentages, and
+total percentages separately. Identifiers and continuous measurements require an explicit,
+scientifically justified categorical declaration before these APIs will accept them.
 
 ## Guided analysis
 

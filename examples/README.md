@@ -12,6 +12,7 @@ For a small synthetic example with no workbook dependency, run:
 
 ~~~bash
 python examples/explainable_recommendation_and_report.py
+python examples/data_understanding.py
 ~~~
 
 It prints the dataset story, deterministic recommendation rationale (why this
@@ -19,6 +20,10 @@ method, why not relevant alternatives, and facts to verify), and the complete
 researcher-facing workflow explanation, then verifies that the generated HTML
 contains its executive summary. No file is written and no generative service
 is used.
+
+`data_understanding.py` demonstrates default percentiles, a safeguarded CV, categorical frequency
+tables, ordered cumulative percentages, a descriptive cross-tab with four explicit table views,
+and their deterministic narratives using synthetic data only.
 
 ## Install
 

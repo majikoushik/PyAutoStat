@@ -110,13 +110,19 @@ class ResearchAssistant:
         self._planning_status = status
 
     def profile(
-        self, *, data_dictionary=None, histogram_bins: int = 20, include_row_positions: bool = False
+        self,
+        *,
+        data_dictionary=None,
+        histogram_bins: int = 20,
+        include_row_positions: bool = False,
+        quantiles=(0.05, 0.25, 0.5, 0.75, 0.95),
     ) -> dict:
         """Profile a DataFrame; optional declarations never mutate source values."""
         result = self._analyzer.analyze_all(
             data_dictionary=data_dictionary,
             histogram_bins=histogram_bins,
             include_row_positions=include_row_positions,
+            quantiles=quantiles,
         )
         self._data_dictionary = deepcopy(result["data_dictionary"])
         return result
@@ -127,6 +133,7 @@ class ResearchAssistant:
         data_dictionary=None,
         histogram_bins: int = 20,
         mode: str = "profile",
+        quantiles=(0.05, 0.25, 0.5, 0.75, 0.95),
     ) -> str:
         """Return a readable plain-text overview of the dataset.
 
@@ -149,7 +156,11 @@ class ResearchAssistant:
         """
         if mode not in {"profile", "story"}:
             raise InvalidDataError("summary mode must be 'profile' or 'story'.")
-        result = self.profile(data_dictionary=data_dictionary, histogram_bins=histogram_bins)
+        result = self.profile(
+            data_dictionary=data_dictionary,
+            histogram_bins=histogram_bins,
+            quantiles=quantiles,
+        )
         if mode == "story":
             return _dataset_story(result)
         sep = "=" * 68
@@ -262,6 +273,16 @@ class ResearchAssistant:
     def complete_case_count(self, columns: list[str]) -> dict:
         """Count rows available for a specified set of columns."""
         return complete_case_count(self._analyzer.df, columns)
+
+    def frequency_table(self, column: str, *, data_dictionary=None) -> dict:
+        """Return a categorical frequency table plus deterministic narration."""
+        return self._analyzer.frequency_table(column, data_dictionary=data_dictionary)
+
+    def cross_tab(self, row_variable: str, column_variable: str, *, data_dictionary=None) -> dict:
+        """Return descriptive counts and row, column, and total percentages."""
+        return self._analyzer.cross_tab(
+            row_variable, column_variable, data_dictionary=data_dictionary
+        )
 
     def study_planner(self) -> StudyPlanner:
         """Return a prospective planner that does not inspect this assistant's data."""

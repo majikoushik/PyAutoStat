@@ -1176,6 +1176,9 @@ def _dataset_story(profile: Mapping[str, Any]) -> str:
         "DISTRIBUTION",
         _distribution_story(profile),
         "",
+        "CATEGORICAL DISTRIBUTIONS",
+        _categorical_distribution_story(profile),
+        "",
         "RECOMMENDED FIRST STEPS",
     ]
     if actions:
@@ -1240,6 +1243,157 @@ def _mean_median_story(stats: Mapping[str, Any]) -> str:
     )
 
 
+def percentile_narrative(stats: Mapping[str, Any]) -> str:
+    """Narrate stored percentiles without recalculating them."""
+    if not isinstance(stats, Mapping) or not isinstance(stats.get("percentiles"), Mapping):
+        return "Percentile summary is unavailable."
+    percentiles = stats["percentiles"]
+    parts = []
+    median = _finite(percentiles.get("p50"))
+    lower = _finite(percentiles.get("p25"))
+    upper = _finite(percentiles.get("p75"))
+    p05 = _finite(percentiles.get("p05"))
+    p95 = _finite(percentiles.get("p95"))
+    if median is not None:
+        parts.append(f"The 50th percentile (median) is {_fmt(median)}.")
+    if lower is not None and upper is not None:
+        parts.append(
+            "The middle 50% of recorded values lies approximately between "
+            f"{_fmt(lower)} and {_fmt(upper)}."
+        )
+    if p05 is not None:
+        parts.append(f"The 5th percentile is {_fmt(p05)}.")
+    if p95 is not None:
+        parts.append(f"The 95th percentile is {_fmt(p95)}.")
+    return " ".join(parts) if parts else "Requested percentiles are unavailable."
+
+
+def coefficient_of_variation_narrative(stats: Mapping[str, Any]) -> str:
+    """Narrate a stored, safeguarded coefficient of variation."""
+    detail = stats.get("coefficient_of_variation_details") if isinstance(stats, Mapping) else None
+    if not isinstance(detail, Mapping):
+        return "Coefficient of variation details are unavailable."
+    caveat = detail.get("applicability")
+    if detail.get("status") == "available" and _finite(detail.get("percent")) is not None:
+        text = (
+            "The sample standard deviation is "
+            f"{_fmt(float(detail['percent']))}% of the absolute mean."
+        )
+    else:
+        reason = str(detail.get("reason") or "the calculation is not stable")
+        text = f"The coefficient of variation is unavailable ({reason.replace('_', ' ')})."
+    if isinstance(caveat, str) and caveat:
+        text += " " + caveat
+    return text
+
+
+def frequency_narrative(result: Mapping[str, Any], *, limit: int = 10) -> str:
+    """Narrate a structured categorical frequency table with bounded detail."""
+    if not isinstance(result, Mapping) or not isinstance(result.get("levels"), Sequence):
+        return "Frequency narrative unavailable."
+    rows = [row for row in result["levels"] if isinstance(row, Mapping)]
+    column = str(result.get("column") or "Category")
+    valid_n = result.get("valid_n")
+    total_n = result.get("total_n")
+    missing_n = result.get("missing_n")
+    lines = [f"{column.upper()} DISTRIBUTION"]
+    for row in rows[:limit]:
+        percent = _finite(row.get("percent"))
+        shown = f"{percent:.1f}%" if percent is not None else "percentage unavailable"
+        lines.append(f"{row.get('level')}: {row.get('count')} ({shown})")
+    if len(rows) > limit:
+        lines.append(f"{len(rows) - limit} additional level(s) are retained in the table.")
+    if rows:
+        maximum = max(int(row.get("count", 0)) for row in rows)
+        modes = [row for row in rows if row.get("count") == maximum]
+        if len(modes) == 1:
+            lines.append(
+                f"{modes[0].get('level')} is the most common observed category, representing "
+                f"{float(modes[0].get('percent', 0)):.1f}% of {valid_n:,} valid observations."
+            )
+        else:
+            labels = ", ".join(str(row.get("level")) for row in modes[:limit])
+            suffix = f" and {len(modes) - limit} more" if len(modes) > limit else ""
+            lines.append(f"The largest count is tied across {labels}{suffix} ({maximum} each).")
+    if result.get("cumulative_percentage_status") == "omitted_unordered":
+        lines.append(
+            "Cumulative percentages are omitted because no complete ordinal order was supplied."
+        )
+    if isinstance(total_n, int) and isinstance(missing_n, int):
+        missing_percent = missing_n / total_n * 100 if total_n else 0.0
+        lines.append(f"Missing values: {missing_n:,} of {total_n:,} rows ({missing_percent:.1f}%).")
+    return "\n".join(lines)
+
+
+def crosstab_narrative(result: Mapping[str, Any]) -> str:
+    """Narrate selected observed cross-tab cells without inferential language."""
+    if not isinstance(result, Mapping):
+        return "Cross-tabulation narrative unavailable."
+    rows = result.get("row_levels")
+    columns = result.get("column_levels")
+    percentages = result.get("row_percent")
+    if not isinstance(rows, Sequence) or not isinstance(columns, Sequence):
+        return "Cross-tabulation narrative unavailable."
+    candidates = []
+    if isinstance(percentages, Sequence):
+        for row_index, values in enumerate(percentages):
+            if not isinstance(values, Sequence):
+                continue
+            for column_index, value in enumerate(values):
+                number = _finite(value)
+                if number is not None:
+                    candidates.append((number, row_index, column_index))
+    if candidates:
+        value, row_index, column_index = max(
+            candidates, key=lambda item: (item[0], -item[1], -item[2])
+        )
+        lead = (
+            f"Within observed {result.get('row_variable')}={rows[row_index]}, "
+            f"{result.get('column_variable')}={columns[column_index]} accounts for "
+            f"{value:.1f}% of valid rows in that row category."
+        )
+    else:
+        lead = "No finite row percentage is available to summarize."
+    size_note = (
+        f" The full {len(rows)} by {len(columns)} table is retained in the structured result."
+        if result.get("large_table")
+        else ""
+    )
+    excluded = result.get("excluded_rows")
+    exclusion_note = (
+        f" {excluded:,} row(s) with a missing value in either variable were excluded."
+        if isinstance(excluded, int) and excluded
+        else " No rows were excluded for missing values in the selected pair."
+    )
+    return (
+        lead + size_note + exclusion_note + (" The table describes the observed distribution only.")
+    )
+
+
+def _categorical_distribution_story(profile: Mapping[str, Any]) -> str:
+    summaries = profile.get("categorical_summary")
+    intelligence = profile.get("variable_intelligence")
+    if not isinstance(summaries, Mapping):
+        return "No categorical distribution summary is available."
+    findings = []
+    for column, summary in summaries.items():
+        info = intelligence.get(column, {}) if isinstance(intelligence, Mapping) else {}
+        if isinstance(info, Mapping) and (
+            info.get("suggested_role") == "identifier" or info.get("suggested_type") == "identifier"
+        ):
+            continue
+        frequencies = summary.get("frequencies") if isinstance(summary, Mapping) else None
+        if isinstance(frequencies, Sequence) and frequencies:
+            top = frequencies[0]
+            findings.append(
+                f"For {column!r}, {top.get('value')!r} is the most frequent recorded level "
+                f"({float(top.get('percentage', 0)):.1f}% of non-missing observations)."
+            )
+        if len(findings) == 2:
+            break
+    return " ".join(findings) if findings else "No observed categorical levels were available."
+
+
 def column_story(
     column_name: str,
     stats: Mapping[str, Any],
@@ -1292,6 +1446,8 @@ def column_story(
             f"{column_name}:",
             f"Central tendency: {mean_text}; {median_text}.{count_text}",
             f"Spread: {spread_text}",
+            f"Percentiles: {percentile_narrative(stats)}",
+            f"Relative spread: {coefficient_of_variation_narrative(stats)}",
             f"Shape: {_skewness_story(values['skewness'])}",
             f"Note: {_mean_median_story(stats)}",
         ]
@@ -1804,13 +1960,17 @@ def executive_summary(
 __all__ = [
     "ASSUMPTION_SEVERITY_DESCRIPTIONS",
     "assumption_grade",
+    "coefficient_of_variation_narrative",
     "column_story",
+    "crosstab_narrative",
     "dataset_opening",
     "effect_narrative",
     "executive_summary",
+    "frequency_narrative",
     "hypothesis_verdict",
     "insight_narrative",
     "interval_verdict",
+    "percentile_narrative",
     "recommendation_rationale",
     "sensitivity_verdict",
 ]
