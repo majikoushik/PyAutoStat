@@ -14,10 +14,11 @@ For a small synthetic example with no workbook dependency, run:
 python examples/explainable_recommendation_and_report.py
 ~~~
 
-It prints the deterministic recommendation rationale (why this method, why
-not relevant alternatives, and facts to verify), runs the selected method,
-and verifies that the generated HTML contains its executive summary. No file
-is written and no generative service is used.
+It prints the dataset story, deterministic recommendation rationale (why this
+method, why not relevant alternatives, and facts to verify), and the complete
+researcher-facing workflow explanation, then verifies that the generated HTML
+contains its executive summary. No file is written and no generative service
+is used.
 
 ## Install
 

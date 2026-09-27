@@ -116,4 +116,12 @@ per-group size with boundaries below 15, 15–29, and at least 30; a rejected eq
 diagnostic is informational under Welch and a warning for a pooled method. These grades do not
 change the selected method, estimand, diagnostic, statistic, or p-value.
 
+All researcher-facing narration is validated as deterministic classification of stored records,
+not as a new evidential procedure. Conventional magnitude names describe fixed communication
+bands and do not establish practical importance. Practical-significance prose requires the
+researcher's declared threshold; sensitivity prose preserves comparability and never equates
+different estimands. Design-dependent conditions such as independence, pairing, sampling, and
+causal identification remain for researcher verification. Narrative output cannot establish
+causation and does not replace the structured result used for audit or replay.
+
 Two-group estimate direction follows the stored first-minus-second contrast. The analytical t interval is for the raw mean difference; a separate bootstrap interval belongs to Cohen's d. Rank and chi-square intervals belong to their named effect measures, not raw mean or median differences. Pearson currently has no CI, so its interpretation is partial with an explicit uncertainty limitation. Intervals require finite ordered bounds, a valid recorded confidence level, the correct quantity, and the expected construction method. The analytical t interval must contain its raw point estimate; a percentile-bootstrap interval need not contain its original estimate. A valid raw mean difference remains interpretable if Cohen's d is unavailable, yielding partial status; opposing signs between the two are flagged and d is not interpreted. An analytical two-sided t interval is compared with the p decision only at matching `1-alpha` confidence; disagreement is disclosed without changing either number. Bootstrap intervals are not treated as equivalent threshold tests. Omnibus significance identifies no specific pairwise difference; Cramer's V has no sign. Diagnostic non-rejection does not prove normality or equal variance, and a declared independent design is not mathematical verification. Associations and group differences alone do not establish causation.

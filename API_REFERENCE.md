@@ -112,8 +112,13 @@ unsupported rather than replaced.
 `needs_input`, `data_limited`, `unsupported`, and `failed`. A stage that did not run stays `None`.
 `to_dict()` and `to_json()` use workflow schema version 1, reject nonfinite JSON values, and do
 not embed the source DataFrame.
-`workflow.explain()` returns a portable plain-text view assembled from the recorded specification,
-analysis, interpretation, limitations, warnings, and structured clarification questions.
+`workflow.explain() -> str` returns a deterministic portable plain-text view assembled from the
+recorded specification, analysis, interpretation, limitations, warnings, and structured
+clarification questions. For completed group analyses it includes the recorded group order and
+sample accounting before the hypothesis, effect, interval, assumption, and limitation sections;
+unsupported sections are omitted rather than manufactured. The method does not rerun profiling,
+diagnostics, or statistics, does not mutate or extend the serialized workflow, and requires no
+network or generative service.
 `str(workflow)` delegates to this view. `analysis.method_label` and
 `recommendation.method_label` expose human display names while `method_id` remains the stable
 machine identifier. `workflow.interpretation.findings_plain` numbers the existing finding messages
@@ -428,6 +433,22 @@ and recorded diagnostics or limitations. Canonical reports add practical-signifi
 verdicts only when those assessments were supplied. The builder does not execute a test,
 reclassify an effect, infer causation, or add fields to the JSON report schema. Markdown, JSON,
 CSV, and LaTeX contracts are unchanged.
+
+`executive_summary(*, profile=None, dataset=None, analyses=(), limitations=(),
+practical_significance=None, sensitivity=None) -> tuple[str, ...]` is the public format-neutral
+builder used by those report renderers. Each item in `analyses` is an already-normalized mapping
+with optional `method_name` and `finding` text; the function does not accept a DataFrame or run an
+analysis. It returns ordered plain-text paragraphs, including practical-significance and
+sensitivity text only when supplied. Report renderers remain responsible for escaping those
+paragraphs for HTML.
+
+```python
+paragraphs = executive_summary(
+    dataset={"original_rows": 40, "analyzed_rows": 38},
+    analyses=[{"method_name": "Recorded analysis", "finding": interpretation.summary}],
+    limitations=interpretation.limitations,
+)
+```
 
 ### Provenance, audit, and replay
 

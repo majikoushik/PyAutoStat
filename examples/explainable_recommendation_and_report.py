@@ -1,4 +1,4 @@
-"""Explain one deterministic recommendation and render its stored result."""
+"""Show the local, deterministic researcher-facing narration workflow."""
 
 import pandas as pd
 
@@ -12,7 +12,11 @@ frame = pd.DataFrame(
     }
 )
 assistant = ResearchAssistant(frame)
-question = assistant.prepare_question(
+
+story = assistant.summarize(mode="story")
+print(story)
+
+workflow = assistant.run(
     objective="compare_groups",
     outcome="score",
     predictor="group",
@@ -21,14 +25,16 @@ question = assistant.prepare_question(
     variable_types={"score": "continuous"},
 )
 
-recommendation = assistant.recommend_test(question)
-print(recommendation.rationale_text)
+assert workflow.recommendation is not None
+assert workflow.analysis is not None
+assert workflow.report is not None
 
-result = assistant.analyze(question)
-report = assistant.report(result)
-html = report.to_html()
+print("\n" + workflow.recommendation.rationale_text)
+print("\n" + workflow.explain())
 
-assert result.method_id == recommendation.method_id
+html = workflow.report.to_html()
+
+assert workflow.analysis.method_id == workflow.recommendation.method_id
 assert '<section class="executive-summary">' in html
 assert "Executive Summary" in html
-print(f"\nCompleted {result.method_label}; HTML executive summary rendered in memory.")
+print(f"\nCompleted {workflow.analysis.method_label}; HTML executive summary rendered in memory.")

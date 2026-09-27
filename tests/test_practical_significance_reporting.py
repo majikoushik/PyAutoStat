@@ -86,6 +86,26 @@ def test_two_sided_point_and_interval_relations(mean_case, estimate, lower, uppe
 
 
 @pytest.mark.parametrize(
+    ("direction", "estimate", "expected"),
+    [
+        ("two_sided", 5, "positive_meaningful_region"),
+        ("two_sided", -5, "negative_meaningful_region"),
+        ("positive", 5, "meets_positive_threshold"),
+        ("negative", -5, "meets_negative_threshold"),
+    ],
+)
+def test_point_estimate_exactly_at_declared_boundary_is_inclusive(
+    mean_case, direction, estimate, expected
+):
+    _, assistant, base = mean_case
+    result = assistant.practical_significance(
+        _mean_result(base, estimate, estimate, estimate),
+        threshold=MeaningfulEffectThreshold("mean_difference", 5, direction=direction),
+    )
+    assert result.point_estimate_relation == expected
+
+
+@pytest.mark.parametrize(
     ("direction", "estimate", "lower", "upper", "point", "interval"),
     [
         ("positive", 6, 5, 8, "meets_positive_threshold", "entirely_above_positive_threshold"),

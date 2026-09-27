@@ -5,6 +5,16 @@ question to an audited report and reproducibility metadata. Availability always 
 researcher supplying the correct design and on the selected data meeting the documented numerical
 conditions.
 
+## Structured evidence and readable narration
+
+Structured profiles, specifications, recommendations, analysis results, interpretations,
+practical-significance assessments, sensitivity results, and reports remain the authoritative
+records. Human-readable story, rationale, verdict, explanation, and executive-summary text is an
+additive presentation layer over those stored values. It is deterministic, rule-based,
+template-driven, reproducible for identical inputs, and entirely local; no generative AI, network
+service, or cloud API is required. Narration does not recalculate statistics, select a different
+method, alter an estimand, or create new evidence.
+
 ## Supported user paths
 
 ### Profile a dataset
@@ -46,8 +56,9 @@ workflow = ResearchAssistant(df).run(
 same `AnalysisResult`, builds the canonical report, audits its in-memory formats by default, and
 creates metadata-only reproducibility information. It writes no files and does not replay the
 analysis.
-`workflow.explain()` formats the recorded workflow for console review; `method_label` and
-`findings_plain` provide readable views while stable IDs and structured records remain available.
+`workflow.explain()` formats the recorded workflow for console review, including recorded group
+order and sample accounting where available; `method_label` and `findings_plain` provide readable
+views while stable IDs and structured records remain available.
 
 ### Continue after missing information
 

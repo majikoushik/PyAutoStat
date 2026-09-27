@@ -286,12 +286,21 @@ class TestPracticalSignificanceVerdict:
 class TestWorkflowExplain:
     def test_completed_explanation_has_no_duplicate_periods(self, two_group_df):
         result = _completed_workflow(two_group_df)
+        payload = result.to_dict()
         text = result.explain()
 
         assert result.status.value == "completed"
         assert result.analysis.method_label in text
         assert "score" in text and "group" in text
+        assert "Groups    : 'A', 'B'" in text
+        assert " Sample    : 12 rows analysed" in text
+        assert " HYPOTHESIS TEST" in text
+        assert " EFFECT SIZE" in text
+        assert " CONFIDENCE INTERVAL" in text
+        assert " LIMITATIONS" in text
         assert ".." not in text
+        assert text == result.explain()
+        assert result.to_dict() == payload
         assert str(result) == text
 
     def test_assumption_notes_use_neutral_bullets(self, two_group_df):

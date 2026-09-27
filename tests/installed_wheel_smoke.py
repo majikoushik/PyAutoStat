@@ -10,6 +10,7 @@ from pyautostat import ResearchAssistant, StudyPlanner
 
 module_path = Path(pyautostat.__file__).resolve()
 assert module_path.is_relative_to(Path(sys.prefix).resolve()), module_path
+assert pyautostat.__version__
 
 independent = pd.DataFrame(
     {
@@ -21,6 +22,8 @@ assistant = ResearchAssistant(independent)
 profile = assistant.profile()
 assert profile["overview"]["total_rows"] == 12
 assert profile["resource_info"]["sampling_applied"] is False
+story = assistant.summarize(mode="story")
+assert "DATASET STORY" in story
 guided = assistant.run(
     objective="compare_groups",
     outcome="score",
@@ -30,6 +33,11 @@ guided = assistant.run(
     variable_types={"score": "continuous"},
 )
 assert guided.status.value == "completed"
+assert guided.recommendation is not None
+assert "WHY THIS TEST?" in guided.recommendation.rationale_text
+explanation = guided.explain()
+assert "ANALYSIS RESULT" in explanation
+assert "Groups    : 'A', 'B'" in explanation
 
 paired = pd.DataFrame(
     {
@@ -59,4 +67,5 @@ assert planning.status == "available"
 
 html = guided.report.to_html(style="apa")
 assert isinstance(html, str) and "<!doctype html>" in html
+assert '<section class="executive-summary">' in html
 print(f"installed-wheel smoke passed: {pyautostat.__version__} from {module_path}")

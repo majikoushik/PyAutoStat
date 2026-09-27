@@ -82,6 +82,32 @@ def test_supported_effects_reuse_existing_magnitude_policy(measure, value, expec
     assert expected in effect_narrative(measure, value)
 
 
+@pytest.mark.parametrize(
+    ("measure", "value", "label"),
+    [
+        ("eta_squared", 0.0, "negligible"),
+        ("eta_squared", 0.009999, "negligible"),
+        ("eta_squared", 0.01, "small"),
+        ("eta_squared", 0.059999, "small"),
+        ("eta_squared", 0.06, "medium"),
+        ("eta_squared", 0.139999, "medium"),
+        ("eta_squared", 0.14, "large"),
+        ("cramers_v", 0.099999, "negligible"),
+        ("cramers_v", 0.1, "small"),
+        ("cramers_v", 0.299999, "small"),
+        ("cramers_v", 0.3, "medium"),
+        ("cramers_v", 0.499999, "medium"),
+        ("cramers_v", 0.5, "large"),
+        ("pearson_r", -0.099999, "negligible"),
+        ("pearson_r", -0.1, "small"),
+        ("pearson_r", -0.3, "medium"),
+        ("pearson_r", -0.5, "large"),
+    ],
+)
+def test_other_labelled_effect_measures_cover_every_threshold_boundary(measure, value, label):
+    assert f"labelled '{label}'" in effect_narrative(measure, value)
+
+
 def test_measure_specific_explanations_preserve_direction_and_scope():
     rank = effect_narrative("rank_biserial", -0.4, orientation="'A' minus 'B'")
     pearson = effect_narrative("pearson_r", 0.0)
@@ -263,6 +289,30 @@ def test_assumption_grade_handles_nonrejection_missing_n_welch_and_independence(
     independence = assumption_grade("independence", "confirmed")
     assert independence[0] == "CAUTION" and "study design" in independence[1]
     assert assumption_grade("pairing", "critical")[0] == "CRITICAL"
+
+
+@pytest.mark.parametrize(
+    ("assumption", "status", "method_id", "severity"),
+    [
+        ("normality", "unavailable", None, "CAUTION"),
+        ("equal_variance", "rejected", "student_t", "WARNING"),
+        ("equal_variance", "not_rejected", "student_t", "INFO"),
+        ("equal_variance", "required", "student_t", "CAUTION"),
+        ("equal_variance", "required", "one_way_anova", "CAUTION"),
+        ("equal_variance", "not_required", "welch_t", "INFO"),
+        ("paired_structure", "required", "paired_t", "CAUTION"),
+        ("sampling", "violated", None, "CRITICAL"),
+        ("sampling", "warning", None, "WARNING"),
+        ("sampling", "unverified", None, "CAUTION"),
+        ("sampling", "satisfied", None, "INFO"),
+    ],
+)
+def test_assumption_grade_covers_specialized_and_generic_severity_paths(
+    assumption, status, method_id, severity
+):
+    observed, message = assumption_grade(assumption, status, method_id=method_id)
+    assert observed == severity
+    assert ASSUMPTION_SEVERITY_DESCRIPTIONS[severity] in message
 
 
 _POINT_RELATIONS = [
@@ -561,6 +611,14 @@ def test_profile_actions_prioritize_recorded_high_quality_issue_and_detected_out
     actions = _prioritised_actions(profile)
     assert actions[0] == "Review the recorded high-priority quality issue."
     assert "IQR-flagged" in actions[1]
+
+
+def test_profile_actions_handle_zero_and_one_action_without_placeholders_or_duplicates():
+    assert _prioritised_actions({}) == ()
+    profile = {"data_quality": {"duplicate_rows": 2}}
+    actions = _prioritised_actions(profile)
+    assert len(actions) == 1
+    assert "duplicate" in actions[0]
 
 
 @pytest.mark.parametrize(

@@ -17,6 +17,21 @@ from .results import AnalysisResult, MissingInformation, Recommendation
 from .specifications import AnalysisSpecification, _json_value
 
 
+def _serializable_profile(profile: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Copy dtype display values at the JSON boundary without changing the profile."""
+    if profile is None:
+        return None
+    copied = dict(profile)
+    overview = copied.get("overview")
+    if isinstance(overview, dict):
+        copied_overview = dict(overview)
+        dtypes = copied_overview.get("dtypes")
+        if isinstance(dtypes, dict):
+            copied_overview["dtypes"] = {column: str(dtype) for column, dtype in dtypes.items()}
+        copied["overview"] = copied_overview
+    return copied
+
+
 class WorkflowStatus(str, Enum):
     """Outcome of the integrated workflow, distinct from component statuses."""
 
@@ -94,7 +109,7 @@ class ResearchWorkflowResult:
                 "reproducibility": self.reproducibility.to_dict()
                 if self.reproducibility is not None
                 else None,
-                "profile": self.profile,
+                "profile": _serializable_profile(self.profile),
                 "missing_information": [item.to_dict() for item in self.missing_information],
                 "blockers": self.blockers,
                 "warnings": self.warnings,
@@ -143,6 +158,11 @@ class ResearchWorkflowResult:
         lines.append(f" Status    : {status_val}")
         lines.append(f" Outcome   : {outcome}")
         lines.append(f" Predictor : {predictor}")
+        if self.analysis is not None:
+            group_order = self.analysis.metadata.get("group_order")
+            if isinstance(group_order, (list, tuple)) and group_order:
+                groups = ", ".join(repr(group) for group in group_order)
+                lines.append(f" Groups    : {groups}")
         if self.analysis is not None and self.analysis.sample_size is not None:
             excl = self.analysis.excluded_rows or 0
             lines.append(

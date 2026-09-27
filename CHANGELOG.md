@@ -4,8 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
 ### Added
 
+- Added deterministic effect, hypothesis, assumption, practical-significance, sensitivity,
+  dataset-story, column, insight, recommendation, workflow, and executive-summary narration over
+  existing structured results.
+- Added a concise synthetic explainability example and installed-wheel coverage for profiling,
+  story mode, analysis, recommendation rationale, workflow explanation, and HTML reporting.
 - Added deterministic recommendation explanations with method-specific why-this, why-not, and
   researcher-verification sections while preserving the version 1 record and decision trace.
 - Added escaped executive summaries near the top of canonical and legacy HTML reports, assembled
@@ -108,6 +115,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Completed narration boundary, determinism, end-to-end public API, HTML safety, serialization,
+  documentation-state, and packaged-install validation while retaining structured outputs as the
+  source of truth.
+- Updated examples and documentation to distinguish deterministic local narration from
+  statistical evidence and to show the researcher-facing workflow without raw dictionary dumps.
+
 - Renamed the package from `autostat` to `pyautostat`; `AutoStatError` became `PyAutoStatError`.
 - Dropped Python 3.9 support; the package requires Python 3.10 or newer.
 - Rank-biserial correlation follows first-versus-second group direction, and negative sample
@@ -128,22 +141,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.0] - 2026-09-21
 
 - Initial statistical analysis, insight, and report-export package.
-
-## [Unreleased]
-
-### Added
-
-- Added deterministic `effect_narrative()` prose for the package's existing effect measures,
-  including established magnitude labels, the explicit very-large Cohen threshold, safe
-  confidence-interval width commentary, orientation preservation, and integration with structured
-  interpretation without changing statistical results or schemas.
-- Added deterministic four-quadrant hypothesis narration, sample-aware assumption severity,
-  complete practical-threshold interval verdicts and ratio text, and estimand-protected sensitivity
-  decision narratives. Existing structured relations, schema versions, and statistical values are
-  unchanged.
-- Added opt-in dataset story mode, recorded-statistic column narratives, connected InsightEngine
-  prose, and deterministic profile/insight action prioritization. The established summary and
-  structured profile/insight outputs remain available.
 
 ## [0.2.0] - 2026-09-25
 

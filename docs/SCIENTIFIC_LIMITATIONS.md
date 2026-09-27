@@ -5,6 +5,11 @@ It is not a substitute for scientific design review or subject-matter judgment.
 
 - Study design facts, pairing, independence, clustering, randomization, and sampling intent depend
   on researcher declarations. Numerical values cannot prove them.
+- Researcher-facing narration is deterministic, rule-based presentation of stored results. It
+  creates no new evidence, does not verify design assumptions, and cannot establish causation.
+- Conventional effect-magnitude labels are descriptive communication conventions rather than
+  universal practical-importance thresholds. Practical importance remains dependent on a
+  researcher-declared quantity, direction, and threshold.
 - The statistical catalogue is deliberately limited. Repeated measures with more than two
   conditions, clustered models, regression families, mixed models, survival analysis, causal
   inference, sparse exact-table alternatives, and broad multiplicity procedures are unsupported.
