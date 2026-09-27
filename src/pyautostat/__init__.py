@@ -79,7 +79,7 @@ from .specifications import (
 from .study_planning import StudyPlanner, StudyPlanningResult
 from .workflow import ResearchWorkflowResult, WorkflowStatus
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "Koushik Chandra Maji"
 
 __all__ = [
