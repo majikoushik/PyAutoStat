@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from .exceptions import InvalidDataError, PyAutoStatError, ReportError
+from .narrate import executive_summary, hypothesis_verdict
 
 
 def _html(value):
@@ -477,6 +478,7 @@ class ReportGenerator:
     <div class="container">
         <h1>{safe_title}</h1>
 
+        {self._generate_executive_summary_html()}
         {self._generate_overview_html()}
         {self._generate_insights_html()}
         {self._generate_hypothesis_html()}
@@ -542,6 +544,7 @@ class ReportGenerator:
             )
 
         sections = [
+            ("Executive Summary", self._generate_executive_summary_html(semantic=False)),
             ("Overview", self._generate_overview_html()),
             ("Insights", self._generate_insights_html()),
             ("Hypothesis Tests", self._generate_hypothesis_html()),
@@ -672,6 +675,52 @@ class ReportGenerator:
         html += "</div>"
 
         return html
+
+    def _executive_summary_paragraphs(self):
+        """Normalize legacy report records for the shared narration layer."""
+        analyses = []
+        limitations = []
+        for result in self.hypothesis_results:
+            assumptions = result.get("assumptions", {})
+            effect = result.get("effect_size", {})
+            finding = result.get("interpretation")
+            if not isinstance(finding, str) or not finding.strip():
+                alpha = (
+                    assumptions.get("diagnostic_alpha")
+                    if isinstance(assumptions, Mapping)
+                    else None
+                )
+                if isinstance(alpha, (int, float)) and not isinstance(alpha, bool):
+                    finding = hypothesis_verdict(
+                        result.get("p_value"),
+                        alpha,
+                        effect.get("value") if isinstance(effect, Mapping) else None,
+                        str(effect.get("name", "")) if isinstance(effect, Mapping) else "",
+                        effect.get("interpretation") if isinstance(effect, Mapping) else None,
+                        result.get("sample_size"),
+                    )
+            analyses.append({"method_name": result.get("test"), "finding": finding})
+            if isinstance(assumptions, Mapping):
+                warnings = assumptions.get("warnings", ())
+                if isinstance(warnings, (list, tuple)):
+                    limitations.extend(warnings)
+        return executive_summary(
+            profile=self.analysis_results,
+            analyses=analyses,
+            limitations=limitations,
+        )
+
+    def _generate_executive_summary_html(self, *, semantic=True):
+        """Render escaped executive-summary prose from stored legacy results."""
+        paragraphs = "".join(
+            f"<p>{_html(paragraph)}</p>" for paragraph in self._executive_summary_paragraphs()
+        )
+        if semantic:
+            return (
+                '<section class="executive-summary"><h2>Executive Summary</h2>'
+                f"{paragraphs}</section>"
+            )
+        return f'<div class="executive-summary">{paragraphs}</div>'
 
     def _generate_insights_html(self):
         """Generate insights section HTML"""

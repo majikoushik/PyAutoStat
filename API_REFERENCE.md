@@ -31,7 +31,9 @@ from pyautostat import (
     column_story,
     dataset_opening,
     detect_column_types,
+    executive_summary,
     insight_narrative,
+    recommendation_rationale,
     suggest_column_roles,
 )
 ```
@@ -283,6 +285,10 @@ draft = assistant.prepare_question(
 recommendation = assistant.recommend_test(draft)
 # Alternatively: assistant.recommend_test(specification=draft.specification)
 print(recommendation.status, recommendation.method_id, recommendation.rationale)
+print(recommendation.rationale_text)
+# After analysis, the same helper can narrate an actual recorded diagnostic mapping:
+result = assistant.analyze(draft)
+print(recommendation.explain(diagnostics=result.metadata["diagnostics"]))
 ```
 
 `recommend_test(draft=None, *, specification=None)` accepts exactly one `QuestionDraft` or `AnalysisSpecification`. A direct specification, and any supplied draft, are revalidated against the assistant's current DataFrame and question-availability rules. No full profile or hypothesis test is run. Unknown essential information returns `needs_input` with `missing_information` and GUI-ready `questions`; a data-limited draft returns `unsupported` with its blockers. An incompatible design, target, measurement type, or hard computational requirement returns `unsupported`. `ready` means a compatible existing operation can be called later; it does not certify uncheckable assumptions.
@@ -301,6 +307,18 @@ print(recommendation.status, recommendation.method_id, recommendation.rationale)
 Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. A paired mean question without a unit ID returns `needs_input`; compatible two-condition paired data select `paired_t`. Repeated and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
 
 `Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), and `questions` (question-builder-compatible clarification dictionaries). `required_assumptions` and `context.assumption_checks` disclose researcher-confirmed facts, checkable feasibility, and conditions requiring review. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the specification schema; existing explicit analyzer calls remain available to experts.
+
+`recommendation.rationale_text` and `recommendation.explain(diagnostics=None)` derive a readable
+`RECOMMENDED TEST`, `WHY THIS TEST?`, context-specific `WHY NOT ...?`, and
+`WHAT YOU NEED TO VERIFY` explanation from the same stored record. Coverage includes every
+automatically recommended method: dataset profile, Welch t, paired t, Mann-Whitney U,
+Kruskal-Wallis, Pearson correlation, and Pearson chi-square. The prose distinguishes mean,
+rank-distribution, paired, linear, and categorical-independence targets. Independence,
+representativeness, unit identity, and contrast order remain researcher-verification items.
+Diagnostics are never run by narration: for example, Levene's result appears only when the caller
+passes an actual recorded diagnostic mapping. The original `rationale`, decision trace, version 1
+serialization, and recommendation calculation remain unchanged. The public
+`recommendation_rationale(recommendation, diagnostics=None)` helper provides the same output.
 
 ### Statistical execution
 
@@ -402,6 +420,14 @@ csv_tables = report.to_csv_tables()  # stable table-ID to CSV-text mapping
 `report(result, *, interpretation=None, sensitivity=None, practical_significance=None, title=None, include_figures=False) -> ResearchReport` does not rerun an analysis or write a file. Supplied interpretations must exactly match the deterministic interpretation for this result; mismatches raise `ReportError`. The snapshot exposes `status` (`complete`, `partial`, `unavailable`), `title`, and `to_dict()`. It includes the source specification/result, matching interpretation, structured research question, dataset, Methods, diagnostics, Results, interpretation, source-linked tables, optional histogram-bin specifications, warnings, and limitations. Contradictory sample counts raise `ReportError`. An unavailable result has no displayed numerical findings, even if its envelope contains stale values. Invalid effect measures and intervals remain unavailable in reader-facing sections. Without sensitivity or practical-significance records the payload remains report schema version 1; optional follow-up content uses additive report schema version 2.
 
 `to_html()` returns self-contained escaped static HTML; `to_markdown()` escapes user syntax; `to_json()` preserves JSON-safe raw numbers; `to_csv_tables()` returns a dictionary of independent CSV strings. Cells beginning with formula-like prefixes after whitespace are prefixed with an apostrophe only in CSV output; numeric cells remain numeric. `save_html(path)`, `save_markdown(path)`, `save_json(path)`, and `save_csv_tables(directory)` write only to explicit paths and reject existing files unless `overwrite=True`. Filenames for CSV tables are stable IDs, never derived from report titles or category labels. The report omits categorical identifier labels from descriptive profiles and does not include the complete input DataFrame. Small aggregate groups can still disclose information. See [the schema and method matrix](docs/RESEARCH_REPORT_SCHEMA.md) and [the complete workflow example](examples/03_advanced_workflow.py). The legacy `ReportGenerator` continues to accept its original dictionary inputs.
+
+Static canonical and legacy HTML reports place an escaped semantic `Executive Summary` near the
+top. Its format-neutral content is built by `executive_summary(...)` from stored dataset scale,
+represented analyses, the existing hypothesis/effect narration, existing data-quality narration,
+and recorded diagnostics or limitations. Canonical reports add practical-significance and sensitivity
+verdicts only when those assessments were supplied. The builder does not execute a test,
+reclassify an effect, infer causation, or add fields to the JSON report schema. Markdown, JSON,
+CSV, and LaTeX contracts are unchanged.
 
 ### Provenance, audit, and replay
 

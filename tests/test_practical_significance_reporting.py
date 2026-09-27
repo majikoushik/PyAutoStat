@@ -337,7 +337,15 @@ def test_optional_sections_render_and_base_report_stays_schema_one(mean_case):
     assert payload["sections"]["sensitivity_analysis"]["same_estimand_scenarios"] == 1
     assert payload["sections"]["practical_significance"]["threshold"] == 5
     assert "Sensitivity analysis" in report.to_markdown()
-    assert "Practical significance" in report.to_html()
+    html = report.to_html()
+    assert "Practical significance" in html
+    assert "Practical significance was assessed:" in html
+    assert practical.verdict in html
+    assert "Sensitivity analysis was performed:" in html
+    assert sensitivity.verdict in html
+    ordinary_html = ordinary.to_html()
+    assert "Practical significance was assessed:" not in ordinary_html
+    assert "Sensitivity analysis was performed:" not in ordinary_html
     assert "sensitivity_scenarios" in report.to_csv_tables()
     assert "practical_significance" in report.to_csv_tables()
     assert assistant.audit(report).status == "passed"

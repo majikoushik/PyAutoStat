@@ -1404,14 +1404,413 @@ def _ranked_insight_actions(
     return tuple(actions)
 
 
+def _recommendation_value(recommendation: Any, name: str, default: Any = None) -> Any:
+    if isinstance(recommendation, Mapping):
+        return recommendation.get(name, default)
+    return getattr(recommendation, name, default)
+
+
+def _recommendation_variables(recommendation: Any) -> tuple[str, ...]:
+    trace = _recommendation_value(recommendation, "decision_trace", ())
+    if isinstance(trace, Sequence) and not isinstance(trace, (str, bytes)):
+        for item in trace:
+            if not isinstance(item, Mapping) or item.get("key") != "variables":
+                continue
+            value = item.get("value")
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                return tuple(str(name) for name in value)
+    context = _recommendation_value(recommendation, "context", {})
+    types = context.get("variable_types") if isinstance(context, Mapping) else None
+    return tuple(str(name) for name in types) if isinstance(types, Mapping) else ()
+
+
+def _quoted_variables(variables: tuple[str, ...]) -> str:
+    if not variables:
+        return "the selected variables"
+    if len(variables) == 1:
+        return repr(variables[0])
+    return " and ".join(repr(item) for item in variables[:2])
+
+
+def _diagnostic_value(diagnostics: Mapping[str, Any] | None, key: str) -> Any:
+    if not isinstance(diagnostics, Mapping):
+        return None
+    if key in diagnostics:
+        return diagnostics[key]
+    assumptions = diagnostics.get("assumptions")
+    return assumptions.get(key) if isinstance(assumptions, Mapping) else None
+
+
+def _why_this_recommendation(
+    method_id: str,
+    recommendation: Any,
+    diagnostics: Mapping[str, Any] | None,
+) -> str:
+    context = _recommendation_value(recommendation, "context", {})
+    context = context if isinstance(context, Mapping) else {}
+    variables = _recommendation_variables(recommendation)
+    selected = _quoted_variables(variables)
+    group_sizes = context.get("group_sizes")
+    group_count = len(group_sizes) if isinstance(group_sizes, Sequence) else None
+    complete_pairs = context.get("complete_pairs")
+    contingency_shape = context.get("contingency_shape")
+    minimum_expected = _finite(context.get("minimum_expected_count"))
+
+    if method_id == "dataset_profile":
+        return (
+            "The declared objective is descriptive, so the dataset profile summarizes the "
+            "recorded data without converting the question into an inferential hypothesis test."
+        )
+    if method_id == "welch_t":
+        opening = (
+            f"The specification compares {selected} across two independent groups and declares "
+            "a population-mean estimand. Welch's test estimates that mean contrast without "
+            "requiring equal population variances."
+        )
+        variance_status = _diagnostic_value(diagnostics, "equal_variance_status")
+        levene_p = _finite(_diagnostic_value(diagnostics, "levene_p_value"))
+        if variance_status == "rejected":
+            diagnostic = " An available equal-variance diagnostic was rejected"
+            if levene_p is not None:
+                diagnostic += f" (Levene {_p_value_text(levene_p)})"
+            return opening + diagnostic + "; Welch's correction remains appropriate."
+        return opening
+    if method_id == "paired_t":
+        order = context.get("condition_order")
+        order_text = (
+            f" The signed contrast follows {order[0]!r} minus {order[1]!r}."
+            if isinstance(order, Sequence)
+            and not isinstance(order, (str, bytes))
+            and len(order) == 2
+            else ""
+        )
+        pair_text = (
+            f" {complete_pairs} complete pair(s) were identified for recommendation checks."
+            if isinstance(complete_pairs, int) and not isinstance(complete_pairs, bool)
+            else ""
+        )
+        return (
+            f"The specification declares paired observations for {selected}, a two-condition "
+            "mean estimand, and an explicit unit identifier. The paired t-test targets the "
+            f"population mean within-unit difference.{order_text}{pair_text}"
+        )
+    if method_id == "mann_whitney_u":
+        return (
+            f"The specification compares {selected} across two independent groups and declares "
+            "an ordered distribution estimand. Mann-Whitney compares rank distributions; it is "
+            "not being used as a universal test of medians."
+        )
+    if method_id == "kruskal_wallis":
+        count_text = f"{group_count} " if group_count is not None else "three or more "
+        return (
+            f"The specification compares {selected} across {count_text}independent groups and "
+            "declares an ordered distribution estimand. Kruskal-Wallis compares their rank "
+            "distributions but does not identify which specific groups differ."
+        )
+    if method_id == "pearson_chi_square":
+        shape_text = (
+            f" The recorded contingency table has shape {contingency_shape[0]} by "
+            f"{contingency_shape[1]}."
+            if isinstance(contingency_shape, Sequence)
+            and not isinstance(contingency_shape, (str, bytes))
+            and len(contingency_shape) == 2
+            else ""
+        )
+        expected_text = (
+            f" Its smallest expected count is {_fmt(minimum_expected)}, which meets the current "
+            "minimum-count policy."
+            if minimum_expected is not None
+            else ""
+        )
+        return (
+            f"Both {selected} are categorical, and the declared target is categorical "
+            "independence. Pearson's chi-square test assesses evidence of association without "
+            f"assigning direction or causation.{shape_text}{expected_text}"
+        )
+    if method_id == "pearson_correlation":
+        pair_text = (
+            f" The recommendation checks recorded {complete_pairs} complete pair(s)."
+            if isinstance(complete_pairs, int) and not isinstance(complete_pairs, bool)
+            else ""
+        )
+        return (
+            f"Both {selected} are declared quantitative variables, and the estimand is linear "
+            "association. Pearson correlation targets that linear relationship; it does not "
+            f"establish causation.{pair_text}"
+        )
+    rationale = _recommendation_value(recommendation, "rationale")
+    return (
+        str(rationale)
+        if isinstance(rationale, str) and rationale.strip()
+        else "No supported researcher-readable rationale is available for this method."
+    )
+
+
+def _why_not_recommendation(method_id: str, recommendation: Any) -> tuple[tuple[str, str], ...]:
+    alternatives = _recommendation_value(recommendation, "alternatives", ())
+    recorded: dict[str, Mapping[str, Any]] = {}
+    if isinstance(alternatives, Sequence) and not isinstance(alternatives, (str, bytes)):
+        recorded = {
+            str(item.get("method_id")): item
+            for item in alternatives
+            if isinstance(item, Mapping) and item.get("method_id")
+        }
+    if method_id == "dataset_profile":
+        return (
+            (
+                "AN INFERENTIAL TEST",
+                "The descriptive objective does not declare an inferential estimand or null "
+                "hypothesis.",
+            ),
+        )
+    if method_id == "welch_t":
+        return (
+            (
+                "STUDENT'S T-TEST",
+                str(
+                    recorded.get("student_t", {}).get("reason")
+                    or "It adds an equal-population-variance assumption that the declared mean "
+                    "contrast does not require."
+                ),
+            ),
+            (
+                "MANN-WHITNEY",
+                str(
+                    recorded.get("mann_whitney_u", {}).get("reason")
+                    or "It targets rank distributions rather than the declared population means."
+                ),
+            ),
+        )
+    if method_id == "paired_t":
+        return (
+            (
+                "AN INDEPENDENT-SAMPLES TEST",
+                "Independent-samples methods discard the declared within-unit pairing and "
+                "target a different sampling structure.",
+            ),
+        )
+    if method_id == "mann_whitney_u":
+        return (
+            (
+                "WELCH'S T-TEST",
+                str(
+                    recorded.get("welch_t", {}).get("reason")
+                    or "It targets population means rather than the declared rank-distribution "
+                    "contrast."
+                ),
+            ),
+        )
+    if method_id == "kruskal_wallis":
+        return (
+            (
+                "ONE-WAY ANOVA",
+                str(
+                    recorded.get("one_way_anova", {}).get("reason")
+                    or "It targets population means and requires additional mean-inference "
+                    "assumptions."
+                ),
+            ),
+        )
+    if method_id == "pearson_chi_square":
+        return (
+            (
+                "PEARSON CORRELATION",
+                "Correlation targets linear association between quantitative measurements; it "
+                "is not a substitute for categorical independence.",
+            ),
+        )
+    if method_id == "pearson_correlation":
+        return (
+            (
+                "SPEARMAN CORRELATION",
+                str(
+                    recorded.get("spearman_coefficient", {}).get("reason")
+                    or "It targets monotonic rank association, and the current backend exposes "
+                    "only its descriptive coefficient."
+                ),
+            ),
+        )
+    return ()
+
+
+def _verification_notes(method_id: str, recommendation: Any) -> tuple[str, ...]:
+    context = _recommendation_value(recommendation, "context", {})
+    context = context if isinstance(context, Mapping) else {}
+    if method_id == "dataset_profile":
+        return (
+            "Verify variable roles, units, and missing-value codes from collection documentation; "
+            "values alone cannot establish their meaning.",
+            "Confirm that the observed rows are appropriate for the descriptive population of "
+            "interest.",
+        )
+    if method_id == "paired_t":
+        unit_id = context.get("unit_id")
+        order = context.get("condition_order")
+        unit_text = (
+            f"Verify that {unit_id!r} correctly identifies the same unit across conditions and "
+            "that different units are independent."
+            if unit_id is not None
+            else "Verify that the unit identifier correctly links the same unit across "
+            "conditions and that different units are independent."
+        )
+        order_text = (
+            f"Verify that the declared condition order {order[0]!r} minus {order[1]!r} matches "
+            "the intended signed contrast."
+            if isinstance(order, Sequence)
+            and not isinstance(order, (str, bytes))
+            and len(order) == 2
+            else "Verify the intended condition order before interpreting the sign of the "
+            "paired difference."
+        )
+        return (
+            unit_text,
+            order_text,
+            "Verify sampling relevance and whether paired differences are suitable for "
+            "population-mean inference; these facts are not established by the values.",
+        )
+    notes = [
+        "Verify from the study design that observational units are independent; numerical "
+        "values cannot establish independence.",
+        "Verify that sampling, measurement, and exclusions support inference to the intended "
+        "population; representativeness is not data-tested here.",
+    ]
+    if method_id == "welch_t":
+        notes.append(
+            "Review group distributions, influential observations, and mean-inference "
+            "conditions; Welch's correction addresses unequal variances, not every design or "
+            "distribution issue."
+        )
+    elif method_id in {"mann_whitney_u", "kruskal_wallis"}:
+        notes.append(
+            "Verify that outcome ordering is scientifically meaningful and interpret the result "
+            "as a rank-distribution comparison, not automatically as a median difference."
+        )
+    elif method_id == "pearson_chi_square":
+        minimum = _finite(context.get("minimum_expected_count"))
+        if minimum is not None:
+            notes.append(
+                f"The recommendation check recorded a minimum expected count of {_fmt(minimum)}; "
+                "retain this limitation if the analyzed table changes."
+            )
+        notes.append(
+            "Verify that categories and each observational unit were defined independently of "
+            "the analyzed outcome."
+        )
+    elif method_id == "pearson_correlation":
+        notes.append(
+            "Review linearity, influential observations, and scale suitability; the "
+            "recommendation does not infer these scientific conditions or causation."
+        )
+    return tuple(notes)
+
+
+def recommendation_rationale(
+    recommendation: Any,
+    diagnostics: Mapping[str, Any] | None = None,
+) -> str:
+    """Explain a ready recommendation from its stored context and optional diagnostics.
+
+    The explanation is presentation-only: it does not select a method or run a
+    diagnostic. A diagnostic is mentioned only when its recorded values are
+    explicitly supplied by the caller.
+    """
+    status = _recommendation_value(recommendation, "status")
+    status_value = getattr(status, "value", status)
+    method_id = _recommendation_value(recommendation, "method_id")
+    if status_value != "ready" or not isinstance(method_id, str):
+        rationale = _recommendation_value(recommendation, "rationale")
+        return "RECOMMENDATION NOT READY\n\n" + (
+            str(rationale)
+            if isinstance(rationale, str) and rationale.strip()
+            else "No statistical method is ready for explanation."
+        )
+    method_name = _recommendation_value(recommendation, "method_name")
+    method_label = method_name if isinstance(method_name, str) and method_name else method_id
+    lines = [
+        "RECOMMENDED TEST:",
+        method_label,
+        "",
+        "WHY THIS TEST?",
+        _why_this_recommendation(method_id, recommendation, diagnostics),
+    ]
+    for label, explanation in _why_not_recommendation(method_id, recommendation):
+        lines.extend(("", f"WHY NOT {label}?", explanation))
+    lines.extend(("", "WHAT YOU NEED TO VERIFY"))
+    lines.extend(f"- {note}" for note in _verification_notes(method_id, recommendation))
+    return "\n".join(lines)
+
+
+def executive_summary(
+    *,
+    profile: Mapping[str, Any] | None = None,
+    dataset: Mapping[str, Any] | None = None,
+    analyses: Sequence[Mapping[str, Any]] = (),
+    limitations: Sequence[str] = (),
+    practical_significance: str | None = None,
+    sensitivity: str | None = None,
+) -> tuple[str, ...]:
+    """Build format-neutral executive-summary paragraphs from stored report values."""
+    paragraphs: list[str] = []
+    overview = profile.get("overview") if isinstance(profile, Mapping) else None
+    rows = overview.get("total_rows") if isinstance(overview, Mapping) else None
+    columns = overview.get("total_columns") if isinstance(overview, Mapping) else None
+    if rows is None and isinstance(dataset, Mapping):
+        rows = dataset.get("original_rows")
+    analyzed = dataset.get("analyzed_rows") if isinstance(dataset, Mapping) else None
+    count = len(analyses)
+    if isinstance(rows, int) and isinstance(columns, int):
+        scale = f"{rows:,} row(s) across {columns:,} column(s)"
+    elif isinstance(rows, int):
+        scale = f"{rows:,} recorded row(s)"
+    elif isinstance(analyzed, int):
+        scale = f"{analyzed:,} analyzed row(s)"
+    else:
+        scale = "the recorded dataset"
+    if count:
+        paragraphs.append(
+            f"This report summarizes {scale} and contains {count} statistical "
+            f"{'analysis' if count == 1 else 'analyses'}."
+        )
+    else:
+        paragraphs.append(
+            f"This report summarizes {scale}. No inferential test is represented; the report "
+            "is descriptive."
+        )
+    for analysis in analyses:
+        method = analysis.get("method_name")
+        finding = analysis.get("finding")
+        if not isinstance(method, str) or not method.strip():
+            method = "Recorded analysis"
+        if isinstance(finding, str) and finding.strip():
+            paragraphs.append(f"{method}: {finding.strip()}")
+        else:
+            paragraphs.append(
+                f"{method}: the stored result does not support a significance/effect summary."
+            )
+    if isinstance(profile, Mapping):
+        paragraphs.append("Data quality: " + _data_quality_story(profile))
+    first_limitation = next(
+        (item.strip() for item in limitations if isinstance(item, str) and item.strip()), None
+    )
+    if first_limitation is not None:
+        paragraphs.append(f"Important diagnostic or limitation: {first_limitation}")
+    if isinstance(practical_significance, str) and practical_significance.strip():
+        paragraphs.append("Practical significance was assessed: " + practical_significance.strip())
+    if isinstance(sensitivity, str) and sensitivity.strip():
+        paragraphs.append("Sensitivity analysis was performed: " + sensitivity.strip())
+    return tuple(paragraphs)
+
+
 __all__ = [
     "ASSUMPTION_SEVERITY_DESCRIPTIONS",
     "assumption_grade",
     "column_story",
     "dataset_opening",
     "effect_narrative",
+    "executive_summary",
     "hypothesis_verdict",
     "insight_narrative",
     "interval_verdict",
+    "recommendation_rationale",
     "sensitivity_verdict",
 ]

@@ -93,14 +93,18 @@ workflow = assistant.run(
 print(workflow.status.value)              # completed
 print(workflow.analysis.method_id)        # welch_t (stable machine identifier)
 print(workflow.analysis.method_label)     # Welch independent-samples t-test
+print(workflow.recommendation.rationale_text)  # Why this test, alternatives, verification
 print(workflow.explain())                 # Qualified, printable result overview
 print(workflow.interpretation.findings_plain)
 print(workflow.audit.status)
+html = workflow.report.to_html()          # Includes a deterministic executive summary
 ```
 
 `run()` connects question validation, one method recommendation, one statistical execution,
 deterministic interpretation, reporting, consistency audit, and reproducibility metadata. It does
-not write files or replay the analysis automatically.
+not write files or replay the analysis automatically. Recommendation explanations and report
+summaries use only the stored specification, decision trace, diagnostics, results, effect labels,
+warnings, and limitations; they do not use generative AI.
 
 ## When information is missing
 

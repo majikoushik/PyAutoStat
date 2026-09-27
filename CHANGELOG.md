@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added deterministic recommendation explanations with method-specific why-this, why-not, and
+  researcher-verification sections while preserving the version 1 record and decision trace.
+- Added escaped executive summaries near the top of canonical and legacy HTML reports, assembled
+  only from stored dataset scale, analysis interpretations and effect labels, profile quality,
+  diagnostics/limitations, and any supplied practical-significance or sensitivity results.
 - Added plain-text `ResearchAssistant.summarize()`, `ResearchWorkflowResult.explain()`,
   `InterpretationResult.findings_plain`, method display labels, actionable missing-information
   rendering, practical-significance `verdict`, and descriptive sensitivity `compare()` helpers.

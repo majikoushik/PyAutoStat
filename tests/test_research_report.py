@@ -233,6 +233,9 @@ def test_unavailable_analysis_cannot_look_successful(welch_case):
     assert "No successful statistical result" in report.to_markdown()
     assert report.to_dict()["analysis"]["values"] == {}
     assert report.to_dict()["sections"]["methods"]["execution_status"] == "unavailable"
+    assert "contains 1 statistical analysis" in report.to_html()
+    assert "no successful statistical finding is presented" in report.to_html()
+    assert "report is descriptive" not in report.to_html()
 
 
 def test_sample_arithmetic_and_metadata_contradictions_block_report(welch_case):

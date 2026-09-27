@@ -126,7 +126,8 @@ observed post-hoc power.
 | Statistical analysis plan | JSON-safe plan, method rationale, missing-data rule, sensitivity scenarios, threshold, multiplicity state, reporting settings, and local revision record | Local record is not verified preregistration |
 | Plan adherence | Structured comparison of recorded plan, result, performed sensitivity scenarios, and practical assessment | Makes no misconduct judgment and invents no reason |
 | Reporting completeness | Machine-readable `present`, `missing`, `partial`, and `not_applicable` items | Not a study-quality or publication-readiness score |
-| Research report | Canonical HTML, Markdown, JSON, CSV tables, and safe LaTeX; General, APA-oriented, and IEEE-oriented styles | No universal journal-compliance claim; no PDF or DOCX output |
+| Research report | Canonical HTML, Markdown, JSON, CSV tables, and safe LaTeX; General, APA-oriented, and IEEE-oriented styles; deterministic HTML executive summary from stored scale, analyses, effect narration, quality, diagnostics, and supplied follow-up assessments | No universal journal-compliance claim; no PDF or DOCX output |
+| Recommendation explanation | On-demand `rationale_text`/`explain()` with method-specific why-this, why-not, and researcher-verification sections while retaining the structured decision trace | Optional diagnostics are narrated only when explicitly supplied; prose does not certify design facts or change method selection |
 | Audit | Canonical report/export consistency checks against captured source records | Checks consistency, not scientific truth |
 | Reproducibility | Runtime metadata, optional dataset fingerprint, metadata-only package, and explicit supplied-data replay | Does not authenticate data and does not automatically replay follow-up scenarios |
 | Decision ledger | Optional local observed-event sequence with content references | Not authenticated history or external preregistration |

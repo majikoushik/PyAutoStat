@@ -14,6 +14,7 @@ from typing import Any
 
 from .exceptions import InvalidDataError, ReportError
 from .interpretation import InterpretationEngine, InterpretationResult, InterpretationStatus
+from .narrate import executive_summary
 from .practical_significance import PracticalSignificanceResult, assess_practical_significance
 from .results import AnalysisResult, AnalysisStatus
 from .sensitivity import SensitivityResult
@@ -83,6 +84,76 @@ def _concise_result(data: dict[str, Any], style: str) -> str | None:
         parts.append(f"estimate = {_display(values['primary_estimate'])}")
     prefix = "APA-oriented summary: " if style == "apa" else "Technical result: "
     return prefix + ", ".join(parts) + "."
+
+
+def _build_executive_summary(
+    data: dict[str, Any],
+    *,
+    practical_verdict: str | None = None,
+    sensitivity_verdict: str | None = None,
+) -> tuple[str, ...]:
+    """Adapt one canonical report payload to format-neutral summary content."""
+    sections = data.get("sections", {})
+    dataset = sections.get("dataset") if isinstance(sections, dict) else None
+    methods = sections.get("methods", {}) if isinstance(sections, dict) else {}
+    interpretation = sections.get("interpretation", {}) if isinstance(sections, dict) else {}
+    question = sections.get("research_question", {}) if isinstance(sections, dict) else {}
+    analysis = data.get("analysis", {})
+    values = analysis.get("values", {}) if isinstance(analysis, dict) else {}
+    profile = values.get("profile") if isinstance(values, dict) else None
+    analyses: list[dict[str, Any]] = []
+    if isinstance(methods, dict) and methods.get("method_id") != "dataset_profile":
+        method_name = methods.get("method_name") or methods.get("method_id")
+        variables = (
+            [question.get(name) for name in ("outcome", "predictor")]
+            if isinstance(question, dict)
+            else []
+        )
+        selected = [repr(item) for item in variables if item is not None]
+        if selected:
+            method_name = f"{method_name} for {' and '.join(selected)}"
+        finding = (
+            interpretation.get("hypothesis")
+            if methods.get("execution_status") == "available" and isinstance(interpretation, dict)
+            else "The analysis result is unavailable; no successful statistical finding is "
+            "presented."
+        )
+        uncertainty = (
+            interpretation.get("uncertainty") if isinstance(interpretation, dict) else None
+        )
+        if (
+            methods.get("execution_status") == "available"
+            and isinstance(uncertainty, str)
+            and uncertainty.strip()
+        ):
+            finding = f"{finding} {uncertainty.strip()}"
+        analyses.append(
+            {
+                "method_name": method_name,
+                "finding": finding,
+            }
+        )
+    practical = sections.get("practical_significance") if isinstance(sections, dict) else None
+    if practical_verdict is None and isinstance(practical, dict):
+        practical_verdict = practical.get("conclusion")
+    sensitivity = sections.get("sensitivity_analysis") if isinstance(sections, dict) else None
+    if sensitivity_verdict is None and isinstance(sensitivity, dict):
+        sensitivity_verdict = sensitivity.get("comparison_note")
+    diagnostics = sections.get("diagnostics") if isinstance(sections, dict) else None
+    assumption_notes = (
+        diagnostics.get("assumption_notes", ()) if isinstance(diagnostics, dict) else ()
+    )
+    limitations = [*data.get("limitations", []), *data.get("warnings", [])]
+    if isinstance(assumption_notes, list):
+        limitations.extend(assumption_notes)
+    return executive_summary(
+        profile=profile if isinstance(profile, dict) else None,
+        dataset=dataset if isinstance(dataset, dict) else None,
+        analyses=analyses,
+        limitations=limitations,
+        practical_significance=practical_verdict,
+        sensitivity=sensitivity_verdict,
+    )
 
 
 def _latex_escape(value: Any) -> str:
@@ -290,6 +361,22 @@ class ResearchReport:
             f"<h1>{escape(data['title'], quote=True)}</h1>",
             f"<p><strong>Report status:</strong> {escape(data['status'])}</p>",
         ]
+        practical_verdict = (
+            self._source_practical_significance.verdict
+            if self._source_practical_significance is not None
+            else None
+        )
+        sensitivity_verdict = (
+            self._source_sensitivity.verdict if self._source_sensitivity is not None else None
+        )
+        summary_paragraphs = _build_executive_summary(
+            data,
+            practical_verdict=practical_verdict,
+            sensitivity_verdict=sensitivity_verdict,
+        )
+        parts.append('<section class="executive-summary"><h2>Executive Summary</h2>')
+        parts.extend(f"<p>{escape(paragraph)}</p>" for paragraph in summary_paragraphs)
+        parts.append("</section>")
         summary = _concise_result(data, style)
         if summary is not None:
             parts.append(f'<p class="oriented-summary">{escape(summary)}</p>')

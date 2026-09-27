@@ -1,12 +1,23 @@
 # PyAutoStat examples
 
-These three tutorials progress from dataset profiling to a traceable research
+These tutorials progress from dataset profiling to a traceable research
 workflow. They use the bundled **CustomerDataset.xlsx** workbook (5,000 rows
 and 40 columns). The workbook is demonstration data; this repository does not
 establish that it represents a sampled population or supports causal claims.
 
 The examples never print customer identifiers. The advanced paired example
 uses **CustomerID** only to match within-customer measurements.
+
+For a small synthetic example with no workbook dependency, run:
+
+~~~bash
+python examples/explainable_recommendation_and_report.py
+~~~
+
+It prints the deterministic recommendation rationale (why this method, why
+not relevant alternatives, and facts to verify), runs the selected method,
+and verifies that the generated HTML contains its executive summary. No file
+is written and no generative service is used.
 
 ## Install
 

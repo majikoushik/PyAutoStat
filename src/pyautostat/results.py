@@ -140,6 +140,22 @@ class Recommendation:
         """
         return _method_label(self.method_id, self.method_name)
 
+    def explain(self, *, diagnostics: dict[str, Any] | None = None) -> str:
+        """Return a deterministic researcher-readable recommendation explanation.
+
+        ``diagnostics`` is optional because recommendation normally precedes
+        execution. Only explicitly supplied recorded diagnostics are narrated;
+        no test is run by this presentation method.
+        """
+        from .narrate import recommendation_rationale
+
+        return recommendation_rationale(self, diagnostics=diagnostics)
+
+    @property
+    def rationale_text(self) -> str:
+        """Readable rationale derived without changing the serialized record."""
+        return self.explain()
+
 
 @dataclass(frozen=True)
 class Diagnostic:
