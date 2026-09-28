@@ -98,7 +98,7 @@ def test_rank_recommendations_explain_different_estimands_and_group_scope():
     assert kruskal.method_id == "kruskal_wallis"
     assert "3 independent groups" in kruskal.rationale_text
     assert "WHY NOT ONE-WAY ANOVA?" in kruskal.rationale_text
-    assert "specific groups differ" in kruskal.rationale_text
+    assert "Dunn-Holm supplies every" in kruskal.rationale_text
 
 
 def test_paired_rationale_requires_identity_order_and_does_not_equate_independent_tests():

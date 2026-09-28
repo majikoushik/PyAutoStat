@@ -64,14 +64,15 @@ It is not a substitute for scientific design review or subject-matter judgment.
 
 ## Minimum dependency compatibility scope
 
-The declared floors remain pandas 1.0, NumPy 1.19, and SciPy 1.5. A package-wide source review
+The declared floors remain pandas 1.0 and NumPy 1.19; SciPy is 1.7.3 because the public
+studentized-range distribution is required for Games-Howell and Tukey-Kramer. A package-wide source review
 found use of established pandas table, dtype, correlation, and missing-value operations; NumPy
 array, quantile, random-generator, and finite-value operations; and SciPy descriptive-test,
 t-distribution, chi-square, and noncentral-t functions. The closure review did not identify an API
 call that clearly requires a higher version than the declared floor.
 
-Exact minimum-version execution is still unverified. The closure checks ran on Python 3.12.7,
+CI includes a Python 3.10 focused multi-group route pinned to SciPy 1.7.3, NumPy 1.22.4,
+and pandas 1.5.3. The broader closure checks ran on Python 3.12.7,
 pandas 3.0.6, NumPy 2.2.6, and SciPy 1.13.0, plus the configured GitHub CI Python/OS matrix with
-resolver-selected dependency versions. The old declared floor releases were not installed in a
-separate compatible interpreter matrix, so this project does not claim verified runtime
-compatibility at those exact minimum versions. The dependency declarations were not raised.
+resolver-selected dependency versions. The local machine did not execute the Python 3.10
+minimum-version route; its enforcement is committed in CI.

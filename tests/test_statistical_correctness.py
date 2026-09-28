@@ -108,10 +108,11 @@ def test_auto_requires_target_and_does_not_follow_normality_screen():
     assert mean["assumptions"]["estimand"] == "mean"
     assert rank["assumptions"]["estimand"] == "distribution"
     assert "cannot be verified" in mean["assumptions"]["independent_observations"]
-    with pytest.raises(InvalidTestError, match="Welch ANOVA"):
-        StatisticalAnalyzer(_groups([1, 2, 3], [2, 3, 4], [3, 4, 5])).hypothesis_tests(
-            "group", "value", estimand="mean", bootstrap_samples=0
-        )
+    multi_mean = StatisticalAnalyzer(_groups([1, 2, 3], [2, 3, 4], [3, 4, 5])).hypothesis_tests(
+        "group", "value", estimand="mean", bootstrap_samples=0
+    )
+    assert multi_mean["test"] == "Welch one-way ANOVA"
+    assert len(multi_mean["pairwise_comparisons"]) == 3
     with pytest.raises(InvalidTestError, match="does not target"):
         analyzer.hypothesis_tests("group", "value", "mannwhitney", estimand="mean")
 

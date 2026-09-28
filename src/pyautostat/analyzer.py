@@ -46,6 +46,10 @@ from .inference import (
 from .inference import (
     spearman_correlation as _spearman_correlation,
 )
+from .multigroup import dunn as _dunn
+from .multigroup import games_howell as _games_howell
+from .multigroup import tukey_hsd as _tukey_hsd
+from .multigroup import welch_anova as _welch_anova
 
 _VALID_TEST_TYPES = ("auto", "ttest", "mannwhitney", "anova", "kruskal")
 _DEFAULT_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
@@ -1010,6 +1014,56 @@ class StatisticalAnalyzer:
         """Run a two-sided Fisher exact test for an observed 2x2 table."""
         return _fisher_exact_test(self.df, row_variable, column_variable)
 
+    def welch_anova(
+        self,
+        group_col: str,
+        value_col: str,
+        *,
+        confidence_level: float = 0.95,
+        alpha: float = 0.05,
+    ) -> dict:
+        """Run Welch one-way ANOVA and all Games-Howell pairwise comparisons."""
+        return _welch_anova(
+            self.df, group_col, value_col, confidence_level=confidence_level, alpha=alpha
+        )
+
+    def games_howell(
+        self,
+        group_col: str,
+        value_col: str,
+        *,
+        confidence_level: float = 0.95,
+        alpha: float = 0.05,
+    ) -> dict:
+        """Run all Games-Howell pairwise comparisons."""
+        return _games_howell(
+            self.df, group_col, value_col, confidence_level=confidence_level, alpha=alpha
+        )
+
+    def tukey_hsd(
+        self,
+        group_col: str,
+        value_col: str,
+        *,
+        confidence_level: float = 0.95,
+        alpha: float = 0.05,
+    ) -> dict:
+        """Run all Tukey-Kramer comparisons for a classical ANOVA model."""
+        return _tukey_hsd(
+            self.df, group_col, value_col, confidence_level=confidence_level, alpha=alpha
+        )
+
+    def dunn(
+        self,
+        group_col: str,
+        value_col: str,
+        *,
+        adjustment: str = "holm",
+        alpha: float = 0.05,
+    ) -> dict:
+        """Run all Dunn rank comparisons with multiplicity adjustment."""
+        return _dunn(self.df, group_col, value_col, adjustment=adjustment, alpha=alpha)
+
     def hypothesis_tests(
         self,
         group_col: str,
@@ -1021,6 +1075,7 @@ class StatisticalAnalyzer:
         *,
         estimand: str | None = None,
         equal_var: bool = False,
+        alpha: float = 0.05,
     ) -> dict:
         """
         Perform hypothesis tests comparing groups.
@@ -1055,6 +1110,7 @@ class StatisticalAnalyzer:
             random_state,
             estimand,
             equal_var,
+            alpha,
         )
 
     def _hypothesis_tests_impl(
@@ -1067,6 +1123,7 @@ class StatisticalAnalyzer:
         random_state,
         estimand,
         equal_var,
+        alpha,
     ):
         if not isinstance(group_col, str) or not group_col.strip():
             raise InvalidTestError("group_col must be a non-empty column name string.")
@@ -1082,6 +1139,13 @@ class StatisticalAnalyzer:
             raise InvalidTestError("estimand must be 'mean', 'distribution', or None.")
         if not isinstance(equal_var, bool):
             raise InvalidTestError("equal_var must be a boolean.")
+        if (
+            isinstance(alpha, bool)
+            or not isinstance(alpha, (int, float, np.integer, np.floating))
+            or not np.isfinite(alpha)
+            or not 0 < alpha < 1
+        ):
+            raise InvalidTestError("alpha must be a finite number between 0 and 1.")
         if equal_var and test_type != "ttest":
             raise InvalidTestError("equal_var=True applies only to explicit test_type='ttest'.")
         expected_estimand = {
@@ -1160,6 +1224,13 @@ class StatisticalAnalyzer:
             raise InvalidTestError(
                 "test_type='auto' needs estimand='mean' or 'distribution'. "
                 "Normality results cannot determine the research target."
+            )
+        if len(groups) >= 3 and test_type == "auto" and estimand == "mean":
+            return self.welch_anova(
+                group_col,
+                value_col,
+                confidence_level=float(confidence_level),
+                alpha=float(alpha),
             )
 
         def normality_p(values):
@@ -1297,12 +1368,6 @@ class StatisticalAnalyzer:
             n_total = sum(len(g) for g in group_data)
 
             if test_type == "auto":
-                if estimand == "mean":
-                    raise InvalidTestError(
-                        "Automatic multi-group mean comparison is unsupported: Welch ANOVA is not "
-                        "available. Choose test_type='anova' only when its assumptions "
-                        "are justified."
-                    )
                 test_type = "kruskal"
                 selection_reason = "Selected for the caller's stated distribution comparison."
 
@@ -1333,6 +1398,20 @@ class StatisticalAnalyzer:
                         "interpretation": self._interpret_effect_size("eta_squared", effect_size),
                     },
                 }
+                pairwise = self.tukey_hsd(
+                    group_col,
+                    value_col,
+                    confidence_level=float(confidence_level),
+                    alpha=float(alpha),
+                )
+                results.update(
+                    {
+                        "group_summaries": pairwise["group_summaries"],
+                        "pairwise_method": pairwise["procedure"],
+                        "multiplicity_control": pairwise["multiplicity_control"],
+                        "pairwise_comparisons": pairwise["comparisons"],
+                    }
+                )
             else:
                 if np.unique(np.concatenate(group_data)).size < 2:
                     raise InsufficientDataError(
@@ -1360,6 +1439,15 @@ class StatisticalAnalyzer:
                         "interpretation": None,
                     },
                 }
+                pairwise = self.dunn(group_col, value_col, adjustment="holm", alpha=float(alpha))
+                results.update(
+                    {
+                        "group_summaries": pairwise["group_summaries"],
+                        "pairwise_method": pairwise["procedure"],
+                        "multiplicity_control": pairwise["multiplicity_control"],
+                        "pairwise_comparisons": pairwise["comparisons"],
+                    }
+                )
 
         if not np.isfinite(stat) or not np.isfinite(p_val):
             raise InsufficientDataError(
@@ -1477,6 +1565,16 @@ class StatisticalAnalyzer:
                 parts.append(f"{label}: {low:.4g} to {high:.4g}.")
         if not parts:
             return "Interpretation is unavailable for this result."
+        pairwise = results.get("pairwise_comparisons")
+        if isinstance(pairwise, list) and pairwise:
+            rejected = sum(
+                item.get("decision") == "reject" for item in pairwise if isinstance(item, dict)
+            )
+            parts.append(
+                f"{results.get('pairwise_method')} calculated all {len(pairwise)} pairwise "
+                f"comparisons regardless of the omnibus decision; {rejected} rejected after "
+                f"{results.get('multiplicity_control')} control."
+            )
         return " ".join(parts)
 
     @staticmethod

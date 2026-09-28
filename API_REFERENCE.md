@@ -342,8 +342,8 @@ print(recommendation.explain(diagnostics=result.metadata["diagnostics"]))
 | Reference comparison, mean | One continuous outcome, independent units, finite explicit reference, at least two observations | `one_sample_t`; estimate is observed mean minus reference |
 | Group comparison, mean | Two independent groups, quantitative outcome, at least two usable outcomes per group, representable spread | `welch_t`; Student t is an explicit, equal-variance alternative |
 | Group comparison, distribution | Two independent groups, ordered numeric outcome, at least two usable outcomes per group | `mann_whitney_u`; tied small samples have an approximation warning |
-| Group comparison, distribution | Three or more independent groups, ordered numeric outcome, at least five usable outcomes per group | `kruskal_wallis`; no post-hoc comparisons |
-| Group comparison, mean | Three or more independent groups | `unsupported`; standard one-way ANOVA is a conditional explicit option, while variance-robust Welch ANOVA is unavailable |
+| Group comparison, distribution | Three or more independent groups, ordered numeric outcome, at least five usable outcomes per group | `kruskal_wallis` with all Dunn comparisons and Holm adjustment |
+| Group comparison, mean | Three or more independent groups, positive finite within-group variance | `welch_anova` with all Games-Howell comparisons; standard one-way ANOVA remains an explicit equal-variance option |
 | Group comparison, distribution | Paired two-condition data with explicit unit ID and condition order, at least two nonzero differences | `wilcoxon_signed_rank`; zeros use the recorded `wilcox` policy |
 | Association, linear | Two quantitative variables, independent observational pairs, at least three complete varying pairs | `pearson_correlation`, including the existing pairwise p-value when numerically valid |
 | Association, monotonic | Two varying ordered numeric variables and at least three complete pairs | `spearman_correlation` with rho, p-value, and paired-observation bootstrap CI when available |
@@ -357,7 +357,7 @@ Numeric association with no specified relationship target requests one clarifica
 `RECOMMENDED TEST`, `WHY THIS TEST?`, context-specific `WHY NOT ...?`, and
 `WHAT YOU NEED TO VERIFY` explanation from the same stored record. Coverage includes every
 automatically recommended method: dataset profile, one-sample t, Welch t, paired t, paired
-Wilcoxon, Mann-Whitney U, Kruskal-Wallis, Pearson correlation, Spearman correlation, Pearson
+Wilcoxon, Mann-Whitney U, Welch ANOVA, Kruskal-Wallis, Pearson correlation, Spearman correlation, Pearson
 chi-square, and Fisher exact. The prose distinguishes mean, rank-distribution, paired, linear,
 monotonic, and categorical-independence targets. Independence,
 representativeness, unit identity, and contrast order remain researcher-verification items.
@@ -384,7 +384,8 @@ print(result.metadata["sample"], result.metadata["group_order"])
 | `one_sample_t` | `one_sample_t_test()` / `scipy.stats.ttest_1samp` | Sample mean, explicit reference, observed-minus-reference mean difference, SE, t/df/p, analytical raw-difference CI, and one-sample Cohen's d when defined |
 | `welch_t` | `hypothesis_tests(test_type="ttest", equal_var=False)` | Mean difference, Welch statistic/df/p, Cohen's d, analytical mean-difference CI, optional bootstrap d CI |
 | `mann_whitney_u` | `hypothesis_tests(test_type="mannwhitney")` | First-group U, two-sided p, rank-biserial effect and optional bootstrap CI |
-| `kruskal_wallis` | `hypothesis_tests(test_type="kruskal")` | H, df, p, rank epsilon-squared and optional bootstrap CI |
+| `welch_anova` | `welch_anova()` | Welch F and numerator/denominator df, group summaries, and every Games-Howell mean difference with simultaneous interval and adjusted p-value; no questionable global standardized effect |
+| `kruskal_wallis` | `hypothesis_tests(test_type="kruskal")` | H, df, p, rank epsilon-squared, optional bootstrap CI, and every Dunn comparison with raw and Holm-adjusted p-values and pairwise rank-biserial effect |
 | `pearson_correlation` | Pair-only `analyze_all()` correlation profile | Pearson r and its pairwise p-value; no CI |
 | `paired_t` | `scipy.stats.ttest_rel` over explicit unit-ID pairs | First-minus-second paired mean, analytical CI, Cohen's dz, and complete/incomplete-pair accounting |
 | `wilcoxon_signed_rank` | `paired_wilcoxon()` / `scipy.stats.wilcoxon` | Signed-rank statistic/p, matched-pairs rank-biserial correlation, zero policy and pair accounting; effect CI unavailable |
@@ -395,9 +396,24 @@ print(result.metadata["sample"], result.metadata["group_order"])
 The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable
 **legacy explicit calculations**, but the guided recommender does not select them automatically.
 Kendall remains coefficient-only in profiling. Repeated designs with more than two conditions,
-clustered methods, Welch ANOVA, and Fisher tests beyond 2x2 remain unavailable.
+clustered methods, and Fisher tests beyond 2x2 remain unavailable.
 
 `AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. The `method_label` property resolves a display name from the existing method metadata without changing serialization. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
+
+Multi-group results add `values.group_summaries` and the complete
+`values.pairwise_comparisons` family. Each pair records procedure, ordered groups and an explicit
+first-minus-second contrast, estimate and name, statistic and name, raw p-value when defined,
+adjusted p-value, adjustment method and family size, supported interval/effect information, both
+sample sizes, standard error, degrees of freedom when applicable, alpha, decision, and warnings.
+`metadata.pairwise_method`, `multiplicity_control`, and `pairwise_comparison_count` describe the
+family. Pairwise calculation is unconditional on the omnibus p-value; only prose display is
+bounded.
+
+Direct expert methods are `StatisticalAnalyzer.welch_anova(...)`,
+`games_howell(...)`, `tukey_hsd(...)`, and `dunn(..., adjustment="holm")`. Games-Howell and
+Tukey-Kramer use `scipy.stats.studentized_range`; Dunn applies the pooled-rank tie correction and
+the central Holm adjustment helper. All preserve first-observed group order and reject incomplete,
+nonfinite, or unsupported variance cases explicitly.
 
 Group and categorical effect intervals use the existing 499-resample bootstrap with effective seed 0 when no seed was specified; this default and any explicit seed are recorded in metadata and diagnostics. The specification's alpha and confidence level remain available through `result.specification.options`; alpha is not used to alter the numerical p-value. No missing rows are imputed, no outliers are removed, and declared missing codes still block execution until normalized externally. JSON export is `json.dumps(result.to_dict(), allow_nan=False)`.
 
@@ -615,10 +631,11 @@ result = analyzer.hypothesis_tests(
     confidence_level=0.95,
     bootstrap_samples=499,
     random_state=0,
+    alpha=0.05,
 )
 ```
 
-`test_type` can be `auto`, `ttest`, `mannwhitney`, `anova` or `kruskal`. `auto` now requires the keyword-only `estimand="mean"` or `"distribution"`. For two groups, `mean` selects Welch's t-test and `distribution` selects Mann-Whitney U. For three or more groups, `distribution` selects Kruskal-Wallis; `mean` raises `InvalidTestError` because automatic Welch ANOVA is not available. Diagnostics never switch the estimand. Explicit methods remain available. For an explicit `ttest`, `equal_var=False` (default) uses Welch; `equal_var=True` requests Student's equal-variance version. Supplying an incompatible estimand with an explicit method raises `InvalidTestError`. The library cannot verify independence or decide whether a research design justifies a chosen test.
+`test_type` can be `auto`, `ttest`, `mannwhitney`, `anova` or `kruskal`. `auto` requires the keyword-only `estimand="mean"` or `"distribution"`. For two groups, `mean` selects Welch's t-test and `distribution` selects Mann-Whitney U. For three or more groups, `mean` selects Welch ANOVA plus Games-Howell and `distribution` selects Kruskal-Wallis plus Dunn-Holm. Diagnostics never switch the estimand. Explicit `anova` adds Tukey-Kramer comparisons. For an explicit `ttest`, `equal_var=False` (default) uses Welch; `equal_var=True` requests Student's equal-variance version. `alpha` controls only recorded pairwise decisions, while `confidence_level` controls supported intervals. Supplying an incompatible estimand with an explicit method raises `InvalidTestError`. The library cannot verify independence or decide whether a research design justifies a chosen test.
 
 The result retains `test`, `statistic`, `p_value`, `groups`, `assumptions` and `effect_size`. Additions are `sample_size`, `excluded_rows`, `group_sizes`, degrees of freedom where applicable, `mean_difference` for t-tests, and a display-only `interpretation` assembled from those recorded values. Assumption diagnostics include `not_rejected`, `rejected` or `unknown` at the documented reference alpha 0.05; they do not certify population assumptions. The effect-size record contains its name, value, interpretation when supported, and a percentile bootstrap confidence interval or `None`. Conventional effect labels are not practical-significance decisions. Rank-biserial correlation and rank epsilon-squared have no qualitative magnitude label. T-tests return an analytical `confidence_interval` for first minus second group's mean and a Boolean `equal_variance` indicating the method used.
 

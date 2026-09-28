@@ -206,7 +206,7 @@ def test_kruskal_executes_without_pairwise_or_mean_claim():
     assert result.sample_size == 15
 
 
-def test_multi_group_mean_stays_unavailable():
+def test_multi_group_mean_uses_welch_anova_with_complete_pairwise_family():
     frame = pd.DataFrame(
         {
             "group": ["A"] * 5 + ["B"] * 5 + ["C"] * 5,
@@ -215,9 +215,10 @@ def test_multi_group_mean_stays_unavailable():
     )
     assistant = ResearchAssistant(frame)
     result = assistant.analyze(_draft(assistant, target="mean"))
-    assert result.status == "unavailable"
-    assert result.method_id == "unselected"
-    assert result.recommendation.status == "unsupported"
+    assert result.status == "available"
+    assert result.method_id == "welch_anova"
+    assert result.recommendation.status == "ready"
+    assert len(result.values["pairwise_comparisons"]) == 3
     assert result.specification.question.estimand == "mean"
 
 

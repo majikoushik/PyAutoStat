@@ -56,6 +56,24 @@ explanation = guided.explain()
 assert "ANALYSIS RESULT" in explanation
 assert "Groups    : 'A', 'B'" in explanation
 
+multi_group = pd.DataFrame(
+    {
+        "group": ["C"] * 5 + ["A"] * 5 + ["B"] * 5,
+        "score": [2, 3, 4, 5, 7, 8, 10, 12, 15, 18, 1, 2, 2, 3, 5],
+    }
+)
+multi_guided = ResearchAssistant(multi_group).run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="group",
+    design="independent",
+    estimand="mean",
+    variable_types={"score": "continuous", "group": "nominal"},
+)
+assert multi_guided.analysis.method_id == "welch_anova"
+assert len(multi_guided.analysis.values["pairwise_comparisons"]) == 3
+assert "pairwise_comparisons" in multi_guided.report.to_csv_tables()
+
 paired = pd.DataFrame(
     {
         "participant": [1, 1, 2, 2, 3, 3, 4, 4],

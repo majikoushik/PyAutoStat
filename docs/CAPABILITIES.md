@@ -116,8 +116,9 @@ implemented. `audit=False` also makes an otherwise successful workflow partial.
 | Two-condition paired population mean difference | Paired with explicit unit ID | Paired t-test | Automatically guided | First-minus-second paired mean, analytical CI, Cohen's dz | Unique unit/condition rows, at least two complete pairs, nonzero difference variance |
 | Two-condition paired rank/distribution target | Paired with explicit unit ID | Wilcoxon signed-rank | Automatically guided and direct | Signed-rank statistic, matched-pairs rank-biserial effect; CI explicitly unavailable | `wilcox` zero policy; not universally a median test; location-shift reading needs symmetry |
 | Two-group rank distributions | Independent | Mann-Whitney U | Automatically guided | U, rank-biserial effect, optional bootstrap CI | Distribution target; no universal median claim |
-| Standard multi-group population means | Independent | One-way ANOVA | Explicitly runnable and available to sensitivity scenarios | Omnibus F and eta-squared | Guided selector does not choose it; equal-variance assumptions require justification |
-| Three-or-more rank distributions | Independent | Kruskal-Wallis | Automatically guided | Omnibus H, epsilon-squared, optional bootstrap CI | At least five usable values per group; no post-hoc comparisons |
+| Multi-group population means | Independent | Welch one-way ANOVA + Games-Howell | Automatically guided | Omnibus Welch F/df/p, group means, every pairwise mean difference with simultaneous CI and adjusted p | Positive finite variance required in every group; no global standardized effect claimed |
+| Standard multi-group population means | Independent | One-way ANOVA + Tukey-Kramer | Explicitly runnable and available to sensitivity scenarios | Omnibus F/eta-squared and every pairwise mean difference with simultaneous CI and adjusted p | Guided selector does not choose it; equal-variance assumptions require justification |
+| Three-or-more rank distributions | Independent | Kruskal-Wallis + Dunn-Holm | Automatically guided | Omnibus H/epsilon-squared and every pairwise mean-rank contrast with adjusted p and rank-biserial effect | At least five usable values per group; pairwise effect intervals unavailable |
 | Linear numerical association | Independent rows | Pearson correlation | Automatically guided | r and p-value | Confidence interval unavailable, so interpretation is partial |
 | Categorical independence | Independent rows | Pearson chi-square | Automatically guided when the expected-count policy passes | Chi-square, Cramer's V, optional bootstrap CI | At least two levels per axis and every expected cell at least five |
 | Monotonic numerical association | Independent rows | Spearman rank correlation | Automatically guided and direct | rho, p-value, deterministic paired-observation bootstrap CI | Ties allowed; does not establish linearity or causation |
@@ -167,8 +168,8 @@ Common blockers remain explicit:
   data-limited or unsupported result as documented. Sparse 2x2 tables use Fisher; larger sparse
   tables remain unsupported.
 - Repeated measures with more than two conditions, clustered models, mixed models, generic
-  regression, survival analysis, causal inference, Welch ANOVA, Fisher extensions beyond 2x2,
-  broad multiplicity or post-hoc families, and formal equivalence or noninferiority tests are not
+  regression, survival analysis, causal inference, Fisher extensions beyond 2x2,
+  broader multiplicity families, and formal equivalence or noninferiority tests are not
   implemented.
 - Numerical backend failure never becomes a successful result. Invalid report metadata or audit
   contradictions remain visible and do not trigger an automatic rerun.

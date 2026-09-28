@@ -1668,6 +1668,14 @@ def _why_this_recommendation(
                 diagnostic += f" (Levene {_p_value_text(levene_p)})"
             return opening + diagnostic + "; Welch's correction remains appropriate."
         return opening
+    if method_id == "welch_anova":
+        count_text = f"{group_count} " if group_count is not None else "three or more "
+        return (
+            f"The specification compares {selected} across {count_text}independent groups and "
+            "declares a population-mean estimand. Welch ANOVA does not require equal population "
+            "variances, and Games-Howell supplies every multiplicity-controlled pairwise mean "
+            "contrast regardless of the omnibus decision."
+        )
     if method_id == "one_sample_t":
         reference = _finite(context.get("reference_value"))
         reference_text = f" {_fmt(reference)}" if reference is not None else ""
@@ -1720,7 +1728,8 @@ def _why_this_recommendation(
         return (
             f"The specification compares {selected} across {count_text}independent groups and "
             "declares an ordered distribution estimand. Kruskal-Wallis compares their rank "
-            "distributions but does not identify which specific groups differ."
+            "distributions, and Dunn-Holm supplies every multiplicity-controlled pairwise rank "
+            "contrast regardless of the omnibus decision."
         )
     if method_id == "pearson_chi_square":
         shape_text = (

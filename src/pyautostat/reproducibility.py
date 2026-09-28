@@ -40,6 +40,8 @@ _VALUES = (
     "estimate_unit",
     "effect_size",
     "confidence_interval",
+    "group_summaries",
+    "pairwise_comparisons",
 )
 
 
@@ -83,6 +85,9 @@ def _projection(result: AnalysisResult) -> dict[str, Any]:
         "zero_method": payload["metadata"].get("zero_method"),
         "p_value_method": payload["metadata"].get("p_value_method"),
         "p_value_method_parameter": payload["metadata"].get("p_value_method_parameter"),
+        "pairwise_method": payload["metadata"].get("pairwise_method"),
+        "multiplicity_control": payload["metadata"].get("multiplicity_control"),
+        "pairwise_comparison_count": payload["metadata"].get("pairwise_comparison_count"),
         "variable_order": payload["metadata"].get("variable_order"),
         "row_order": payload["metadata"].get("row_order"),
         "column_order": payload["metadata"].get("column_order"),

@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added guided Welch one-way ANOVA with complete Games-Howell simultaneous comparisons,
+  explicit classical ANOVA with Tukey-Kramer comparisons, and Kruskal-Wallis with complete
+  Dunn-Holm comparisons. Pairwise families are calculated regardless of the omnibus decision and
+  retain orientation, estimates, uncertainty where supported, raw/adjusted p-values, multiplicity
+  metadata, sample sizes, standard errors, degrees of freedom, and decisions.
+- Integrated multi-group summaries and pairwise records through deterministic narration, reports
+  and safe exports, audit, completeness, sensitivity identity, replay, examples, installed-wheel
+  smoke coverage, and a Python 3.10 minimum-SciPy 1.7.3 CI route.
+
 - Added complete one-sample t inference against a finite researcher-declared reference, preserving
   observed-minus-reference orientation, analytical raw-difference intervals, and one-sample
   Cohen's d when defined.

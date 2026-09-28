@@ -138,14 +138,9 @@ def test_paired_workflow_requests_explicit_unit_identifier(comparison_frame, mon
     assert workflow.missing_information[0].field == "unit_id"
 
 
-def test_three_group_mean_target_is_not_switched_to_rank_test(monkeypatch):
+def test_three_group_mean_target_uses_welch_not_rank_test():
     frame = pd.DataFrame({"score": list(range(18)), "group": ["A"] * 6 + ["B"] * 6 + ["C"] * 6})
     assistant = ResearchAssistant(frame)
-    monkeypatch.setattr(
-        assistant,
-        "analyze",
-        lambda *args, **kwargs: pytest.fail("an unsupported analysis must not execute"),
-    )
     workflow = assistant.run(
         objective="compare_groups",
         outcome="score",
@@ -154,10 +149,10 @@ def test_three_group_mean_target_is_not_switched_to_rank_test(monkeypatch):
         design="independent",
         variable_types={"score": "continuous"},
     )
-    assert workflow.status is WorkflowStatus.UNSUPPORTED
+    assert workflow.status in {WorkflowStatus.COMPLETED, WorkflowStatus.PARTIAL}
     assert workflow.specification.question.estimand == "mean"
-    assert workflow.recommendation.method_id is None
-    assert "Kruskal" not in " ".join(workflow.blockers)
+    assert workflow.recommendation.method_id == "welch_anova"
+    assert workflow.analysis.method_id == "welch_anova"
 
 
 @pytest.mark.parametrize(

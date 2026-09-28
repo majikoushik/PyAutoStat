@@ -4,7 +4,6 @@ import pandas as pd
 
 from pyautostat import ResearchAssistant, column_story
 
-
 frame = pd.DataFrame(
     {
         "score": [58.0, 64.0, 72.0, 79.0, 91.0, None],

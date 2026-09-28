@@ -127,6 +127,15 @@ def _build_executive_summary(
             and uncertainty.strip()
         ):
             finding = f"{finding} {uncertainty.strip()}"
+        pairwise = values.get("pairwise_comparisons") if isinstance(values, dict) else None
+        if isinstance(pairwise, list) and pairwise:
+            rejected = sum(
+                item.get("decision") == "reject" for item in pairwise if isinstance(item, dict)
+            )
+            finding = (
+                f"{finding} The complete pairwise family contained {len(pairwise)} comparisons; "
+                f"{rejected} rejected after the recorded multiplicity control."
+            )
         analyses.append(
             {
                 "method_name": method_name,
@@ -654,6 +663,9 @@ def build_research_report(
         "reference_value": question.get("reference_value"),
         "zero_method": metadata.get("zero_method"),
         "p_value_method": metadata.get("p_value_method"),
+        "pairwise_method": metadata.get("pairwise_method"),
+        "multiplicity_control": metadata.get("multiplicity_control"),
+        "pairwise_comparison_count": metadata.get("pairwise_comparison_count"),
     }
     dataset = {
         "original_rows": original,
@@ -697,6 +709,8 @@ def build_research_report(
         "sample_mean": visible.get("sample_mean"),
         "reference_value": visible.get("reference_value"),
         "standard_error": visible.get("standard_error"),
+        "group_summaries": visible.get("group_summaries"),
+        "pairwise_comparisons": visible.get("pairwise_comparisons"),
     }
     interpretation_section = {
         "status": interpreted["status"],
@@ -767,6 +781,126 @@ def build_research_report(
                         _cell(item["size"], f"analysis.metadata.sample.group_sizes[{i}].size"),
                     ]
                     for i, item in enumerate(groups)
+                ],
+            )
+        )
+    summaries = visible.get("group_summaries")
+    if isinstance(summaries, list) and summaries and status != "unavailable":
+        tables.append(
+            _table(
+                "group_summaries",
+                "Group summaries",
+                ["Group", "N", "Mean", "SD", "Median"],
+                [
+                    [
+                        _cell(item.get("group"), f"analysis.values.group_summaries[{i}].group"),
+                        _cell(
+                            item.get("sample_size"),
+                            f"analysis.values.group_summaries[{i}].sample_size",
+                        ),
+                        _cell(item.get("mean"), f"analysis.values.group_summaries[{i}].mean"),
+                        _cell(
+                            item.get("standard_deviation"),
+                            f"analysis.values.group_summaries[{i}].standard_deviation",
+                        ),
+                        _cell(item.get("median"), f"analysis.values.group_summaries[{i}].median"),
+                    ]
+                    for i, item in enumerate(summaries)
+                    if isinstance(item, dict)
+                ],
+            )
+        )
+    pairwise = visible.get("pairwise_comparisons")
+    if isinstance(pairwise, list) and pairwise and status != "unavailable":
+        tables.append(
+            _table(
+                "pairwise_comparisons",
+                "Multiplicity-controlled pairwise comparisons",
+                [
+                    "Procedure",
+                    "First group",
+                    "Second group",
+                    "Estimate",
+                    "Statistic",
+                    "Raw p",
+                    "Adjusted p",
+                    "Adjustment",
+                    "CI lower",
+                    "CI upper",
+                    "Effect",
+                    "N first",
+                    "N second",
+                    "SE",
+                    "DF",
+                    "Decision",
+                ],
+                [
+                    [
+                        _cell(
+                            item.get("procedure"),
+                            f"analysis.values.pairwise_comparisons[{i}].procedure",
+                        ),
+                        _cell(
+                            item.get("group1"), f"analysis.values.pairwise_comparisons[{i}].group1"
+                        ),
+                        _cell(
+                            item.get("group2"), f"analysis.values.pairwise_comparisons[{i}].group2"
+                        ),
+                        _cell(
+                            item.get("estimate"),
+                            f"analysis.values.pairwise_comparisons[{i}].estimate",
+                        ),
+                        _cell(
+                            item.get("statistic"),
+                            f"analysis.values.pairwise_comparisons[{i}].statistic",
+                        ),
+                        _cell(
+                            item.get("raw_p_value"),
+                            f"analysis.values.pairwise_comparisons[{i}].raw_p_value",
+                        ),
+                        _cell(
+                            item.get("adjusted_p_value"),
+                            f"analysis.values.pairwise_comparisons[{i}].adjusted_p_value",
+                        ),
+                        _cell(
+                            item.get("adjustment_method"),
+                            f"analysis.values.pairwise_comparisons[{i}].adjustment_method",
+                        ),
+                        _cell(
+                            (item.get("confidence_interval") or {}).get("lower"),
+                            f"analysis.values.pairwise_comparisons[{i}].confidence_interval.lower",
+                        ),
+                        _cell(
+                            (item.get("confidence_interval") or {}).get("upper"),
+                            f"analysis.values.pairwise_comparisons[{i}].confidence_interval.upper",
+                        ),
+                        _cell(
+                            item.get("effect_size"),
+                            f"analysis.values.pairwise_comparisons[{i}].effect_size",
+                        ),
+                        _cell(
+                            (item.get("sample_sizes") or {}).get("group1"),
+                            f"analysis.values.pairwise_comparisons[{i}].sample_sizes.group1",
+                        ),
+                        _cell(
+                            (item.get("sample_sizes") or {}).get("group2"),
+                            f"analysis.values.pairwise_comparisons[{i}].sample_sizes.group2",
+                        ),
+                        _cell(
+                            item.get("standard_error"),
+                            f"analysis.values.pairwise_comparisons[{i}].standard_error",
+                        ),
+                        _cell(
+                            item.get("degrees_of_freedom"),
+                            f"analysis.values.pairwise_comparisons[{i}].degrees_of_freedom",
+                        ),
+                        _cell(
+                            item.get("decision"),
+                            f"analysis.values.pairwise_comparisons[{i}].decision",
+                        ),
+                    ]
+                    for i, item in enumerate(pairwise)
+                    if isinstance(item, dict)
                 ],
             )
         )

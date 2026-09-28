@@ -241,8 +241,50 @@ class ResearchWorkflowResult:
         if interp is not None:
             if interp.hypothesis_interpretation:
                 lines.append(thin)
-                lines.append(" HYPOTHESIS TEST")
+                lines.append(
+                    " OMNIBUS TEST"
+                    if self.analysis is not None
+                    and self.analysis.method_id
+                    in {"welch_anova", "one_way_anova", "kruskal_wallis"}
+                    else " HYPOTHESIS TEST"
+                )
                 lines.append(f"   {interp.hypothesis_interpretation.strip()}")
+            if self.analysis is not None:
+                summaries = self.analysis.values.get("group_summaries")
+                if isinstance(summaries, list) and summaries:
+                    lines.append(thin)
+                    lines.append(" GROUP SUMMARIES")
+                    for item in summaries:
+                        if not isinstance(item, dict):
+                            continue
+                        lines.append(
+                            f"   - {item.get('group')!r}: n={item.get('sample_size')}, "
+                            f"mean={item.get('mean'):.4g}, median={item.get('median'):.4g}, "
+                            f"SD={item.get('standard_deviation'):.4g}"
+                        )
+                pairwise = self.analysis.values.get("pairwise_comparisons")
+                if isinstance(pairwise, list) and pairwise:
+                    lines.append(thin)
+                    lines.append(" PAIRWISE FOLLOW-UP")
+                    lines.append(
+                        f"   {self.analysis.metadata.get('pairwise_method')}; "
+                        f"multiplicity control: "
+                        f"{self.analysis.metadata.get('multiplicity_control')}."
+                    )
+                    for item in pairwise[:6]:
+                        if not isinstance(item, dict):
+                            continue
+                        lines.append(
+                            f"   - {item.get('group1')!r} minus {item.get('group2')!r}: "
+                            f"{item.get('estimate_name')}={item.get('estimate'):.4g}, "
+                            f"adjusted p={item.get('adjusted_p_value'):.4g}, "
+                            f"decision={item.get('decision')}"
+                        )
+                    if len(pairwise) > 6:
+                        lines.append(
+                            f"   - {len(pairwise) - 6} additional comparisons are preserved "
+                            "in the structured result."
+                        )
             if interp.effect_interpretation:
                 lines.append(thin)
                 lines.append(" EFFECT SIZE")

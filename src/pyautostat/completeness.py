@@ -78,6 +78,7 @@ def assess_reporting_completeness(
         "student_t",
         "paired_t",
         "one_sample_t",
+        "welch_anova",
         "one_way_anova",
         "kruskal_wallis",
         "pearson_chi_square",
@@ -186,7 +187,7 @@ def assess_reporting_completeness(
             "Primary effect estimate",
             results.get("primary_estimate"),
             "sections.results.primary_estimate",
-            applicable=inference,
+            applicable=inference and method != "welch_anova",
         ),
         item(
             "EFFECT_SIZE_REPORTED",
@@ -194,7 +195,7 @@ def assess_reporting_completeness(
             "Method-specific effect size",
             results.get("effect_size"),
             "sections.results.effect_size",
-            applicable=inference,
+            applicable=inference and method != "welch_anova",
         ),
         item(
             "CONFIDENCE_INTERVAL_REPORTED",
@@ -202,11 +203,27 @@ def assess_reporting_completeness(
             "Confidence interval",
             results.get("confidence_interval"),
             "sections.results.confidence_interval",
-            applicable=inference,
+            applicable=inference and method != "welch_anova",
             unavailable=(
                 source_values.get("confidence_interval") is None
                 and method in {"pearson_correlation", "wilcoxon_signed_rank", "fisher_exact"}
             ),
+        ),
+        item(
+            "GROUP_SUMMARIES_REPORTED",
+            "results",
+            "Per-group descriptive summaries",
+            results.get("group_summaries"),
+            "sections.results.group_summaries",
+            applicable=inference and method in {"welch_anova", "one_way_anova", "kruskal_wallis"},
+        ),
+        item(
+            "PAIRWISE_COMPARISONS_REPORTED",
+            "results",
+            "Complete multiplicity-controlled pairwise family",
+            results.get("pairwise_comparisons"),
+            "sections.results.pairwise_comparisons",
+            applicable=inference and method in {"welch_anova", "one_way_anova", "kruskal_wallis"},
         ),
         item(
             "ALPHA_REPORTED",

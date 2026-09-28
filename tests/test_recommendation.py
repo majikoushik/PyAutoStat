@@ -41,7 +41,7 @@ def test_registry_matches_real_backend_capabilities():
         assert not METHOD_CAPABILITIES[method_id].inferential
     assert METHOD_CAPABILITIES["paired_t"].availability == "runnable"
     assert "paired" in METHOD_CAPABILITIES["paired_t"].designs
-    assert "welch_anova" not in METHOD_CAPABILITIES
+    assert METHOD_CAPABILITIES["welch_anova"].availability == "runnable"
 
 
 def test_descriptive_recommends_profile_without_inference(comparison):
@@ -154,7 +154,7 @@ def test_unknown_design_preserves_prepared_question(comparison):
     assert result.method_id is None
 
 
-def test_three_group_mean_does_not_switch_estimand():
+def test_three_group_mean_uses_welch_anova_without_switching_estimand():
     assistant = ResearchAssistant(
         pd.DataFrame(
             {
@@ -171,9 +171,8 @@ def test_three_group_mean_does_not_switch_estimand():
         estimand="mean",
         design="independent",
     )
-    assert result.status == "unsupported"
-    assert result.method_id is None
-    assert "variance" in result.blockers[0]
+    assert result.status == "ready"
+    assert result.method_id == "welch_anova"
     alternatives = {item["method_id"]: item for item in result.alternatives}
     assert alternatives["one_way_anova"]["availability"] == "runnable"
     assert "assumptions" in alternatives["one_way_anova"]["reason"]
@@ -200,7 +199,7 @@ def test_three_group_distribution_uses_kruskal():
     )
     assert result.status == "ready"
     assert result.method_id == "kruskal_wallis"
-    assert "which groups" in result.rationale
+    assert "Dunn-Holm" in result.rationale
 
 
 def test_kruskal_minimum_follows_existing_backend():

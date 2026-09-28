@@ -168,8 +168,11 @@ remain distinct from a completed workflow.
 - One-sample t inference against an explicit reference mean, including the raw signed mean
   difference, analytical interval, and one-sample Cohen's d when defined.
 - Explicit paired Wilcoxon signed-rank inference for a declared paired rank/distribution target.
-- Mann-Whitney U, standard one-way ANOVA, and Kruskal-Wallis calculations within their documented
-  selection and explicit-use boundaries.
+- Guided Welch one-way ANOVA with complete Games-Howell comparisons for independent multi-group
+  mean questions.
+- Mann-Whitney U and guided Kruskal-Wallis with complete Dunn-Holm comparisons.
+- Explicit standard one-way ANOVA with complete Tukey-Kramer comparisons when equal-variance
+  assumptions are independently justified.
 - Pearson linear and Spearman monotonic numerical association inference.
 - Pearson chi-square categorical association plus Fisher's exact fallback for sparse 2x2 tables.
 - Effect estimates, supported confidence intervals, sample accounting, assumptions, and warnings.

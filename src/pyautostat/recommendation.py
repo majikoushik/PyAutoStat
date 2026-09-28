@@ -158,6 +158,21 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             "StatisticalAnalyzer.hypothesis_tests(test_type='mannwhitney')",
         ),
         MethodCapability(
+            "welch_anova",
+            "Welch one-way ANOVA with Games-Howell comparisons",
+            "compare_groups",
+            "mean",
+            ("quantitative", "group"),
+            ("independent",),
+            "3 or more",
+            "At least 2 usable values and positive finite variance in every group",
+            ("Independent observations", "Appropriate sampling and mean-inference conditions"),
+            True,
+            "runnable",
+            "All Games-Howell pairs are calculated regardless of the omnibus decision.",
+            "StatisticalAnalyzer.welch_anova",
+        ),
+        MethodCapability(
             "one_way_anova",
             "Standard one-way ANOVA",
             "compare_groups",
@@ -184,7 +199,7 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             ("Independent observations", "Meaningful outcome ordering"),
             True,
             "runnable",
-            "No post-hoc comparisons or universal median claim.",
+            "All Dunn-Holm pairs are calculated; no universal median claim is made.",
             "StatisticalAnalyzer.hypothesis_tests(test_type='kruskal')",
         ),
         MethodCapability(
@@ -870,15 +885,21 @@ def _compare(
                     ),
                 ),
             )
-        record("blocker", "multi_group_mean", "Welch ANOVA is not implemented.")
+        if any(value == 0 for value in variances):
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "Welch ANOVA and Games-Howell require positive within-group variance "
+                    "in every group.",
+                ),
+                rationale="A zero-variance group makes variance-weighted inference undefined.",
+            )
+        record("method", "welch_anova", "Three or more groups and a stated mean target.")
         return finish(
-            RecommendationStatus.UNSUPPORTED,
-            blockers=(
-                "No automatic variance-robust mean comparison is implemented for "
-                "three or more groups. Standard ANOVA requires independently justified "
-                "equal-population-variance conditions.",
-            ),
-            rationale="The mean target cannot be replaced by a rank-distribution test.",
+            RecommendationStatus.READY,
+            method_id="welch_anova",
+            rationale="Welch ANOVA compares population means without requiring equal variances; "
+            "Games-Howell provides the complete multiplicity-controlled pairwise family.",
             alternatives=(
                 _alternative(
                     "one_way_anova",
@@ -924,8 +945,9 @@ def _compare(
         RecommendationStatus.READY,
         method_id="kruskal_wallis",
         rationale="Kruskal-Wallis compares rank distributions across independent groups; "
-        "it does not identify which groups differ.",
+        "Dunn-Holm provides the complete multiplicity-controlled pairwise family.",
         alternatives=(
+            _alternative("welch_anova", "Targets population means rather than distributions."),
             _alternative("one_way_anova", "Targets means and requires equal-variance assumptions."),
         ),
     )

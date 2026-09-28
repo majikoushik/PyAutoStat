@@ -40,14 +40,15 @@ or recalculates a test. The auditor regenerates schema 2 from captured independe
 records and detects altered scenario counts, status, comparability, estimates, threshold, and
 relations.
 
-Tables may include `sample_accounting`, `group_sizes`, `statistical_results`, `effect_estimates`, `confidence_intervals`, `descriptive_statistics`, and optional `histogram_N_bins`. CSV export returns one UTF-8 string per table ID. HTML and Markdown render the same table cells; JSON retains raw numeric values. Display formatting is centralized and never changes the underlying p-value. A computational p-value of zero displays as a qualified inequality.
+Tables may include `sample_accounting`, `group_sizes`, `group_summaries`, `statistical_results`, `effect_estimates`, `confidence_intervals`, `pairwise_comparisons`, `descriptive_statistics`, and optional `histogram_N_bins`. CSV export returns one UTF-8 string per table ID. HTML and Markdown render the same table cells; JSON retains raw numeric values. Display formatting is centralized and never changes the underlying p-value. A computational p-value of zero displays as a qualified inequality.
 
 | Method | Report content | Limit |
 | --- | --- | --- |
 | `dataset_profile` | Descriptive summaries and optional histogram bins | No inferential p-value; detected identifier labels omitted |
 | `welch_t`, `student_t` | Mean difference, t/df/p, separate Cohen's d, separate intervals | Student is not automatically selected; equal-variance condition requires review |
 | `mann_whitney_u` | U/p and rank-biserial effect/interval | No universal median-difference claim |
-| `one_way_anova`, `kruskal_wallis` | Omnibus statistic/p and named effect | No pairwise conclusion; ANOVA is not automatically selected |
+| `welch_anova` | Omnibus statistic/df/p, group summaries, and complete Games-Howell family | No global standardized effect; omnibus result alone does not identify pairs |
+| `one_way_anova`, `kruskal_wallis` | Omnibus statistic/p, named effect, group summaries, and complete Tukey-Kramer or Dunn-Holm family | Classical ANOVA is not automatically selected; pairwise results retain their own multiplicity control |
 | `pearson_correlation` | r/p and effective pair count | Current guided result has no CI, so report is partial |
 | `pearson_chi_square` | Chi-square/df/p and Cramer's V/interval | No cell-specific or causal conclusion |
 

@@ -22,6 +22,7 @@ _GROUP_BACKENDS: dict[str, tuple[str, str, bool]] = {
     "welch_t": ("ttest", "mean", False),
     "student_t": ("ttest", "mean", True),
     "mann_whitney_u": ("mannwhitney", "distribution", False),
+    "welch_anova": ("welch", "mean", False),
     "one_way_anova": ("anova", "mean", False),
     "kruskal_wallis": ("kruskal", "distribution", False),
 }
@@ -30,6 +31,7 @@ _EFFECT_DEFINITIONS = {
     "welch_t": "First minus second group mean, divided by the pooled sample SD.",
     "student_t": "First minus second group mean, divided by the pooled sample SD.",
     "mann_whitney_u": "2 times first-group U divided by n1*n2, minus 1; ties count half.",
+    "welch_anova": "Not applicable; group means and pairwise mean differences are reported.",
     "one_way_anova": "Between-group sum of squares divided by total sum of squares.",
     "kruskal_wallis": "Truncated rank epsilon-squared from H, group count, and sample size.",
 }
@@ -38,6 +40,7 @@ _NULL_HYPOTHESES = {
     "welch_t": "The two population means are equal.",
     "student_t": "The two population means are equal.",
     "mann_whitney_u": "The two underlying rank distributions are equal.",
+    "welch_anova": "All population means are equal.",
     "one_way_anova": "All group population means are equal.",
     "kruskal_wallis": "All group rank distributions are equal.",
     "pearson_correlation": "The population Pearson linear correlation is zero.",
@@ -79,7 +82,7 @@ def _label(value: Any) -> str | int | float | bool:
 def _degrees(value: Any, method_id: str) -> float | int | list[float | int] | None:
     if method_id == "mann_whitney_u":
         return None
-    if method_id == "one_way_anova":
+    if method_id in ("one_way_anova", "welch_anova"):
         if not isinstance(value, (list, tuple)) or len(value) != 2:
             raise InsufficientDataError("The backend returned invalid ANOVA degrees of freedom.")
         checked = [_number(item, "ANOVA degrees of freedom") for item in value]
@@ -151,22 +154,32 @@ def _group_result(
     backend_type, target, equal_var = _GROUP_BACKENDS[method_id]
     seed = specification.options.random_seed
     effective_seed = 0 if seed is None else seed
-    raw = analyzer.hypothesis_tests(
-        group_col,
-        outcome_col,
-        test_type=backend_type,
-        estimand=target,
-        equal_var=equal_var,
-        confidence_level=specification.options.confidence_level,
-        bootstrap_samples=499,
-        random_state=effective_seed,
-    )
+    if method_id == "welch_anova":
+        raw = analyzer.welch_anova(
+            group_col,
+            outcome_col,
+            confidence_level=specification.options.confidence_level,
+            alpha=specification.options.alpha,
+        )
+    else:
+        raw = analyzer.hypothesis_tests(
+            group_col,
+            outcome_col,
+            test_type=backend_type,
+            estimand=target,
+            equal_var=equal_var,
+            confidence_level=specification.options.confidence_level,
+            bootstrap_samples=499,
+            random_state=effective_seed,
+            alpha=specification.options.alpha,
+        )
     statistic = _number(raw.get("statistic"), "test statistic")
     p_value = _number(raw.get("p_value"), "p-value", probability=True)
     effect = raw.get("effect_size")
     if not isinstance(effect, dict):
         raise InsufficientDataError("The backend did not provide a valid effect-size record.")
-    effect_value = _number(effect.get("value"), "effect size")
+    effect_raw = effect.get("value")
+    effect_value = _number(effect_raw, "effect size") if effect_raw is not None else None
     effect_name = effect.get("name")
     if not isinstance(effect_name, str) or not effect_name:
         raise InsufficientDataError("The backend did not name its effect size.")
@@ -205,7 +218,12 @@ def _group_result(
         )
         if confidence_interval is None:
             raise InsufficientDataError("The t-test backend did not provide its mean interval.")
+    elif method_id == "welch_anova":
+        primary = None
+        estimate_name = "group means"
+        confidence_interval = None
     else:
+        assert effect_value is not None
         primary = effect_value
         estimate_name = effect_name
         confidence_interval = effect_interval
@@ -228,9 +246,18 @@ def _group_result(
             "value": effect_value,
             "definition": _EFFECT_DEFINITIONS[method_id],
             "confidence_interval": effect_interval,
+            "status": effect.get("status", "available"),
+            "reason": effect.get("reason"),
         },
         "confidence_interval": confidence_interval,
     }
+    pairwise = raw.get("pairwise_comparisons")
+    if len(groups) >= 3:
+        expected_pairs = len(groups) * (len(groups) - 1) // 2
+        if not isinstance(pairwise, list) or len(pairwise) != expected_pairs:
+            raise InsufficientDataError("The backend returned an incomplete pairwise family.")
+        values["group_summaries"] = _json_safe(raw.get("group_summaries"))
+        values["pairwise_comparisons"] = _json_safe(pairwise)
     return AnalysisResult(
         method_id=method_id,
         status=AnalysisStatus.AVAILABLE,
@@ -258,6 +285,9 @@ def _group_result(
             if len(groups) == 2
             else "at least one group differs",
             "diagnostics": diagnostics,
+            "pairwise_method": raw.get("pairwise_method"),
+            "multiplicity_control": raw.get("multiplicity_control"),
+            "pairwise_comparison_count": len(pairwise) if isinstance(pairwise, list) else 0,
             "bootstrap_default_resamples": 499,
             "effective_random_seed": effective_seed,
         },

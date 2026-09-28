@@ -382,7 +382,7 @@ def _alternative_hypothesis(method_id: str | None) -> str | None:
         "spearman_correlation",
     }:
         return "two-sided"
-    if method_id in {"one_way_anova", "kruskal_wallis"}:
+    if method_id in {"welch_anova", "one_way_anova", "kruskal_wallis"}:
         return "at least one group differs"
     if method_id in {"pearson_chi_square", "fisher_exact"}:
         return "variables are associated"

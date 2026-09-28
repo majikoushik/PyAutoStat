@@ -132,6 +132,7 @@ _METHODS = {
         "matched-pairs rank-biserial correlation",
     ),
     "mann_whitney_u": ("Mann-Whitney U test", "rank-biserial correlation"),
+    "welch_anova": ("Welch one-way ANOVA", "global standardized effect"),
     "one_way_anova": ("One-way ANOVA", "eta-squared"),
     "kruskal_wallis": ("Kruskal-Wallis test", "epsilon-squared (rank)"),
     "pearson_correlation": ("Pearson correlation", "Pearson r"),
@@ -146,7 +147,12 @@ _SIGNED_GROUP = {
     "wilcoxon_signed_rank",
     "mann_whitney_u",
 }
-_GROUP = _SIGNED_GROUP | {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
+_GROUP = _SIGNED_GROUP | {
+    "welch_anova",
+    "one_way_anova",
+    "kruskal_wallis",
+    "pearson_chi_square",
+}
 _NONNEGATIVE = {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
 _CORRELATIONS = {"pearson_correlation", "spearman_correlation"}
 _TWO_SIDED = _SIGNED_GROUP | _CORRELATIONS | {"one_sample_t"}
@@ -217,6 +223,7 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
             if method
             in (
                 "one_way_anova",
+                "welch_anova",
                 "kruskal_wallis",
             )
             else 2
@@ -319,7 +326,7 @@ def _assumption_notes(result: AnalysisResult) -> tuple[str, ...]:
 
     if result.method_id in {"student_t", "one_way_anova"}:
         notes.append(graded("equal_variance", "required", method_id=result.method_id))
-    elif result.method_id == "welch_t":
+    elif result.method_id in {"welch_t", "welch_anova"}:
         notes.append(graded("equal_variance", "not_required", method_id=result.method_id))
     elif result.method_id in {"paired_t", "wilcoxon_signed_rank"}:
         notes.append(graded("paired_structure", "required", method_id=result.method_id))
@@ -485,10 +492,16 @@ class InterpretationEngine:
         effect = values.get("effect_size")
         effect_value = _finite(effect.get("value")) if isinstance(effect, dict) else None
         is_mean_test = method in {"welch_t", "student_t", "paired_t", "one_sample_t"}
-        if estimate is None:
+        global_effect_not_applicable = (
+            method == "welch_anova"
+            and isinstance(effect, dict)
+            and effect.get("status") == "not_applicable"
+            and effect.get("name") == expected_effect
+        )
+        if estimate is None and method != "welch_anova":
             partial = True
             warnings.append("The primary estimate is unavailable or nonfinite.")
-        if (
+        if not global_effect_not_applicable and (
             not isinstance(effect, dict)
             or effect.get("name") != expected_effect
             or effect_value is None
@@ -508,7 +521,7 @@ class InterpretationEngine:
                 "Cohen's d has a direction inconsistent with the recorded mean difference; "
                 "its interpretation is unavailable."
             )
-        if not is_mean_test and effect_value is None:
+        if not is_mean_test and effect_value is None and method != "welch_anova":
             estimate = None
         if estimate is not None and (
             (method in _NONNEGATIVE and estimate < 0)
@@ -738,6 +751,18 @@ class InterpretationEngine:
                         "values.primary_estimate",
                         "values.effect_size",
                     )
+        elif method == "welch_anova" and global_effect_not_applicable:
+            effect_text = (
+                "No global standardized effect is reported for Welch ANOVA; the recorded group "
+                "means and Games-Howell mean differences carry the magnitude information."
+            )
+            _finding(
+                findings,
+                "global_effect_not_applicable",
+                effect_text,
+                "values.group_summaries",
+                "values.pairwise_comparisons",
+            )
         else:
             _finding(
                 findings,
@@ -799,7 +824,18 @@ class InterpretationEngine:
         interval_text: str | None = None
         interval = values.get("confidence_interval")
         valid_interval = False
-        if interval is None:
+        if interval is None and method == "welch_anova":
+            interval_text = (
+                "An omnibus confidence interval is not applicable; simultaneous Games-Howell "
+                "intervals are recorded for every pairwise mean difference."
+            )
+            _finding(
+                findings,
+                "pairwise_intervals_reported",
+                interval_text,
+                "values.pairwise_comparisons",
+            )
+        elif interval is None:
             partial = True
             limitations.append("A confidence interval for the primary estimate is unavailable.")
             interval_text = (
@@ -931,8 +967,32 @@ class InterpretationEngine:
                 "their threshold decisions need not agree."
             )
 
-        if method in {"one_way_anova", "kruskal_wallis"}:
-            limitations.append("The omnibus test does not identify specific group differences.")
+        if method in {"welch_anova", "one_way_anova", "kruskal_wallis"}:
+            pairwise = values.get("pairwise_comparisons")
+            if isinstance(pairwise, list) and pairwise:
+                rejected = sum(
+                    item.get("decision") == "reject" for item in pairwise if isinstance(item, dict)
+                )
+                procedure = result.metadata.get("pairwise_method")
+                pairwise_text = (
+                    f"The complete {procedure} family contained {len(pairwise)} comparisons; "
+                    f"{rejected} rejected its pairwise null after the recorded multiplicity "
+                    "control. Pairwise results were calculated regardless of the omnibus p-value."
+                )
+                _finding(
+                    findings,
+                    "pairwise_family_reported",
+                    pairwise_text,
+                    "values.pairwise_comparisons",
+                    "metadata.multiplicity_control",
+                )
+            else:
+                partial = True
+                warnings.append("The complete pairwise follow-up family is unavailable.")
+            limitations.append(
+                "The omnibus result alone does not identify specific group differences; "
+                "interpret the separately multiplicity-controlled pairwise family."
+            )
         if method in {
             "pearson_correlation",
             "spearman_correlation",

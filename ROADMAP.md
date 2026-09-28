@@ -44,9 +44,8 @@ target, not a scheduled next release.
 
 ## Candidate statistical capabilities
 
-Potential additions include justified multi-group mean workflows, additional paired or
-distributional methods, additional correlation inference, post-hoc and multiplicity procedures,
-regression, and repeated-measures models. These are candidates rather than commitments.
+Potential additions include further paired or distributional methods, additional correlation
+inference, regression, and repeated-measures models. These are candidates rather than commitments.
 
 A method should be added only when the complete contract can be supported:
 

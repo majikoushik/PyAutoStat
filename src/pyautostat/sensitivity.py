@@ -44,6 +44,7 @@ _QUANTITIES = {
     "one_sample_t": "mean_difference",
     "wilcoxon_signed_rank": "matched_pairs_rank_biserial",
     "mann_whitney_u": "rank_biserial",
+    "welch_anova": "group_mean_vector",
     "one_way_anova": "eta_squared",
     "kruskal_wallis": "epsilon_squared",
     "pearson_correlation": "pearson_r",
@@ -407,7 +408,11 @@ def classify_comparability(base: AnalysisResult, scenario: AnalysisResult) -> Co
     if left["design"] == "paired":
         if left["contrast"] != right["contrast"]:
             return Comparability.INCOMPATIBLE
-    if left["estimate_quantity"] != right["estimate_quantity"]:
+    mean_omnibus_pair = {base.method_id, scenario.method_id} == {
+        "welch_anova",
+        "one_way_anova",
+    }
+    if left["estimate_quantity"] != right["estimate_quantity"] and not mean_omnibus_pair:
         return Comparability.DIFFERENT_ESTIMAND
     return Comparability.SAME_ESTIMAND
 
@@ -454,6 +459,49 @@ def _direction(value: float) -> str:
 
 def compare_same_estimand(base: AnalysisResult, scenario: AnalysisResult) -> dict[str, Any]:
     """Compare compatible estimates descriptively, normalizing a reversed contrast."""
+    if {base.method_id, scenario.method_id} == {"welch_anova", "one_way_anova"}:
+        base_summaries = base.values.get("group_summaries")
+        scenario_summaries = scenario.values.get("group_summaries")
+        if not isinstance(base_summaries, list) or not isinstance(scenario_summaries, list):
+            return {"available": False, "reason": "Recorded group means are unavailable."}
+        base_means = {
+            str(item.get("group")): _finite(item.get("mean"))
+            for item in base_summaries
+            if isinstance(item, dict)
+        }
+        scenario_means = {
+            str(item.get("group")): _finite(item.get("mean"))
+            for item in scenario_summaries
+            if isinstance(item, dict)
+        }
+        if base_means.keys() != scenario_means.keys() or any(
+            value is None for value in (*base_means.values(), *scenario_means.values())
+        ):
+            return {"available": False, "reason": "Group mean identities do not match."}
+        differences: dict[str, float] = {}
+        for group in base_means:
+            base_mean = base_means[group]
+            scenario_mean = scenario_means[group]
+            assert base_mean is not None and scenario_mean is not None
+            differences[group] = scenario_mean - base_mean
+        return _json_value(
+            {
+                "available": True,
+                "comparison_quantity": "group mean vector",
+                "base_group_means": base_means,
+                "scenario_group_means": scenario_means,
+                "group_mean_differences": differences,
+                "all_group_means_equal_within_tolerance": all(
+                    math.isclose(value, 0.0, rel_tol=1e-10, abs_tol=1e-12)
+                    for value in differences.values()
+                ),
+                "sample_size_change": (
+                    scenario.sample_size - base.sample_size
+                    if scenario.sample_size is not None and base.sample_size is not None
+                    else None
+                ),
+            }
+        )
     base_estimate = _finite(base.values.get("primary_estimate"))
     scenario_estimate = _finite(scenario.values.get("primary_estimate"))
     if base_estimate is None or scenario_estimate is None:

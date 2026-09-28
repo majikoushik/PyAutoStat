@@ -4,7 +4,6 @@ import pandas as pd
 
 from pyautostat import ResearchAssistant
 
-
 frame = pd.DataFrame(
     {
         "group": ["standard"] * 8 + ["new"] * 8,

@@ -14,6 +14,7 @@ For a small synthetic example with no workbook dependency, run:
 python examples/explainable_recommendation_and_report.py
 python examples/data_understanding.py
 python examples/basic_inference.py
+python examples/multigroup_analysis.py
 ~~~
 
 It prints the dataset story, deterministic recommendation rationale (why this
@@ -30,6 +31,10 @@ and their deterministic narratives using synthetic data only.
 inferential Spearman, and sparse 2x2 Fisher paths. It prints researcher-readable workflow
 explanations and requires no external files. Wilcoxon and Fisher explicitly disclose that their
 primary-effect confidence intervals are unavailable.
+
+`multigroup_analysis.py` demonstrates guided Welch ANOVA with Games-Howell, guided
+Kruskal-Wallis with Dunn-Holm, and explicit classical ANOVA with Tukey-Kramer. Every structured
+pair is retained even when the printed explanation is bounded.
 
 ## Install
 

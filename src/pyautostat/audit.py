@@ -272,6 +272,70 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
             or any(not isinstance(row, list) or len(row) != 2 for row in observed)
         ):
             _mismatch("analysis.metadata.observed_counts", "2x2 table", observed, findings)
+    if method in {"welch_anova", "one_way_anova", "kruskal_wallis"}:
+        order = source.metadata.get("group_order")
+        pairwise = values.get("pairwise_comparisons")
+        summaries = values.get("group_summaries")
+        if not isinstance(order, list) or len(order) < 3:
+            _mismatch("analysis.metadata.group_order", "at least three groups", order, findings)
+        else:
+            expected_count = len(order) * (len(order) - 1) // 2
+            if not isinstance(pairwise, list) or len(pairwise) != expected_count:
+                _mismatch(
+                    "analysis.values.pairwise_comparisons",
+                    f"complete family of {expected_count} pairs",
+                    pairwise,
+                    findings,
+                )
+            else:
+                expected_pairs = {
+                    (str(order[first]), str(order[second]))
+                    for first in range(len(order))
+                    for second in range(first + 1, len(order))
+                }
+                observed_pairs: set[tuple[str, str]] = set()
+                for index, item in enumerate(pairwise):
+                    path = f"analysis.values.pairwise_comparisons[{index}]"
+                    if not isinstance(item, dict):
+                        _mismatch(path, "pairwise record", item, findings)
+                        continue
+                    observed_pairs.add((str(item.get("group1")), str(item.get("group2"))))
+                    adjusted = item.get("adjusted_p_value")
+                    if not (
+                        isinstance(adjusted, (int, float))
+                        and not isinstance(adjusted, bool)
+                        and math.isfinite(float(adjusted))
+                        and 0 <= float(adjusted) <= 1
+                    ):
+                        _mismatch(
+                            f"{path}.adjusted_p_value", "finite probability", adjusted, findings
+                        )
+                    contrast = item.get("contrast")
+                    if (
+                        not isinstance(contrast, dict)
+                        or contrast.get("definition") != "first group minus second group"
+                        or contrast.get("first_group") != item.get("group1")
+                        or contrast.get("second_group") != item.get("group2")
+                    ):
+                        _mismatch(
+                            f"{path}.contrast", "first-minus-second orientation", contrast, findings
+                        )
+                if observed_pairs != expected_pairs:
+                    _mismatch(
+                        "analysis.values.pairwise_comparisons.pairs",
+                        sorted(expected_pairs),
+                        sorted(observed_pairs),
+                        findings,
+                    )
+            if not isinstance(summaries, list) or [
+                str(item.get("group")) for item in summaries if isinstance(item, dict)
+            ] != [str(item) for item in order]:
+                _mismatch(
+                    "analysis.values.group_summaries",
+                    "one summary in recorded group order",
+                    summaries,
+                    findings,
+                )
     return tuple(findings)
 
 
