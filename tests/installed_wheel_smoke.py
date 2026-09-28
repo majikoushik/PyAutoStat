@@ -148,6 +148,30 @@ sparse = ResearchAssistant(
 assert sparse.status.value == "partial"
 assert sparse.analysis.method_id == "fisher_exact"
 
+regression = ResearchAssistant(
+    pd.DataFrame(
+        {
+            "y": [4.2, 5.1, 6.5, 7.0, 8.4, 9.2, 10.5, 11.3],
+            "x": [1.0, 2, 3, 4, 5, 6, 7, 8],
+            "group": ["A", "B"] * 4,
+        }
+    )
+).run(
+    objective="regression",
+    outcome="y",
+    predictors=["x", "group"],
+    design="independent",
+    estimand="conditional_mean",
+    variable_types={"y": "continuous", "x": "continuous", "group": "nominal"},
+    reference_levels={"group": "A"},
+    covariance_type="HC3",
+)
+assert regression.status.value == "completed"
+assert regression.analysis.method_id == "linear_regression"
+assert regression.analysis.values["covariance_type"] == "HC3"
+assert "regression_diagnostics" in regression.report.to_csv_tables()
+assert regression.audit.status == "passed"
+
 planning = StudyPlanner().independent_mean_power(
     target_difference=2,
     sd_group1=3,

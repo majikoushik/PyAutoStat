@@ -50,6 +50,7 @@ from .multigroup import dunn as _dunn
 from .multigroup import games_howell as _games_howell
 from .multigroup import tukey_hsd as _tukey_hsd
 from .multigroup import welch_anova as _welch_anova
+from .regression import fit_ols as _fit_ols
 
 _VALID_TEST_TYPES = ("auto", "ttest", "mannwhitney", "anova", "kruskal")
 _DEFAULT_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
@@ -1063,6 +1064,38 @@ class StatisticalAnalyzer:
     ) -> dict:
         """Run all Dunn rank comparisons with multiplicity adjustment."""
         return _dunn(self.df, group_col, value_col, adjustment=adjustment, alpha=alpha)
+
+    def linear_regression(
+        self,
+        outcome: str,
+        predictors: list[str] | tuple[str, ...],
+        *,
+        variable_types: dict[str, str],
+        covariance_type: str = "classical",
+        reference_levels: dict[str, object] | None = None,
+        data_dictionary: dict[str, dict[str, object]] | None = None,
+        confidence_level: float = 0.95,
+        alpha: float = 0.05,
+    ) -> dict:
+        """Fit validated OLS with treatment coding and stored diagnostics."""
+        aliases = {
+            "continuous": "continuous_numerical",
+            "discrete": "discrete_numerical",
+            "nominal": "nominal_categorical",
+            "ordinal": "ordinal_categorical",
+        }
+        normalized = {name: aliases.get(kind, kind) for name, kind in variable_types.items()}
+        return _fit_ols(
+            self.df,
+            outcome,
+            tuple(predictors),
+            normalized,
+            covariance_type=covariance_type,
+            reference_levels=reference_levels,
+            data_dictionary=data_dictionary,
+            confidence_level=confidence_level,
+            alpha=alpha,
+        )
 
     def hypothesis_tests(
         self,

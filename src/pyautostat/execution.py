@@ -52,6 +52,7 @@ _NULL_HYPOTHESES = {
     ),
     "spearman_correlation": "The population Spearman monotonic correlation is zero.",
     "fisher_exact": "The two binary categorical variables are independent.",
+    "linear_regression": "All non-intercept population slope coefficients are zero.",
 }
 
 
@@ -135,6 +136,92 @@ def _unavailable(
                 "analyzed_rows": None,
                 "excluded_rows": None,
             },
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _regression_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    question = specification.question
+    assert question.outcome is not None and question.predictors is not None
+    variable_types = recommendation.context.get("variable_types")
+    if not isinstance(variable_types, dict):
+        raise InsufficientDataError("Regression analytical variable types are unavailable.")
+    raw = analyzer.linear_regression(
+        question.outcome,
+        question.predictors,
+        variable_types=variable_types,
+        covariance_type=specification.options.covariance_type,
+        reference_levels=specification.options.reference_levels,
+        data_dictionary=specification.data_dictionary,
+        confidence_level=specification.options.confidence_level,
+        alpha=specification.options.alpha,
+    )
+    sample = raw["sample"]
+    fit = raw["model_fit"]
+    diagnostics = raw["diagnostics"]
+    values = {
+        "test_statistic": fit["model_f_statistic"],
+        "degrees_of_freedom": [
+            fit["model_degrees_of_freedom"],
+            fit["residual_degrees_of_freedom"],
+        ],
+        "p_value": fit["model_f_p_value"],
+        "primary_estimate": fit["r_squared"],
+        "estimate_name": "R-squared",
+        "confidence_interval": None,
+        "effect_size": {
+            "name": "R-squared",
+            "value": fit["r_squared"],
+            "definition": "Observed outcome variance accounted for by the fitted in-sample model.",
+            "confidence_interval": None,
+            "status": "available",
+        },
+        "outcome": raw["outcome"],
+        "predictors": raw["predictors"],
+        "target": raw["target"],
+        "covariance_type": raw["covariance_type"],
+        "intercept": raw["intercept"],
+        "model_fit": fit,
+        "coefficients": raw["coefficients"],
+        "design_matrix": raw["design_matrix"],
+        "diagnostics": diagnostics,
+    }
+    return AnalysisResult(
+        method_id="linear_regression",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=int(sample["analyzed_rows"]),
+        excluded_rows=int(sample["excluded_rows"]),
+        values=_json_safe(values),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "backend_test": raw["method"],
+            "numerical_source": "statsmodels.api.OLS",
+            "sample": _json_safe(sample),
+            "regression_specification": {
+                "outcome": raw["outcome"],
+                "predictors": raw["predictors"],
+                "target": raw["target"],
+                "covariance_type": raw["covariance_type"],
+                "intercept": True,
+                "reference_levels": {
+                    item["predictor"]: item["reference_level"]
+                    for item in raw["design_matrix"]["coding"]
+                    if item.get("reference_level") is not None
+                },
+                "variable_types": variable_types,
+                "complete_case_policy": sample["missing_data_policy"],
+            },
+            "diagnostics": _json_safe(diagnostics),
+            "null_hypothesis": _NULL_HYPOTHESES["linear_regression"],
+            "inference": True,
         },
         specification=specification,
         recommendation=recommendation,
@@ -968,6 +1055,8 @@ def execute_specification(
                 specification=specification,
                 recommendation=recommendation,
             )
+        if method_id == "linear_regression":
+            return _regression_result(analyzer, specification, recommendation)
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, recommendation)
         if method_id == "one_sample_t":
@@ -1052,6 +1141,8 @@ def execute_selected_method(
         },
     )
     try:
+        if method_id == "linear_regression":
+            return _regression_result(analyzer, specification, explicit)
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, explicit)
         if method_id == "one_sample_t":

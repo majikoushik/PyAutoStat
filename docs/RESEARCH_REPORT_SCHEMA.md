@@ -40,7 +40,13 @@ or recalculates a test. The auditor regenerates schema 2 from captured independe
 records and detects altered scenario counts, status, comparability, estimates, threshold, and
 relations.
 
-Tables may include `sample_accounting`, `group_sizes`, `group_summaries`, `statistical_results`, `effect_estimates`, `confidence_intervals`, `pairwise_comparisons`, `descriptive_statistics`, and optional `histogram_N_bins`. CSV export returns one UTF-8 string per table ID. HTML and Markdown render the same table cells; JSON retains raw numeric values. Display formatting is centralized and never changes the underlying p-value. A computational p-value of zero displays as a qualified inequality.
+Tables may include `sample_accounting`, `group_sizes`, `group_summaries`, `statistical_results`,
+`effect_estimates`, `confidence_intervals`, `pairwise_comparisons`, `descriptive_statistics`,
+`regression_coefficients`, `regression_model_fit`, `regression_vif`,
+`regression_diagnostics`, and optional `histogram_N_bins`. CSV export returns one UTF-8 string per
+table ID. HTML and Markdown render the same table cells; JSON retains raw numeric values. Display
+formatting is centralized and never changes the underlying p-value. A computational p-value of
+zero displays as a qualified inequality.
 
 | Method | Report content | Limit |
 | --- | --- | --- |
@@ -51,6 +57,7 @@ Tables may include `sample_accounting`, `group_sizes`, `group_summaries`, `stati
 | `one_way_anova`, `kruskal_wallis` | Omnibus statistic/p, named effect, group summaries, and complete Tukey-Kramer or Dunn-Holm family | Classical ANOVA is not automatically selected; pairwise results retain their own multiplicity control |
 | `pearson_correlation` | r/p and effective pair count | Current guided result has no CI, so report is partial |
 | `pearson_chi_square` | Chi-square/df/p and Cramer's V/interval | No cell-specific or causal conclusion |
+| `linear_regression` | Complete coefficient table, model fit, VIF, and diagnostic summary from the stored OLS result | Executive summary stays model-level; no causal or out-of-sample prediction claim |
 
 Unavailable analyses yield `status="unavailable"` and no reader-facing numerical result table. Partial interpretations yield `status="partial"` with available numbers and explicit missing information. Contradictory row accounting and mismatched supplied interpretations raise `ReportError`. Supplied interpretations must match the current deterministic result exactly. provenance content references are separate from both report schema versions.
 

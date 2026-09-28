@@ -131,6 +131,45 @@ not write files or replay the analysis automatically. Recommendation explanation
 summaries use only the stored specification, decision trace, diagnostics, results, effect labels,
 warnings, and limitations; they do not use generative AI.
 
+### Linear regression
+
+Simple and multiple ordinary least-squares regression use a declared continuous outcome and one
+or more ordered predictors. The target is the conditional mean, and independent observational
+units must be declared explicitly:
+
+```python
+regression = ResearchAssistant(df).run(
+    objective="regression",
+    outcome="exam_score",
+    predictors=["hours_studied", "attendance"],
+    estimand="conditional_mean",
+    design="independent",
+    variable_types={
+        "exam_score": "continuous",
+        "hours_studied": "continuous",
+        "attendance": "continuous",
+    },
+    covariance_type="HC3",  # or "classical"
+)
+print(regression.explain())
+```
+
+Numerical predictors remain in their original units. Boolean, nominal, and ordinal predictors use
+explicit treatment coding; ordinal levels are categorical and are never assumed equally spaced.
+Set references with `reference_levels={"study_method": "standard"}`. Otherwise the declared
+category order, pandas categorical order, or first observed complete-case level is recorded as the
+reference. One complete-case sample is formed across the outcome and every predictor, an
+intercept is included, and rank-deficient designs are blocked without dropping terms.
+
+Results include coefficient estimates, standard errors, t tests, coefficient intervals, model F,
+R-squared, adjusted R-squared, residual error measures, and continuous-predictor standardized
+betas. VIF, Breusch-Pagan, Jarque-Bera, influence heuristics, and the condition number are advisory
+records; they never select a covariance estimator, remove observations, or change the model.
+HC3 is an explicit alternative to classical covariance and changes uncertainty estimates, not OLS
+point coefficients. Coefficients are conditional associations, not causal effects; R-squared is
+in-sample fit, not out-of-sample predictive accuracy. See
+[`examples/linear_regression.py`](examples/linear_regression.py).
+
 ## When information is missing
 
 Omit an essential design fact and the workflow returns a structured request without running a
@@ -175,6 +214,8 @@ remain distinct from a completed workflow.
   assumptions are independently justified.
 - Pearson linear and Spearman monotonic numerical association inference.
 - Pearson chi-square categorical association plus Fisher's exact fallback for sparse 2x2 tables.
+- Simple and multiple OLS conditional-mean regression with continuous, Boolean, nominal, and
+  categorical ordinal predictors; explicit classical or HC3 covariance and diagnostics.
 - Effect estimates, supported confidence intervals, sample accounting, assumptions, and warnings.
 - Deterministic interpretation and canonical research reports.
 - Static HTML, Markdown, JSON, CSV tables, safe LaTeX, and optional interactive Plotly HTML.
@@ -334,7 +375,8 @@ with an `unknown` resource level and an advisory warning.
 - Automatic selection requires the estimand and design; it does not choose a favorable p-value.
 - Source values are not automatically recoded, imputed, removed, sampled, or truncated.
 - Outlier flags are review cues and never automatic deletion rules.
-- Repeated measures with more than two conditions, clustered models, regression, mixed models,
+- Repeated measures with more than two conditions, clustered models, logistic and other
+  generalized regression families, interactions, mixed models,
   survival analysis, causal inference, sparse exact-table alternatives, broad post-hoc procedures,
   and formal equivalence/noninferiority tests are unsupported.
 - Current templates are publication-oriented aids, not journal or regulatory certification.

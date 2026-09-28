@@ -104,25 +104,46 @@ def _build_executive_summary(
     analyses: list[dict[str, Any]] = []
     if isinstance(methods, dict) and methods.get("method_id") != "dataset_profile":
         method_name = methods.get("method_name") or methods.get("method_id")
-        variables = (
-            [question.get(name) for name in ("outcome", "predictor")]
-            if isinstance(question, dict)
-            else []
-        )
-        selected = [repr(item) for item in variables if item is not None]
+        variables = []
+        if isinstance(question, dict):
+            variables = [question.get("outcome"), question.get("predictor")]
+            predictors = question.get("predictors")
+            if isinstance(predictors, list):
+                variables.extend(predictors)
+        selected = [
+            repr(item) for item in dict.fromkeys(item for item in variables if item is not None)
+        ]
         if selected:
             method_name = f"{method_name} for {' and '.join(selected)}"
-        finding = (
-            interpretation.get("hypothesis")
-            if methods.get("execution_status") == "available" and isinstance(interpretation, dict)
-            else "The analysis result is unavailable; no successful statistical finding is "
-            "presented."
-        )
+        available = methods.get("execution_status") == "available"
+        if available and isinstance(interpretation, dict):
+            if methods.get("method_id") == "linear_regression":
+                finding = " ".join(
+                    str(item).strip()
+                    for item in (
+                        interpretation.get("summary"),
+                        interpretation.get("hypothesis"),
+                    )
+                    if isinstance(item, str) and item.strip()
+                )
+            else:
+                candidate = interpretation.get("hypothesis")
+                finding = (
+                    candidate
+                    if isinstance(candidate, str)
+                    else "No reader-facing hypothesis interpretation is available."
+                )
+        else:
+            finding = (
+                "The analysis result is unavailable; no successful statistical finding is "
+                "presented."
+            )
         uncertainty = (
             interpretation.get("uncertainty") if isinstance(interpretation, dict) else None
         )
         if (
-            methods.get("execution_status") == "available"
+            available
+            and methods.get("method_id") != "linear_regression"
             and isinstance(uncertainty, str)
             and uncertainty.strip()
         ):
@@ -666,6 +687,8 @@ def build_research_report(
         "pairwise_method": metadata.get("pairwise_method"),
         "multiplicity_control": metadata.get("multiplicity_control"),
         "pairwise_comparison_count": metadata.get("pairwise_comparison_count"),
+        "covariance_type": visible.get("covariance_type"),
+        "intercept": visible.get("intercept"),
     }
     dataset = {
         "original_rows": original,
@@ -711,6 +734,15 @@ def build_research_report(
         "standard_error": visible.get("standard_error"),
         "group_summaries": visible.get("group_summaries"),
         "pairwise_comparisons": visible.get("pairwise_comparisons"),
+        "outcome": visible.get("outcome"),
+        "predictors": visible.get("predictors"),
+        "target": visible.get("target"),
+        "covariance_type": visible.get("covariance_type"),
+        "intercept": visible.get("intercept"),
+        "model_fit": visible.get("model_fit"),
+        "coefficients": visible.get("coefficients"),
+        "design_matrix": visible.get("design_matrix"),
+        "diagnostics": visible.get("diagnostics"),
     }
     interpretation_section = {
         "status": interpreted["status"],
@@ -810,6 +842,176 @@ def build_research_report(
                 ],
             )
         )
+    coefficients = visible.get("coefficients")
+    if isinstance(coefficients, list) and coefficients and status != "unavailable":
+        tables.append(
+            _table(
+                "regression_coefficients",
+                "Regression coefficients",
+                [
+                    "Term",
+                    "Predictor",
+                    "Comparison level",
+                    "Reference level",
+                    "Estimate",
+                    "SE",
+                    "t",
+                    "p",
+                    "CI lower",
+                    "CI upper",
+                    "Standardized beta",
+                    "Decision",
+                ],
+                [
+                    [
+                        _cell(item.get("term"), f"analysis.values.coefficients[{i}].term"),
+                        _cell(
+                            item.get("predictor"), f"analysis.values.coefficients[{i}].predictor"
+                        ),
+                        _cell(item.get("level"), f"analysis.values.coefficients[{i}].level"),
+                        _cell(
+                            item.get("reference_level"),
+                            f"analysis.values.coefficients[{i}].reference_level",
+                        ),
+                        _cell(item.get("estimate"), f"analysis.values.coefficients[{i}].estimate"),
+                        _cell(
+                            item.get("standard_error"),
+                            f"analysis.values.coefficients[{i}].standard_error",
+                        ),
+                        _cell(
+                            item.get("statistic"), f"analysis.values.coefficients[{i}].statistic"
+                        ),
+                        _cell(item.get("p_value"), f"analysis.values.coefficients[{i}].p_value"),
+                        _cell(
+                            (item.get("confidence_interval") or {}).get("lower"),
+                            f"analysis.values.coefficients[{i}].confidence_interval.lower",
+                        ),
+                        _cell(
+                            (item.get("confidence_interval") or {}).get("upper"),
+                            f"analysis.values.coefficients[{i}].confidence_interval.upper",
+                        ),
+                        _cell(
+                            item.get("standardized_beta"),
+                            f"analysis.values.coefficients[{i}].standardized_beta",
+                        ),
+                        _cell(item.get("decision"), f"analysis.values.coefficients[{i}].decision"),
+                    ]
+                    for i, item in enumerate(coefficients)
+                    if isinstance(item, dict)
+                ],
+            )
+        )
+        model_fit = visible.get("model_fit")
+        if isinstance(model_fit, dict):
+            tables.append(
+                _table(
+                    "regression_model_fit",
+                    "Regression model fit",
+                    ["Measure", "Value"],
+                    _mapping_rows(model_fit, "analysis.values.model_fit"),
+                )
+            )
+        diagnostics = visible.get("diagnostics")
+        if isinstance(diagnostics, dict):
+            vif = diagnostics.get("vif")
+            vif_terms = vif.get("terms") if isinstance(vif, dict) else None
+            if isinstance(vif_terms, list) and vif_terms:
+                tables.append(
+                    _table(
+                        "regression_vif",
+                        "Regression collinearity diagnostics",
+                        ["Term", "Predictor", "VIF", "Status", "Advisory"],
+                        [
+                            [
+                                _cell(
+                                    item.get("term"),
+                                    f"analysis.values.diagnostics.vif.terms[{i}].term",
+                                ),
+                                _cell(
+                                    item.get("predictor"),
+                                    f"analysis.values.diagnostics.vif.terms[{i}].predictor",
+                                ),
+                                _cell(
+                                    item.get("value"),
+                                    f"analysis.values.diagnostics.vif.terms[{i}].value",
+                                ),
+                                _cell(
+                                    item.get("status"),
+                                    f"analysis.values.diagnostics.vif.terms[{i}].status",
+                                ),
+                                _cell(
+                                    item.get("advisory"),
+                                    f"analysis.values.diagnostics.vif.terms[{i}].advisory",
+                                ),
+                            ]
+                            for i, item in enumerate(vif_terms)
+                            if isinstance(item, dict)
+                        ],
+                    )
+                )
+            bp = diagnostics.get("breusch_pagan")
+            normality = diagnostics.get("residual_normality")
+            influence = diagnostics.get("influence")
+            diagnostic_rows = []
+            if isinstance(bp, dict):
+                diagnostic_rows.append(
+                    [
+                        _cell("Breusch-Pagan", "analysis.values.diagnostics.breusch_pagan"),
+                        _cell(
+                            bp.get("lm_statistic"),
+                            "analysis.values.diagnostics.breusch_pagan.lm_statistic",
+                        ),
+                        _cell(
+                            bp.get("lm_p_value"),
+                            "analysis.values.diagnostics.breusch_pagan.lm_p_value",
+                        ),
+                        _cell(bp.get("status"), "analysis.values.diagnostics.breusch_pagan.status"),
+                    ]
+                )
+            if isinstance(normality, dict):
+                diagnostic_rows.append(
+                    [
+                        _cell(
+                            normality.get("method"),
+                            "analysis.values.diagnostics.residual_normality.method",
+                        ),
+                        _cell(
+                            normality.get("statistic"),
+                            "analysis.values.diagnostics.residual_normality.statistic",
+                        ),
+                        _cell(
+                            normality.get("p_value"),
+                            "analysis.values.diagnostics.residual_normality.p_value",
+                        ),
+                        _cell(
+                            normality.get("status"),
+                            "analysis.values.diagnostics.residual_normality.status",
+                        ),
+                    ]
+                )
+            if isinstance(influence, dict):
+                diagnostic_rows.append(
+                    [
+                        _cell("Influence heuristics", "analysis.values.diagnostics.influence"),
+                        _cell(
+                            influence.get("flagged_count"),
+                            "analysis.values.diagnostics.influence.flagged_count",
+                        ),
+                        _cell(None, "analysis.values.diagnostics.influence"),
+                        _cell(
+                            influence.get("status"), "analysis.values.diagnostics.influence.status"
+                        ),
+                    ]
+                )
+            if diagnostic_rows:
+                tables.append(
+                    _table(
+                        "regression_diagnostics",
+                        "Regression diagnostic summary",
+                        ["Diagnostic", "Statistic or count", "p", "Status"],
+                        diagnostic_rows,
+                    )
+                )
     pairwise = visible.get("pairwise_comparisons")
     if isinstance(pairwise, list) and pairwise and status != "unavailable":
         tables.append(
@@ -1152,11 +1354,14 @@ def build_research_report(
             "description": question["description"],
             "outcome": question["outcome"],
             "predictor": question["predictor"],
+            "predictors": question.get("predictors"),
             "estimand": question["estimand"],
             "declared_design": spec["design"],
             "unit_id": spec.get("unit_id"),
             "condition_order": spec.get("condition_order"),
             "reference_value": question.get("reference_value"),
+            "reference_levels": spec.get("options", {}).get("reference_levels"),
+            "covariance_type": visible.get("covariance_type"),
             "data_dictionary": spec.get("data_dictionary"),
         },
         "dataset": dataset,

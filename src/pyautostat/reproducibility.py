@@ -16,6 +16,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 import scipy
+import statsmodels
 
 from .exceptions import InvalidDataError, PyAutoStatError
 from .practical_significance import (
@@ -42,6 +43,15 @@ _VALUES = (
     "confidence_interval",
     "group_summaries",
     "pairwise_comparisons",
+    "outcome",
+    "predictors",
+    "target",
+    "covariance_type",
+    "intercept",
+    "model_fit",
+    "coefficients",
+    "design_matrix",
+    "diagnostics",
 )
 
 
@@ -61,6 +71,7 @@ def runtime_environment() -> dict[str, Any]:
         "pandas": pd.__version__,
         "numpy": np.__version__,
         "scipy": scipy.__version__,
+        "statsmodels": statsmodels.__version__,
         "system": platform.system(),
         "architecture": platform.machine(),
     }

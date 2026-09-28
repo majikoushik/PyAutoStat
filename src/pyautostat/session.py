@@ -37,6 +37,7 @@ def capability_payload() -> dict[str, Any]:
                 "compare_groups",
                 "compare_reference",
                 "association",
+                "regression",
             ],
             "designs": ["independent", "paired", "repeated", "clustered"],
             "methods": methods,
@@ -96,15 +97,11 @@ def build_session_snapshot(
     if status == "needs_input":
         actions.insert(0, "provide_missing_information")
     if status in {"completed", "partial"}:
+        method_id = workflow.analysis.method_id if workflow.analysis is not None else None
+        if method_id != "linear_regression":
+            actions.extend(["run_sensitivity", "assess_practical_significance"])
         actions.extend(
-            [
-                "run_sensitivity",
-                "assess_practical_significance",
-                "generate_report",
-                "save_report",
-                "audit_report",
-                "create_reproducibility_record",
-            ]
+            ["generate_report", "save_report", "audit_report", "create_reproducibility_record"]
         )
     elif status not in {"data_limited", "unsupported", "failed"} and not questions:
         actions.append("run_analysis")

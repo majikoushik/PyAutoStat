@@ -10,7 +10,9 @@ import numpy as np
 import pandas as pd
 
 from .categorical import contingency_counts
+from .exceptions import InsufficientDataError, InvalidDataError
 from .question_builder import QuestionDraft, QuestionStatus
+from .regression import build_design_matrix
 from .results import MissingInformation, Recommendation, RecommendationStatus
 from .specifications import Objective, StudyDesign
 
@@ -72,6 +74,26 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             "runnable",
             "Descriptive findings are not hypothesis tests.",
             "ResearchAssistant.profile",
+        ),
+        MethodCapability(
+            "linear_regression",
+            "Ordinary least-squares linear regression",
+            "regression",
+            "conditional_mean",
+            ("continuous_outcome", "one_or_more_predictors"),
+            ("independent",),
+            "not_applicable",
+            "Full-rank design with positive residual degrees of freedom",
+            (
+                "Independent observational units",
+                "Linear conditional-mean specification",
+                "Finite complete-case observations",
+                "Appropriate residual and variance conditions for the selected covariance",
+            ),
+            True,
+            "runnable",
+            "Conditional associations are not causal or validated out-of-sample predictions.",
+            "statsmodels.api.OLS",
         ),
         MethodCapability(
             "welch_t",
@@ -337,7 +359,13 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
     spec = draft.specification
     question = spec.question
     objective = question.objective
-    selected = [name for name in (question.outcome, question.predictor) if name is not None]
+    selected = list(
+        dict.fromkeys(
+            name
+            for name in (question.outcome, question.predictor, *(question.predictors or ()))
+            if name is not None
+        )
+    )
     types = {name: draft.variable_suggestions[name]["suggested_type"] for name in selected}
     context: dict[str, Any] = {
         "objective": objective.value if objective is not None else None,
@@ -439,6 +467,108 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
     if objective == Objective.COMPARE_REFERENCE:
         assert question.outcome is not None
         return _compare_reference(frame, question.outcome, types, spec, context, record, finish)
+    if objective == Objective.REGRESSION:
+        assert question.outcome is not None and question.predictors is not None
+        predictors = question.predictors
+        columns = [question.outcome, *predictors]
+        context.update(
+            {
+                "outcome": question.outcome,
+                "predictors": list(predictors),
+                "covariance_type": spec.options.covariance_type,
+                "reference_levels": spec.options.reference_levels or {},
+                "intercept": True,
+                "missing_data_policy": "complete cases across outcome and all predictors",
+            }
+        )
+        if spec.design != StudyDesign.INDEPENDENT:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "OLS in this phase requires independent observational units; repeated, "
+                    "paired, and clustered regression are unsupported.",
+                ),
+                rationale="The declared dependence structure requires another model.",
+            )
+        if question.estimand != "conditional_mean":
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("OLS regression supports only estimand='conditional_mean'.",),
+                rationale="The stated target was preserved rather than changed.",
+            )
+        if types.get(question.outcome) != "continuous_numerical":
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("OLS regression requires a continuous numerical outcome.",),
+                rationale="A categorical outcome is not silently passed to linear regression.",
+            )
+        allowed = _QUANTITATIVE | _CATEGORICAL
+        unsupported = [name for name in predictors if types.get(name) not in allowed]
+        if unsupported:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(f"Unsupported regression predictor types for: {unsupported!r}.",),
+                rationale="Identifiers, datetimes, and unknown types are not model terms.",
+            )
+        for column in columns:
+            codes = (spec.data_dictionary or {}).get(column, {}).get("missing_codes", [])
+            if codes and int(frame[column].isin(codes).sum()):
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(
+                        f"{column!r} contains declared missing-code observations; normalize "
+                        "them before regression.",
+                    ),
+                    rationale="The complete-case sample must use actual missing values.",
+                )
+        available = int(frame[columns].notna().all(axis=1).sum())
+        if available < 3:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Regression requires at least three complete cases.",),
+                rationale="There are too few complete observations to fit the model.",
+            )
+        context["available_observations"] = available
+        context["excluded_rows"] = int(len(frame) - available)
+        try:
+            design = build_design_matrix(
+                frame,
+                question.outcome,
+                predictors,
+                types,
+                reference_levels=spec.options.reference_levels,
+                data_dictionary=spec.data_dictionary,
+            )
+        except (InsufficientDataError, InvalidDataError) as exc:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(str(exc),),
+                rationale=(
+                    "The declared regression design cannot support identifiable OLS inference; "
+                    "no predictor was dropped or recoded automatically."
+                ),
+            )
+        context["design_feasibility"] = {
+            "rank": design["rank"],
+            "parameter_count": design["parameter_count"],
+            "residual_degrees_of_freedom": design["residual_df"],
+            "full_rank": True,
+        }
+        record("method", "linear_regression", "Declared conditional-mean regression target.")
+        record(
+            "covariance_type",
+            spec.options.covariance_type,
+            "Researcher-selected inference; diagnostics do not switch it.",
+        )
+        return finish(
+            RecommendationStatus.READY,
+            method_id="linear_regression",
+            rationale=(
+                "OLS models the continuous outcome's conditional mean using the ordered "
+                "researcher-supplied predictors. Categorical predictors use recorded treatment "
+                "coding; no variable selection or causal interpretation is performed."
+            ),
+        )
     assert question.outcome is not None and question.predictor is not None
     required_columns = [question.outcome, question.predictor]
     if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:

@@ -33,9 +33,10 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "pandas>=1.0",
-    "numpy>=1.19",
-    "scipy>=1.7.3",
+    "pandas>=1.4,!=2.1.0",
+    "numpy>=1.23.5,<3",
+    "scipy>=1.8,!=1.9.2",
+    "statsmodels>=0.15,<0.16",
 ]
 
 [project.optional-dependencies]

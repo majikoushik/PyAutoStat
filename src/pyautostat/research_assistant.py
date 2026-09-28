@@ -309,6 +309,7 @@ class ResearchAssistant:
         objective: str | Objective | None = None,
         outcome: str | None = None,
         predictor: str | None = None,
+        predictors: list[str] | tuple[str, ...] | None = None,
         design: str | StudyDesign | None = None,
         estimand: str | None = None,
         description: str | None = None,
@@ -318,6 +319,8 @@ class ResearchAssistant:
         unit_id: str | None = None,
         condition_order: tuple[Any, Any] | None = None,
         reference_value: float | None = None,
+        covariance_type: str | None = None,
+        reference_levels: dict[str, Any] | None = None,
         draft: QuestionDraft | None = None,
         specification: AnalysisSpecification | None = None,
         include_profile: bool = False,
@@ -387,6 +390,7 @@ class ResearchAssistant:
             objective,
             outcome,
             predictor,
+            predictors,
             design,
             estimand,
             description,
@@ -396,6 +400,8 @@ class ResearchAssistant:
             unit_id,
             condition_order,
             reference_value,
+            covariance_type,
+            reference_levels,
         )
         if (draft is not None or specification is not None) and any(
             value is not None for value in raw_values
@@ -415,6 +421,7 @@ class ResearchAssistant:
                 objective=objective,
                 outcome=outcome,
                 predictor=predictor,
+                predictors=predictors,
                 design=design,
                 estimand=estimand,
                 description=description,
@@ -424,6 +431,8 @@ class ResearchAssistant:
                 unit_id=unit_id,
                 condition_order=condition_order,
                 reference_value=reference_value,
+                covariance_type=covariance_type,
+                reference_levels=reference_levels,
             )
 
         profile = None
@@ -569,6 +578,7 @@ class ResearchAssistant:
         objective: str | Objective | None = None,
         outcome: str | None = None,
         predictor: str | None = None,
+        predictors: list[str] | tuple[str, ...] | None = None,
         design: str | StudyDesign | None = None,
         estimand: str | None = None,
         description: str | None = None,
@@ -578,6 +588,8 @@ class ResearchAssistant:
         unit_id: str | None = None,
         condition_order: tuple[Any, Any] | None = None,
         reference_value: float | None = None,
+        covariance_type: str | None = None,
+        reference_levels: dict[str, Any] | None = None,
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
@@ -586,6 +598,7 @@ class ResearchAssistant:
             objective=objective,
             outcome=outcome,
             predictor=predictor,
+            predictors=predictors,
             design=design,
             estimand=estimand,
             description=description,
@@ -601,6 +614,8 @@ class ResearchAssistant:
             unit_id=unit_id,
             condition_order=condition_order,
             reference_value=reference_value,
+            covariance_type=covariance_type,
+            reference_levels=reference_levels,
             specification=specification,
         )
         if self._ledger is not None:
@@ -625,6 +640,7 @@ class ResearchAssistant:
             "objective",
             "outcome",
             "predictor",
+            "predictors",
             "design",
             "estimand",
             "description",
@@ -647,7 +663,7 @@ class ResearchAssistant:
             except (ValueError, TypeError) as exc:
                 raise InvalidDataError(
                     "objective must be descriptive, compare_groups, compare_reference, "
-                    "or association."
+                    "association, or regression."
                 ) from exc
         else:
             new_objective = cast(Objective | None, changes.get("objective", previous.objective))
@@ -656,6 +672,7 @@ class ResearchAssistant:
             "objective": new_objective,
             "outcome": previous.outcome,
             "predictor": previous.predictor,
+            "predictors": previous.predictors,
             "estimand": previous.estimand,
             "description": previous.description,
             "reference_value": previous.reference_value,
@@ -663,6 +680,7 @@ class ResearchAssistant:
         selected_design: StudyDesign | str = old.design
         if switched:
             values["predictor"] = None
+            values["predictors"] = None
             values["estimand"] = None
             values["reference_value"] = None
             selected_design = StudyDesign.UNKNOWN
@@ -673,7 +691,14 @@ class ResearchAssistant:
         else:
             selected_unit_id = old.unit_id
             selected_condition_order = old.condition_order
-        for key in ("outcome", "predictor", "estimand", "description", "reference_value"):
+        for key in (
+            "outcome",
+            "predictor",
+            "predictors",
+            "estimand",
+            "description",
+            "reference_value",
+        ):
             if key in changes:
                 values[key] = changes[key]
         if "design" in changes:
@@ -809,6 +834,17 @@ class ResearchAssistant:
                 "Only rows missing variables required by the selected analysis are excluded."
             ),
             outlier_rule="No automatic outlier deletion.",
+            planned_diagnostics=(
+                (
+                    "VIF",
+                    "Breusch-Pagan",
+                    "Jarque-Bera residual normality",
+                    "Cook distance, leverage, and externally studentized residuals",
+                    "condition number",
+                )
+                if method_id == "linear_regression"
+                else ()
+            ),
             sensitivity_scenarios=scenarios,
             meaningful_threshold=meaningful_threshold,
             multiplicity_policy=multiplicity_policy,
@@ -940,6 +976,12 @@ class ResearchAssistant:
             raise InvalidDataError("sensitivity_analysis requires a result with its specification.")
         if result.status.value != "available":
             raise InvalidDataError("sensitivity_analysis requires an available base result.")
+        if result.method_id == "linear_regression":
+            raise InvalidDataError(
+                "Integrated regression sensitivity is not yet supported. Run separate explicit "
+                "classical and HC3 specifications and compare the coefficient-level records; "
+                "the current scalar sensitivity contract cannot represent a coefficient vector."
+            )
         if not isinstance(scenarios, (list, tuple)) or not scenarios:
             raise InvalidDataError("scenarios must be a non-empty list or tuple.")
         if any(not isinstance(item, SensitivitySpecification) for item in scenarios):
@@ -1470,6 +1512,11 @@ _DATA_LIMIT_MESSAGES = (
     "variation in both variables",
     "at least two observed categories",
     "expected cell count below 5",
+    "regression requires at least three complete cases",
+    "outcome is constant",
+    "has no variation in the analyzed sample",
+    "design matrix is not full rank",
+    "positive residual degrees of freedom",
 )
 
 
@@ -1486,7 +1533,11 @@ def _scenario_incompatibility(
     left, right = base.question, scenario.question
     if left.objective != right.objective:
         return "The scenario changes the research objective."
-    if left.outcome != right.outcome or left.predictor != right.predictor:
+    if (
+        left.outcome != right.outcome
+        or left.predictor != right.predictor
+        or left.predictors != right.predictors
+    ):
         return "The scenario changes the outcome or predictor role."
     if base.design != scenario.design:
         return (

@@ -136,7 +136,8 @@ workflow = assistant.run(
 `specification` for continuation, `include_profile=False`, `audit=True`, `fingerprint=True`,
 `title=None`, and `include_figures=False`. A draft/specification is mutually exclusive with raw
 question arguments. Invalid API types and conflicting inputs raise `InvalidDataError`.
-Valid objectives are `descriptive`, `compare_groups`, `compare_reference`, and `association`.
+Valid objectives are `descriptive`, `compare_groups`, `compare_reference`, `association`, and
+`regression`.
 `compare_reference` requires one continuous `outcome`, `estimand="mean"`, and a finite explicit
 `reference_value`; it has no predictor. Accepted design values
 are `independent`, `paired`, `repeated`, `clustered`, and `unknown`; only documented supported
@@ -168,6 +169,69 @@ Markdown, JSON, and CSV in memory. `audit=False` returns a partial workflow with
 `include_profile=True` requests one dataset profile for an inferential workflow; descriptive
 execution reuses its existing profile. No files are written. See
 [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) for the method and failure-mode matrices.
+
+### OLS regression workflow
+
+```python
+workflow = assistant.run(
+    objective="regression",
+    outcome="exam_score",
+    predictors=["study_hours", "attendance", "study_method"],
+    estimand="conditional_mean",
+    design="independent",
+    variable_types={
+        "exam_score": "continuous",
+        "study_hours": "continuous",
+        "attendance": "continuous",
+        "study_method": "nominal",
+    },
+    reference_levels={"study_method": "standard"},
+    covariance_type="HC3",
+)
+```
+
+`objective="regression"` requires a continuous numerical outcome, an ordered nonempty
+`predictors` list, `estimand="conditional_mean"`, and `design="independent"`. For simple
+regression, the singular `predictor=` spelling is accepted as a one-item list. A predictor cannot
+also be the outcome; duplicate predictors are invalid. Supported predictors are continuous or
+discrete numerical, Boolean, nominal, and ordinal. Numerical terms stay in original units.
+Boolean, nominal, and ordinal terms use treatment coding with `k-1` indicator terms; ordinal
+categories are not assigned equal spacing.
+
+`reference_levels` maps categorical predictor names to observed scalar levels. Explicit values
+take priority, then declared data-dictionary order, pandas categorical order, and first-observed
+complete-case order. The result records every reference, comparison level, readable term label,
+and design-matrix mapping. An intercept is always included. Unsupported interactions,
+transformations, offsets, and alternative intercept policies are not inferred.
+
+One sample is created by excluding rows missing the outcome or any predictor. Original, analyzed,
+and excluded counts and the participating columns are stored. Nonfinite values, constant outcomes
+or predictors, rank-deficient matrices, and nonpositive residual degrees of freedom are blocked;
+predictors are never silently removed.
+
+`covariance_type` is exactly `"classical"` (default) or `"HC3"`. Diagnostics never switch it.
+Each coefficient record contains term identity and meaning, estimate, covariance estimator,
+standard error, t statistic, p-value, confidence interval, and decision. Standardized beta is
+available only for continuous predictors and uses the same complete-case sample; categorical,
+discrete, and intercept records mark it not applicable. Model results include F inference when
+defined, R-squared, adjusted R-squared, residual sum of squares, residual standard error, and
+RMSE.
+
+Structured diagnostics include per-term VIF, Breusch-Pagan, Jarque-Bera residual normality,
+Cook's distance/leverage/externally studentized-residual flag counts, and condition number. VIF
+and influence thresholds are review heuristics. No diagnostic deletes a row, selects a variable,
+or proves an assumption. Reports omit row identifiers and residual arrays. Regression
+coefficients are conditional associations rather than causal effects, and R-squared is in-sample
+fit rather than out-of-sample predictive accuracy.
+
+The expert method
+`StatisticalAnalyzer.linear_regression(outcome, predictors, *, variable_types,
+covariance_type="classical", reference_levels=None, data_dictionary=None,
+confidence_level=.95, alpha=.05)` returns the same validated numerical schema. The guided path is
+preferred when reports, interpretation, audit, replay, and session records are needed.
+The existing sensitivity comparison contract is scalar, so it does not currently compare a full
+regression coefficient vector. Run separately declared classical and HC3 specifications instead;
+their covariance estimator remains part of each coefficient and model record.
 
 ### Continue after `needs_input`
 

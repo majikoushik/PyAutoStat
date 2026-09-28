@@ -11,9 +11,20 @@ It is not a substitute for scientific design review or subject-matter judgment.
   universal practical-importance thresholds. Practical importance remains dependent on a
   researcher-declared quantity, direction, and threshold.
 - The statistical catalogue is deliberately limited. Repeated measures with more than two
-  conditions, clustered models, regression families, mixed models, survival analysis, causal
-  inference, exact-table extensions beyond Fisher's 2x2 test, and broad multiplicity procedures
-  are unsupported.
+  conditions, clustered models, logistic and other generalized regressions, regularized models,
+  interactions, polynomial construction, mixed models, survival analysis, causal inference,
+  exact-table extensions beyond Fisher's 2x2 test, and broad multiplicity procedures are
+  unsupported.
+- OLS regression targets an additive conditional mean for independent observational units. It
+  uses one complete-case sample and an intercept; it does not impute, transform, select, or delete
+  predictors or observations. Treatment-coded nominal, Boolean, and ordinal terms are relative to
+  recorded reference levels; ordinal spacing is not assumed. Coefficients are conditional
+  associations, not causal effects, and R-squared is in-sample fit rather than predictive
+  accuracy on new observations.
+- Regression VIF, Breusch-Pagan, Jarque-Bera, Cook's distance, leverage, externally studentized
+  residual, and condition-number records are diagnostics, not proofs or automatic decision rules.
+  Classical or HC3 covariance must be chosen explicitly. HC3 changes uncertainty estimates, not
+  the fitted OLS coefficients. Influence flags never remove rows.
 - The one-sample t-test targets the population mean difference from a researcher-declared
   reference. With zero sample variance the raw contrast is retained, but t, p, and standardized d
   are unavailable; this is not converted into ordinary finite inference.
@@ -64,15 +75,11 @@ It is not a substitute for scientific design review or subject-matter judgment.
 
 ## Minimum dependency compatibility scope
 
-The declared floors remain pandas 1.0 and NumPy 1.19; SciPy is 1.7.3 because the public
-studentized-range distribution is required for Games-Howell and Tukey-Kramer. A package-wide source review
-found use of established pandas table, dtype, correlation, and missing-value operations; NumPy
-array, quantile, random-generator, and finite-value operations; and SciPy descriptive-test,
-t-distribution, chi-square, and noncentral-t functions. The closure review did not identify an API
-call that clearly requires a higher version than the declared floor.
+The declared floors are pandas 1.4 (excluding 2.1.0), NumPy 1.23.5, SciPy 1.8 (excluding
+1.9.2), and statsmodels 0.15; NumPy is bounded below 3 and statsmodels below 0.16. These limits
+match the required OLS backend's supported numerical stack while retaining SciPy's public
+studentized-range distribution for Games-Howell and Tukey-Kramer.
 
-CI includes a Python 3.10 focused multi-group route pinned to SciPy 1.7.3, NumPy 1.22.4,
-and pandas 1.5.3. The broader closure checks ran on Python 3.12.7,
-pandas 3.0.6, NumPy 2.2.6, and SciPy 1.13.0, plus the configured GitHub CI Python/OS matrix with
-resolver-selected dependency versions. The local machine did not execute the Python 3.10
-minimum-version route; its enforcement is committed in CI.
+CI includes a Python 3.10 focused route pinned to pandas 1.5.3, NumPy 1.23.5, SciPy 1.8.0, and
+statsmodels 0.15.0 for multi-group and regression tests. The full configured matrix runs on Linux
+and Windows with Python 3.10 through 3.13 and resolver-selected compatible dependency versions.

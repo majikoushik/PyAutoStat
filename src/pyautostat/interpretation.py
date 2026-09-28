@@ -139,6 +139,7 @@ _METHODS = {
     "spearman_correlation": ("Spearman rank correlation", "Spearman rho"),
     "pearson_chi_square": ("Pearson chi-square independence test", "Cramer's V"),
     "fisher_exact": ("Fisher's exact test", "sample odds ratio"),
+    "linear_regression": ("Ordinary least-squares linear regression", "R-squared"),
 }
 _SIGNED_GROUP = {
     "welch_t",
@@ -193,6 +194,181 @@ def _unavailable(
         warnings=tuple(dict.fromkeys(warning_list)),
         limitations=(reason,),
         metadata={"sample_size": result.sample_size, "excluded_rows": result.excluded_rows},
+    )
+
+
+def _regression_interpretation(result: AnalysisResult) -> InterpretationResult:
+    if result.specification is None or result.sample_size is None:
+        return _unavailable(result, "The regression specification or sample accounting is missing.")
+    values = result.values
+    fit = values.get("model_fit")
+    coefficients = values.get("coefficients")
+    diagnostics = values.get("diagnostics")
+    if (
+        not isinstance(fit, dict)
+        or not isinstance(coefficients, list)
+        or not isinstance(diagnostics, dict)
+    ):
+        return _unavailable(result, "The structured regression result is incomplete.")
+    r_squared = _finite(fit.get("r_squared"))
+    adjusted = _finite(fit.get("adjusted_r_squared"))
+    model_f = _finite(fit.get("model_f_statistic"))
+    model_p = _finite(fit.get("model_f_p_value"))
+    residual_df = _finite(fit.get("residual_degrees_of_freedom"))
+    model_df = _finite(fit.get("model_degrees_of_freedom"))
+    if r_squared is None or adjusted is None:
+        return _unavailable(result, "R-squared or adjusted R-squared is unavailable.")
+    covariance = values.get("covariance_type")
+    summary = (
+        f"The fitted OLS model used {result.sample_size} complete cases and accounted for "
+        f"approximately {100 * r_squared:.1f}% of observed outcome variance in this sample "
+        f"(R-squared = {_fmt(r_squared)}, adjusted R-squared = {_fmt(adjusted)})."
+    )
+    hypothesis = None
+    findings: list[InterpretationFinding] = []
+    _finding(findings, "regression_model_fit", summary, "values.model_fit")
+    if (
+        model_f is not None
+        and model_p is not None
+        and model_df is not None
+        and residual_df is not None
+    ):
+        hypothesis = (
+            f"The model-level test was F({_fmt(model_df)}, {_fmt(residual_df)}) = "
+            f"{_fmt(model_f)}, {_p_display(model_p)}. It tests whether all non-intercept "
+            "population slopes are zero, or equivalently whether the included slopes jointly "
+            "improve fit over an intercept-only model under the selected covariance inference."
+        )
+        _finding(
+            findings,
+            "regression_model_test",
+            hypothesis,
+            "values.model_fit.model_f_statistic",
+            "values.model_fit.model_f_p_value",
+        )
+    coefficient_messages = []
+    for item in coefficients:
+        if not isinstance(item, dict) or item.get("kind") == "intercept":
+            continue
+        estimate = _finite(item.get("estimate"))
+        p_value = _finite(item.get("p_value"))
+        interval = item.get("confidence_interval")
+        if estimate is None or p_value is None or not isinstance(interval, dict):
+            continue
+        predictor = item.get("predictor")
+        if item.get("kind") == "categorical":
+            meaning = (
+                f"{predictor} level {item.get('level')!r} versus reference "
+                f"{item.get('reference_level')!r}"
+            )
+        else:
+            meaning = f"a one-unit increase in {predictor}"
+        message = (
+            f"Holding the other included predictors constant, {meaning} was associated with "
+            f"an estimated {_fmt(estimate)}-unit difference in the outcome "
+            f"(CI {_fmt(float(interval['lower']))} to {_fmt(float(interval['upper']))}; "
+            f"{_p_display(p_value)})."
+        )
+        coefficient_messages.append(message)
+        if len(coefficient_messages) <= 5:
+            _finding(findings, "regression_coefficient", message, "values.coefficients")
+    uncertainty = " ".join(coefficient_messages[:5])
+    if len(coefficient_messages) > 5:
+        uncertainty += (
+            f" {len(coefficient_messages) - 5} additional coefficient records are preserved "
+            "in the structured result and report table."
+        )
+    bp = diagnostics.get("breusch_pagan")
+    normality = diagnostics.get("residual_normality")
+    influence = diagnostics.get("influence")
+    vif = diagnostics.get("vif")
+    condition_number = _finite(diagnostics.get("condition_number"))
+    assumption_notes = [
+        "Rows must be independent observational units; this is researcher-declared and not "
+        "verified from numerical values.",
+        "The conditional mean should be adequately linear in the numerical predictors at the "
+        "specified additive scale; review residual-versus-fitted behavior for curvature or "
+        "other systematic structure.",
+        "Standardized betas are reported only for continuous predictors. They put those slopes "
+        "on a common sample-standard-deviation scale, but do not establish causal or absolute "
+        "predictor importance.",
+    ]
+    if isinstance(bp, dict) and _finite(bp.get("lm_p_value")) is not None:
+        bp_status = "rejected" if bp.get("status") == "rejected" else "not rejected"
+        assumption_notes.append(
+            f"Breusch-Pagan LM {_p_display(float(bp['lm_p_value']))}; the constant-variance null "
+            f"was {bp_status} at the recorded alpha. This diagnostic neither proves a variance "
+            f"structure nor changed the selected {covariance} covariance estimator."
+        )
+    if isinstance(normality, dict) and _finite(normality.get("p_value")) is not None:
+        normality_status = "rejected" if normality.get("status") == "rejected" else "not rejected"
+        assumption_notes.append(
+            f"Jarque-Bera residual diagnostic {_p_display(float(normality['p_value']))}; the "
+            f"normal-residual null was {normality_status}. OLS point estimation does not require "
+            "normal residuals, but exact small-sample inference can be sensitive; larger samples "
+            "can reduce sensitivity to moderate departures while severe outliers or heavy tails "
+            "may still matter. The diagnostic alone neither proves normality nor invalidates OLS."
+        )
+    if isinstance(vif, dict):
+        maximum = _finite(vif.get("maximum"))
+        if maximum is not None:
+            assumption_notes.append(
+                f"Maximum non-intercept VIF was {_fmt(maximum)}; conventional cutoffs are review "
+                "heuristics rather than automatic variable-selection rules."
+            )
+    if isinstance(influence, dict):
+        assumption_notes.append(
+            f"Influence heuristics flagged {influence.get('flagged_count', 0)} observations; "
+            "no observations were deleted and row identities are not exposed."
+        )
+    if condition_number is not None:
+        assumption_notes.append(
+            f"The design condition number was {_fmt(condition_number)}. It is scale-sensitive "
+            "and is a review aid rather than an automatic validity rule."
+        )
+    limitations = (
+        "Coefficient estimates describe conditional associations under this specified model; "
+        "regression does not establish causation.",
+        "R-squared summarizes in-sample fit and is not out-of-sample predictive accuracy.",
+        "Residual and influence diagnostics are screening evidence, not automatic model-selection "
+        "or deletion rules.",
+    )
+    return InterpretationResult(
+        status=InterpretationStatus.AVAILABLE,
+        method_id=result.method_id,
+        execution_status=result.status,
+        summary=summary,
+        method_explanation=(
+            f"OLS estimated the conditional mean with an intercept and {covariance} covariance "
+            "inference using one complete-case sample."
+            + (
+                " HC3 changes the estimated coefficient uncertainty, not the OLS point "
+                "coefficients or analyzed data."
+                if covariance == "HC3"
+                else ""
+            )
+        ),
+        hypothesis_interpretation=hypothesis,
+        effect_interpretation=summary,
+        uncertainty_interpretation=uncertainty or "No non-intercept coefficient was available.",
+        assumption_notes=tuple(assumption_notes),
+        limitations=limitations,
+        conclusion=(
+            summary
+            + " Conditional associations should be interpreted with the recorded diagnostics."
+        ),
+        findings=tuple(findings),
+        warnings=result.warnings,
+        metadata={
+            "sample_size": result.sample_size,
+            "excluded_rows": result.excluded_rows,
+            "covariance_type": covariance,
+            "coefficient_count": len(coefficients),
+            "p_value": model_p,
+            "test_statistic": model_f,
+            "primary_estimate": r_squared,
+            "confidence_interval": None,
+        },
     )
 
 
@@ -444,6 +620,8 @@ class InterpretationEngine:
                 result,
                 reason if isinstance(reason, str) and reason else "The analysis was unavailable.",
             )
+        if result.method_id == "linear_regression":
+            return _regression_interpretation(result)
         if result.method_id not in _METHODS:
             return _unavailable(result, f"Method {result.method_id!r} is not supported.")
         if result.method_id == "dataset_profile":

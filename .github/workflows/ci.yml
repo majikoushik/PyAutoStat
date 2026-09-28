@@ -48,8 +48,8 @@ jobs:
       - name: pytest
         run: pytest -q --cov=pyautostat --cov-report=term-missing --cov-fail-under=90
 
-  minimum-scipy:
-    name: Minimum SciPy compatibility
+  minimum-numerical-stack:
+    name: Minimum numerical-stack compatibility
     needs: lint
     runs-on: ubuntu-latest
     steps:
@@ -61,10 +61,10 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install minimum numerical stack
         run: |
-          pip install numpy==1.22.4 pandas==1.5.3 scipy==1.7.3 pytest
+          pip install numpy==1.23.5 pandas==1.5.3 scipy==1.8.0 statsmodels==0.15.0 pytest
           pip install -e . --no-deps
-      - name: Verify minimum-SciPy multi-group paths
-        run: pytest -q tests/test_multigroup_analysis.py
+      - name: Verify minimum-stack multi-group and regression paths
+        run: pytest -q tests/test_multigroup_analysis.py tests/test_regression_workflow.py
 
   build:
     name: Build distribution

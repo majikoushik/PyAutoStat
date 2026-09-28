@@ -15,6 +15,7 @@ python examples/explainable_recommendation_and_report.py
 python examples/data_understanding.py
 python examples/basic_inference.py
 python examples/multigroup_analysis.py
+python examples/linear_regression.py
 ~~~
 
 It prints the dataset story, deterministic recommendation rationale (why this
@@ -35,6 +36,11 @@ primary-effect confidence intervals are unavailable.
 `multigroup_analysis.py` demonstrates guided Welch ANOVA with Games-Howell, guided
 Kruskal-Wallis with Dunn-Holm, and explicit classical ANOVA with Tukey-Kramer. Every structured
 pair is retained even when the printed explanation is bounded.
+
+`linear_regression.py` demonstrates simple and multiple OLS regression with a continuous
+predictor, categorical and Boolean treatment coding, explicit reference levels, HC3 covariance,
+coefficient interpretation, stored diagnostics, `workflow.explain()`, report CSV tables, and
+audit. It uses synthetic data and writes no files.
 
 ## Install
 

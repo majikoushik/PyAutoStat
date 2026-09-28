@@ -10,6 +10,8 @@ import pandas as pd
 
 from .exceptions import ColumnNotFoundError, InvalidDataError
 from .profiling import complete_case_count, validate_data_dictionary, variable_intelligence_only
+from .regression import _label as _regression_label
+from .regression import _levels as _regression_levels
 from .results import MissingInformation
 from .specifications import (
     AnalysisOptions,
@@ -106,6 +108,7 @@ _OBJECTIVE_OPTIONS = (
     ("compare_groups", "Compare groups or conditions"),
     ("compare_reference", "Compare a mean with a reference value"),
     ("association", "Study a relationship"),
+    ("regression", "Model a conditional mean"),
 )
 _DESIGN_OPTIONS = (
     ("independent", "Independent observations"),
@@ -129,6 +132,7 @@ def prepare_question(
     objective: str | Objective | None = None,
     outcome: str | None = None,
     predictor: str | None = None,
+    predictors: tuple[str, ...] | list[str] | None = None,
     design: str | StudyDesign | None = None,
     estimand: str | None = None,
     description: str | None = None,
@@ -140,22 +144,47 @@ def prepare_question(
     unit_id: str | None = None,
     condition_order: tuple[Any, Any] | None = None,
     reference_value: float | None = None,
+    covariance_type: str | None = None,
+    reference_levels: dict[str, Any] | None = None,
 ) -> QuestionDraft:
     """Build or revalidate a question against the assistant's copied DataFrame."""
     if specification is not None and not isinstance(specification, AnalysisSpecification):
         raise InvalidDataError("specification must be an AnalysisSpecification.")
     base = specification or AnalysisSpecification()
     prior = base.question
+    selected_objective = cast(
+        Objective | None, objective if objective is not None else prior.objective
+    )
+    selected_predictor = predictor if predictor is not None else prior.predictor
+    selected_predictors = predictors if predictors is not None else prior.predictors
+    if selected_objective == Objective.REGRESSION and selected_predictors is None:
+        if selected_predictor is not None:
+            selected_predictors = (selected_predictor,)
     question = ResearchQuestion(
-        objective=cast(Objective | None, objective if objective is not None else prior.objective),
+        objective=selected_objective,
         outcome=outcome if outcome is not None else prior.outcome,
-        predictor=predictor if predictor is not None else prior.predictor,
+        predictor=selected_predictor,
+        predictors=tuple(selected_predictors) if selected_predictors is not None else None,
         estimand=estimand if estimand is not None else prior.estimand,
         description=description if description is not None else prior.description,
         reference_value=(reference_value if reference_value is not None else prior.reference_value),
     )
     selected_design = cast(StudyDesign, design if design is not None else base.design)
     selected_options = options if options is not None else base.options
+    if covariance_type is not None or reference_levels is not None:
+        selected_options = AnalysisOptions(
+            alpha=selected_options.alpha,
+            confidence_level=selected_options.confidence_level,
+            random_seed=selected_options.random_seed,
+            covariance_type=(
+                covariance_type if covariance_type is not None else selected_options.covariance_type
+            ),
+            reference_levels=(
+                reference_levels
+                if reference_levels is not None
+                else selected_options.reference_levels
+            ),
+        )
     selected_unit_id = unit_id if unit_id is not None else base.unit_id
     selected_condition_order = (
         condition_order if condition_order is not None else base.condition_order
@@ -164,6 +193,7 @@ def prepare_question(
         raise InvalidDataError("options must be an AnalysisOptions instance.")
     if question.objective == Objective.DESCRIPTIVE and (
         question.predictor is not None
+        or question.predictors is not None
         or question.estimand is not None
         or question.reference_value is not None
         or selected_design not in (StudyDesign.UNKNOWN, "unknown")
@@ -178,6 +208,15 @@ def prepare_question(
         )
     if question.objective == Objective.COMPARE_REFERENCE and question.predictor is not None:
         raise InvalidDataError("A reference comparison does not use a predictor column.")
+    if question.objective != Objective.REGRESSION and question.predictors is not None:
+        raise InvalidDataError("predictors is supported only for objective='regression'.")
+    if question.objective != Objective.REGRESSION and (
+        selected_options.covariance_type != "classical"
+        or selected_options.reference_levels is not None
+    ):
+        raise InvalidDataError(
+            "covariance_type and reference_levels are supported only for objective='regression'."
+        )
     dictionary = validate_data_dictionary(
         frame, data_dictionary if data_dictionary is not None else base.data_dictionary
     )
@@ -214,6 +253,12 @@ def prepare_question(
                 f"{field_name} column {selected_column!r} does not exist. "
                 f"Available columns: {list(frame.columns)!r}."
             )
+    for selected_column in question.predictors or ():
+        if selected_column not in frame.columns:
+            raise ColumnNotFoundError(
+                f"predictor column {selected_column!r} does not exist. "
+                f"Available columns: {list(frame.columns)!r}."
+            )
     if (
         question.objective in (Objective.COMPARE_GROUPS, Objective.ASSOCIATION)
         and question.outcome is not None
@@ -222,6 +267,12 @@ def prepare_question(
         raise InvalidDataError(
             "outcome and predictor must be different columns for this objective."
         )
+    if (
+        question.objective == Objective.REGRESSION
+        and question.outcome is not None
+        and question.outcome in (question.predictors or ())
+    ):
+        raise InvalidDataError("The regression outcome cannot also appear among predictors.")
     spec = AnalysisSpecification(
         question=question,
         design=selected_design,
@@ -235,13 +286,71 @@ def prepare_question(
     )
     selected = list(
         dict.fromkeys(
-            column for column in (question.outcome, question.predictor) if column is not None
+            column
+            for column in (question.outcome, question.predictor, *(question.predictors or ()))
+            if column is not None
         )
     )
     availability_columns = selected.copy()
     if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
         availability_columns.append(spec.unit_id)
     hints = variable_intelligence_only(frame, dictionary) if selected else {}
+    if question.objective == Objective.REGRESSION and selected:
+        resolved_references = dict(spec.options.reference_levels or {})
+        predictors_set = set(question.predictors or ())
+        unknown_references = set(resolved_references) - predictors_set
+        if unknown_references:
+            raise InvalidDataError(
+                f"reference_levels names non-predictors: {sorted(unknown_references)!r}."
+            )
+        complete = (
+            frame[[question.outcome, *(question.predictors or ())]].dropna()
+            if question.outcome is not None and question.predictors
+            else None
+        )
+        for predictor_name in question.predictors or ():
+            predictor_type = hints[predictor_name]["suggested_type"]
+            if predictor_type in {"continuous_numerical", "discrete_numerical"}:
+                if predictor_name in resolved_references:
+                    raise InvalidDataError(
+                        f"reference_levels[{predictor_name!r}] is invalid because the predictor "
+                        "is numerical."
+                    )
+                continue
+            if predictor_type not in {"nominal_categorical", "ordinal_categorical", "boolean"}:
+                continue
+            if complete is None or complete.empty:
+                continue
+            levels = _regression_levels(
+                complete[predictor_name], dictionary.get(predictor_name, {})
+            )
+            if predictor_name in resolved_references:
+                if resolved_references[predictor_name] not in levels:
+                    raise InvalidDataError(
+                        f"Reference level {resolved_references[predictor_name]!r} is not observed "
+                        f"for predictor {predictor_name!r}."
+                    )
+            elif levels:
+                resolved_references[predictor_name] = _regression_label(levels[0])
+        regression_options = AnalysisOptions(
+            alpha=spec.options.alpha,
+            confidence_level=spec.options.confidence_level,
+            random_seed=spec.options.random_seed,
+            covariance_type=spec.options.covariance_type,
+            reference_levels=resolved_references or None,
+        )
+        spec = AnalysisSpecification(
+            question=spec.question,
+            design=spec.design,
+            options=regression_options,
+            variable_metadata=spec.variable_metadata,
+            data_dictionary=spec.data_dictionary,
+            unit_id=spec.unit_id,
+            condition_order=spec.condition_order,
+            analytical_variable_types={
+                column: hints[column]["suggested_type"] for column in selected
+            },
+        )
     availability = complete_case_count(frame, availability_columns) if selected else None
     warnings: list[str] = []
     blockers: list[str] = []
@@ -344,6 +453,40 @@ def prepare_question(
                 "select",
                 _DESIGN_OPTIONS,
             )
+    elif question.objective == Objective.REGRESSION:
+        column_options = tuple((column, column) for column in frame.columns)
+        if question.outcome is None:
+            ask(
+                "outcome",
+                "Which continuous outcome should the model explain?",
+                "OLS models a continuous conditional mean.",
+                "column",
+                column_options,
+            )
+        if not question.predictors:
+            ask(
+                "predictors",
+                "Which one or more predictors should enter the model?",
+                "Predictor choice is supplied by the researcher; no automatic selection occurs.",
+                "columns",
+                column_options,
+            )
+        if question.estimand is None:
+            ask(
+                "estimand",
+                "What model target should be estimated?",
+                "OLS regression in this phase supports the conditional population mean.",
+                "select",
+                (("conditional_mean", "Conditional mean"),),
+            )
+        if spec.design == StudyDesign.UNKNOWN:
+            ask(
+                "design",
+                "Are rows independent observational units?",
+                "Independence cannot be inferred from predictor values.",
+                "select",
+                _DESIGN_OPTIONS,
+            )
 
     if spec.unit_id is not None and spec.unit_id in {
         question.outcome,
@@ -371,7 +514,10 @@ def prepare_question(
             warnings.append(f"{column!r} appears to be an identifier; confirm its analytical type.")
         if (
             question.objective != Objective.DESCRIPTIVE
-            and (column == question.outcome or question.objective == Objective.ASSOCIATION)
+            and (
+                column == question.outcome
+                or question.objective in (Objective.ASSOCIATION, Objective.REGRESSION)
+            )
             and (info["ambiguous_numeric_category"] or info["suggested_type"] == "identifier")
             and info["type_source"] != "declared"
         ):

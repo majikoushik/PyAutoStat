@@ -57,6 +57,7 @@ This is an audit of the methods in the current analyzer, not a claim that any me
 | D'Agostino-Pearson | Omnibus skew/kurtosis normality null; at least 8 varying values | Finite results are retained when warning-free or accompanied only by SciPy's recognized kurtosis small-sample advisory. For N=8-19, the chi-square p-value is approximate and `analysis_warnings` records this even if a SciPy release does not warn. Other warnings or nonfinite results make the test unavailable. |
 | Anderson-Darling | Normality statistic compared with supplied critical values/significance levels; at least 3 varying values by library policy | Not converted into a p-value or `is_normal` flag. When a validated 5% grid point exists, `status` and the qualified display `verdict` compare the statistic with that point. The statistic must be finite and nonnegative; the critical grid must be nonempty, finite, positive, paired with valid descending significance percentages, and increasing as significance decreases. A malformed or negative grid makes the test unavailable with a warning; SciPy's API deprecation notice is advisory. |
 | Pearson correlation | Linear association; null zero population correlation for reported pairwise p-value; at least 3 paired varying values for p | Pairwise missing rows excluded. Undefined coefficients/p-values are `None`; near-constant warning makes p unavailable. |
+| Ordinary least-squares regression | Additive conditional mean with intercept; null for each coefficient is zero and omnibus null is all non-intercept population slopes zero; continuous outcome, independent rows, full-rank complete-case design, and positive residual df | statsmodels OLS supplies coefficients, classical or explicit HC3 covariance inference, t intervals/tests, model F, R-squared, adjusted R-squared, and residual error. Treatment coding records every categorical reference. Diagnostics never switch covariance, select terms, or remove rows. |
 | Spearman correlation (profile) | Descriptive rank association coefficient; at least 2 paired varying values | Matrix only; no p-values claimed. Ties use pandas/SciPy rank conventions. This remains distinct from the two-variable inferential method. |
 | Kendall correlation | Concordance association coefficient; at least 2 paired varying values | Matrix only; no p-values claimed. Ties use pandas/SciPy conventions. |
 | IQR outlier flag | Outside Q1−1.5 IQR or Q3+1.5 IQR | Descriptive flag only. Nonfinite bounds make count unavailable. |
@@ -90,7 +91,37 @@ The legacy `is_normal` Boolean remains for compatibility and means only that a t
 
 `tests/test_statistical_correctness.py` derives expected statistics from means, sample sums of squares, U pair counts, rank sums, and contingency-cell arithmetic. Examples include Welch t and Student t on `[1,2,3,4]` versus `[3,5,7,9]`; ANOVA F=19/3 and eta-squared=38/56; Kruskal H=12.5 and rank epsilon-squared=10.5/12; chi-square=20, Cramér's V=0.5, and Cohen's h=π/3 for `[[30,10],[10,30]]`; Pearson and Spearman r=0.8 and Kendall tau=2/3 on a four-pair example. Analytical p-values use the relevant reference distribution after a separately derived statistic. Tests also cover group reversal, invalid designs, missing rows, constant data, ties, and bootstrap repeatability.
 
-The declared minimum SciPy is 1.7.3 because the public `scipy.stats.studentized_range` distribution, introduced in SciPy 1.7, is required for Games-Howell and Tukey-Kramer inference. CI includes a Python 3.10 route pinned to SciPy 1.7.3, NumPy 1.22.4, and pandas 1.5.3 for the focused multi-group suite. [SciPy's studentized-range documentation](https://docs.scipy.org/doc/scipy-1.7.0/reference/reference/generated/scipy.stats.studentized_range.html) supplies the public distribution API; [Kruskal guidance](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.kruskal.html) calls five per group a typical approximation rule.
+The declared numerical floors are NumPy 1.23.5, pandas 1.4 (excluding 2.1.0), SciPy 1.8
+(excluding 1.9.2), and statsmodels 0.15. The upper policy keeps NumPy below 3 and statsmodels below
+0.16. These bounds follow the statsmodels OLS backend's supported dependency range while retaining
+the public `scipy.stats.studentized_range` distribution required for Games-Howell and Tukey-Kramer
+inference. CI includes a Python 3.10 minimum-stack route pinned to NumPy 1.23.5, pandas 1.5.3,
+SciPy 1.8.0, and statsmodels 0.15.0 for focused multi-group and regression suites. The full suite
+runs on Linux and Windows for Python 3.10 through 3.13.
+
+### Linear-regression numerical policy
+
+The regression design is created once after complete-case exclusion across the outcome and every
+predictor. Numerical predictors remain in original units. Boolean, nominal, and ordinal predictors
+receive deterministic `k-1` treatment coding; ordinal categories are not converted to scores.
+Explicit reference levels take priority over declared or pandas category order and first-observed
+order. The intercept is retained. A rank-deficient design is rejected rather than repaired by
+dropping a predictor.
+
+Classical inference uses the ordinary OLS covariance matrix. `HC3` is an explicit researcher
+option and uses statsmodels' HC3 sandwich covariance; it does not alter the analyzed sample or OLS
+point coefficients. Coefficient confidence intervals are t intervals for the same selected
+covariance. Standardized beta is `b * SD(x) / SD(y)` on the model sample and is reported only for
+continuous predictors. It is not supplied for the intercept, discrete measurements, or treatment
+indicators.
+
+VIF is computed for every non-intercept design term. Values around 5 and 10 are recorded only as
+review heuristics. Breusch-Pagan and Jarque-Bera p-values are diagnostic evidence and neither a
+nonrejection nor rejection proves the corresponding variance or residual-distribution condition.
+Cook's distance (`4/n`), leverage (`2p/n`), and absolute externally studentized residual (`3`)
+thresholds produce aggregate review counts without row identifiers. They never delete cases.
+Condition number is stored as a scale-sensitive numerical warning aid. Diagnostic arrays and raw
+residuals are not embedded in reports or reproducibility records.
 
 The guided engine provides two bounded dependent-design methods for exactly two conditions: paired t for a declared mean target and paired Wilcoxon for a declared signed-rank/distribution target. Both require an explicit unit identifier, unique unit/condition observations, and complete pairs; neither pairs rows by position. Paired t reports the first-condition-minus-second mean difference, analytical t interval, and Cohen's dz. Wilcoxon reports signed-rank inference and matched-pairs rank-biserial correlation without an effect interval. Clustered designs, repeated measures with more than two conditions, sparse categorical tables larger than 2×2, and broader multiplicity families remain unavailable.
 

@@ -12,11 +12,14 @@ deterministic interpretation, research reports, consistency auditing, and reprod
 metadata. It also supports explicit sensitivity scenarios, researcher-defined meaningful-effect
 thresholds, analysis plans, prospective independent and paired mean planning, reporting
 completeness, styled HTML/Markdown/LaTeX output, and UI-independent session snapshots.
+It supports bounded simple and multiple ordinary least-squares conditional-mean regression with
+explicit treatment coding, classical or HC3 covariance inference, and stored diagnostics.
 The established analysis, planning, and reporting capabilities are checked into `main`, and their
 GitHub CI matrix passed. A release remains a separate owner decision.
 
 The method catalogue is intentionally limited. Repeated measures with more than two conditions,
-clustered models, regression families, mixed models, survival analysis, causal inference, broad
+clustered models, generalized and regularized regression families, interaction or polynomial
+model construction, mixed models, survival analysis, causal inference, broad
 multiplicity procedures, and sparse exact-table alternatives are not currently supported. Study
 design facts and scientific meaning remain researcher responsibilities.
 
@@ -45,7 +48,8 @@ target, not a scheduled next release.
 ## Candidate statistical capabilities
 
 Potential additions include further paired or distributional methods, additional correlation
-inference, regression, and repeated-measures models. These are candidates rather than commitments.
+inference, additional regression families, and repeated-measures models. These are candidates
+rather than commitments.
 
 A method should be added only when the complete contract can be supported:
 

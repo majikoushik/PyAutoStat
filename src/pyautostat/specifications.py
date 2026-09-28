@@ -19,6 +19,7 @@ class Objective(str, Enum):
     COMPARE_GROUPS = "compare_groups"
     COMPARE_REFERENCE = "compare_reference"
     ASSOCIATION = "association"
+    REGRESSION = "regression"
 
 
 class StudyDesign(str, Enum):
@@ -83,12 +84,31 @@ class ResearchQuestion:
     estimand: str | None = None
     description: str | None = None
     reference_value: float | None = None
+    predictors: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.objective is not None:
             object.__setattr__(self, "objective", _enum(self.objective, Objective, "objective"))
         for name in ("outcome", "predictor", "estimand", "description"):
             _name(getattr(self, name), name)
+        if self.predictors is not None:
+            if isinstance(self.predictors, (str, bytes)) or not isinstance(
+                self.predictors, (list, tuple)
+            ):
+                raise InvalidDataError("predictors must be a nonempty sequence of column names.")
+            checked = tuple(self.predictors)
+            if not checked or any(
+                not isinstance(item, str) or not item.strip() for item in checked
+            ):
+                raise InvalidDataError("predictors must contain nonempty column names.")
+            if len(set(checked)) != len(checked):
+                raise InvalidDataError("predictors must not contain duplicates.")
+            object.__setattr__(self, "predictors", checked)
+        if self.predictor is not None and self.predictors is not None:
+            if self.predictors != (self.predictor,):
+                raise InvalidDataError(
+                    "predictor and predictors cannot specify conflicting values."
+                )
         if self.reference_value is not None:
             value = self.reference_value
             if (
@@ -100,7 +120,7 @@ class ResearchQuestion:
             object.__setattr__(self, "reference_value", float(value))
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "objective": self.objective.value if self.objective is not None else None,
             "outcome": self.outcome,
             "predictor": self.predictor,
@@ -108,6 +128,9 @@ class ResearchQuestion:
             "description": self.description,
             "reference_value": self.reference_value,
         }
+        if self.predictors is not None:
+            payload["predictors"] = list(self.predictors)
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResearchQuestion:
@@ -121,6 +144,8 @@ class AnalysisOptions:
     alpha: float = 0.05
     confidence_level: float = 0.95
     random_seed: int | None = None
+    covariance_type: str = "classical"
+    reference_levels: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         _probability(self.alpha, "alpha")
@@ -129,13 +154,28 @@ class AnalysisOptions:
             isinstance(self.random_seed, bool) or not isinstance(self.random_seed, int)
         ):
             raise InvalidDataError("random_seed must be an integer or None.")
+        if self.covariance_type not in {"classical", "HC3"}:
+            raise InvalidDataError("covariance_type must be 'classical' or 'HC3'.")
+        if self.reference_levels is not None:
+            if not isinstance(self.reference_levels, dict) or any(
+                not isinstance(key, str) or not key.strip() for key in self.reference_levels
+            ):
+                raise InvalidDataError("reference_levels must map predictor names to levels.")
+            checked = _json_value(self.reference_levels, "reference_levels")
+            if any(value is None or isinstance(value, (list, dict)) for value in checked.values()):
+                raise InvalidDataError("Each categorical reference must be a non-missing scalar.")
+            object.__setattr__(self, "reference_levels", checked)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "alpha": self.alpha,
             "confidence_level": self.confidence_level,
             "random_seed": self.random_seed,
         }
+        if self.covariance_type != "classical" or self.reference_levels is not None:
+            payload["covariance_type"] = self.covariance_type
+            payload["reference_levels"] = _json_value(self.reference_levels)
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AnalysisOptions:
@@ -153,6 +193,7 @@ class AnalysisSpecification:
     data_dictionary: dict[str, dict[str, Any]] | None = None
     unit_id: str | None = None
     condition_order: tuple[Any, Any] | None = None
+    analytical_variable_types: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.question, ResearchQuestion):
@@ -199,6 +240,20 @@ class AnalysisSpecification:
             raise InvalidDataError("condition_order requires an explicit unit_id.")
         if self.unit_id is not None and self.design is not StudyDesign.PAIRED:
             raise InvalidDataError("unit_id is supported only for design='paired'.")
+        if self.analytical_variable_types is not None:
+            if not isinstance(self.analytical_variable_types, dict) or any(
+                not isinstance(key, str)
+                or not key.strip()
+                or not isinstance(value, str)
+                or not value.strip()
+                for key, value in self.analytical_variable_types.items()
+            ):
+                raise InvalidDataError(
+                    "analytical_variable_types must map column names to non-empty type names."
+                )
+            object.__setattr__(
+                self, "analytical_variable_types", self.analytical_variable_types.copy()
+            )
 
     def to_dict(self) -> dict[str, Any]:
         schema_version = (
@@ -215,6 +270,12 @@ class AnalysisSpecification:
             "options": self.options.to_dict(),
             "variable_metadata": _json_value(self.variable_metadata),
         }
+        if self.question.objective is Objective.REGRESSION:
+            payload["options"]["covariance_type"] = self.options.covariance_type
+            payload["options"]["reference_levels"] = _json_value(self.options.reference_levels)
+            payload["intercept"] = True
+            payload["missing_data_policy"] = "complete cases across outcome and all predictors"
+            payload["analytical_variable_types"] = _json_value(self.analytical_variable_types)
         if self.data_dictionary is not None:
             payload["data_dictionary"] = _json_value(self.data_dictionary)
         if schema_version == PAIRED_SCHEMA_VERSION:
@@ -261,6 +322,7 @@ class AnalysisSpecification:
                     if data.get("condition_order") is not None
                     else None
                 ),
+                analytical_variable_types=data.get("analytical_variable_types"),
             )
         except (KeyError, TypeError) as exc:
             raise InvalidDataError(

@@ -82,6 +82,7 @@ def assess_reporting_completeness(
         "one_way_anova",
         "kruskal_wallis",
         "pearson_chi_square",
+        "linear_regression",
     }
 
     def item(
@@ -111,7 +112,7 @@ def assess_reporting_completeness(
             code, section, description, applicable, required, status, source, message
         )
 
-    items = (
+    items: tuple[CompletenessItem, ...] = (
         item(
             "OBJECTIVE_REPORTED",
             "question",
@@ -128,6 +129,8 @@ def assess_reporting_completeness(
                 if method == "dataset_profile"
                 else [question["outcome"]]
                 if method == "one_sample_t" and question.get("outcome") is not None
+                else [question["outcome"], *question.get("predictors", [])]
+                if method == "linear_regression" and question.get("outcome") is not None
                 else [question["outcome"], question["predictor"]]
                 if question.get("outcome") is not None and question.get("predictor") is not None
                 else None
@@ -187,7 +190,7 @@ def assess_reporting_completeness(
             "Primary effect estimate",
             results.get("primary_estimate"),
             "sections.results.primary_estimate",
-            applicable=inference and method != "welch_anova",
+            applicable=inference and method not in {"welch_anova", "linear_regression"},
         ),
         item(
             "EFFECT_SIZE_REPORTED",
@@ -195,7 +198,7 @@ def assess_reporting_completeness(
             "Method-specific effect size",
             results.get("effect_size"),
             "sections.results.effect_size",
-            applicable=inference and method != "welch_anova",
+            applicable=inference and method not in {"welch_anova", "linear_regression"},
         ),
         item(
             "CONFIDENCE_INTERVAL_REPORTED",
@@ -203,7 +206,7 @@ def assess_reporting_completeness(
             "Confidence interval",
             results.get("confidence_interval"),
             "sections.results.confidence_interval",
-            applicable=inference and method != "welch_anova",
+            applicable=inference and method not in {"welch_anova", "linear_regression"},
             unavailable=(
                 source_values.get("confidence_interval") is None
                 and method in {"pearson_correlation", "wilcoxon_signed_rank", "fisher_exact"}
@@ -259,6 +262,44 @@ def assess_reporting_completeness(
             required=False,
         ),
     )
+    if method == "linear_regression":
+        items += (
+            item(
+                "REGRESSION_SPECIFICATION_REPORTED",
+                "results",
+                "Regression model specification",
+                results.get("design_matrix"),
+                "sections.results.design_matrix",
+            ),
+            item(
+                "REGRESSION_MODEL_FIT_REPORTED",
+                "results",
+                "R-squared, adjusted R-squared, and model fit",
+                results.get("model_fit"),
+                "sections.results.model_fit",
+            ),
+            item(
+                "REGRESSION_COEFFICIENTS_REPORTED",
+                "results",
+                "Coefficient estimates and confidence intervals",
+                results.get("coefficients"),
+                "sections.results.coefficients",
+            ),
+            item(
+                "REGRESSION_COVARIANCE_REPORTED",
+                "methods",
+                "Covariance estimator",
+                results.get("covariance_type"),
+                "sections.results.covariance_type",
+            ),
+            item(
+                "REGRESSION_DIAGNOSTICS_REPORTED",
+                "diagnostics",
+                "VIF, heteroscedasticity, residual, and influence diagnostics",
+                results.get("diagnostics"),
+                "sections.results.diagnostics",
+            ),
+        )
     required_statuses = [entry.status for entry in items if entry.applicable and entry.required]
     status = (
         "incomplete"

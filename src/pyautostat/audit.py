@@ -272,6 +272,97 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
             or any(not isinstance(row, list) or len(row) != 2 for row in observed)
         ):
             _mismatch("analysis.metadata.observed_counts", "2x2 table", observed, findings)
+    if method == "linear_regression":
+        predictors = values.get("predictors")
+        if predictors != list(question.predictors or ()):
+            _mismatch(
+                "analysis.values.predictors", list(question.predictors or ()), predictors, findings
+            )
+        design = values.get("design_matrix")
+        coefficients = values.get("coefficients")
+        fit = values.get("model_fit")
+        diagnostics = values.get("diagnostics")
+        if not isinstance(design, dict) or design.get("full_rank") is not True:
+            _mismatch("analysis.values.design_matrix.full_rank", True, design, findings)
+        elif isinstance(coefficients, list):
+            parameter_count = design.get("parameter_count")
+            if len(coefficients) != parameter_count:
+                _mismatch(
+                    "analysis.values.coefficients",
+                    f"{parameter_count} coefficient records",
+                    len(coefficients),
+                    findings,
+                )
+            terms = [item.get("term") for item in coefficients if isinstance(item, dict)]
+            if terms != design.get("term_names") or len(set(map(str, terms))) != len(terms):
+                _mismatch(
+                    "analysis.values.design_matrix.term_names",
+                    terms,
+                    design.get("term_names"),
+                    findings,
+                )
+            for index, item in enumerate(coefficients):
+                if not isinstance(item, dict):
+                    _mismatch(f"analysis.values.coefficients[{index}]", "record", item, findings)
+                    continue
+                estimate = item.get("estimate")
+                interval = item.get("confidence_interval")
+                lower = interval.get("lower") if isinstance(interval, dict) else None
+                upper = interval.get("upper") if isinstance(interval, dict) else None
+                valid_interval = (
+                    isinstance(estimate, (int, float))
+                    and isinstance(lower, (int, float))
+                    and isinstance(upper, (int, float))
+                    and lower <= estimate <= upper
+                )
+                if not valid_interval:
+                    _mismatch(
+                        f"analysis.values.coefficients[{index}].confidence_interval",
+                        "ordered interval containing estimate",
+                        interval,
+                        findings,
+                    )
+        else:
+            _mismatch("analysis.values.coefficients", "coefficient records", coefficients, findings)
+        if isinstance(fit, dict):
+            r_squared = fit.get("r_squared")
+            adjusted = fit.get("adjusted_r_squared")
+            if not isinstance(r_squared, (int, float)) or not 0 <= r_squared <= 1:
+                _mismatch(
+                    "analysis.values.model_fit.r_squared", "value in [0, 1]", r_squared, findings
+                )
+            if not isinstance(adjusted, (int, float)) or not math.isfinite(float(adjusted)):
+                _mismatch(
+                    "analysis.values.model_fit.adjusted_r_squared",
+                    "finite value",
+                    adjusted,
+                    findings,
+                )
+            if isinstance(design, dict) and source.sample_size is not None:
+                expected_residual = source.sample_size - int(design.get("parameter_count", 0))
+                if fit.get("residual_degrees_of_freedom") != expected_residual:
+                    _mismatch(
+                        "analysis.values.model_fit.residual_degrees_of_freedom",
+                        expected_residual,
+                        fit.get("residual_degrees_of_freedom"),
+                        findings,
+                    )
+        else:
+            _mismatch("analysis.values.model_fit", "model fit record", fit, findings)
+        if values.get("covariance_type") != specification.options.covariance_type:
+            _mismatch(
+                "analysis.values.covariance_type",
+                specification.options.covariance_type,
+                values.get("covariance_type"),
+                findings,
+            )
+        if not isinstance(diagnostics, dict) or any(
+            key not in diagnostics
+            for key in ("vif", "breusch_pagan", "residual_normality", "influence")
+        ):
+            _mismatch(
+                "analysis.values.diagnostics", "complete diagnostic record", diagnostics, findings
+            )
     if method in {"welch_anova", "one_way_anova", "kruskal_wallis"}:
         order = source.metadata.get("group_order")
         pairwise = values.get("pairwise_comparisons")

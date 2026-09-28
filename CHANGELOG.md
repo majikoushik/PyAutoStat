@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added complete simple and multiple ordinary least-squares conditional-mean regression for
+  continuous outcomes, with ordered predictor lists, explicit treatment coding and reference
+  levels for Boolean/nominal/ordinal predictors, complete-case accounting, rank validation,
+  classical or explicit HC3 covariance inference, coefficient and model-fit records, continuous
+  standardized betas, VIF, variance/residual/influence diagnostics, deterministic qualified
+  interpretation, canonical report tables, audit, replay, sessions, examples, and installed-wheel
+  coverage. Regression does not perform variable selection, row deletion, causal inference, or
+  out-of-sample prediction validation.
+
 - Added guided Welch one-way ANOVA with complete Games-Howell simultaneous comparisons,
   explicit classical ANOVA with Tukey-Kramer comparisons, and Kruskal-Wallis with complete
   Dunn-Holm comparisons. Pairwise families are calculated regardless of the omnibus decision and

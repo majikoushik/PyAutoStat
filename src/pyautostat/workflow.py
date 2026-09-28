@@ -161,7 +161,10 @@ class ResearchWorkflowResult:
             spec.question.objective is not None
             and spec.question.objective.value != "compare_reference"
         ):
-            lines.append(f" Predictor : {predictor}")
+            if spec.question.predictors:
+                lines.append(f" Predictors: {', '.join(spec.question.predictors)}")
+            else:
+                lines.append(f" Predictor : {predictor}")
         if spec.question.reference_value is not None:
             lines.append(f" Reference : {spec.question.reference_value}")
         if self.analysis is not None:
@@ -178,6 +181,44 @@ class ResearchWorkflowResult:
             complete_pairs = self.analysis.metadata.get("sample", {}).get("complete_pairs")
             if isinstance(complete_pairs, int):
                 lines.append(f" Pairs     : {complete_pairs} complete pairs")
+        if self.analysis is not None and self.analysis.method_id == "linear_regression":
+            fit = self.analysis.values.get("model_fit", {})
+            coefficients = self.analysis.values.get("coefficients", [])
+            diagnostics = self.analysis.values.get("diagnostics", {})
+            lines.append(thin)
+            lines.append(" MODEL")
+            lines.append(
+                f"   Conditional mean of {outcome}; intercept included; covariance="
+                f"{self.analysis.values.get('covariance_type')}."
+            )
+            lines.append(thin)
+            lines.append(" MODEL FIT")
+            lines.append(
+                f"   R-squared={fit.get('r_squared'):.4g}; adjusted R-squared="
+                f"{fit.get('adjusted_r_squared'):.4g}; residual SE="
+                f"{fit.get('residual_standard_error'):.4g}."
+            )
+            lines.append(thin)
+            lines.append(" COEFFICIENTS")
+            for item in coefficients[:8]:
+                interval = item.get("confidence_interval", {})
+                lines.append(
+                    f"   - {item.get('term')}: b={item.get('estimate'):.4g}, "
+                    f"SE={item.get('standard_error'):.4g}, p={item.get('p_value'):.4g}, "
+                    f"CI [{interval.get('lower'):.4g}, {interval.get('upper'):.4g}]"
+                )
+            if len(coefficients) > 8:
+                lines.append(
+                    f"   - {len(coefficients) - 8} additional terms are preserved in the result."
+                )
+            lines.append(thin)
+            lines.append(" DIAGNOSTICS")
+            lines.append(
+                f"   Maximum VIF={diagnostics.get('vif', {}).get('maximum')}; "
+                f"Breusch-Pagan p={diagnostics.get('breusch_pagan', {}).get('lm_p_value')}; "
+                f"Jarque-Bera p={diagnostics.get('residual_normality', {}).get('p_value')}; "
+                f"influence flags={diagnostics.get('influence', {}).get('flagged_count')}."
+            )
 
         # ── Needs-input / blocked ────────────────────────────────────────────
         if self.missing_information:

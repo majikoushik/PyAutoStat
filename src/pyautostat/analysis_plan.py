@@ -45,6 +45,7 @@ class StatisticalAnalysisPlan:
     warnings: tuple[str, ...] = ()
     limitations: tuple[str, ...] = ()
     provenance: dict[str, Any] | None = None
+    planned_diagnostics: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.specification, AnalysisSpecification):
@@ -108,6 +109,8 @@ class StatisticalAnalysisPlan:
             raise InvalidDataError("reproducibility_settings must be a mapping or None.")
         if any(not isinstance(item, str) or not item.strip() for item in self.warnings):
             raise InvalidDataError("plan warnings must contain non-empty text.")
+        if any(not isinstance(item, str) or not item.strip() for item in self.planned_diagnostics):
+            raise InvalidDataError("planned_diagnostics must contain non-empty text.")
         if any(not isinstance(item, str) or not item.strip() for item in self.limitations):
             raise InvalidDataError("plan limitations must contain non-empty text.")
         self.to_dict()
@@ -125,6 +128,7 @@ class StatisticalAnalysisPlan:
                 "research_description": question.description,
                 "outcome": question.outcome,
                 "predictor": question.predictor,
+                "predictors": list(question.predictors) if question.predictors else None,
                 "unit_id": self.specification.unit_id,
                 "estimand": question.estimand,
                 "study_design": self.specification.design.value,
@@ -132,13 +136,20 @@ class StatisticalAnalysisPlan:
                 "method_rationale": self.method_rationale,
                 "alpha": self.specification.options.alpha,
                 "confidence_level": self.specification.options.confidence_level,
+                "covariance_type": self.specification.options.covariance_type,
+                "reference_levels": self.specification.options.reference_levels,
+                "intercept": True
+                if question.objective and question.objective.value == "regression"
+                else None,
                 "alternative_hypothesis": _alternative_hypothesis(self.primary_method_id),
                 "effect_quantity": self.effect_quantity,
                 "confidence_interval_quantity": self.confidence_interval_quantity,
                 "missing_data_policy": self.missing_data_policy,
                 "exclusion_rule": self.exclusion_rule,
                 "outlier_rule": self.outlier_rule,
+                "planned_diagnostics": list(self.planned_diagnostics),
                 "variable_declarations": self.specification.data_dictionary,
+                "analytical_variable_types": self.specification.analytical_variable_types,
                 "planned_sensitivity_scenarios": [
                     item.to_dict() for item in self.sensitivity_scenarios
                 ],
@@ -188,6 +199,7 @@ class StatisticalAnalysisPlan:
                 missing_data_policy=payload["missing_data_policy"],
                 exclusion_rule=payload["exclusion_rule"],
                 outlier_rule=payload["outlier_rule"],
+                planned_diagnostics=tuple(payload.get("planned_diagnostics", ())),
                 sensitivity_scenarios=scenarios,
                 meaningful_threshold=threshold,
                 multiplicity_policy=payload.get("multiplicity_policy", "not_applicable"),
@@ -275,6 +287,14 @@ def compare_plan_to_result(
             plan.specification.question.predictor,
             executed.question.predictor if executed else None,
         ),
+        "predictors": (
+            list(plan.specification.question.predictors)
+            if plan.specification.question.predictors is not None
+            else None,
+            list(executed.question.predictors)
+            if executed is not None and executed.question.predictors is not None
+            else None,
+        ),
         "estimand": (
             plan.specification.question.estimand,
             executed.question.estimand if executed else None,
@@ -300,6 +320,14 @@ def compare_plan_to_result(
         "confidence_level": (
             plan.specification.options.confidence_level,
             executed.options.confidence_level if executed else None,
+        ),
+        "covariance_type": (
+            plan.specification.options.covariance_type,
+            executed.options.covariance_type if executed else None,
+        ),
+        "reference_levels": (
+            plan.specification.options.reference_levels,
+            executed.options.reference_levels if executed else None,
         ),
     }
     comparisons: list[dict[str, Any]] = [
@@ -360,6 +388,8 @@ def compare_plan_to_result(
 
 
 def planned_quantity(method_id: str | None) -> str | None:
+    if method_id == "linear_regression":
+        return "coefficient_vector"
     return estimate_quantity(method_id) if method_id is not None else None
 
 
@@ -368,6 +398,8 @@ def planned_interval_quantity(method_id: str | None) -> str | None:
         return "mean_difference"
     if method_id == "spearman_correlation":
         return "spearman_rho"
+    if method_id == "linear_regression":
+        return "coefficient_vector"
     return None
 
 
@@ -386,4 +418,6 @@ def _alternative_hypothesis(method_id: str | None) -> str | None:
         return "at least one group differs"
     if method_id in {"pearson_chi_square", "fisher_exact"}:
         return "variables are associated"
+    if method_id == "linear_regression":
+        return "at least one non-intercept slope differs from zero"
     return None
