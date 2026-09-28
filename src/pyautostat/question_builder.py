@@ -109,6 +109,7 @@ _OBJECTIVE_OPTIONS = (
     ("compare_reference", "Compare a mean with a reference value"),
     ("association", "Study a relationship"),
     ("regression", "Model a conditional mean"),
+    ("reliability", "Assess scale internal consistency"),
 )
 _DESIGN_OPTIONS = (
     ("independent", "Independent observations"),
@@ -133,6 +134,7 @@ def prepare_question(
     outcome: str | None = None,
     predictor: str | None = None,
     predictors: tuple[str, ...] | list[str] | None = None,
+    items: tuple[str, ...] | list[str] | None = None,
     design: str | StudyDesign | None = None,
     estimand: str | None = None,
     description: str | None = None,
@@ -157,6 +159,7 @@ def prepare_question(
     )
     selected_predictor = predictor if predictor is not None else prior.predictor
     selected_predictors = predictors if predictors is not None else prior.predictors
+    selected_items = items if items is not None else prior.items
     if selected_objective == Objective.REGRESSION and selected_predictors is None:
         if selected_predictor is not None:
             selected_predictors = (selected_predictor,)
@@ -168,6 +171,7 @@ def prepare_question(
         estimand=estimand if estimand is not None else prior.estimand,
         description=description if description is not None else prior.description,
         reference_value=(reference_value if reference_value is not None else prior.reference_value),
+        items=tuple(selected_items) if selected_items is not None else None,
     )
     selected_design = cast(StudyDesign, design if design is not None else base.design)
     selected_options = options if options is not None else base.options
@@ -184,6 +188,8 @@ def prepare_question(
                 if reference_levels is not None
                 else selected_options.reference_levels
             ),
+            bootstrap_samples=selected_options.bootstrap_samples,
+            reverse_scoring=selected_options.reverse_scoring,
         )
     selected_unit_id = unit_id if unit_id is not None else base.unit_id
     selected_condition_order = (
@@ -210,12 +216,26 @@ def prepare_question(
         raise InvalidDataError("A reference comparison does not use a predictor column.")
     if question.objective != Objective.REGRESSION and question.predictors is not None:
         raise InvalidDataError("predictors is supported only for objective='regression'.")
+    if question.objective != Objective.RELIABILITY and question.items is not None:
+        raise InvalidDataError("items is supported only for objective='reliability'.")
+    if question.objective == Objective.RELIABILITY and any(
+        value is not None for value in (question.outcome, question.predictor, question.predictors)
+    ):
+        raise InvalidDataError(
+            "Reliability uses an explicit items list, not outcome or predictor roles."
+        )
     if question.objective != Objective.REGRESSION and (
         selected_options.covariance_type != "classical"
         or selected_options.reference_levels is not None
     ):
         raise InvalidDataError(
             "covariance_type and reference_levels are supported only for objective='regression'."
+        )
+    if question.objective != Objective.RELIABILITY and (
+        selected_options.bootstrap_samples != 499 or selected_options.reverse_scoring is not None
+    ):
+        raise InvalidDataError(
+            "bootstrap_samples and reverse_scoring are supported only for objective='reliability'."
         )
     dictionary = validate_data_dictionary(
         frame, data_dictionary if data_dictionary is not None else base.data_dictionary
@@ -259,6 +279,12 @@ def prepare_question(
                 f"predictor column {selected_column!r} does not exist. "
                 f"Available columns: {list(frame.columns)!r}."
             )
+    for selected_column in question.items or ():
+        if selected_column not in frame.columns:
+            raise ColumnNotFoundError(
+                f"item column {selected_column!r} does not exist. "
+                f"Available columns: {list(frame.columns)!r}."
+            )
     if (
         question.objective in (Objective.COMPARE_GROUPS, Objective.ASSOCIATION)
         and question.outcome is not None
@@ -291,6 +317,7 @@ def prepare_question(
             if column is not None
         )
     )
+    selected.extend(item for item in (question.items or ()) if item not in selected)
     availability_columns = selected.copy()
     if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
         availability_columns.append(spec.unit_id)
@@ -338,11 +365,33 @@ def prepare_question(
             random_seed=spec.options.random_seed,
             covariance_type=spec.options.covariance_type,
             reference_levels=resolved_references or None,
+            bootstrap_samples=spec.options.bootstrap_samples,
+            reverse_scoring=spec.options.reverse_scoring,
         )
         spec = AnalysisSpecification(
             question=spec.question,
             design=spec.design,
             options=regression_options,
+            variable_metadata=spec.variable_metadata,
+            data_dictionary=spec.data_dictionary,
+            unit_id=spec.unit_id,
+            condition_order=spec.condition_order,
+            analytical_variable_types={
+                column: (
+                    hints[column]["suggested_type"]
+                    if hints[column]["type_source"] == "declared"
+                    else "continuous_numerical"
+                    if pd.api.types.is_numeric_dtype(frame[column])
+                    else hints[column]["suggested_type"]
+                )
+                for column in selected
+            },
+        )
+    elif question.objective == Objective.RELIABILITY and selected:
+        spec = AnalysisSpecification(
+            question=spec.question,
+            design=spec.design,
+            options=spec.options,
             variable_metadata=spec.variable_metadata,
             data_dictionary=spec.data_dictionary,
             unit_id=spec.unit_id,
@@ -487,6 +536,24 @@ def prepare_question(
                 "select",
                 _DESIGN_OPTIONS,
             )
+    elif question.objective == Objective.RELIABILITY:
+        column_options = tuple((column, column) for column in frame.columns)
+        if not question.items:
+            ask(
+                "items",
+                "Which two or more scored items form the proposed scale?",
+                "Scale membership is declared by the researcher and is never inferred.",
+                "columns",
+                column_options,
+            )
+        if question.estimand is None:
+            ask(
+                "estimand",
+                "What scale property should be summarized?",
+                "This workflow estimates internal consistency with Cronbach's alpha.",
+                "select",
+                (("internal_consistency", "Internal consistency"),),
+            )
 
     if spec.unit_id is not None and spec.unit_id in {
         question.outcome,
@@ -514,11 +581,19 @@ def prepare_question(
             warnings.append(f"{column!r} appears to be an identifier; confirm its analytical type.")
         if (
             question.objective != Objective.DESCRIPTIVE
+            and question.objective != Objective.RELIABILITY
             and (
                 column == question.outcome
-                or question.objective in (Objective.ASSOCIATION, Objective.REGRESSION)
+                or question.objective
+                in (Objective.ASSOCIATION, Objective.REGRESSION, Objective.RELIABILITY)
             )
-            and (info["ambiguous_numeric_category"] or info["suggested_type"] == "identifier")
+            and (
+                info["suggested_type"] == "identifier"
+                or (
+                    question.objective != Objective.RELIABILITY
+                    and info["ambiguous_numeric_category"]
+                )
+            )
             and info["type_source"] != "declared"
         ):
             ask(

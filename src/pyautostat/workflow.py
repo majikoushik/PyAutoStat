@@ -156,11 +156,17 @@ class ResearchWorkflowResult:
         lines.append(f" ANALYSIS RESULT | {method_label}")
         lines.append(sep)
         lines.append(f" Status    : {status_val}")
-        lines.append(f" Outcome   : {outcome}")
-        if (
-            spec.question.objective is not None
-            and spec.question.objective.value != "compare_reference"
-        ):
+        is_reliability = spec.question.objective is not None and (
+            spec.question.objective.value == "reliability"
+        )
+        if is_reliability:
+            lines.append(f" Items     : {', '.join(spec.question.items or ())}")
+        else:
+            lines.append(f" Outcome   : {outcome}")
+        if spec.question.objective is not None and spec.question.objective.value not in {
+            "compare_reference",
+            "reliability",
+        }:
             if spec.question.predictors:
                 lines.append(f" Predictors: {', '.join(spec.question.predictors)}")
             else:
@@ -181,6 +187,32 @@ class ResearchWorkflowResult:
             complete_pairs = self.analysis.metadata.get("sample", {}).get("complete_pairs")
             if isinstance(complete_pairs, int):
                 lines.append(f" Pairs     : {complete_pairs} complete pairs")
+        if self.analysis is not None and self.analysis.method_id == "cronbach_alpha":
+            values = self.analysis.values
+            interval = values.get("confidence_interval", {})
+            lines.append(thin)
+            lines.append(" RELIABILITY ESTIMATE")
+            lines.append(f"   Cronbach's alpha={values.get('cronbach_alpha'):.4g}.")
+            if isinstance(interval, dict) and interval.get("status") == "available":
+                lines.append(
+                    f"   Bootstrap CI [{interval.get('lower'):.4g}, "
+                    f"{interval.get('upper'):.4g}]; valid resamples="
+                    f"{interval.get('valid_resamples')}/{interval.get('requested_resamples')}."
+                )
+            lines.append(thin)
+            lines.append(" ITEM DIAGNOSTICS")
+            for item in values.get("item_statistics", []):
+                lines.append(
+                    f"   - {item.get('item')}: corrected item-total="
+                    f"{item.get('corrected_item_total_correlation')}; "
+                    f"alpha if deleted={item.get('alpha_if_deleted')}"
+                )
+            lines.append(thin)
+            lines.append(" INTER-ITEM CORRELATIONS")
+            lines.append(
+                f"   Mean={values.get('mean_inter_item_correlation')}; negative pairs="
+                f"{values.get('negative_inter_item_correlations', {}).get('count')}."
+            )
         if self.analysis is not None and self.analysis.method_id == "linear_regression":
             fit = self.analysis.values.get("model_fit", {})
             coefficients = self.analysis.values.get("coefficients", [])
@@ -336,7 +368,11 @@ class ResearchWorkflowResult:
                 lines.append(f"   {interp.uncertainty_interpretation.strip()}")
             if interp.assumption_notes:
                 lines.append(thin)
-                lines.append(" ASSUMPTIONS")
+                lines.append(
+                    " DIAGNOSTIC AND MISSINGNESS NOTES"
+                    if self.analysis is not None and self.analysis.method_id == "cronbach_alpha"
+                    else " ASSUMPTIONS"
+                )
                 for note in interp.assumption_notes:
                     lines.append(f"   - {note}")
             if interp.limitations:

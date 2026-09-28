@@ -284,6 +284,36 @@ class ResearchAssistant:
             row_variable, column_variable, data_dictionary=data_dictionary
         )
 
+    def reliability(
+        self,
+        items: list[str] | tuple[str, ...],
+        *,
+        confidence_level: float = 0.95,
+        bootstrap_samples: int = 499,
+        random_state: int | None = 0,
+        reverse_scoring: dict[str, tuple[float, float]] | None = None,
+        data_dictionary: dict | None = None,
+        title: str | None = None,
+        audit: bool = True,
+        fingerprint: bool = True,
+    ) -> ResearchWorkflowResult:
+        """Estimate multi-item internal consistency with Cronbach's alpha."""
+        return self.run(
+            objective=Objective.RELIABILITY,
+            items=items,
+            estimand="internal_consistency",
+            options=AnalysisOptions(
+                confidence_level=confidence_level,
+                random_seed=random_state,
+                bootstrap_samples=bootstrap_samples,
+                reverse_scoring=reverse_scoring,
+            ),
+            data_dictionary=data_dictionary,
+            title=title,
+            audit=audit,
+            fingerprint=fingerprint,
+        )
+
     def study_planner(self) -> StudyPlanner:
         """Return a prospective planner that does not inspect this assistant's data."""
 
@@ -310,6 +340,7 @@ class ResearchAssistant:
         outcome: str | None = None,
         predictor: str | None = None,
         predictors: list[str] | tuple[str, ...] | None = None,
+        items: list[str] | tuple[str, ...] | None = None,
         design: str | StudyDesign | None = None,
         estimand: str | None = None,
         description: str | None = None,
@@ -337,7 +368,7 @@ class ResearchAssistant:
 
         Parameters
         ----------
-        objective : {"descriptive", "compare_groups", "compare_reference", "association"}, optional
+        objective : str or Objective, optional
             Research objective. Descriptive workflows profile data, group comparisons
             compare an outcome across groups or paired conditions, and association
             workflows study a stated relationship.
@@ -345,6 +376,8 @@ class ResearchAssistant:
             Outcome or first analysis variable column.
         predictor : str, optional
             Group, condition, or second analysis variable column.
+        items : sequence of str, optional
+            Ordered scored columns for a researcher-declared reliability scale.
         design : {"independent", "paired", "repeated", "clustered", "unknown"}, optional
             Researcher-declared study design. The current inferential engine supports
             independent observations and explicit two-condition paired data. Other
@@ -391,6 +424,7 @@ class ResearchAssistant:
             outcome,
             predictor,
             predictors,
+            items,
             design,
             estimand,
             description,
@@ -422,6 +456,7 @@ class ResearchAssistant:
                 outcome=outcome,
                 predictor=predictor,
                 predictors=predictors,
+                items=items,
                 design=design,
                 estimand=estimand,
                 description=description,
@@ -579,6 +614,7 @@ class ResearchAssistant:
         outcome: str | None = None,
         predictor: str | None = None,
         predictors: list[str] | tuple[str, ...] | None = None,
+        items: list[str] | tuple[str, ...] | None = None,
         design: str | StudyDesign | None = None,
         estimand: str | None = None,
         description: str | None = None,
@@ -599,6 +635,7 @@ class ResearchAssistant:
             outcome=outcome,
             predictor=predictor,
             predictors=predictors,
+            items=items,
             design=design,
             estimand=estimand,
             description=description,
@@ -641,6 +678,7 @@ class ResearchAssistant:
             "outcome",
             "predictor",
             "predictors",
+            "items",
             "design",
             "estimand",
             "description",
@@ -663,7 +701,7 @@ class ResearchAssistant:
             except (ValueError, TypeError) as exc:
                 raise InvalidDataError(
                     "objective must be descriptive, compare_groups, compare_reference, "
-                    "association, or regression."
+                    "association, regression, or reliability."
                 ) from exc
         else:
             new_objective = cast(Objective | None, changes.get("objective", previous.objective))
@@ -673,6 +711,7 @@ class ResearchAssistant:
             "outcome": previous.outcome,
             "predictor": previous.predictor,
             "predictors": previous.predictors,
+            "items": previous.items,
             "estimand": previous.estimand,
             "description": previous.description,
             "reference_value": previous.reference_value,
@@ -681,12 +720,15 @@ class ResearchAssistant:
         if switched:
             values["predictor"] = None
             values["predictors"] = None
+            values["items"] = None
             values["estimand"] = None
             values["reference_value"] = None
             selected_design = StudyDesign.UNKNOWN
             selected_unit_id = None
             selected_condition_order = None
             if new_objective == Objective.DESCRIPTIVE:
+                values["outcome"] = None
+            if new_objective == Objective.RELIABILITY:
                 values["outcome"] = None
         else:
             selected_unit_id = old.unit_id
@@ -695,6 +737,7 @@ class ResearchAssistant:
             "outcome",
             "predictor",
             "predictors",
+            "items",
             "estimand",
             "description",
             "reference_value",
@@ -981,6 +1024,11 @@ class ResearchAssistant:
                 "Integrated regression sensitivity is not yet supported. Run separate explicit "
                 "classical and HC3 specifications and compare the coefficient-level records; "
                 "the current scalar sensitivity contract cannot represent a coefficient vector."
+            )
+        if result.method_id == "cronbach_alpha":
+            raise InvalidDataError(
+                "Integrated sensitivity is not supported for scale reliability; run separately "
+                "declared scoring or item-set specifications and compare their complete records."
             )
         if not isinstance(scenarios, (list, tuple)) or not scenarios:
             raise InvalidDataError("scenarios must be a non-empty list or tuple.")
@@ -1285,6 +1333,13 @@ class ResearchAssistant:
         threshold: MeaningfulEffectThreshold,
     ) -> PracticalSignificanceResult:
         """Assess one available quantity against a researcher-supplied threshold."""
+        if not isinstance(result, AnalysisResult):
+            raise InvalidDataError("practical_significance requires an AnalysisResult.")
+        if result.method_id == "cronbach_alpha":
+            raise InvalidDataError(
+                "Cronbach's alpha is a reliability estimate, not an effect-size quantity for "
+                "the practical-significance workflow."
+            )
         if not isinstance(threshold, MeaningfulEffectThreshold):
             raise InvalidDataError("threshold must be a MeaningfulEffectThreshold.")
         payload = threshold.to_dict()
@@ -1517,6 +1572,11 @@ _DATA_LIMIT_MESSAGES = (
     "has no variation in the analyzed sample",
     "design matrix is not full rank",
     "positive residual degrees of freedom",
+    "at least two complete respondents",
+    "at least two respondents complete",
+    "total scale score has zero variance",
+    "total score has zero variance",
+    "nonfinite",
 )
 
 
@@ -1537,6 +1597,7 @@ def _scenario_incompatibility(
         left.outcome != right.outcome
         or left.predictor != right.predictor
         or left.predictors != right.predictors
+        or left.items != right.items
     ):
         return "The scenario changes the outcome or predictor role."
     if base.design != scenario.design:

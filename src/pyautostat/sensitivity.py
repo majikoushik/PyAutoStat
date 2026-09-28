@@ -51,6 +51,7 @@ _QUANTITIES = {
     "spearman_correlation": "spearman_rho",
     "pearson_chi_square": "cramers_v",
     "fisher_exact": "odds_ratio",
+    "cronbach_alpha": "cronbach_alpha",
 }
 
 
@@ -373,6 +374,7 @@ def _identity(result: AnalysisResult) -> dict[str, Any]:
         "objective": question.objective.value if question.objective is not None else None,
         "outcome": question.outcome,
         "predictor": question.predictor,
+        "items": list(question.items) if question.items is not None else None,
         "design": specification.design.value,
         "estimand": question.estimand,
         "reference_value": question.reference_value,

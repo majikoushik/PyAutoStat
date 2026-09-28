@@ -34,6 +34,13 @@ It is not a substitute for scientific design review or subject-matter judgment.
 - Inferential Spearman targets monotonic rank association. Its percentile interval resamples
   observation pairs together; ties are allowed. It neither guarantees linearity nor establishes
   causation.
+- Cronbach's alpha describes covariance-based internal consistency for the exact declared item set
+  and complete-case sample. It does not establish unidimensionality; construct, content,
+  criterion, convergent, or discriminant validity; measurement invariance; temporal stability;
+  or inter-rater reliability. Alpha depends on item count and may rise with redundant items.
+  PyAutoStat applies no universal `.70` pass/fail rule, does not discover scales, and never deletes
+  or reverse-scores items automatically. Numeric Likert-style scores use ordinary variances and
+  correlations; ordinal/polychoric alpha, omega, factor analysis, and PCA are unsupported.
 - Fisher's exact test is limited to ordered 2x2 tables. Its primary effect is SciPy's
   unconditional sample odds ratio. Nonfinite zero-cell ratios are recorded as unavailable with a
   status, and no odds-ratio confidence interval is currently supplied.

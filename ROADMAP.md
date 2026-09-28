@@ -14,6 +14,8 @@ thresholds, analysis plans, prospective independent and paired mean planning, re
 completeness, styled HTML/Markdown/LaTeX output, and UI-independent session snapshots.
 It supports bounded simple and multiple ordinary least-squares conditional-mean regression with
 explicit treatment coding, classical or HC3 covariance inference, and stored diagnostics.
+It also supports researcher-declared multi-item internal-consistency analysis with Cronbach's
+alpha, deterministic bootstrap uncertainty, item diagnostics, and explicit reverse scoring.
 The established analysis, planning, and reporting capabilities are checked into `main`, and their
 GitHub CI matrix passed. A release remains a separate owner decision.
 

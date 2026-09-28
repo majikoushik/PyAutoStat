@@ -1097,6 +1097,27 @@ class StatisticalAnalyzer:
             alpha=alpha,
         )
 
+    def scale_reliability(
+        self,
+        items: list[str] | tuple[str, ...],
+        *,
+        confidence_level: float = 0.95,
+        bootstrap_samples: int = 499,
+        random_state: int | None = 0,
+        reverse_scoring: dict[str, tuple[float, float]] | None = None,
+    ) -> dict:
+        """Calculate Cronbach alpha and diagnostics for explicitly selected scored items."""
+        from .reliability import calculate_reliability
+
+        return calculate_reliability(
+            self.df,
+            items,
+            confidence_level=confidence_level,
+            bootstrap_samples=bootstrap_samples,
+            random_state=random_state,
+            reverse_scoring=reverse_scoring,
+        )
+
     def hypothesis_tests(
         self,
         group_col: str,

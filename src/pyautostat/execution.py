@@ -228,6 +228,70 @@ def _regression_result(
     )
 
 
+def _reliability_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    items = specification.question.items
+    assert items is not None
+    raw = analyzer.scale_reliability(
+        items,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=specification.options.random_seed,
+        reverse_scoring=specification.options.reverse_scoring,
+    )
+    frequencies: dict[str, Any] = {}
+    dictionary = specification.data_dictionary or {}
+    for item in items:
+        if dictionary.get(item, {}).get("type") != "ordinal":
+            continue
+        try:
+            frequencies[item] = analyzer.frequency_table(item, data_dictionary=dictionary)
+        except PyAutoStatError:
+            continue
+    values = {
+        "primary_estimate": raw["cronbach_alpha"],
+        "estimate_name": "Cronbach's alpha",
+        "confidence_interval": raw["confidence_interval"],
+        "target": raw["target"],
+        "items": raw["items"],
+        "item_count": raw["item_count"],
+        "cronbach_alpha": raw["cronbach_alpha"],
+        "item_statistics": raw["item_statistics"],
+        "inter_item_correlations": raw["inter_item_correlations"],
+        "mean_inter_item_correlation": raw["mean_inter_item_correlation"],
+        "negative_inter_item_correlations": raw["negative_inter_item_correlations"],
+        "missingness": raw["missingness"],
+        "scoring": raw["scoring"],
+        "formula": raw["formula"],
+        "item_frequencies": frequencies,
+    }
+    sample = raw["sample"]
+    return AnalysisResult(
+        method_id="cronbach_alpha",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=int(sample["analyzed_rows"]),
+        excluded_rows=int(sample["excluded_rows"]),
+        values=_json_safe(values),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw["warnings"]),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "NumPy sample covariance and correlation",
+            "sample": _json_safe(sample),
+            "formula": _json_safe(raw["formula"]),
+            "bootstrap": _json_safe(raw["confidence_interval"]),
+            "inference": False,
+            "hypothesis_test": False,
+            "raw_data_included": False,
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
 def _group_result(
     analyzer: StatisticalAnalyzer,
     specification: AnalysisSpecification,
@@ -1057,6 +1121,8 @@ def execute_specification(
             )
         if method_id == "linear_regression":
             return _regression_result(analyzer, specification, recommendation)
+        if method_id == "cronbach_alpha":
+            return _reliability_result(analyzer, specification, recommendation)
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, recommendation)
         if method_id == "one_sample_t":
@@ -1143,6 +1209,8 @@ def execute_selected_method(
     try:
         if method_id == "linear_regression":
             return _regression_result(analyzer, specification, explicit)
+        if method_id == "cronbach_alpha":
+            return _reliability_result(analyzer, specification, explicit)
         if method_id in _GROUP_BACKENDS:
             return _group_result(analyzer, specification, explicit)
         if method_id == "one_sample_t":

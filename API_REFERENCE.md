@@ -136,8 +136,8 @@ workflow = assistant.run(
 `specification` for continuation, `include_profile=False`, `audit=True`, `fingerprint=True`,
 `title=None`, and `include_figures=False`. A draft/specification is mutually exclusive with raw
 question arguments. Invalid API types and conflicting inputs raise `InvalidDataError`.
-Valid objectives are `descriptive`, `compare_groups`, `compare_reference`, `association`, and
-`regression`.
+Valid objectives are `descriptive`, `compare_groups`, `compare_reference`, `association`,
+`regression`, and `reliability`.
 `compare_reference` requires one continuous `outcome`, `estimand="mean"`, and a finite explicit
 `reference_value`; it has no predictor. Accepted design values
 are `independent`, `paired`, `repeated`, `clustered`, and `unknown`; only documented supported
@@ -232,6 +232,45 @@ preferred when reports, interpretation, audit, replay, and session records are n
 The existing sensitivity comparison contract is scalar, so it does not currently compare a full
 regression coefficient vector. Run separately declared classical and HC3 specifications instead;
 their covariance estimator remains part of each coefficient and model record.
+
+### Scale reliability workflow
+
+`ResearchAssistant.reliability(items, *, confidence_level=.95, bootstrap_samples=499,
+random_state=0, reverse_scoring=None, data_dictionary=None, title=None, audit=True,
+fingerprint=True)` is the focused beginner path. `items` is an ordered sequence of at least two
+distinct existing numeric columns. Scale membership is never inferred. The equivalent integrated
+request uses `objective="reliability"`, `estimand="internal_consistency"`, and `items=[...]`.
+
+Analysis uses respondents complete on every selected item and records original, analyzed, and
+excluded rows plus per-item missing counts and percentages. Cronbach's alpha uses sample
+variances (`ddof=1`) and is not clipped when negative. Its percentile interval resamples whole
+respondent rows with a local deterministic generator. The interval records its seed and requested
+and valid replicate counts; too few valid replicates make interpretation and reporting partial
+without invalidating a finite point estimate.
+
+Each item record contains analyzed descriptive statistics, its corrected item-total correlation
+(the focal item is excluded from the total), alpha if deleted, and the change from full-scale
+alpha. Two-item scales mark deletion diagnostics not applicable. The result also retains an
+ordered complete-case inter-item matrix, mean unique off-diagonal correlation, and negative-pair
+cues. Numeric items declared ordinal also receive reusable frequency-table records.
+
+`reverse_scoring={"q4": (1, 5)}` explicitly applies `lower + upper - original` on an internal
+copy after validating bounds and observed values. It is recorded in the specification, analysis,
+report, audit, and replay metadata. No item is reverse-scored or deleted automatically, and no
+composite column is created.
+
+The expert method `StatisticalAnalyzer.scale_reliability(items, *, confidence_level=.95,
+bootstrap_samples=499, random_state=0, reverse_scoring=None)` returns the validated numerical
+record. Reliability output has no p-value, null hypothesis, or effect-size classification. Alpha
+does not establish unidimensionality, measurement validity, invariance, test-retest stability, or
+inter-rater reliability.
+
+The focused method returns the ordinary `ResearchWorkflowResult`: `completed` when all diagnostics
+and the interval are available, `partial` when a valid alpha remains but optional uncertainty or
+diagnostics are unavailable, and `data_limited` for observed mathematical blockers. Its
+`to_dict()`, `to_json()`, and `explain()` methods remain strict JSON-safe/readable workflow views.
+Canonical reports add `reliability_summary`, `reliability_items`, and
+`inter_item_correlations` tables and use the same stored values for audit and explicit replay.
 
 ### Continue after `needs_input`
 

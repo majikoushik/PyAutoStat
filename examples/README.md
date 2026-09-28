@@ -16,6 +16,7 @@ python examples/data_understanding.py
 python examples/basic_inference.py
 python examples/multigroup_analysis.py
 python examples/linear_regression.py
+python examples/scale_reliability.py
 ~~~
 
 It prints the dataset story, deterministic recommendation rationale (why this
@@ -41,6 +42,10 @@ pair is retained even when the printed explanation is bounded.
 predictor, categorical and Boolean treatment coding, explicit reference levels, HC3 covariance,
 coefficient interpretation, stored diagnostics, `workflow.explain()`, report CSV tables, and
 audit. It uses synthetic data and writes no files.
+
+`scale_reliability.py` demonstrates the beginner Cronbach-alpha workflow with an explicit item
+set, declared reverse scoring, complete-case accounting, item diagnostics, deterministic
+bootstrap uncertainty, audit, and replay. It uses synthetic data and writes no files.
 
 ## Install
 

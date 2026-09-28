@@ -72,7 +72,10 @@ def assess_reporting_completeness(
     source_values = payload["analysis"]["values"]
     dataset = sections["dataset"]
     question = sections["research_question"]
-    inference = method != "dataset_profile" and payload["analysis"]["status"] == "available"
+    inference = (
+        method not in {"dataset_profile", "cronbach_alpha"}
+        and payload["analysis"]["status"] == "available"
+    )
     df_applicable = method in {
         "welch_t",
         "student_t",
@@ -127,6 +130,8 @@ def assess_reporting_completeness(
             (
                 "profile"
                 if method == "dataset_profile"
+                else question.get("items")
+                if method == "cronbach_alpha"
                 else [question["outcome"]]
                 if method == "one_sample_t" and question.get("outcome") is not None
                 else [question["outcome"], *question.get("predictors", [])]
@@ -143,7 +148,7 @@ def assess_reporting_completeness(
             "Declared study design",
             sections["methods"].get("declared_design"),
             "sections.methods.declared_design",
-            applicable=method != "dataset_profile",
+            applicable=method not in {"dataset_profile", "cronbach_alpha"},
         ),
         item("METHOD_REPORTED", "methods", "Analysis method", method, "sections.methods.method_id"),
         item(
@@ -298,6 +303,48 @@ def assess_reporting_completeness(
                 "VIF, heteroscedasticity, residual, and influence diagnostics",
                 results.get("diagnostics"),
                 "sections.results.diagnostics",
+            ),
+        )
+    if method == "cronbach_alpha":
+        interval = results.get("confidence_interval")
+        items += (
+            item(
+                "RELIABILITY_ESTIMATE_REPORTED",
+                "results",
+                "Cronbach alpha estimate",
+                results.get("cronbach_alpha"),
+                "sections.results.cronbach_alpha",
+            ),
+            item(
+                "RELIABILITY_INTERVAL_REPORTED",
+                "results",
+                "Respondent-row bootstrap interval",
+                interval
+                if isinstance(interval, dict) and interval.get("status") == "available"
+                else None,
+                "sections.results.confidence_interval",
+                unavailable=isinstance(interval, dict) and interval.get("status") == "unavailable",
+            ),
+            item(
+                "RELIABILITY_ITEMS_REPORTED",
+                "results",
+                "Per-item descriptives and diagnostics",
+                results.get("item_statistics"),
+                "sections.results.item_statistics",
+            ),
+            item(
+                "INTER_ITEM_CORRELATIONS_REPORTED",
+                "results",
+                "Inter-item correlation matrix",
+                results.get("inter_item_correlations"),
+                "sections.results.inter_item_correlations",
+            ),
+            item(
+                "RELIABILITY_MISSINGNESS_REPORTED",
+                "results",
+                "Per-item and complete-case missingness",
+                results.get("missingness"),
+                "sections.results.missingness",
             ),
         )
     required_statuses = [entry.status for entry in items if entry.applicable and entry.required]

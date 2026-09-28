@@ -58,6 +58,7 @@ This is an audit of the methods in the current analyzer, not a claim that any me
 | Anderson-Darling | Normality statistic compared with supplied critical values/significance levels; at least 3 varying values by library policy | Not converted into a p-value or `is_normal` flag. When a validated 5% grid point exists, `status` and the qualified display `verdict` compare the statistic with that point. The statistic must be finite and nonnegative; the critical grid must be nonempty, finite, positive, paired with valid descending significance percentages, and increasing as significance decreases. A malformed or negative grid makes the test unavailable with a warning; SciPy's API deprecation notice is advisory. |
 | Pearson correlation | Linear association; null zero population correlation for reported pairwise p-value; at least 3 paired varying values for p | Pairwise missing rows excluded. Undefined coefficients/p-values are `None`; near-constant warning makes p unavailable. |
 | Ordinary least-squares regression | Additive conditional mean with intercept; null for each coefficient is zero and omnibus null is all non-intercept population slopes zero; continuous outcome, independent rows, full-rank complete-case design, and positive residual df | statsmodels OLS supplies coefficients, classical or explicit HC3 covariance inference, t intervals/tests, model F, R-squared, adjusted R-squared, and residual error. Treatment coding records every categorical reference. Diagnostics never switch covariance, select terms, or remove rows. |
+| Cronbach's alpha | Internal consistency of an ordered, researcher-declared set of at least two numeric items; at least two respondents complete on all items and positive finite total-score sample variance | Independent formula tests use `k/(k-1) * (1 - sum(sample item variances)/sample total-score variance)` with `ddof=1`. Whole respondent rows are bootstrapped using a local seeded generator. Negative alpha is retained. Corrected item-total correlation excludes the focal item; deletion alpha is recomputed from the remaining matrix. No p-value, cutoff, scale discovery, or validity claim is produced. |
 | Spearman correlation (profile) | Descriptive rank association coefficient; at least 2 paired varying values | Matrix only; no p-values claimed. Ties use pandas/SciPy rank conventions. This remains distinct from the two-variable inferential method. |
 | Kendall correlation | Concordance association coefficient; at least 2 paired varying values | Matrix only; no p-values claimed. Ties use pandas/SciPy conventions. |
 | IQR outlier flag | Outside Q1−1.5 IQR or Q3+1.5 IQR | Descriptive flag only. Nonfinite bounds make count unavailable. |
@@ -98,6 +99,16 @@ the public `scipy.stats.studentized_range` distribution required for Games-Howel
 inference. CI includes a Python 3.10 minimum-stack route pinned to NumPy 1.23.5, pandas 1.5.3,
 SciPy 1.8.0, and statsmodels 0.15.0 for focused multi-group and regression suites. The full suite
 runs on Linux and Windows for Python 3.10 through 3.13.
+
+### Reliability numerical policy
+
+Reliability uses one matrix of respondents complete on every selected item. A single constant item
+is retained when the total score still has positive finite variance, because alpha remains defined;
+that item's correlations are marked unavailable and the workflow is partial. All-constant items,
+constant total scores, fewer than two complete respondents, and nonfinite or overflowed variances
+block the estimate. A two-item scale is allowed, but deletion diagnostics are not applicable.
+Bootstrap replicates resample whole matrix rows and skip undefined alpha replicates; too few valid
+replicates make only the interval unavailable.
 
 ### Linear-regression numerical policy
 

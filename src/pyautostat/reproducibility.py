@@ -52,6 +52,17 @@ _VALUES = (
     "coefficients",
     "design_matrix",
     "diagnostics",
+    "items",
+    "item_count",
+    "cronbach_alpha",
+    "item_statistics",
+    "inter_item_correlations",
+    "mean_inter_item_correlation",
+    "negative_inter_item_correlations",
+    "missingness",
+    "scoring",
+    "formula",
+    "item_frequencies",
 )
 
 

@@ -13,6 +13,7 @@ from .categorical import contingency_counts
 from .exceptions import InsufficientDataError, InvalidDataError
 from .question_builder import QuestionDraft, QuestionStatus
 from .regression import build_design_matrix
+from .reliability import calculate_reliability
 from .results import MissingInformation, Recommendation, RecommendationStatus
 from .specifications import Objective, StudyDesign
 
@@ -41,6 +42,25 @@ class MethodCapability:
 METHOD_CAPABILITIES: dict[str, MethodCapability] = {
     item.identifier: item
     for item in (
+        MethodCapability(
+            "cronbach_alpha",
+            "Scale reliability (Cronbach's alpha)",
+            "reliability",
+            "internal_consistency",
+            ("numeric_items",),
+            ("unknown",),
+            "not_applicable",
+            "At least two numeric items and two complete respondents",
+            (
+                "Researcher-declared scale membership and scoring",
+                "Items are suitably scored for covariance-based internal consistency",
+                "Complete respondents are relevant to the intended population",
+            ),
+            False,
+            "runnable",
+            "Alpha does not establish unidimensionality, validity, or temporal stability.",
+            "PyAutoStat Cronbach alpha",
+        ),
         MethodCapability(
             "one_sample_t",
             "One-sample t-test",
@@ -362,11 +382,20 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
     selected = list(
         dict.fromkeys(
             name
-            for name in (question.outcome, question.predictor, *(question.predictors or ()))
+            for name in (
+                question.outcome,
+                question.predictor,
+                *(question.predictors or ()),
+                *(question.items or ()),
+            )
             if name is not None
         )
     )
-    types = {name: draft.variable_suggestions[name]["suggested_type"] for name in selected}
+    recorded_types = spec.analytical_variable_types or {}
+    types = {
+        name: recorded_types.get(name, draft.variable_suggestions[name]["suggested_type"])
+        for name in selected
+    }
     context: dict[str, Any] = {
         "objective": objective.value if objective is not None else None,
         "estimand": question.estimand,
@@ -461,6 +490,89 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             method_id="dataset_profile",
             rationale="The existing dataset profile summarizes the selected data without "
             "an inferential hypothesis test.",
+        )
+
+    if objective == Objective.RELIABILITY:
+        items = question.items or ()
+        context.update(
+            {
+                "items": list(items),
+                "missing_data_policy": "complete cases across all selected items",
+                "bootstrap_samples": spec.options.bootstrap_samples,
+                "random_state": 0 if spec.options.random_seed is None else spec.options.random_seed,
+                "reverse_scoring": spec.options.reverse_scoring or {},
+            }
+        )
+        if question.estimand != "internal_consistency":
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Reliability supports only estimand='internal_consistency'.",),
+                rationale="The requested scale property was preserved rather than substituted.",
+            )
+        identifiers = [item for item in items if types.get(item) == "identifier"]
+        if identifiers:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(f"Identifier columns cannot be scale items: {identifiers!r}.",),
+                rationale="Identifiers are not questionnaire scores.",
+            )
+        unsupported = [
+            item
+            for item in items
+            if types.get(item)
+            not in {
+                "continuous_numerical",
+                "discrete_numerical",
+                "ordinal_categorical",
+                "boolean",
+            }
+        ]
+        if unsupported:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "Cronbach's alpha requires explicitly numeric scored items; no ordinal "
+                    f"label encoding is inferred for {unsupported!r}.",
+                ),
+                rationale="Item labels require researcher-supplied numeric scoring before use.",
+            )
+        for item in items:
+            codes = (spec.data_dictionary or {}).get(item, {}).get("missing_codes", [])
+            if codes and int(frame[item].isin(codes).sum()):
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(
+                        f"{item!r} contains declared missing-code observations; normalize "
+                        "them before reliability analysis.",
+                    ),
+                    rationale="Declared missing codes are not silently treated as item scores.",
+                )
+        try:
+            preview = calculate_reliability(
+                frame,
+                items,
+                confidence_level=spec.options.confidence_level,
+                bootstrap_samples=1,
+                random_state=spec.options.random_seed,
+                reverse_scoring=spec.options.reverse_scoring,
+            )
+        except (InsufficientDataError, InvalidDataError) as exc:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(str(exc),),
+                rationale="The supplied item matrix cannot support a finite alpha estimate.",
+            )
+        context["available_observations"] = preview["sample"]["analyzed_rows"]
+        context["excluded_rows"] = preview["sample"]["excluded_rows"]
+        record("method", "cronbach_alpha", "Researcher-declared multi-item scale target.")
+        return finish(
+            RecommendationStatus.READY,
+            method_id="cronbach_alpha",
+            rationale=(
+                "You supplied multiple scored items as one proposed scale. Cronbach's alpha "
+                "estimates their internal consistency; it does not establish dimensionality "
+                "or validity."
+            ),
         )
 
     assert objective is not None

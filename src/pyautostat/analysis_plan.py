@@ -129,6 +129,7 @@ class StatisticalAnalysisPlan:
                 "outcome": question.outcome,
                 "predictor": question.predictor,
                 "predictors": list(question.predictors) if question.predictors else None,
+                "items": list(question.items) if question.items else None,
                 "unit_id": self.specification.unit_id,
                 "estimand": question.estimand,
                 "study_design": self.specification.design.value,
@@ -295,6 +296,14 @@ def compare_plan_to_result(
             if executed is not None and executed.question.predictors is not None
             else None,
         ),
+        "items": (
+            list(plan.specification.question.items)
+            if plan.specification.question.items is not None
+            else None,
+            list(executed.question.items)
+            if executed is not None and executed.question.items is not None
+            else None,
+        ),
         "estimand": (
             plan.specification.question.estimand,
             executed.question.estimand if executed else None,
@@ -328,6 +337,14 @@ def compare_plan_to_result(
         "reference_levels": (
             plan.specification.options.reference_levels,
             executed.options.reference_levels if executed else None,
+        ),
+        "bootstrap_samples": (
+            plan.specification.options.bootstrap_samples,
+            executed.options.bootstrap_samples if executed else None,
+        ),
+        "reverse_scoring": (
+            plan.specification.options.reverse_scoring,
+            executed.options.reverse_scoring if executed else None,
         ),
     }
     comparisons: list[dict[str, Any]] = [
@@ -390,6 +407,8 @@ def compare_plan_to_result(
 def planned_quantity(method_id: str | None) -> str | None:
     if method_id == "linear_regression":
         return "coefficient_vector"
+    if method_id == "cronbach_alpha":
+        return "cronbach_alpha"
     return estimate_quantity(method_id) if method_id is not None else None
 
 
@@ -400,6 +419,8 @@ def planned_interval_quantity(method_id: str | None) -> str | None:
         return "spearman_rho"
     if method_id == "linear_regression":
         return "coefficient_vector"
+    if method_id == "cronbach_alpha":
+        return "cronbach_alpha"
     return None
 
 

@@ -2108,6 +2108,79 @@ def executive_summary(
     return tuple(paragraphs)
 
 
+def reliability_narrative(
+    alpha: float,
+    item_count: int,
+    respondent_count: int,
+    interval: Mapping[str, Any] | None,
+) -> str:
+    """Describe an alpha estimate without imposing a universal quality cutoff."""
+    text = (
+        f"Cronbach's alpha was {_fmt(alpha)} for {item_count} researcher-declared items "
+        f"among {respondent_count} complete respondents."
+    )
+    if isinstance(interval, Mapping) and interval.get("status") == "available":
+        lower = _finite(interval.get("lower"))
+        upper = _finite(interval.get("upper"))
+        level = _finite(interval.get("level"))
+        if lower is not None and upper is not None and level is not None:
+            text += (
+                f" The {_fmt(level * 100)}% respondent-row bootstrap interval was "
+                f"[{_fmt(lower)}, {_fmt(upper)}]."
+            )
+    return text
+
+
+def reliability_item_narrative(item_statistics: Sequence[Mapping[str, Any]]) -> str:
+    """Summarize diagnostic cues while leaving item decisions to the researcher."""
+    negative = [
+        str(item.get("item"))
+        for item in item_statistics
+        if (_finite(item.get("corrected_item_total_correlation")) or 0) < 0
+    ]
+    available_deltas = [
+        (str(item.get("item")), _finite(item.get("delta_from_full_alpha")))
+        for item in item_statistics
+    ]
+    increases = [
+        (name, value) for name, value in available_deltas if value is not None and value > 0
+    ]
+    parts = []
+    if negative:
+        parts.append(
+            "Negative corrected item-total correlations were observed for "
+            + ", ".join(repr(item) for item in negative)
+            + "."
+        )
+    if increases:
+        name, value = max(increases, key=lambda pair: pair[1])
+        parts.append(
+            f"The largest recorded alpha increase on deletion was {_fmt(value)} for {name!r}."
+        )
+    if not parts:
+        parts.append("No negative corrected item-total correlation was recorded.")
+    parts.append("These are review cues, not instructions to delete or reverse-score an item.")
+    return " ".join(parts)
+
+
+def reliability_diagnostics_narrative(
+    mean_inter_item: float | None,
+    negative_pair_count: int,
+) -> str:
+    """Describe the recorded inter-item correlation diagnostics."""
+    mean_text = (
+        f"The mean available unique inter-item correlation was {_fmt(mean_inter_item)}. "
+        if mean_inter_item is not None
+        else "The mean inter-item correlation was unavailable. "
+    )
+    return (
+        mean_text
+        + f"{negative_pair_count} negative unique inter-item "
+        + ("pair was" if negative_pair_count == 1 else "pairs were")
+        + " recorded."
+    )
+
+
 __all__ = [
     "ASSUMPTION_SEVERITY_DESCRIPTIONS",
     "assumption_grade",
@@ -2123,5 +2196,8 @@ __all__ = [
     "interval_verdict",
     "percentile_narrative",
     "recommendation_rationale",
+    "reliability_diagnostics_narrative",
+    "reliability_item_narrative",
+    "reliability_narrative",
     "sensitivity_verdict",
 ]

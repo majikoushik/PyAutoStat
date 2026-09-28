@@ -20,6 +20,7 @@ class Objective(str, Enum):
     COMPARE_REFERENCE = "compare_reference"
     ASSOCIATION = "association"
     REGRESSION = "regression"
+    RELIABILITY = "reliability"
 
 
 class StudyDesign(str, Enum):
@@ -85,6 +86,7 @@ class ResearchQuestion:
     description: str | None = None
     reference_value: float | None = None
     predictors: tuple[str, ...] | None = None
+    items: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.objective is not None:
@@ -104,6 +106,17 @@ class ResearchQuestion:
             if len(set(checked)) != len(checked):
                 raise InvalidDataError("predictors must not contain duplicates.")
             object.__setattr__(self, "predictors", checked)
+        if self.items is not None:
+            if isinstance(self.items, (str, bytes)) or not isinstance(self.items, (list, tuple)):
+                raise InvalidDataError("items must be a sequence of at least two column names.")
+            checked_items = tuple(self.items)
+            if len(checked_items) < 2 or any(
+                not isinstance(item, str) or not item.strip() for item in checked_items
+            ):
+                raise InvalidDataError("items must contain at least two nonempty column names.")
+            if len(set(checked_items)) != len(checked_items):
+                raise InvalidDataError("items must not contain duplicates.")
+            object.__setattr__(self, "items", checked_items)
         if self.predictor is not None and self.predictors is not None:
             if self.predictors != (self.predictor,):
                 raise InvalidDataError(
@@ -130,6 +143,8 @@ class ResearchQuestion:
         }
         if self.predictors is not None:
             payload["predictors"] = list(self.predictors)
+        if self.items is not None:
+            payload["items"] = list(self.items)
         return payload
 
     @classmethod
@@ -146,6 +161,8 @@ class AnalysisOptions:
     random_seed: int | None = None
     covariance_type: str = "classical"
     reference_levels: dict[str, Any] | None = None
+    bootstrap_samples: int = 499
+    reverse_scoring: dict[str, tuple[float, float]] | None = None
 
     def __post_init__(self) -> None:
         _probability(self.alpha, "alpha")
@@ -165,6 +182,37 @@ class AnalysisOptions:
             if any(value is None or isinstance(value, (list, dict)) for value in checked.values()):
                 raise InvalidDataError("Each categorical reference must be a non-missing scalar.")
             object.__setattr__(self, "reference_levels", checked)
+        if isinstance(self.bootstrap_samples, bool) or not isinstance(self.bootstrap_samples, int):
+            raise InvalidDataError("bootstrap_samples must be a positive integer.")
+        if self.bootstrap_samples < 1:
+            raise InvalidDataError("bootstrap_samples must be a positive integer.")
+        if self.reverse_scoring is not None:
+            if not isinstance(self.reverse_scoring, dict):
+                raise InvalidDataError("reverse_scoring must map item names to (lower, upper).")
+            checked_scoring: dict[str, tuple[float, float]] = {}
+            for item, bounds in self.reverse_scoring.items():
+                if not isinstance(item, str) or not item.strip():
+                    raise InvalidDataError("reverse_scoring item names must be nonempty strings.")
+                if (
+                    not isinstance(bounds, (list, tuple))
+                    or len(bounds) != 2
+                    or any(
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not math.isfinite(value)
+                        for value in bounds
+                    )
+                ):
+                    raise InvalidDataError(
+                        "Every reverse_scoring value must be two finite numeric bounds."
+                    )
+                lower, upper = float(bounds[0]), float(bounds[1])
+                if lower >= upper:
+                    raise InvalidDataError(
+                        "Reverse-scoring lower bounds must be below upper bounds."
+                    )
+                checked_scoring[item] = (lower, upper)
+            object.__setattr__(self, "reverse_scoring", checked_scoring)
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -175,6 +223,9 @@ class AnalysisOptions:
         if self.covariance_type != "classical" or self.reference_levels is not None:
             payload["covariance_type"] = self.covariance_type
             payload["reference_levels"] = _json_value(self.reference_levels)
+        if self.bootstrap_samples != 499 or self.reverse_scoring is not None:
+            payload["bootstrap_samples"] = self.bootstrap_samples
+            payload["reverse_scoring"] = _json_value(self.reverse_scoring)
         return payload
 
     @classmethod
@@ -275,6 +326,11 @@ class AnalysisSpecification:
             payload["options"]["reference_levels"] = _json_value(self.options.reference_levels)
             payload["intercept"] = True
             payload["missing_data_policy"] = "complete cases across outcome and all predictors"
+            payload["analytical_variable_types"] = _json_value(self.analytical_variable_types)
+        if self.question.objective is Objective.RELIABILITY:
+            payload["options"]["bootstrap_samples"] = self.options.bootstrap_samples
+            payload["options"]["reverse_scoring"] = _json_value(self.options.reverse_scoring)
+            payload["missing_data_policy"] = "complete cases across all selected items"
             payload["analytical_variable_types"] = _json_value(self.analytical_variable_types)
         if self.data_dictionary is not None:
             payload["data_dictionary"] = _json_value(self.data_dictionary)

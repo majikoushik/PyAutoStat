@@ -121,6 +121,7 @@ implemented. `audit=False` also makes an otherwise successful workflow partial.
 | Three-or-more rank distributions | Independent | Kruskal-Wallis + Dunn-Holm | Automatically guided | Omnibus H/epsilon-squared and every pairwise mean-rank contrast with adjusted p and rank-biserial effect | At least five usable values per group; pairwise effect intervals unavailable |
 | Linear numerical association | Independent rows | Pearson correlation | Automatically guided | r and p-value | Confidence interval unavailable, so interpretation is partial |
 | Continuous conditional mean | Independent rows | Ordinary least-squares linear regression | Automatically guided for `objective="regression"` and direct | Coefficients/SE/t/p/CI, model F, R-squared/adjusted R-squared, residual error, continuous-predictor standardized beta | Additive main effects only; associations are noncausal and fit is not out-of-sample validation |
+| Multi-item internal consistency | Researcher-declared item set | Cronbach's alpha | Focused `reliability()` facade, guided `objective="reliability"`, and direct | Alpha, deterministic respondent-row bootstrap CI, item/deletion diagnostics, inter-item matrix | No scale discovery, dimensionality/validity claim, or universal adequacy cutoff |
 | Categorical independence | Independent rows | Pearson chi-square | Automatically guided when the expected-count policy passes | Chi-square, Cramer's V, optional bootstrap CI | At least two levels per axis and every expected cell at least five |
 | Monotonic numerical association | Independent rows | Spearman rank correlation | Automatically guided and direct | rho, p-value, deterministic paired-observation bootstrap CI | Ties allowed; does not establish linearity or causation |
 | Sparse 2x2 categorical independence | Independent rows | Fisher's exact test | Automatically guided fallback and direct | Two-sided p and ordered sample odds ratio; CI explicitly unavailable | Exactly 2x2; no category collapsing or RxC extension |
@@ -173,6 +174,9 @@ Common blockers remain explicit:
   inference, Fisher extensions beyond 2x2,
   broader multiplicity families, and formal equivalence or noninferiority tests are not
   implemented.
+- Reliability is limited to ordinary covariance-based Cronbach's alpha. Omega, factor analysis,
+  PCA, ordinal/polychoric alpha, split-half, test-retest, inter-rater, and measurement-invariance
+  workflows are not implemented.
 - Numerical backend failure never becomes a successful result. Invalid report metadata or audit
   contradictions remain visible and do not trigger an automatic rerun.
 

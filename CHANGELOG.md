@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added a complete researcher-declared survey and scale reliability workflow centered on
+  Cronbach's alpha, with complete-case and per-item missingness accounting, deterministic
+  respondent-row bootstrap intervals, corrected item-total correlations, alpha-if-deleted,
+  inter-item diagnostics, optional explicit bounded reverse scoring, qualified non-inferential
+  interpretation, dedicated report tables, audit, replay, sessions, examples, and installed-wheel
+  coverage. The workflow never discovers scales, deletes items, reverse-scores automatically,
+  creates composite columns, or treats alpha as validity or a universal pass/fail threshold.
+
 - Added complete simple and multiple ordinary least-squares conditional-mean regression for
   continuous outcomes, with ordered predictor lists, explicit treatment coding and reference
   levels for Boolean/nominal/ordinal predictors, complete-case accounting, rank validation,

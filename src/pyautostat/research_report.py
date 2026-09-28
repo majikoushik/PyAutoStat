@@ -637,10 +637,11 @@ def build_research_report(
     validated = interpreted["metadata"]
     visible = values.copy()
     if status != "unavailable" and analysis["method_id"] != "dataset_profile":
-        visible["p_value"] = validated.get("p_value")
-        visible["test_statistic"] = validated.get("test_statistic")
-        visible["primary_estimate"] = validated.get("primary_estimate")
-        visible["confidence_interval"] = validated.get("confidence_interval")
+        if analysis["method_id"] != "cronbach_alpha":
+            visible["p_value"] = validated.get("p_value")
+            visible["test_statistic"] = validated.get("test_statistic")
+            visible["primary_estimate"] = validated.get("primary_estimate")
+            visible["confidence_interval"] = validated.get("confidence_interval")
         finding_codes = {item["code"] for item in interpreted["findings"]}
         effect = values.get("effect_size")
         if analysis["method_id"] in {
@@ -677,8 +678,10 @@ def build_research_report(
         "confidence_level": spec["options"]["confidence_level"],
         "effect_definition": (visible.get("effect_size") or {}).get("definition"),
         "primary_interval_method": (visible.get("confidence_interval") or {}).get("method"),
-        "effective_random_seed": metadata.get("effective_random_seed"),
-        "bootstrap_resamples": metadata.get("bootstrap_default_resamples"),
+        "effective_random_seed": metadata.get("effective_random_seed")
+        or (visible.get("confidence_interval") or {}).get("random_state"),
+        "bootstrap_resamples": metadata.get("bootstrap_default_resamples")
+        or (visible.get("confidence_interval") or {}).get("requested_resamples"),
         "required_assumptions": analysis["assumptions"],
         "unit_id": spec.get("unit_id"),
         "reference_value": question.get("reference_value"),
@@ -743,6 +746,16 @@ def build_research_report(
         "coefficients": visible.get("coefficients"),
         "design_matrix": visible.get("design_matrix"),
         "diagnostics": visible.get("diagnostics"),
+        "items": visible.get("items"),
+        "item_count": visible.get("item_count"),
+        "cronbach_alpha": visible.get("cronbach_alpha"),
+        "item_statistics": visible.get("item_statistics"),
+        "inter_item_correlations": visible.get("inter_item_correlations"),
+        "mean_inter_item_correlation": visible.get("mean_inter_item_correlation"),
+        "negative_inter_item_correlations": visible.get("negative_inter_item_correlations"),
+        "missingness": visible.get("missingness"),
+        "scoring": visible.get("scoring"),
+        "formula": visible.get("formula"),
     }
     interpretation_section = {
         "status": interpreted["status"],
@@ -800,6 +813,115 @@ def build_research_report(
                 _mapping_rows(pair_fields, "sections.dataset"),
             )
         )
+    if analysis["method_id"] == "cronbach_alpha" and status != "unavailable":
+        interval = visible.get("confidence_interval") or {}
+        tables.append(
+            _table(
+                "reliability_summary",
+                "Reliability summary",
+                [
+                    "Items",
+                    "Complete respondents",
+                    "Cronbach alpha",
+                    "CI lower",
+                    "CI upper",
+                    "CI status",
+                    "Valid bootstrap resamples",
+                    "Requested bootstrap resamples",
+                ],
+                [
+                    [
+                        _cell(visible.get("item_count"), "analysis.values.item_count"),
+                        _cell(analyzed, "analysis.sample_size"),
+                        _cell(visible.get("cronbach_alpha"), "analysis.values.cronbach_alpha"),
+                        _cell(interval.get("lower"), "analysis.values.confidence_interval.lower"),
+                        _cell(interval.get("upper"), "analysis.values.confidence_interval.upper"),
+                        _cell(interval.get("status"), "analysis.values.confidence_interval.status"),
+                        _cell(
+                            interval.get("valid_resamples"),
+                            "analysis.values.confidence_interval.valid_resamples",
+                        ),
+                        _cell(
+                            interval.get("requested_resamples"),
+                            "analysis.values.confidence_interval.requested_resamples",
+                        ),
+                    ]
+                ],
+            )
+        )
+        item_rows = visible.get("item_statistics")
+        if isinstance(item_rows, list):
+            tables.append(
+                _table(
+                    "reliability_items",
+                    "Reliability item diagnostics",
+                    [
+                        "Item",
+                        "Valid",
+                        "Missing",
+                        "Missing percent",
+                        "Analyzed",
+                        "Mean",
+                        "SD",
+                        "Minimum",
+                        "Maximum",
+                        "Corrected item-total correlation",
+                        "Corrected item-total status",
+                        "Alpha if deleted",
+                        "Alpha if deleted status",
+                        "Delta from full alpha",
+                    ],
+                    [
+                        [
+                            _cell(item.get(field), f"analysis.values.item_statistics[{i}].{field}")
+                            for field in (
+                                "item",
+                                "valid_count",
+                                "missing_count",
+                                "missing_percentage",
+                                "analyzed_count",
+                                "mean",
+                                "standard_deviation",
+                                "minimum",
+                                "maximum",
+                                "corrected_item_total_correlation",
+                                "corrected_item_total_status",
+                                "alpha_if_deleted",
+                                "alpha_if_deleted_status",
+                                "delta_from_full_alpha",
+                            )
+                        ]
+                        for i, item in enumerate(item_rows)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
+        correlations = visible.get("inter_item_correlations")
+        if isinstance(correlations, dict):
+            names = correlations.get("items")
+            matrix = correlations.get("values")
+            if isinstance(names, list) and isinstance(matrix, list):
+                tables.append(
+                    _table(
+                        "inter_item_correlations",
+                        "Inter-item correlations",
+                        ["Item", *names],
+                        [
+                            [
+                                _cell(name, f"analysis.values.inter_item_correlations.items[{i}]"),
+                                *[
+                                    _cell(
+                                        value,
+                                        f"analysis.values.inter_item_correlations.values[{i}][{j}]",
+                                    )
+                                    for j, value in enumerate(row)
+                                ],
+                            ]
+                            for i, (name, row) in enumerate(zip(names, matrix, strict=True))
+                            if isinstance(row, list)
+                        ],
+                    )
+                )
     groups = dataset["group_sizes"]
     if isinstance(groups, list) and groups and status != "unavailable":
         tables.append(
@@ -1355,6 +1477,7 @@ def build_research_report(
             "outcome": question["outcome"],
             "predictor": question["predictor"],
             "predictors": question.get("predictors"),
+            "items": question.get("items"),
             "estimand": question["estimand"],
             "declared_design": spec["design"],
             "unit_id": spec.get("unit_id"),

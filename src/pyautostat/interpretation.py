@@ -16,6 +16,9 @@ from .narrate import (
     assumption_grade,
     effect_narrative,
     hypothesis_verdict,
+    reliability_diagnostics_narrative,
+    reliability_item_narrative,
+    reliability_narrative,
 )
 from .results import AnalysisResult, AnalysisStatus
 from .specifications import SCHEMA_VERSION, _json_value
@@ -608,6 +611,156 @@ def _profile(result: AnalysisResult) -> InterpretationResult:
     )
 
 
+def _reliability_interpretation(result: AnalysisResult) -> InterpretationResult:
+    """Interpret internal consistency without turning alpha into a pass/fail rule."""
+    values = result.values
+    alpha = _finite(values.get("cronbach_alpha"))
+    items = values.get("items")
+    item_statistics = values.get("item_statistics")
+    interval = values.get("confidence_interval")
+    missingness = values.get("missingness")
+    negative = values.get("negative_inter_item_correlations")
+    scoring = values.get("scoring")
+    mean_inter_item = _finite(values.get("mean_inter_item_correlation"))
+    if (
+        alpha is None
+        or result.sample_size is None
+        or not isinstance(items, list)
+        or len(items) < 2
+        or not isinstance(item_statistics, list)
+        or len(item_statistics) != len(items)
+        or not isinstance(missingness, list)
+        or not isinstance(negative, dict)
+        or not isinstance(scoring, dict)
+    ):
+        return _unavailable(result, "The reliability estimate or diagnostics are incomplete.")
+    interval_available = (
+        isinstance(interval, dict)
+        and interval.get("status") == "available"
+        and _finite(interval.get("lower")) is not None
+        and _finite(interval.get("upper")) is not None
+    )
+    partial = not interval_available or any(
+        item.get("corrected_item_total_status") != "available" for item in item_statistics
+    )
+    summary = reliability_narrative(
+        alpha, len(items), result.sample_size, interval if isinstance(interval, dict) else None
+    )
+    item_text = reliability_item_narrative(item_statistics)
+    pair_count = negative.get("count")
+    if not isinstance(pair_count, int) or pair_count < 0:
+        pair_count = 0
+        partial = True
+    diagnostics_text = reliability_diagnostics_narrative(mean_inter_item, pair_count)
+    original = result.sample_size + (result.excluded_rows or 0)
+    excluded = result.excluded_rows or 0
+    excluded_percentage = 100 * excluded / original if original else 0.0
+    missing_counts: list[tuple[str, int]] = []
+    for item in missingness:
+        if not isinstance(item, dict):
+            continue
+        missing_count = item.get("missing_count")
+        if (
+            isinstance(missing_count, int)
+            and not isinstance(missing_count, bool)
+            and missing_count >= 0
+        ):
+            missing_counts.append((str(item.get("item")), missing_count))
+    if len(missing_counts) != len(items):
+        partial = True
+    maximum_missing = max((count for _, count in missing_counts), default=0)
+    most_missing = [
+        name for name, count in missing_counts if count == maximum_missing and maximum_missing > 0
+    ]
+    missing_text = (
+        f"Complete-case analysis retained {result.sample_size} of {original} respondents "
+        f"and excluded {excluded} ({excluded_percentage:.1f}%). "
+        + (
+            f"The largest per-item missing count was {maximum_missing} for "
+            + ", ".join(repr(item) for item in most_missing)
+            + "."
+            if most_missing
+            else "No selected item had a missing value."
+        )
+    )
+    reversed_items = scoring.get("reversed_items")
+    if isinstance(reversed_items, list) and reversed_items:
+        reversed_names = [
+            str(item.get("item")) for item in reversed_items if isinstance(item, dict)
+        ]
+        scoring_text = (
+            "Explicit researcher-supplied reverse scoring was applied on an internal copy to "
+            + ", ".join(repr(item) for item in reversed_names)
+            + "; no automatic reversal was performed."
+        )
+    else:
+        scoring_text = "No reverse scoring was applied or inferred automatically."
+    findings = (
+        InterpretationFinding(
+            "reliability_estimate", summary, ("values.cronbach_alpha", "values.confidence_interval")
+        ),
+        InterpretationFinding("item_diagnostics", item_text, ("values.item_statistics",)),
+        InterpretationFinding(
+            "inter_item_diagnostics",
+            diagnostics_text,
+            (
+                "values.mean_inter_item_correlation",
+                "values.negative_inter_item_correlations",
+            ),
+        ),
+        InterpretationFinding("complete_case_sample", missing_text, ("metadata.sample",)),
+        InterpretationFinding("scoring_record", scoring_text, ("values.scoring",)),
+    )
+    limitations = (
+        "Cronbach's alpha summarizes internal consistency; it does not establish "
+        "unidimensionality or construct validity.",
+        "This result does not establish content, criterion, convergent, or discriminant "
+        "validity, measurement invariance, test-retest reliability, or inter-rater reliability.",
+        "Alpha depends on item count and covariance and can be increased by redundant items.",
+        "Numeric Likert-style scores are treated with ordinary variances and correlations; "
+        "ordinal or polychoric reliability is not estimated.",
+        "Complete-case analysis may differ from the target population when missingness is "
+        "systematic.",
+        "Item deletion or reverse scoring should be theory-driven and declared, not selected "
+        "solely to improve alpha.",
+    )
+    uncertainty = (
+        summary.split(" complete respondents.", 1)[1].strip()
+        if interval_available and " complete respondents." in summary
+        else (
+            "The requested bootstrap interval is unavailable; the point estimate and other "
+            "diagnostics remain usable."
+        )
+    )
+    return InterpretationResult(
+        status=InterpretationStatus.PARTIAL if partial else InterpretationStatus.AVAILABLE,
+        method_id=result.method_id,
+        execution_status=result.status,
+        summary=summary,
+        method_explanation=(
+            "Cronbach's alpha uses sample item variances and the variance of their total score. "
+            "No hypothesis test or universal adequacy cutoff was applied."
+        ),
+        uncertainty_interpretation=uncertainty,
+        assumption_notes=(item_text, diagnostics_text, missing_text, scoring_text),
+        limitations=limitations,
+        conclusion=(
+            "The estimate describes the internal consistency of this declared item set in the "
+            "analyzed complete-case sample; substantive adequacy requires context and theory."
+        ),
+        findings=findings,
+        warnings=result.warnings,
+        metadata={
+            "alpha": alpha,
+            "item_count": len(items),
+            "sample_size": result.sample_size,
+            "excluded_rows": result.excluded_rows,
+            "interval_status": interval.get("status") if isinstance(interval, dict) else None,
+            "non_inferential": True,
+        },
+    )
+
+
 class InterpretationEngine:
     """Apply method-specific, deterministic rules to an analysis result."""
 
@@ -622,6 +775,8 @@ class InterpretationEngine:
             )
         if result.method_id == "linear_regression":
             return _regression_interpretation(result)
+        if result.method_id == "cronbach_alpha":
+            return _reliability_interpretation(result)
         if result.method_id not in _METHODS:
             return _unavailable(result, f"Method {result.method_id!r} is not supported.")
         if result.method_id == "dataset_profile":

@@ -170,6 +170,26 @@ point coefficients. Coefficients are conditional associations, not causal effect
 in-sample fit, not out-of-sample predictive accuracy. See
 [`examples/linear_regression.py`](examples/linear_regression.py).
 
+### Survey and scale reliability
+
+Declare the scored items that form a proposed scale; PyAutoStat never discovers a scale or
+reverse-scores an item automatically:
+
+```python
+reliability = ResearchAssistant(df).reliability(
+    items=["q1", "q2", "q3", "q4"],
+)
+print(reliability.explain())
+```
+
+The complete-case workflow reports Cronbach's alpha, a deterministic respondent-row bootstrap
+interval, corrected item-total correlations, alpha if each item is deleted, item distributions,
+missingness, and the complete inter-item correlation matrix. Optional reverse scoring is explicit,
+for example `reverse_scoring={"q4": (1, 5)}`, and operates on an internal copy. Alpha is an
+internal-consistency estimate, not a hypothesis test, universal pass/fail grade, proof of
+unidimensionality, or evidence of construct validity. See
+[`examples/scale_reliability.py`](examples/scale_reliability.py).
+
 ## When information is missing
 
 Omit an essential design fact and the workflow returns a structured request without running a
@@ -216,6 +236,8 @@ remain distinct from a completed workflow.
 - Pearson chi-square categorical association plus Fisher's exact fallback for sparse 2x2 tables.
 - Simple and multiple OLS conditional-mean regression with continuous, Boolean, nominal, and
   categorical ordinal predictors; explicit classical or HC3 covariance and diagnostics.
+- Researcher-declared multi-item scale reliability with Cronbach's alpha, deterministic bootstrap
+  uncertainty, item diagnostics, missingness accounting, and optional explicit reverse scoring.
 - Effect estimates, supported confidence intervals, sample accounting, assumptions, and warnings.
 - Deterministic interpretation and canonical research reports.
 - Static HTML, Markdown, JSON, CSV tables, safe LaTeX, and optional interactive Plotly HTML.

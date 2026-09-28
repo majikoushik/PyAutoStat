@@ -191,7 +191,7 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
     allowed_missing_p_value = (
         source.method_id == "one_sample_t"
         and values.get("effect_size", {}).get("status") == "unavailable_zero_variance"
-    )
+    ) or source.method_id == "cronbach_alpha"
     valid_p_value = (
         isinstance(p_value, (int, float))
         and not isinstance(p_value, bool)
@@ -202,11 +202,15 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
         _mismatch("analysis.values.p_value", "finite probability", p_value, findings)
     statistic = values.get("test_statistic")
     allowed_missing_statistic = (
-        source.method_id == "one_sample_t"
-        and values.get("effect_size", {}).get("status") == "unavailable_zero_variance"
-    ) or (
-        source.method_id == "fisher_exact"
-        and source.metadata.get("odds_ratio_status") in {"positive_infinity", "undefined"}
+        (
+            source.method_id == "one_sample_t"
+            and values.get("effect_size", {}).get("status") == "unavailable_zero_variance"
+        )
+        or (
+            source.method_id == "fisher_exact"
+            and source.metadata.get("odds_ratio_status") in {"positive_infinity", "undefined"}
+        )
+        or source.method_id == "cronbach_alpha"
     )
     valid_statistic = (
         isinstance(statistic, (int, float))
@@ -362,6 +366,83 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
         ):
             _mismatch(
                 "analysis.values.diagnostics", "complete diagnostic record", diagnostics, findings
+            )
+    if method == "cronbach_alpha":
+        declared_items = list(question.items or ())
+        if values.get("items") != declared_items:
+            _mismatch("analysis.values.items", declared_items, values.get("items"), findings)
+        alpha = values.get("cronbach_alpha")
+        if not (
+            isinstance(alpha, (int, float))
+            and not isinstance(alpha, bool)
+            and math.isfinite(float(alpha))
+        ):
+            _mismatch("analysis.values.cronbach_alpha", "finite estimate", alpha, findings)
+        item_statistics = values.get("item_statistics")
+        if (
+            not isinstance(item_statistics, list)
+            or [item.get("item") for item in item_statistics if isinstance(item, dict)]
+            != declared_items
+        ):
+            _mismatch(
+                "analysis.values.item_statistics",
+                "one ordered record per declared item",
+                item_statistics,
+                findings,
+            )
+        elif any(
+            item.get("corrected_total_excludes_focal_item") is not True
+            or item.get("deleted_item") != item.get("item")
+            or item.get("remaining_item_count") != len(declared_items) - 1
+            for item in item_statistics
+        ):
+            _mismatch(
+                "analysis.values.item_statistics",
+                "corrected-total and deletion semantics",
+                item_statistics,
+                findings,
+            )
+        interval = values.get("confidence_interval")
+        if not isinstance(interval, dict) or (
+            interval.get("quantity") != "Cronbach's alpha"
+            or interval.get("method") != "respondent-row percentile bootstrap"
+            or interval.get("level") != specification.options.confidence_level
+        ):
+            _mismatch(
+                "analysis.values.confidence_interval",
+                "alpha respondent-row bootstrap interval",
+                interval,
+                findings,
+            )
+        elif interval.get("status") == "available":
+            lower, upper = interval.get("lower"), interval.get("upper")
+            if not (
+                isinstance(lower, (int, float))
+                and isinstance(upper, (int, float))
+                and math.isfinite(float(lower))
+                and math.isfinite(float(upper))
+                and lower <= upper
+            ):
+                _mismatch(
+                    "analysis.values.confidence_interval",
+                    "finite ordered bounds",
+                    interval,
+                    findings,
+                )
+        scoring = values.get("scoring")
+        expected_scoring = specification.options.reverse_scoring or {}
+        reversed_items = scoring.get("reversed_items", []) if isinstance(scoring, dict) else []
+        actual_scoring = {
+            item.get("item"): (item.get("lower"), item.get("upper"))
+            for item in reversed_items
+            if isinstance(item, dict)
+        }
+        if actual_scoring != expected_scoring:
+            _mismatch(
+                "analysis.values.scoring.reversed_items",
+                expected_scoring,
+                actual_scoring,
+                findings,
             )
     if method in {"welch_anova", "one_way_anova", "kruskal_wallis"}:
         order = source.metadata.get("group_order")

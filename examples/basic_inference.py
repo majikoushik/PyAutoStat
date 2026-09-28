@@ -11,9 +11,7 @@ def show(title, workflow):
     print(workflow.explain())
 
 
-one_sample = ResearchAssistant(
-    pd.DataFrame({"score": [48.0, 51.0, 54.0, 56.0, 52.0, 55.0]})
-).run(
+one_sample = ResearchAssistant(pd.DataFrame({"score": [48.0, 51.0, 54.0, 56.0, 52.0, 55.0]})).run(
     objective="compare_reference",
     outcome="score",
     reference_value=50,

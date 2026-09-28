@@ -1,5 +1,7 @@
 """Smoke the built wheel from an isolated environment, outside the source import path."""
 
+import json
+import math
 import sys
 from pathlib import Path
 
@@ -171,6 +173,23 @@ assert regression.analysis.method_id == "linear_regression"
 assert regression.analysis.values["covariance_type"] == "HC3"
 assert "regression_diagnostics" in regression.report.to_csv_tables()
 assert regression.audit.status == "passed"
+
+reliability = ResearchAssistant(
+    pd.DataFrame(
+        {
+            "q1": [1, 2, 3, 4, 5, 2, 4, 3],
+            "q2": [1, 2, 3, 4, 4, 2, 5, 3],
+            "q3": [2, 2, 3, 5, 5, 2, 4, 4],
+        }
+    )
+).reliability(["q1", "q2", "q3"], bootstrap_samples=59)
+assert reliability.status.value == "completed"
+assert reliability.analysis.method_id == "cronbach_alpha"
+assert math.isfinite(reliability.analysis.values["cronbach_alpha"])
+assert "RELIABILITY ESTIMATE" in reliability.explain()
+json.loads(reliability.to_json())
+assert "reliability_items" in reliability.report.to_csv_tables()
+assert reliability.audit.status == "passed"
 
 planning = StudyPlanner().independent_mean_power(
     target_difference=2,
