@@ -390,8 +390,8 @@ class ResearchWorkflowResult:
                         thin,
                         " SPHERICITY / CORRECTION",
                         f"   Mauchly's W={sphericity.get('mauchly_w')}; "
-                        f"p={sphericity.get('p_value')}; sphericity supported="
-                        f"{sphericity.get('sphericity_supported')}.",
+                        f"p={sphericity.get('p_value')}; status="
+                        f"{sphericity.get('status')}.",
                         f"   Greenhouse-Geisser epsilon={gg.get('epsilon')}; "
                         f"corrected p={gg.get('corrected_p_value')}; "
                         f"policy applied={values.get('primary_inference')}.",

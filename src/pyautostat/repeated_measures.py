@@ -697,12 +697,15 @@ def repeated_measures_anova(
             "p_value": p_mauchly,
             "alpha": alpha,
             "status": sphericity_status,
-            "sphericity_supported": (sphericity_status in ("not_rejected", "confirmed")),
+            "sphericity_not_rejected": (sphericity_status == "not_rejected"),
+            # Compatibility alias for unreleased intermediate callers;
+            # does not imply proof of sphericity.
+            "sphericity_supported": (sphericity_status == "not_rejected"),
             "decision": (
                 "Sphericity assumption violated; correction recommended."
                 if sphericity_status == "rejected"
                 else "Mauchly's test did not provide evidence against sphericity."
-                if sphericity_status in ("not_rejected", "confirmed")
+                if sphericity_status == "not_rejected"
                 else "Sphericity could not be computed reliably."
             ),
         },

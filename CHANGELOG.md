@@ -18,7 +18,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reconciled repeated-measures documentation across README and docs to accurately describe
   supported one-way 3+ condition designs, complete-case matching, and explicit boundaries (including
   that Friedman requires ordered numeric outcomes and does not auto-encode textual labels).
-- Fixed line-length formatting issue in installed-wheel smoke test.
+- Formatted multiplicity assertions in installed-wheel smoke test within maximum line length constraints.
+- Repeated-measures pairwise inference now reports mathematically unavailable zero-variance
+  contrasts explicitly with descriptive mean differences and degenerate intervals instead of
+  producing contradictory statistics.
+- Repeated Friedman pairwise follow-up no longer converts signed-rank backend failures or
+  all-zero differences into p=1, reusing the established paired-Wilcoxon contract.
+- Repeated pairwise decisions and sphericity narration now consistently use the package-wide
+  `p < alpha` convention.
+- Repeated-measures validation now includes independent RM-ANOVA verification against statsmodels
+  `AnovaRM`, sum-of-squares partition and partial eta-squared checks, and fixed external Mauchly
+  and Greenhouse-Geisser reference checks.
+- Tightened repeated-measures sphericity interpretation and structured metadata to state that no
+  degrees-of-freedom correction was applied under the configured sphericity policy rather than
+  implying that failing to reject Mauchly's test proves sphericity or makes correction universally
+  unrequired.
 
 ### Added
 
@@ -140,24 +154,6 @@ rule-based, reproducible, and independent of generative AI or external services.
 
 ### Fixed
 
-- Corrected SPSS-compatible Mauchly sphericity p-value approximation using the higher-order
-  Box (1954) and Anderson asymptotic chi-square correction with degree-of-freedom expansion.
-- Replaced synthetic repeated-measures reference fixture with genuine Andy Field (2012) Bushtucker
-  external reference data and verified ANOVA, Mauchly, and Greenhouse-Geisser quantities.
-- Strengthened Greenhouse-Geisser degrees of freedom, corrected p-value, primary inference branch,
-  and sphericity consistency auditor invariants with comprehensive corruption tests.
-- Reconciled repeated-measures capabilities and unsupported boundaries across user-facing documentation.
-- Formatted multiplicity assertions in installed-wheel smoke test within maximum line length constraints.
-- Repeated-measures pairwise inference now reports mathematically unavailable zero-variance
-  contrasts explicitly with descriptive mean differences and degenerate intervals instead of
-  producing contradictory statistics.
-- Repeated Friedman pairwise follow-up no longer converts signed-rank backend failures or
-  all-zero differences into p=1, reusing the established paired-Wilcoxon contract.
-- Repeated pairwise decisions and sphericity narration now consistently use the package-wide
-  `p < alpha` convention.
-- Repeated-measures validation now includes independent RM-ANOVA verification against statsmodels
-  `AnovaRM`, sum-of-squares partition and partial eta-squared checks, and fixed external Mauchly
-  and Greenhouse-Geisser reference checks.
 - Preserved zero-percent completeness and unavailable values instead of displaying misleading
   defaults, duplicate punctuation, or duplicated confidence-interval labels.
 - Restricted sensitivity decision summaries to completed comparable scenarios using the declared

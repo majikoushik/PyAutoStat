@@ -1204,6 +1204,7 @@ def test_fixed_external_reference_mauchly_and_greenhouse_geisser():
     assert sph["df"] == 5
     assert sph["p_value"] == pytest.approx(0.046846, abs=1e-4)
     assert sph["status"] == "rejected"
+    assert sph["sphericity_not_rejected"] is False
     assert sph["sphericity_supported"] is False
 
     # 3. Greenhouse-Geisser epsilon and corrected quantities
@@ -1641,3 +1642,250 @@ def test_strict_json_serialization_edge_states(balanced_panel_df):
         balanced_panel_df, "participant", "condition", "score", ("baseline", "week4", "week8")
     )
     json.dumps(res_f, allow_nan=False)
+
+
+def test_sphericity_narration_not_rejected():
+    """Verify sphericity narration for not_rejected branch protects scientific semantics."""
+    import numpy as np
+
+    np.random.seed(42)
+    n = 10
+    participants = [f"P{i}" for i in range(n)] * 3
+    conditions = ["c1"] * n + ["c2"] * n + ["c3"] * n
+    scores = (
+        list(np.random.normal(10, 2, n))
+        + list(np.random.normal(12, 2, n))
+        + list(np.random.normal(14, 2, n))
+    )
+    df = pd.DataFrame({"participant": participants, "condition": conditions, "score": scores})
+    wf = ResearchAssistant(df).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="condition",
+        design="repeated",
+        estimand="mean",
+        unit_id="participant",
+        condition_order=("c1", "c2", "c3"),
+        variable_types={"score": "continuous"},
+    )
+    assert wf.analysis.values["sphericity"]["status"] == "not_rejected"
+    assert wf.analysis.values["sphericity"]["sphericity_not_rejected"] is True
+    assert wf.analysis.values["sphericity"]["sphericity_supported"] is True
+
+    notes = wf.interpretation.assumption_notes
+    all_text = " ".join(notes)
+    # Narration says Mauchly did not provide evidence against sphericity
+    assert "Mauchly's test did not provide evidence against sphericity" in all_text
+    # Accurately says ordinary / uncorrected df are retained under configured policy
+    assert "retained as primary under the configured policy" in all_text
+    assert (
+        "No degrees-of-freedom correction was applied under the configured sphericity policy."
+        in notes
+    )
+    # Narration does NOT claim sphericity was proved, confirmed, satisfied, or universally required
+    assert "proved" not in all_text.lower()
+    assert "confirmed" not in all_text.lower()
+    assert "satisfied" not in all_text.lower()
+    assert "established" not in all_text.lower()
+    assert "correction was required" not in all_text.lower()
+    assert "correction was not required" not in all_text.lower()
+
+
+def test_sphericity_narration_rejected_and_uncomputable():
+    """Verify sphericity narration for rejected and uncomputable branches."""
+    # 1. Rejected branch (Bushtucker)
+    data_b = [
+        (1, "stick_insect", 8.0),
+        (1, "kangaroo_testicle", 7.0),
+        (1, "fish_eye", 1.0),
+        (1, "witchetty_grub", 6.0),
+        (2, "stick_insect", 9.0),
+        (2, "kangaroo_testicle", 5.0),
+        (2, "fish_eye", 2.0),
+        (2, "witchetty_grub", 5.0),
+        (3, "stick_insect", 6.0),
+        (3, "kangaroo_testicle", 2.0),
+        (3, "fish_eye", 3.0),
+        (3, "witchetty_grub", 8.0),
+        (4, "stick_insect", 5.0),
+        (4, "kangaroo_testicle", 3.0),
+        (4, "fish_eye", 1.0),
+        (4, "witchetty_grub", 9.0),
+        (5, "stick_insect", 8.0),
+        (5, "kangaroo_testicle", 4.0),
+        (5, "fish_eye", 5.0),
+        (5, "witchetty_grub", 8.0),
+        (6, "stick_insect", 7.0),
+        (6, "kangaroo_testicle", 5.0),
+        (6, "fish_eye", 6.0),
+        (6, "witchetty_grub", 7.0),
+        (7, "stick_insect", 10.0),
+        (7, "kangaroo_testicle", 2.0),
+        (7, "fish_eye", 7.0),
+        (7, "witchetty_grub", 2.0),
+        (8, "stick_insect", 12.0),
+        (8, "kangaroo_testicle", 6.0),
+        (8, "fish_eye", 8.0),
+        (8, "witchetty_grub", 1.0),
+    ]
+    df_b = pd.DataFrame(data_b, columns=["subject", "condition", "score"])
+    wf_b = ResearchAssistant(df_b).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="condition",
+        design="repeated",
+        estimand="mean",
+        unit_id="subject",
+        condition_order=("stick_insect", "kangaroo_testicle", "fish_eye", "witchetty_grub"),
+        variable_types={"score": "continuous"},
+    )
+    assert wf_b.analysis.values["sphericity"]["status"] == "rejected"
+    assert wf_b.analysis.values["sphericity"]["sphericity_not_rejected"] is False
+    assert wf_b.analysis.values["sphericity"]["sphericity_supported"] is False
+    assert wf_b.analysis.values["primary_inference"] == "Greenhouse-Geisser"
+
+    notes_b = " ".join(wf_b.interpretation.assumption_notes)
+    assert "Mauchly's test provided evidence against the sphericity assumption" in notes_b
+    assert "reports the Greenhouse-Geisser corrected degrees of freedom" in notes_b
+
+    # 2. Uncomputable branch (identical differences across subjects -> singular covariance)
+    data_u = {
+        "subject": [1, 2, 3, 4, 5] * 3,
+        "condition": ["C1"] * 5 + ["C2"] * 5 + ["C3"] * 5,
+        "score": [
+            10.0,
+            11.0,
+            12.0,
+            13.0,
+            14.0,
+            12.0,
+            13.0,
+            14.0,
+            15.0,
+            16.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+        ],
+    }
+    df_u = pd.DataFrame(data_u)
+    wf_u = ResearchAssistant(df_u).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="condition",
+        design="repeated",
+        estimand="mean",
+        unit_id="subject",
+        condition_order=("C1", "C2", "C3"),
+        variable_types={"score": "continuous"},
+    )
+    assert wf_u.analysis.values["sphericity"]["status"] == "uncomputable"
+    assert wf_u.analysis.values["sphericity"]["sphericity_not_rejected"] is False
+    assert wf_u.analysis.values["sphericity"]["sphericity_supported"] is False
+    assert wf_u.analysis.values["primary_inference"] == "Greenhouse-Geisser"
+
+    notes_u = " ".join(wf_u.interpretation.assumption_notes)
+    assert "Sphericity could not be evaluated reliably" in notes_u
+    assert "Greenhouse-Geisser correction is reported as a conservative safeguard" in notes_u
+
+
+def test_structured_sphericity_status_vocabulary_and_compatibility():
+    """Verify structured sphericity status vocabulary across all branches."""
+    # 1. rejected (Bushtucker)
+    data_b = [
+        (1, "stick_insect", 8.0),
+        (1, "kangaroo_testicle", 7.0),
+        (1, "fish_eye", 1.0),
+        (1, "witchetty_grub", 6.0),
+        (2, "stick_insect", 9.0),
+        (2, "kangaroo_testicle", 5.0),
+        (2, "fish_eye", 2.0),
+        (2, "witchetty_grub", 5.0),
+        (3, "stick_insect", 6.0),
+        (3, "kangaroo_testicle", 2.0),
+        (3, "fish_eye", 3.0),
+        (3, "witchetty_grub", 8.0),
+        (4, "stick_insect", 5.0),
+        (4, "kangaroo_testicle", 3.0),
+        (4, "fish_eye", 1.0),
+        (4, "witchetty_grub", 9.0),
+        (5, "stick_insect", 8.0),
+        (5, "kangaroo_testicle", 4.0),
+        (5, "fish_eye", 5.0),
+        (5, "witchetty_grub", 8.0),
+        (6, "stick_insect", 7.0),
+        (6, "kangaroo_testicle", 5.0),
+        (6, "fish_eye", 6.0),
+        (6, "witchetty_grub", 7.0),
+        (7, "stick_insect", 10.0),
+        (7, "kangaroo_testicle", 2.0),
+        (7, "fish_eye", 7.0),
+        (7, "witchetty_grub", 2.0),
+        (8, "stick_insect", 12.0),
+        (8, "kangaroo_testicle", 6.0),
+        (8, "fish_eye", 8.0),
+        (8, "witchetty_grub", 1.0),
+    ]
+    df_b = pd.DataFrame(data_b, columns=["subject", "condition", "score"])
+    order_b = ("stick_insect", "kangaroo_testicle", "fish_eye", "witchetty_grub")
+    res_b = repeated_measures_anova(df_b, "subject", "condition", "score", order_b)
+    sph_b = res_b["sphericity"]
+    assert sph_b["status"] == "rejected"
+    assert sph_b["sphericity_not_rejected"] is False
+    assert sph_b["sphericity_supported"] is False
+
+    # 2. not_rejected
+    import numpy as np
+
+    np.random.seed(42)
+    n = 10
+    participants = [f"P{i}" for i in range(n)] * 3
+    conditions = ["c1"] * n + ["c2"] * n + ["c3"] * n
+    scores = (
+        list(np.random.normal(10, 2, n))
+        + list(np.random.normal(12, 2, n))
+        + list(np.random.normal(14, 2, n))
+    )
+    df_nr = pd.DataFrame({"participant": participants, "condition": conditions, "score": scores})
+    res_nr = repeated_measures_anova(df_nr, "participant", "condition", "score", ("c1", "c2", "c3"))
+    sph_nr = res_nr["sphericity"]
+    assert sph_nr["status"] == "not_rejected"
+    assert sph_nr["sphericity_not_rejected"] is True
+    assert sph_nr["sphericity_supported"] is True
+
+    # 3. uncomputable
+    data_u = {
+        "subject": [1, 2, 3, 4, 5] * 3,
+        "condition": ["C1"] * 5 + ["C2"] * 5 + ["C3"] * 5,
+        "score": [
+            10.0,
+            11.0,
+            12.0,
+            13.0,
+            14.0,
+            12.0,
+            13.0,
+            14.0,
+            15.0,
+            16.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+        ],
+    }
+    df_u = pd.DataFrame(data_u)
+    res_u = repeated_measures_anova(df_u, "subject", "condition", "score", ("C1", "C2", "C3"))
+    sph_u = res_u["sphericity"]
+    assert sph_u["status"] == "uncomputable"
+    assert sph_u["sphericity_not_rejected"] is False
+    assert sph_u["sphericity_supported"] is False
+
+    # Allowed status vocabulary is strictly {"rejected", "not_rejected", "uncomputable"}
+    allowed_statuses = {"rejected", "not_rejected", "uncomputable"}
+    for sph in [sph_b, sph_nr, sph_u]:
+        assert sph["status"] in allowed_statuses
+        assert sph["status"] not in {"confirmed", "satisfied", "met", "true"}

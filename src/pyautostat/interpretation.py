@@ -531,9 +531,12 @@ def _repeated_measures_anova_interpretation(result: AnalysisResult) -> Interpret
     elif sph_status in ("not_rejected", "confirmed"):
         sph_note = (
             "Mauchly's test did not provide evidence against sphericity at the declared alpha "
-            "level. The ordinary repeated-measures ANOVA degrees of freedom are retained."
+            "level. The ordinary repeated-measures ANOVA degrees of freedom are retained "
+            "as primary under the configured policy."
         )
-        correction_note = "No degrees-of-freedom correction was required."
+        correction_note = (
+            "No degrees-of-freedom correction was applied under the configured sphericity policy."
+        )
     else:
         sph_note = (
             "Sphericity could not be evaluated reliably; Greenhouse-Geisser correction is "

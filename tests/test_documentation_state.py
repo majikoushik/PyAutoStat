@@ -103,3 +103,17 @@ def test_roadmap_is_future_facing_and_covers_research_lifecycle():
     assert "Reporting" in roadmap
     assert "Reproducibility" in roadmap
     assert re.search(r"\bphase\s+\d+\b", roadmap, flags=re.IGNORECASE) is None
+
+
+def test_changelog_release_history_integrity():
+    """Verify that CHANGELOG.md preserves released history without unreleased contamination."""
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## [Unreleased]" in changelog
+    assert "## [0.3.0] - 2026-09-27" in changelog
+
+    # 0.3.0 was released prior to repeated-measures additions;
+    # verify post-0.3.0 work is not in 0.3.0
+    sec_030 = changelog[changelog.index("## [0.3.0]") : changelog.index("## [0.2.0]")]
+    assert "Mauchly" not in sec_030
+    assert "Bushtucker" not in sec_030
+    assert "Greenhouse-Geisser" not in sec_030
