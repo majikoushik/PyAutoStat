@@ -94,6 +94,19 @@ _RULES = {
         signed=True,
     ),
     "odds_ratio": _EffectRule("Sample odds ratio", "2x2 odds association", None),
+    # Phase 7: Repeated-Measures
+    "partial_eta_squared": _EffectRule(
+        "Partial eta-squared",
+        "within-subject variance association for repeated-measures ANOVA",
+        _ETA_SQUARED_BANDS,
+        nonnegative=True,
+    ),
+    "kendalls_w": _EffectRule(
+        "Kendall's W",
+        "repeated-rank concordance across conditions",
+        None,
+        nonnegative=True,
+    ),
 }
 
 _MEASURE_ALIASES = {
@@ -108,6 +121,11 @@ _MEASURE_ALIASES = {
     "matched-pairs rank-biserial correlation": "paired_rank_biserial",
     "eta_squared": "eta_squared",
     "eta-squared": "eta_squared",
+    "partial_eta_squared": "partial_eta_squared",
+    "partial eta-squared": "partial_eta_squared",
+    "kendalls_w": "kendalls_w",
+    "kendall's w": "kendalls_w",
+    "Kendall's W": "kendalls_w",
     "epsilon_squared": "epsilon_squared",
     "epsilon-squared": "epsilon_squared",
     "epsilon-squared (rank)": "epsilon_squared",
@@ -1773,6 +1791,34 @@ def _why_this_recommendation(
             "rank-distribution target, and an explicit unit identifier. Wilcoxon evaluates "
             f"signed ranks of nonzero paired differences.{order_text}"
         )
+    if method_id == "repeated_measures_anova":
+        conditions = context.get("condition_order")
+        cond_count = (
+            len(conditions)
+            if isinstance(conditions, Sequence) and not isinstance(conditions, (str, bytes))
+            else 3
+        )
+        return (
+            f"The specification observes the same units across {cond_count} ordered conditions "
+            f"for {selected} with a declared population-mean estimand. One-way repeated-measures "
+            "ANOVA evaluates whether condition population means differ, with sphericity "
+            "evaluated via Mauchly's test, Greenhouse-Geisser correction applied when indicated, "
+            "and complete Holm-adjusted paired-t follow-up comparisons."
+        )
+    if method_id == "friedman_test":
+        conditions = context.get("condition_order")
+        cond_count = (
+            len(conditions)
+            if isinstance(conditions, Sequence) and not isinstance(conditions, (str, bytes))
+            else 3
+        )
+        return (
+            f"The specification observes the same units across {cond_count} ordered "
+            f"conditions for {selected} with a declared repeated rank/distribution estimand. "
+            "The Friedman test evaluates whether within-unit ranks differ across conditions, "
+            "reports Kendall's W concordance, and provides complete Holm-adjusted paired "
+            "Wilcoxon signed-rank follow-up."
+        )
     if method_id == "mann_whitney_u":
         return (
             f"The specification compares {selected} across two independent groups and declares "
@@ -1893,6 +1939,32 @@ def _why_not_recommendation(method_id: str, recommendation: Any) -> tuple[tuple[
                 "AN INDEPENDENT-SAMPLES TEST",
                 "Independent-samples methods discard the declared within-unit pairing and "
                 "target a different sampling structure.",
+            ),
+        )
+    if method_id == "repeated_measures_anova":
+        return (
+            (
+                "FRIEDMAN TEST",
+                "Targets within-unit rank distributions rather than the declared "
+                "population-mean pattern.",
+            ),
+            (
+                "WELCH ANOVA",
+                "Independent-groups ANOVA ignores within-subject dependence across the "
+                "repeated observations.",
+            ),
+        )
+    if method_id == "friedman_test":
+        return (
+            (
+                "REPEATED-MEASURES ANOVA",
+                "Targets repeated condition means rather than the declared rank/distribution "
+                "estimand; mean models are not substituted solely from diagnostics.",
+            ),
+            (
+                "KRUSKAL-WALLIS",
+                "Independent-groups Kruskal-Wallis ignores within-subject dependence across "
+                "repeated conditions.",
             ),
         )
     if method_id == "wilcoxon_signed_rank":
@@ -2063,6 +2135,24 @@ def _verification_notes(method_id: str, recommendation: Any) -> tuple[str, ...]:
         notes.append(
             "Verify meaningful ordering, observational independence, and a scientifically "
             "relevant monotonic target; ties are permitted but should be reported."
+        )
+    elif method_id == "repeated_measures_anova":
+        notes.extend(
+            [
+                "Confirm that the unit identifier uniquely identifies repeated units.",
+                "Confirm that the declared condition order reflects the intended structure.",
+                "Verify that complete-case analysis across all conditions is acceptable.",
+                "Check that observational units are independent across subjects.",
+            ]
+        )
+    elif method_id == "friedman_test":
+        notes.extend(
+            [
+                "Confirm that the unit identifier uniquely identifies repeated units.",
+                "Confirm that the declared condition order reflects the intended structure.",
+                "Verify that the outcome supports meaningful ordinal ranking within each unit.",
+                "Verify that complete-case analysis across all conditions is acceptable.",
+            ]
         )
     return tuple(notes)
 

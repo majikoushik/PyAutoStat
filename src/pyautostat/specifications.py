@@ -275,7 +275,7 @@ class AnalysisSpecification:
     variable_metadata: dict[str, str] | None = None
     data_dictionary: dict[str, dict[str, Any]] | None = None
     unit_id: str | None = None
-    condition_order: tuple[Any, Any] | None = None
+    condition_order: tuple[Any, ...] | None = None
     analytical_variable_types: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
@@ -306,23 +306,36 @@ class AnalysisSpecification:
             object.__setattr__(self, "data_dictionary", _json_value(self.data_dictionary))
         _name(self.unit_id, "unit_id")
         if self.condition_order is not None:
-            if (
-                not isinstance(self.condition_order, (list, tuple))
-                or len(self.condition_order) != 2
-            ):
-                raise InvalidDataError("condition_order must contain exactly two condition labels.")
+            if not isinstance(self.condition_order, (list, tuple)):
+                raise InvalidDataError("condition_order must be a sequence of condition labels.")
             checked = tuple(_json_value(item, "condition_order") for item in self.condition_order)
             if any(item is None or isinstance(item, (list, dict)) for item in checked):
                 raise InvalidDataError(
                     "condition_order labels must be non-missing JSON scalar values."
                 )
-            if checked[0] == checked[1]:
+            if len(set(checked)) != len(checked):
                 raise InvalidDataError("condition_order labels must be distinct.")
+            if self.design is StudyDesign.REPEATED:
+                if len(checked) < 3:
+                    raise InvalidDataError(
+                        "Repeated-measures design requires at least three condition labels "
+                        "in condition_order."
+                    )
+            else:
+                if len(checked) != 2:
+                    raise InvalidDataError(
+                        "condition_order must contain exactly two condition labels."
+                    )
             object.__setattr__(self, "condition_order", checked)
         if self.condition_order is not None and self.unit_id is None:
             raise InvalidDataError("condition_order requires an explicit unit_id.")
-        if self.unit_id is not None and self.design is not StudyDesign.PAIRED:
-            raise InvalidDataError("unit_id is supported only for design='paired'.")
+        if self.unit_id is not None and self.design not in {
+            StudyDesign.PAIRED,
+            StudyDesign.REPEATED,
+        }:
+            raise InvalidDataError(
+                "unit_id is supported only for design='paired' or design='repeated'."
+            )
         if self.analytical_variable_types is not None:
             if not isinstance(self.analytical_variable_types, dict) or any(
                 not isinstance(key, str)

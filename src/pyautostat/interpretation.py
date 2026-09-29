@@ -147,6 +147,8 @@ _METHODS = {
     "point_biserial_correlation": ("Point-biserial correlation", "point-biserial r"),
     "kendall_tau_b": ("Kendall's tau-b", "Kendall's tau-b"),
     "partial_pearson_correlation": ("Partial Pearson correlation", "partial Pearson r"),
+    "repeated_measures_anova": ("One-way repeated-measures ANOVA", "partial eta-squared"),
+    "friedman_test": ("Friedman rank-sum test", "Kendall's W"),
 }
 _SIGNED_GROUP = {
     "welch_t",
@@ -482,6 +484,358 @@ def _logistic_interpretation(result: AnalysisResult) -> InterpretationResult:
             "p_value": p_value,
             "test_statistic": statistic,
             "primary_estimate": pseudo_r2,
+        },
+    )
+
+
+def _repeated_measures_anova_interpretation(result: AnalysisResult) -> InterpretationResult:
+    if result.specification is None or result.sample_size is None:
+        return _unavailable(
+            result, "The repeated-measures ANOVA specification or sample accounting is missing."
+        )
+    values = result.values
+    outcome = result.specification.question.outcome or "outcome"
+    order = result.metadata.get("condition_order") or []
+    k = len(order)
+    sample_info = result.metadata.get("sample", {})
+    n_units = sample_info.get("complete_units", result.sample_size // max(1, k))
+    alpha = result.specification.options.alpha
+
+    stat = _finite(values.get("test_statistic"))
+    p_val = _finite(values.get("p_value"))
+    dfs = values.get("degrees_of_freedom")
+    if stat is None or p_val is None or not isinstance(dfs, (list, tuple)) or len(dfs) != 2:
+        return _unavailable(result, "The repeated-measures ANOVA result is incomplete.")
+
+    df_num, df_den = float(dfs[0]), float(dfs[1])
+    effect = values.get("effect_size", {})
+    partial_eta = _finite(effect.get("value")) if isinstance(effect, dict) else None
+
+    sphericity = values.get("sphericity", {})
+    gg = values.get("greenhouse_geisser", {})
+    sph_status = sphericity.get("status", "unknown") if isinstance(sphericity, dict) else "unknown"
+    eps = _finite(gg.get("epsilon")) if isinstance(gg, dict) else None
+    correction_applied = values.get("primary_inference", "none")
+
+    findings: list[InterpretationFinding] = []
+
+    if sph_status == "rejected":
+        sph_note = (
+            "Mauchly's test provided evidence against the sphericity assumption. PyAutoStat "
+            "therefore reports the Greenhouse-Geisser corrected degrees of freedom and p-value "
+            "as the primary repeated-measures ANOVA inference."
+        )
+        correction_note = (
+            f"Greenhouse-Geisser correction was applied (epsilon = {_fmt(eps) if eps else 'N/A'})."
+        )
+    elif sph_status == "confirmed":
+        sph_note = (
+            "Mauchly's test did not provide evidence against sphericity at the declared alpha "
+            "level. The ordinary repeated-measures ANOVA degrees of freedom are retained."
+        )
+        correction_note = "No degrees-of-freedom correction was required."
+    else:
+        sph_note = (
+            "Sphericity could not be evaluated reliably; Greenhouse-Geisser correction is "
+            "reported as a conservative safeguard."
+        )
+        correction_note = (
+            f"Greenhouse-Geisser correction was applied (epsilon = {_fmt(eps) if eps else 'N/A'})."
+        )
+
+    order_str = ", ".join(repr(c) for c in order)
+    eta_str = f", partial eta-squared = {_fmt(partial_eta)}" if partial_eta is not None else ""
+    summary = (
+        f"One-way repeated-measures ANOVA evaluated {outcome!r} across {k} ordered conditions "
+        f"({order_str}) for {n_units} complete units. The omnibus test yielded "
+        f"F({df_num:.2f}, {df_den:.2f}) = {_fmt(stat)}, {_p_display(p_val)}{eta_str}."
+    )
+    _finding(findings, "rm_anova_omnibus", summary, "values.test_statistic", "values.p_value")
+
+    if p_val <= alpha:
+        hyp_text = (
+            "The omnibus test provides evidence of an overall difference among condition means "
+            f"(F({df_num:.2f}, {df_den:.2f}) = {_fmt(stat)}, "
+            f"{_p_display(p_val)} <= alpha = {alpha}). {sph_note} Pairwise comparisons identify "
+            "which specific condition contrasts differ after Holm multiplicity adjustment."
+        )
+    else:
+        hyp_text = (
+            "The omnibus test does not provide sufficient evidence of an overall difference among "
+            f"condition means (F({df_num:.2f}, {df_den:.2f}) = {_fmt(stat)}, "
+            f"{_p_display(p_val)} > alpha = {alpha}). "
+            f"{sph_note} Failing to reject does not prove that all condition means are equal."
+        )
+    _finding(findings, "rm_anova_decision", hyp_text, "values.p_value")
+
+    if partial_eta is not None:
+        eff_text = (
+            f"Partial eta-squared was {_fmt(partial_eta)}, reflecting the proportion of "
+            "within-subject variance accounted for by condition differences."
+        )
+        _finding(findings, "rm_anova_effect_size", eff_text, "values.effect_size.value")
+    else:
+        eff_text = None
+
+    pairwise = values.get("pairwise_comparisons") or []
+    pairwise_ev_count = sum(
+        1 for p in pairwise if isinstance(p, dict) and p.get("decision") == "reject"
+    )
+    pw_summary = (
+        f"The complete pairwise follow-up evaluated all {len(pairwise)} condition pairs using "
+        "paired t-tests on the omnibus-complete panel with Holm multiplicity adjustment; "
+        f"{pairwise_ev_count} contrast(s) show evidence of difference after adjustment."
+    )
+    _finding(findings, "rm_anova_pairwise_summary", pw_summary, "values.pairwise_comparisons")
+
+    for pw in pairwise[:6]:
+        if isinstance(pw, dict):
+            c_first = pw.get("first_condition")
+            c_second = pw.get("second_condition")
+            diff_m = _finite(pw.get("estimate"))
+            raw_p = _finite(pw.get("raw_p_value"))
+            adj_p = _finite(pw.get("adjusted_p_value"))
+            dec = pw.get("decision")
+            ci = pw.get("confidence_interval") or {}
+            ci_l = _finite(ci.get("lower"))
+            ci_u = _finite(ci.get("upper"))
+            dz = _finite((pw.get("effect_size") or {}).get("value"))
+            if diff_m is not None and adj_p is not None:
+                dec_str = (
+                    "statistically significant"
+                    if dec == "reject"
+                    else "not statistically significant"
+                )
+                ci_str = (
+                    f", 95% CI [{_fmt(ci_l)}, {_fmt(ci_u)}]"
+                    if ci_l is not None and ci_u is not None
+                    else ""
+                )
+                dz_str = f", Cohen's dz = {_fmt(dz)}" if dz is not None else ""
+                msg = (
+                    f"Contrast {c_first} minus {c_second}: mean difference = {_fmt(diff_m)}"
+                    f"{ci_str}{dz_str}, raw p = {_fmt(raw_p) if raw_p is not None else 'N/A'}, "
+                    f"Holm-adjusted {_p_display(adj_p)} ({dec_str})."
+                )
+                _finding(
+                    findings,
+                    f"rm_anova_pair_{c_first}_{c_second}",
+                    msg,
+                    "values.pairwise_comparisons",
+                )
+
+    if len(pairwise) > 6:
+        _finding(
+            findings,
+            "rm_anova_pairwise_truncated",
+            f"Showing 6 of {len(pairwise)} pairwise contrasts; all contrasts are preserved in "
+            "structured results.",
+            "values.pairwise_comparisons",
+        )
+
+    assumption_notes = (
+        "Same observational units observed across three or more conditions; observations are "
+        "within-subject dependent.",
+        "Observational units are assumed independent across subjects.",
+        sph_note,
+        correction_note,
+    )
+    limitations = (
+        "Omnibus significance indicates that condition means differ overall, but does not imply "
+        "that every pairwise contrast differs.",
+        "Complete-case analysis excludes units with any missing condition measurement; "
+        "missingness is not modeled.",
+        "Pairwise confidence intervals are per-contrast intervals, not simultaneous bands.",
+        "Repeated-measures ANOVA does not establish causality.",
+    )
+
+    return InterpretationResult(
+        status=InterpretationStatus.AVAILABLE,
+        method_id="repeated_measures_anova",
+        execution_status=result.status,
+        summary=summary,
+        method_explanation=(
+            "One-way repeated-measures ANOVA evaluates whether condition means differ in a "
+            "within-subject design. Sphericity is checked via Mauchly's test with "
+            "Greenhouse-Geisser correction applied when indicated. All "
+            f"{len(pairwise)} pairwise contrasts are evaluated using paired t-tests with "
+            "Holm multiplicity adjustment."
+        ),
+        hypothesis_interpretation=hyp_text,
+        effect_interpretation=eff_text,
+        uncertainty_interpretation=(
+            "Pairwise mean differences report per-contrast "
+            f"{int(result.specification.options.confidence_level * 100)}% analytical "
+            "confidence intervals; pairwise p-values are multiplicity-adjusted using Holm's method."
+        ),
+        assumption_notes=assumption_notes,
+        limitations=limitations,
+        conclusion=hyp_text,
+        findings=tuple(findings),
+        warnings=result.warnings,
+        metadata={
+            "sample_size": result.sample_size,
+            "excluded_rows": result.excluded_rows,
+            "alpha": alpha,
+            "p_value": p_val,
+            "test_statistic": stat,
+            "sphericity_status": sph_status,
+            "epsilon_gg": eps,
+            "primary_inference": correction_applied,
+            "pairwise_comparisons_count": len(pairwise),
+            "pairwise_rejected_count": pairwise_ev_count,
+        },
+    )
+
+
+def _friedman_interpretation(result: AnalysisResult) -> InterpretationResult:
+    if result.specification is None or result.sample_size is None:
+        return _unavailable(result, "The Friedman specification or sample accounting is missing.")
+    values = result.values
+    outcome = result.specification.question.outcome or "outcome"
+    order = result.metadata.get("condition_order") or []
+    k = len(order)
+    sample_info = result.metadata.get("sample", {})
+    n_units = sample_info.get("complete_units", result.sample_size // max(1, k))
+    alpha = result.specification.options.alpha
+
+    stat = _finite(values.get("test_statistic"))
+    p_val = _finite(values.get("p_value"))
+    df_val = values.get("degrees_of_freedom")
+    if stat is None or p_val is None or df_val is None:
+        return _unavailable(result, "The Friedman test result is incomplete.")
+
+    effect = values.get("effect_size", {})
+    kendall_w = _finite(effect.get("value")) if isinstance(effect, dict) else None
+
+    findings: list[InterpretationFinding] = []
+    order_str = ", ".join(repr(c) for c in order)
+    w_str = f", Kendall's W = {_fmt(kendall_w)}" if kendall_w is not None else ""
+    summary = (
+        f"The Friedman rank-sum test evaluated within-unit rank distributions of {outcome!r} "
+        f"across {k} ordered conditions ({order_str}) for {n_units} complete units. "
+        f"The omnibus test yielded Q({df_val}) = {_fmt(stat)}, {_p_display(p_val)}{w_str}."
+    )
+    _finding(findings, "friedman_omnibus", summary, "values.test_statistic", "values.p_value")
+
+    if p_val <= alpha:
+        hyp_text = (
+            "The Friedman omnibus test provides evidence that within-unit rank distributions "
+            f"differ across the declared conditions (Q({df_val}) = {_fmt(stat)}, "
+            f"{_p_display(p_val)} <= alpha = {alpha}). Pairwise Wilcoxon signed-rank tests "
+            "indicate which specific condition contrasts differ after Holm multiplicity adjustment."
+        )
+    else:
+        hyp_text = (
+            "The Friedman omnibus test does not provide sufficient evidence that within-unit rank "
+            f"distributions differ across the declared conditions (Q({df_val}) = {_fmt(stat)}, "
+            f"{_p_display(p_val)} > alpha = {alpha}). Failing to reject does not prove that "
+            "condition rank distributions or medians are equal."
+        )
+    _finding(findings, "friedman_decision", hyp_text, "values.p_value")
+
+    if kendall_w is not None:
+        eff_text = (
+            f"Kendall's coefficient of concordance was W = {_fmt(kendall_w)}, reflecting the "
+            "degree of agreement among within-unit rankings across conditions on a 0 to 1 scale."
+        )
+        _finding(findings, "friedman_effect_size", eff_text, "values.effect_size.value")
+    else:
+        eff_text = None
+
+    pairwise = values.get("pairwise_comparisons") or []
+    pairwise_ev_count = sum(
+        1 for p in pairwise if isinstance(p, dict) and p.get("decision") == "reject"
+    )
+    pw_summary = (
+        f"The complete pairwise follow-up evaluated all {len(pairwise)} condition pairs using "
+        "paired Wilcoxon signed-rank tests on the omnibus-complete panel with Holm multiplicity "
+        f"adjustment; {pairwise_ev_count} contrast(s) show evidence of difference after adjustment."
+    )
+    _finding(findings, "friedman_pairwise_summary", pw_summary, "values.pairwise_comparisons")
+
+    for pw in pairwise[:6]:
+        if isinstance(pw, dict):
+            c_first = pw.get("first_condition")
+            c_second = pw.get("second_condition")
+            raw_p = _finite(pw.get("raw_p_value"))
+            adj_p = _finite(pw.get("adjusted_p_value"))
+            dec = pw.get("decision")
+            rb = _finite((pw.get("effect_size") or {}).get("value"))
+            if adj_p is not None:
+                dec_str = (
+                    "statistically significant"
+                    if dec == "reject"
+                    else "not statistically significant"
+                )
+                rb_str = f", rank-biserial r = {_fmt(rb)}" if rb is not None else ""
+                msg = (
+                    f"Contrast {c_first} minus {c_second}: "
+                    f"raw p = {_fmt(raw_p) if raw_p is not None else 'N/A'}, "
+                    f"Holm-adjusted {_p_display(adj_p)} ({dec_str}){rb_str}."
+                )
+                _finding(
+                    findings,
+                    f"friedman_pair_{c_first}_{c_second}",
+                    msg,
+                    "values.pairwise_comparisons",
+                )
+
+    if len(pairwise) > 6:
+        _finding(
+            findings,
+            "friedman_pairwise_truncated",
+            f"Showing 6 of {len(pairwise)} pairwise contrasts; all contrasts are preserved "
+            "in structured results.",
+            "values.pairwise_comparisons",
+        )
+
+    assumption_notes = (
+        "Same observational units observed across three or more conditions.",
+        "Observational units are assumed independent across subjects.",
+        "Outcome variable supports meaningful ordinal ranking within each unit.",
+        "Friedman evaluates within-unit ranks and is not a universal test of medians unless "
+        "condition distributions have identical shapes.",
+    )
+    limitations = (
+        "Omnibus significance indicates that within-unit ranks differ overall, but does not "
+        "imply that every pairwise contrast differs.",
+        "Complete-case analysis excludes units with any missing condition measurement; "
+        "missingness is not modeled.",
+        "Friedman does not estimate mean differences or establish causality.",
+    )
+
+    return InterpretationResult(
+        status=InterpretationStatus.AVAILABLE,
+        method_id="friedman_test",
+        execution_status=result.status,
+        summary=summary,
+        method_explanation=(
+            "The Friedman test is a non-parametric test for repeated-measures designs with three "
+            "or more conditions. It evaluates whether within-unit ranks differ across conditions. "
+            "Pairwise comparisons use paired Wilcoxon signed-rank tests with Holm multiplicity "
+            "adjustment."
+        ),
+        hypothesis_interpretation=hyp_text,
+        effect_interpretation=eff_text,
+        uncertainty_interpretation=(
+            f"All {len(pairwise)} pairwise Wilcoxon contrasts are adjusted for multiplicity "
+            "using Holm's method."
+        ),
+        assumption_notes=assumption_notes,
+        limitations=limitations,
+        conclusion=hyp_text,
+        findings=tuple(findings),
+        warnings=result.warnings,
+        metadata={
+            "sample_size": result.sample_size,
+            "excluded_rows": result.excluded_rows,
+            "alpha": alpha,
+            "p_value": p_val,
+            "test_statistic": stat,
+            "kendall_w": kendall_w,
+            "pairwise_comparisons_count": len(pairwise),
+            "pairwise_rejected_count": pairwise_ev_count,
         },
     )
 
@@ -896,6 +1250,10 @@ class InterpretationEngine:
             return _logistic_interpretation(result)
         if result.method_id == "cronbach_alpha":
             return _reliability_interpretation(result)
+        if result.method_id == "repeated_measures_anova":
+            return _repeated_measures_anova_interpretation(result)
+        if result.method_id == "friedman_test":
+            return _friedman_interpretation(result)
         if result.method_id not in _METHODS:
             return _unavailable(result, f"Method {result.method_id!r} is not supported.")
         if result.method_id == "dataset_profile":

@@ -2,7 +2,10 @@
 Core Statistical Analyzer - Performs comprehensive statistical analysis
 """
 
+from __future__ import annotations
+
 import warnings
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -51,6 +54,12 @@ from .multigroup import games_howell as _games_howell
 from .multigroup import tukey_hsd as _tukey_hsd
 from .multigroup import welch_anova as _welch_anova
 from .regression import fit_ols as _fit_ols
+from .repeated_measures import (
+    friedman_test as _friedman_test,
+)
+from .repeated_measures import (
+    repeated_measures_anova as _repeated_measures_anova,
+)
 
 _VALID_TEST_TYPES = ("auto", "ttest", "mannwhitney", "anova", "kruskal")
 _DEFAULT_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
@@ -991,6 +1000,64 @@ class StatisticalAnalyzer:
     ) -> dict:
         """Run a two-sided paired Wilcoxon test using explicit unit identity."""
         return _paired_wilcoxon(self.df, unit_id, condition_col, value_col, condition_order)
+
+    def friedman_test(
+        self,
+        unit_id: str | None = None,
+        condition_col: str | None = None,
+        value_col: str | None = None,
+        *,
+        condition_order: tuple[Any, ...] | list[Any] | None = None,
+        alpha: float = 0.05,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Run Friedman repeated-measures test with Kendall's W and pairwise Wilcoxon."""
+        unit = unit_id or kwargs.get("unit")
+        cond = condition_col or kwargs.get("condition") or kwargs.get("predictor")
+        val = value_col or kwargs.get("value") or kwargs.get("outcome")
+        order = condition_order or kwargs.get("order")
+        if unit is None or cond is None or val is None or order is None:
+            raise InvalidTestError(
+                "unit_id, condition_col, value_col, and condition_order are required."
+            )
+        return _friedman_test(
+            self.df,
+            unit,
+            cond,
+            val,
+            condition_order=order,
+            alpha=alpha,
+        )
+
+    def repeated_measures_anova(
+        self,
+        unit_id: str | None = None,
+        condition_col: str | None = None,
+        value_col: str | None = None,
+        *,
+        condition_order: tuple[Any, ...] | list[Any] | None = None,
+        alpha: float = 0.05,
+        confidence_level: float = 0.95,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Run one-way repeated-measures ANOVA with sphericity, GG correction, and pairwise t."""
+        unit = unit_id or kwargs.get("unit")
+        cond = condition_col or kwargs.get("condition") or kwargs.get("predictor")
+        val = value_col or kwargs.get("value") or kwargs.get("outcome")
+        order = condition_order or kwargs.get("order")
+        if unit is None or cond is None or val is None or order is None:
+            raise InvalidTestError(
+                "unit_id, condition_col, value_col, and condition_order are required."
+            )
+        return _repeated_measures_anova(
+            self.df,
+            unit,
+            cond,
+            val,
+            condition_order=order,
+            alpha=alpha,
+            confidence_level=confidence_level,
+        )
 
     def spearman_correlation(
         self,

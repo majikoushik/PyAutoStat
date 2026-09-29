@@ -315,6 +315,68 @@ planning = StudyPlanner().independent_mean_power(
 )
 assert planning.status == "available"
 
+repeated_smoke_df = pd.DataFrame(
+    {
+        "participant": [1, 2, 3, 4, 5, 6] * 3,
+        "session": ["s1"] * 6 + ["s2"] * 6 + ["s3"] * 6,
+        "score": [
+            10.0,
+            12.0,
+            14.0,
+            11.0,
+            13.0,
+            15.0,
+            14.0,
+            15.0,
+            16.0,
+            13.0,
+            15.0,
+            18.0,
+            18.0,
+            19.0,
+            20.0,
+            17.0,
+            19.0,
+            22.0,
+        ],
+    }
+)
+rm_smoke = ResearchAssistant(repeated_smoke_df).run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="session",
+    design="repeated",
+    estimand="mean",
+    unit_id="participant",
+    condition_order=("s1", "s2", "s3"),
+    variable_types={"score": "continuous", "session": "ordinal"},
+)
+assert rm_smoke.status.value == "completed"
+assert rm_smoke.analysis.method_id == "repeated_measures_anova"
+assert "REPEATED-MEASURES ANALYSIS" in rm_smoke.explain()
+assert "repeated_anova_omnibus" in rm_smoke.report.to_csv_tables()
+assert "repeated_pairwise" in rm_smoke.report.to_csv_tables()
+assert rm_smoke.audit.status == "passed"
+json.loads(rm_smoke.to_json())
+
+friedman_smoke = ResearchAssistant(repeated_smoke_df).run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="session",
+    design="repeated",
+    estimand="distribution",
+    unit_id="participant",
+    condition_order=("s1", "s2", "s3"),
+    variable_types={"score": "continuous", "session": "ordinal"},
+)
+assert friedman_smoke.status.value == "completed"
+assert friedman_smoke.analysis.method_id == "friedman_test"
+assert "OMNIBUS TEST" in friedman_smoke.explain()
+assert "friedman_omnibus" in friedman_smoke.report.to_csv_tables()
+assert "friedman_pairwise" in friedman_smoke.report.to_csv_tables()
+assert friedman_smoke.audit.status == "passed"
+json.loads(friedman_smoke.to_json())
+
 html = guided.report.to_html(style="apa")
 assert isinstance(html, str) and "<!doctype html>" in html
 assert '<section class="executive-summary">' in html

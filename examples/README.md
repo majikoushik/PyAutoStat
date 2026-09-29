@@ -18,6 +18,7 @@ python examples/multigroup_analysis.py
 python examples/linear_regression.py
 python examples/scale_reliability.py
 python examples/binary_and_extended_association.py
+python examples/repeated_measures_analysis.py
 ~~~
 
 It prints the dataset story, deterministic recommendation rationale (why this
@@ -52,6 +53,11 @@ bootstrap uncertainty, audit, and replay. It uses synthetic data and writes no f
 McNemar inference, point-biserial correlation, explicit Kendall tau-b inference, and partial
 Pearson correlation. Every binary direction, pair identity, condition order, and control variable
 is declared; the example uses synthetic data and writes no files.
+
+`repeated_measures_analysis.py` demonstrates one-way repeated-measures ANOVA with Mauchly's sphericity
+test, Greenhouse-Geisser correction, partial eta-squared, and complete Holm-adjusted pairwise paired
+t-tests, alongside the Friedman rank-sum test with Kendall's W concordance and complete Holm-adjusted
+pairwise Wilcoxon signed-rank tests. It uses synthetic data and writes no files.
 
 ## Install
 

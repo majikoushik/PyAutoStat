@@ -130,6 +130,8 @@ implemented. `audit=False` also makes an otherwise successful workflow partial.
 | Monotonic numerical association | Independent rows | Spearman rank correlation | Automatically guided and direct | rho, p-value, deterministic paired-observation bootstrap CI | Ties allowed; does not establish linearity or causation |
 | Sparse 2x2 categorical independence | Independent rows | Fisher's exact test | Automatically guided fallback and direct | Two-sided p and ordered sample odds ratio; CI explicitly unavailable | Exactly 2x2; no category collapsing or RxC extension |
 | Kendall ordinal concordance | Independent rows | Kendall tau-b | Descriptive matrix and explicit guided inferential preference | Tau-b/p, ties and paired-observation bootstrap CI | Spearman remains the monotonic default; tau is not variance explained |
+| Repeated continuous mean outcome (3+ conditions) | Repeated with explicit unit ID | One-way repeated-measures ANOVA | Automatically guided for estimand="mean" | Omnibus F/df/p, condition means/SDs, partial eta-squared, Mauchly sphericity, Greenhouse-Geisser corrected df/p, and every pairwise mean difference with analytical CI and Holm-adjusted p | At least three conditions, at least three complete units, one observation per unit-condition; missingness is complete-case only |
+| Repeated rank/distribution target (3+ conditions) | Repeated with explicit unit ID | Friedman rank-sum test | Automatically guided for rank/distribution targets | Omnibus Q/df/p, condition medians/IQRs, Kendall's W concordance, and every pairwise paired Wilcoxon signed-rank test with rank-biserial effect and Holm-adjusted p | At least three conditions, at least three complete units, within-unit ranking required; does not universally test medians |
 
 Diagnostics never silently change a declared mean target into a rank-distribution target. Group
 and paired directions follow the recorded contrast. Missing rows use the documented
@@ -173,7 +175,7 @@ Common blockers remain explicit:
   duplicate paired unit/condition rows, unusable pairs, or unsupported sparse tables return a
   data-limited or unsupported result as documented. Sparse 2x2 tables use Fisher; larger sparse
   tables remain unsupported.
-- Repeated measures with more than two conditions, clustered models, mixed models, multinomial,
+- Clustered models, mixed-effects models, mixed ANOVA, factorial repeated measures, multinomial,
   ordinal, count, regularized, interaction, and polynomial regression, survival analysis, causal
   inference, Fisher extensions beyond 2x2,
   broader multiplicity families, and formal equivalence or noninferiority tests are not

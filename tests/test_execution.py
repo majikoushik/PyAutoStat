@@ -146,7 +146,11 @@ def test_incomplete_and_unsupported_requests_stop_before_backend(monkeypatch, tw
     assert paired.status == "unavailable"
     assert paired.recommendation.status == "needs_input"
     assert paired.recommendation.missing_information[0].field == "unit_id"
-    for design in ("repeated", "clustered"):
+    repeated = assistant.analyze(_draft(assistant, design="repeated"))
+    assert repeated.status == "unavailable"
+    assert repeated.recommendation.status == "needs_input"
+    assert repeated.recommendation.missing_information[0].field == "unit_id"
+    for design in ("clustered",):
         blocked = assistant.analyze(_draft(assistant, design=design))
         assert blocked.status == "unavailable"
         assert blocked.recommendation.status == "unsupported"

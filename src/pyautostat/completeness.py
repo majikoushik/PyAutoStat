@@ -88,6 +88,8 @@ def assess_reporting_completeness(
         "linear_regression",
         "point_biserial_correlation",
         "partial_pearson_correlation",
+        "repeated_measures_anova",
+        "friedman_test",
     }
 
     def item(
@@ -204,6 +206,8 @@ def assess_reporting_completeness(
                 "welch_anova",
                 "linear_regression",
                 "logistic_regression",
+                "repeated_measures_anova",
+                "friedman_test",
             },
         ),
         item(
@@ -222,7 +226,14 @@ def assess_reporting_completeness(
             results.get("confidence_interval"),
             "sections.results.confidence_interval",
             applicable=inference
-            and method not in {"welch_anova", "linear_regression", "logistic_regression"},
+            and method
+            not in {
+                "welch_anova",
+                "linear_regression",
+                "logistic_regression",
+                "repeated_measures_anova",
+                "friedman_test",
+            },
             unavailable=(
                 source_values.get("confidence_interval") is None
                 and method in {"pearson_correlation", "wilcoxon_signed_rank", "fisher_exact"}
@@ -232,9 +243,17 @@ def assess_reporting_completeness(
             "GROUP_SUMMARIES_REPORTED",
             "results",
             "Per-group descriptive summaries",
-            results.get("group_summaries"),
+            results.get("group_summaries") or results.get("condition_summaries"),
             "sections.results.group_summaries",
-            applicable=inference and method in {"welch_anova", "one_way_anova", "kruskal_wallis"},
+            applicable=inference
+            and method
+            in {
+                "welch_anova",
+                "one_way_anova",
+                "kruskal_wallis",
+                "repeated_measures_anova",
+                "friedman_test",
+            },
         ),
         item(
             "PAIRWISE_COMPARISONS_REPORTED",
@@ -242,7 +261,15 @@ def assess_reporting_completeness(
             "Complete multiplicity-controlled pairwise family",
             results.get("pairwise_comparisons"),
             "sections.results.pairwise_comparisons",
-            applicable=inference and method in {"welch_anova", "one_way_anova", "kruskal_wallis"},
+            applicable=inference
+            and method
+            in {
+                "welch_anova",
+                "one_way_anova",
+                "kruskal_wallis",
+                "repeated_measures_anova",
+                "friedman_test",
+            },
         ),
         item(
             "ALPHA_REPORTED",
@@ -501,6 +528,23 @@ def assess_reporting_completeness(
                 "Per-item and complete-case missingness",
                 results.get("missingness"),
                 "sections.results.missingness",
+            ),
+        )
+    if method == "repeated_measures_anova":
+        items += (
+            item(
+                "SPHERICITY_REPORTED",
+                "results",
+                "Sphericity diagnostic and Mauchly test",
+                results.get("sphericity"),
+                "sections.results.sphericity",
+            ),
+            item(
+                "CORRECTION_REPORTED",
+                "results",
+                "Greenhouse-Geisser correction and epsilon",
+                results.get("greenhouse_geisser"),
+                "sections.results.greenhouse_geisser",
             ),
         )
     required_statuses = [entry.status for entry in items if entry.applicable and entry.required]

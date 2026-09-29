@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added complete repeated-measures analysis for 3+ conditions on the same observational units:
+  one-way repeated-measures ANOVA for continuous mean outcomes with full ANOVA tables, Mauchly's
+  sphericity test, Greenhouse-Geisser epsilon and corrected degrees of freedom / p-values when
+  sphericity is violated, partial eta-squared repeated-measures effect sizes, and complete pairwise
+  paired t-test follow-up with per-contrast analytical confidence intervals and Holm multiplicity
+  adjustment; and the Friedman rank-sum test for repeated rank/distribution targets with Kendall's W
+  effect size and complete pairwise Wilcoxon signed-rank follow-up with matched-pairs rank-biserial
+  correlations and Holm multiplicity adjustment. Both workflows require explicit unit identity,
+  long-form panels, and 3+ ordered condition labels, enforce complete-case panels while auditing
+  and reporting missing and excluded unit accounting, block duplicate unit-condition records,
+  preserve deterministic contrast orientations, and integrate with explainable narration, canonical
+  HTML/Markdown/JSON/CSV reports, reporting completeness, result auditing, replay reproducibility,
+  analysis plans, session snapshots, examples, and installed-wheel smoke testing. Two-condition paired
+  workflows remain completely unchanged. No mixed-effects models, GEE, mixed ANOVA, factorial
+  repeated measures, or automatic imputation were added.
+
 - Added five complete binary-outcome and extended-association workflows: binary logistic
   regression, exact unit-ID McNemar inference, point-biserial correlation, explicit inferential
   Kendall tau-b, and partial Pearson correlation for declared quantitative controls. The methods

@@ -187,6 +187,9 @@ class ResearchWorkflowResult:
             complete_pairs = self.analysis.metadata.get("sample", {}).get("complete_pairs")
             if isinstance(complete_pairs, int):
                 lines.append(f" Pairs     : {complete_pairs} complete pairs")
+            complete_units = self.analysis.metadata.get("sample", {}).get("complete_units")
+            if isinstance(complete_units, int):
+                lines.append(f" Units     : {complete_units} complete units")
         if self.analysis is not None and self.analysis.method_id == "cronbach_alpha":
             values = self.analysis.values
             interval = values.get("confidence_interval", {})
@@ -361,6 +364,88 @@ class ResearchWorkflowResult:
                         f" p: {values.get('p_value')}.",
                     ]
                 )
+        if self.analysis is not None and self.analysis.method_id == "repeated_measures_anova":
+            values = self.analysis.values
+            eff = values.get("effect_size", {}).get("value")
+            df_vals = values.get("degrees_of_freedom")
+            df_str = (
+                f"({df_vals[0]}, {df_vals[1]})"
+                if isinstance(df_vals, (list, tuple)) and len(df_vals) == 2
+                else f"({df_vals})"
+            )
+            lines.extend(
+                [
+                    thin,
+                    " REPEATED-MEASURES ANALYSIS",
+                    " OMNIBUS TEST",
+                    f"   F{df_str}={values.get('statistic')}; p={values.get('p_value')}; "
+                    f"partial eta-squared={eff}.",
+                ]
+            )
+            sphericity = values.get("sphericity", {})
+            gg = values.get("greenhouse_geisser", {})
+            if sphericity:
+                lines.extend(
+                    [
+                        thin,
+                        " SPHERICITY / CORRECTION",
+                        f"   Mauchly's W={sphericity.get('mauchly_w')}; "
+                        f"p={sphericity.get('p_value')}; sphericity supported="
+                        f"{sphericity.get('sphericity_supported')}.",
+                        f"   Greenhouse-Geisser epsilon={gg.get('epsilon')}; "
+                        f"corrected p={gg.get('corrected_p_value')}; "
+                        f"policy applied={values.get('primary_inference')}.",
+                    ]
+                )
+            summaries = values.get("condition_summaries", [])
+            if summaries:
+                lines.extend([thin, " CONDITION SUMMARIES"])
+                for s in summaries:
+                    lines.append(
+                        f"   - {s.get('condition')}: mean={s.get('mean')}; "
+                        f"std={s.get('std')}; median={s.get('median')}; n={s.get('n')}"
+                    )
+            pairwise = values.get("pairwise_comparisons", [])
+            if pairwise:
+                lines.extend([thin, " PAIRWISE FOLLOW-UP"])
+                for pw in pairwise:
+                    label = pw.get("orientation") or pw.get("contrast_id") or "contrast"
+                    lines.append(
+                        f"   - {label}: diff={pw.get('mean_difference')}; "
+                        f"t({pw.get('degrees_of_freedom')})={pw.get('statistic')}; "
+                        f"raw p={pw.get('raw_p_value')}; "
+                        f"Holm p={pw.get('adjusted_p_value')}"
+                    )
+        if self.analysis is not None and self.analysis.method_id == "friedman_test":
+            values = self.analysis.values
+            eff = values.get("effect_size", {}).get("value")
+            lines.extend(
+                [
+                    thin,
+                    " REPEATED-MEASURES ANALYSIS",
+                    " OMNIBUS TEST",
+                    f"   Q({values.get('degrees_of_freedom')})={values.get('statistic')}; "
+                    f"p={values.get('p_value')}; Kendall's W={eff}.",
+                ]
+            )
+            summaries = values.get("condition_summaries", [])
+            if summaries:
+                lines.extend([thin, " CONDITION SUMMARIES"])
+                for s in summaries:
+                    lines.append(
+                        f"   - {s.get('condition')}: median={s.get('median')}; "
+                        f"IQR={s.get('iqr')}; mean={s.get('mean')}; n={s.get('n')}"
+                    )
+            pairwise = values.get("pairwise_comparisons", [])
+            if pairwise:
+                lines.extend([thin, " PAIRWISE FOLLOW-UP"])
+                for pw in pairwise:
+                    label = pw.get("orientation") or pw.get("contrast_id") or "contrast"
+                    lines.append(
+                        f"   - {label}: W={pw.get('statistic')}; "
+                        f"raw p={pw.get('raw_p_value')}; "
+                        f"Holm p={pw.get('adjusted_p_value')}"
+                    )
 
         # ── Needs-input / blocked ────────────────────────────────────────────
         if self.missing_information:
@@ -428,22 +513,72 @@ class ResearchWorkflowResult:
                     " OMNIBUS TEST"
                     if self.analysis is not None
                     and self.analysis.method_id
-                    in {"welch_anova", "one_way_anova", "kruskal_wallis"}
+                    in {
+                        "welch_anova",
+                        "one_way_anova",
+                        "kruskal_wallis",
+                        "repeated_measures_anova",
+                        "friedman_test",
+                    }
                     else " HYPOTHESIS TEST"
                 )
                 lines.append(f"   {interp.hypothesis_interpretation.strip()}")
+            if self.analysis is not None and self.analysis.method_id == "repeated_measures_anova":
+                sphericity = self.analysis.values.get("sphericity")
+                gg = self.analysis.values.get("greenhouse_geisser")
+                if isinstance(sphericity, dict) and isinstance(gg, dict):
+                    lines.append(thin)
+                    lines.append(" SPHERICITY / CORRECTION")
+                    w_stat = sphericity.get("statistic")
+                    w_str = f"{w_stat:.4g}" if isinstance(w_stat, (int, float)) else "N/A"
+                    p_stat = sphericity.get("p_value")
+                    p_str = f"{p_stat:.4g}" if isinstance(p_stat, (int, float)) else "N/A"
+                    lines.append(
+                        f"   Mauchly W: {w_str}; p={p_str}; status={sphericity.get('status')}."
+                    )
+                    eps_val = gg.get("epsilon")
+                    eps_str = f"{eps_val:.4g}" if isinstance(eps_val, (int, float)) else "N/A"
+                    corr_p = gg.get("corrected_p_value")
+                    corr_p_str = f"{corr_p:.4g}" if isinstance(corr_p, (int, float)) else "N/A"
+                    lines.append(
+                        f"   Greenhouse-Geisser epsilon: {eps_str}; corrected p={corr_p_str}."
+                    )
+                    lines.append(
+                        f"   Primary inference: {self.analysis.values.get('primary_inference')}."
+                    )
             if self.analysis is not None:
-                summaries = self.analysis.values.get("group_summaries")
+                summaries = self.analysis.values.get("group_summaries") or self.analysis.values.get(
+                    "condition_summaries"
+                )
                 if isinstance(summaries, list) and summaries:
                     lines.append(thin)
-                    lines.append(" GROUP SUMMARIES")
+                    lines.append(
+                        " CONDITION SUMMARIES"
+                        if self.analysis.values.get("condition_summaries")
+                        else " GROUP SUMMARIES"
+                    )
                     for item in summaries:
                         if not isinstance(item, dict):
                             continue
+                        name = item.get("condition") or item.get("group")
+                        n_c = (
+                            item.get("n") if item.get("n") is not None else item.get("sample_size")
+                        )
+                        mean_str = (
+                            f"mean={item['mean']:.4g}, " if item.get("mean") is not None else ""
+                        )
+                        med_str = (
+                            f"median={item['median']:.4g}, "
+                            if item.get("median") is not None
+                            else ""
+                        )
+                        sd_str = (
+                            f"SD={item['standard_deviation']:.4g}"
+                            if item.get("standard_deviation") is not None
+                            else ""
+                        )
                         lines.append(
-                            f"   - {item.get('group')!r}: n={item.get('sample_size')}, "
-                            f"mean={item.get('mean'):.4g}, median={item.get('median'):.4g}, "
-                            f"SD={item.get('standard_deviation'):.4g}"
+                            f"   - {name!r}: n={n_c}, {mean_str}{med_str}{sd_str}".rstrip(", ")
                         )
                 pairwise = self.analysis.values.get("pairwise_comparisons")
                 if isinstance(pairwise, list) and pairwise:
@@ -457,12 +592,15 @@ class ResearchWorkflowResult:
                     for item in pairwise[:6]:
                         if not isinstance(item, dict):
                             continue
-                        lines.append(
-                            f"   - {item.get('group1')!r} minus {item.get('group2')!r}: "
-                            f"{item.get('estimate_name')}={item.get('estimate'):.4g}, "
-                            f"adjusted p={item.get('adjusted_p_value'):.4g}, "
-                            f"decision={item.get('decision')}"
-                        )
+                        c1 = item.get("first_condition") or item.get("group1")
+                        c2 = item.get("second_condition") or item.get("group2")
+                        est_name = item.get("estimate_name") or "estimate"
+                        est_val = item.get("estimate")
+                        adj_p = item.get("adjusted_p_value")
+                        dec = item.get("decision")
+                        est_str = f"{est_name}={est_val:.4g}, " if est_val is not None else ""
+                        p_str = f"adjusted p={adj_p:.4g}" if adj_p is not None else ""
+                        lines.append(f"   - {c1!r} minus {c2!r}: {est_str}{p_str}, decision={dec}")
                     if len(pairwise) > 6:
                         lines.append(
                             f"   - {len(pairwise) - 6} additional comparisons are preserved "

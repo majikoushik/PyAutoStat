@@ -309,6 +309,49 @@ diagnostics are unavailable, and `data_limited` for observed mathematical blocke
 Canonical reports add `reliability_summary`, `reliability_items`, and
 `inter_item_correlations` tables and use the same stored values for audit and explicit replay.
 
+### Repeated-measures analysis (3+ conditions)
+
+Repeated-measures workflows evaluate three or more conditions or time points on the same units:
+
+```python
+workflow = ResearchAssistant(df).run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="session",
+    design="repeated",
+    unit_id="participant_id",
+    condition_order=("baseline", "week4", "week8"),
+    estimand="mean",              # or "distribution" for Friedman
+    variable_types={"score": "continuous", "session": "ordinal"},
+)
+```
+
+The long-form panel requires a unit identifier, condition column, outcome column, and explicit
+`condition_order` with at least 3 labels. Duplicate unit-condition records block execution. The
+analysis uses a complete-case panel across all declared conditions; missingness is not modeled.
+
+- **One-way repeated-measures ANOVA** (`repeated_measures_anova`):
+  Evaluates repeated condition means. The result includes a full ANOVA table (`ss_condition`,
+  `ss_error`, `ss_subject`, `ss_total`, `ms_condition`, `ms_error`, `f_statistic`, `p_value`),
+  condition means and SDs, and partial eta-squared (`SS_condition / (SS_condition + SS_error)`).
+  Sphericity is evaluated using Mauchly's test on orthonormal Helmert contrast covariances.
+  When sphericity is rejected ($p < \alpha$), Greenhouse-Geisser corrected degrees of freedom and
+  p-values are reported as primary; the observed F statistic is unchanged. Pairwise follow-up
+  computes all $k(k-1)/2$ paired t-tests on the omnibus panel with analytical mean-difference CIs,
+  Cohen's dz, and Holm-adjusted p-values.
+
+- **Friedman rank-sum test** (`friedman_test`):
+  Evaluates within-unit rank distributions for rank or distribution targets. The result includes
+  the omnibus $Q$ statistic with $df = k - 1$, $p$-value, condition medians and IQRs, and
+  Kendall's coefficient of concordance $W = Q / (n(k - 1))$. Complete pairwise follow-up executes
+  all $k(k-1)/2$ paired Wilcoxon signed-rank tests with matched-pairs rank-biserial correlations
+  and Holm multiplicity adjustment.
+
+The expert methods `StatisticalAnalyzer.repeated_measures_anova(...)` and
+`StatisticalAnalyzer.friedman_test(...)` accept long-form DataFrames or pre-extracted panels and
+return the same validated schemas. Two-condition paired designs continue to route through
+`paired_t` or `wilcoxon_signed_rank`.
+
 ### Continue after `needs_input`
 
 When an essential scientific fact is absent, `run()` returns a structured request and does not

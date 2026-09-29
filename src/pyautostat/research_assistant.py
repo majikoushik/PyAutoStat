@@ -349,7 +349,7 @@ class ResearchAssistant:
         data_dictionary: dict | None = None,
         variable_types: dict[str, str] | None = None,
         unit_id: str | None = None,
-        condition_order: tuple[Any, Any] | None = None,
+        condition_order: tuple[Any, ...] | None = None,
         reference_value: float | None = None,
         covariance_type: str | None = None,
         reference_levels: dict[str, Any] | None = None,
@@ -781,7 +781,7 @@ class ResearchAssistant:
                 raise InvalidDataError(
                     "design must be unknown, independent, paired, repeated, or clustered."
                 ) from exc
-            if revised_design is not StudyDesign.PAIRED:
+            if revised_design not in (StudyDesign.PAIRED, StudyDesign.REPEATED):
                 selected_unit_id = None
                 selected_condition_order = None
         if changes.get("unit_id", selected_unit_id) is None:
@@ -1632,9 +1632,12 @@ def _scenario_incompatibility(
             "The scenario changes the declared study design; no independent-analysis method "
             "was substituted."
         )
-    if base.design is StudyDesign.PAIRED and base.unit_id != scenario.unit_id:
+    if (
+        base.design in (StudyDesign.PAIRED, StudyDesign.REPEATED)
+        and base.unit_id != scenario.unit_id
+    ):
         return (
-            "The scenario changes the paired unit_id, so it does not preserve the scientific "
-            "pairing definition."
+            "The scenario changes the unit_id, so it does not preserve the scientific "
+            "unit definition."
         )
     return None

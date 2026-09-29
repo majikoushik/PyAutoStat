@@ -114,7 +114,7 @@ def test_two_group_distribution_uses_mann_whitney(comparison):
     assert "median" not in result.rationale
 
 
-@pytest.mark.parametrize("design", ["repeated", "clustered"])
+@pytest.mark.parametrize("design", ["clustered"])
 def test_dependent_designs_block_independent_methods(comparison, design):
     result = question(
         comparison,
@@ -128,6 +128,19 @@ def test_dependent_designs_block_independent_methods(comparison, design):
     assert result.method_id is None
     assert design in result.blockers[0]
     assert "independent" in result.blockers[0]
+
+
+def test_repeated_mean_question_requests_unit_identifier(comparison):
+    result = question(
+        comparison,
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        estimand="mean",
+        design="repeated",
+    )
+    assert result.status == "needs_input"
+    assert result.missing_information[0].field == "unit_id"
 
 
 def test_paired_mean_question_requests_unit_identifier(comparison):

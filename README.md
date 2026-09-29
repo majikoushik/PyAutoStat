@@ -224,8 +224,27 @@ interval, corrected item-total correlations, alpha if each item is deleted, item
 missingness, and the complete inter-item correlation matrix. Optional reverse scoring is explicit,
 for example `reverse_scoring={"q4": (1, 5)}`, and operates on an internal copy. Alpha is an
 internal-consistency estimate, not a hypothesis test, universal pass/fail grade, proof of
-unidimensionality, or evidence of construct validity. See
-[`examples/scale_reliability.py`](examples/scale_reliability.py).
+unidimensionality, or evidence of construct validity. See [`examples/scale_reliability.py`](examples/scale_reliability.py).
+
+### Repeated-measures analysis (3+ conditions)
+
+For 3 or more repeated conditions or measurement occasions on the same units, declare `design="repeated"`, `unit_id`, and `condition_order`:
+
+```python
+repeated = ResearchAssistant(df).run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="visit",
+    estimand="mean",              # or "distribution" for Friedman
+    design="repeated",
+    unit_id="participant_id",
+    condition_order=("baseline", "week4", "week8"),
+    variable_types={"score": "continuous", "visit": "ordinal"},
+)
+print(repeated.explain())
+```
+
+For continuous mean targets, PyAutoStat executes one-way repeated-measures ANOVA, evaluates sphericity via Mauchly's test, computes Greenhouse-Geisser epsilon and corrected degrees of freedom / p-values when sphericity is violated, reports partial eta-squared, and computes complete pairwise paired t-tests with Holm multiplicity control. For repeated rank/distribution targets, it executes the Friedman test with Kendall's W concordance and complete pairwise Wilcoxon signed-rank tests with Holm adjustment. Complete-case panels across all declared conditions are audited and reported; two-condition paired designs continue to route through the paired t-test or paired Wilcoxon. See [`examples/repeated_measures_analysis.py`](examples/repeated_measures_analysis.py).
 
 ## When information is missing
 
@@ -281,6 +300,11 @@ remain distinct from a completed workflow.
 - Exact two-sided McNemar inference for two-condition paired binary outcomes identified by unit ID.
 - Researcher-declared multi-item scale reliability with Cronbach's alpha, deterministic bootstrap
   uncertainty, item diagnostics, missingness accounting, and optional explicit reverse scoring.
+- One-way repeated-measures ANOVA for 3+ repeated conditions on the same units, including
+  Mauchly's sphericity test, Greenhouse-Geisser correction, partial eta-squared, and complete
+  Holm-adjusted pairwise paired t-tests.
+- Friedman rank-sum test for 3+ repeated conditions, including Kendall's W concordance and
+  complete Holm-adjusted pairwise Wilcoxon signed-rank tests.
 - Effect estimates, supported confidence intervals, sample accounting, assumptions, and warnings.
 - Deterministic interpretation and canonical research reports.
 - Static HTML, Markdown, JSON, CSV tables, safe LaTeX, and optional interactive Plotly HTML.

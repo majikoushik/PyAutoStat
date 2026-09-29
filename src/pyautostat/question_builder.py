@@ -146,7 +146,7 @@ def prepare_question(
     specification: AnalysisSpecification | None = None,
     variable_metadata: dict[str, str] | None = None,
     unit_id: str | None = None,
-    condition_order: tuple[Any, Any] | None = None,
+    condition_order: tuple[Any, ...] | None = None,
     reference_value: float | None = None,
     covariance_type: str | None = None,
     reference_levels: dict[str, Any] | None = None,
@@ -353,7 +353,7 @@ def prepare_question(
     )
     selected.extend(item for item in (question.items or ()) if item not in selected)
     availability_columns = selected.copy()
-    if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
+    if spec.design in (StudyDesign.PAIRED, StudyDesign.REPEATED) and spec.unit_id is not None:
         availability_columns.append(spec.unit_id)
     hints = variable_intelligence_only(frame, dictionary) if selected else {}
     if question.objective == Objective.REGRESSION and selected:
@@ -504,6 +504,14 @@ def prepare_question(
                 "unit_id",
                 "Which column identifies the same or matched unit across the two conditions?",
                 "Pairing cannot be inferred from row order or identifier-like values.",
+                "column",
+                column_options,
+            )
+        elif spec.design == StudyDesign.REPEATED and spec.unit_id is None:
+            ask(
+                "unit_id",
+                "Which column identifies the repeated observational unit across conditions?",
+                "Repeated structure cannot be inferred from row order or identifier-like values.",
                 "column",
                 column_options,
             )

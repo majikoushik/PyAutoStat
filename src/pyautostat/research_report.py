@@ -702,6 +702,7 @@ def build_research_report(
         "effective_pair_count": sample.get("effective_pair_count"),
         "complete_pairs": sample.get("complete_pairs"),
         "total_units": sample.get("total_units"),
+        "complete_units": sample.get("complete_units"),
         "incomplete_units": sample.get("incomplete_units"),
         "excluded_units": sample.get("excluded_units"),
         "missing_unit_rows": sample.get("missing_unit_rows"),
@@ -736,6 +737,12 @@ def build_research_report(
         "reference_value": visible.get("reference_value"),
         "standard_error": visible.get("standard_error"),
         "group_summaries": visible.get("group_summaries"),
+        "condition_summaries": visible.get("condition_summaries"),
+        "sphericity": visible.get("sphericity"),
+        "greenhouse_geisser": visible.get("greenhouse_geisser"),
+        "primary_inference": visible.get("primary_inference"),
+        "uncorrected_p_value": visible.get("uncorrected_p_value"),
+        "corrected_p_value": visible.get("corrected_p_value"),
         "pairwise_comparisons": visible.get("pairwise_comparisons"),
         "outcome": visible.get("outcome"),
         "predictors": visible.get("predictors"),
@@ -813,12 +820,13 @@ def build_research_report(
         for name in (
             "total_units",
             "complete_pairs",
+            "complete_units",
             "incomplete_units",
             "excluded_units",
             "nonzero_differences",
             "zero_differences",
         )
-        if dataset[name] is not None
+        if dataset.get(name) is not None
     }
     if pair_fields:
         tables.append(
@@ -1007,6 +1015,316 @@ def build_research_report(
                 ],
             )
         )
+    if analysis["method_id"] == "repeated_measures_anova" and status != "unavailable":
+        dfs = visible.get("degrees_of_freedom") or [None, None]
+        df_num = dfs[0] if isinstance(dfs, (list, tuple)) and len(dfs) >= 2 else None
+        df_den = dfs[1] if isinstance(dfs, (list, tuple)) and len(dfs) >= 2 else None
+        tables.append(
+            _table(
+                "repeated_anova_omnibus",
+                "Repeated-measures ANOVA omnibus test",
+                [
+                    "F statistic",
+                    "Numerator df",
+                    "Denominator df",
+                    "p-value",
+                    "Uncorrected p",
+                    "Partial eta-squared",
+                    "Correction applied",
+                ],
+                [
+                    [
+                        _cell(visible.get("test_statistic"), "analysis.values.test_statistic"),
+                        _cell(df_num, "analysis.values.degrees_of_freedom[0]"),
+                        _cell(df_den, "analysis.values.degrees_of_freedom[1]"),
+                        _cell(visible.get("p_value"), "analysis.values.p_value"),
+                        _cell(
+                            visible.get("uncorrected_p_value"),
+                            "analysis.values.uncorrected_p_value",
+                        ),
+                        _cell(
+                            (visible.get("effect_size") or {}).get("value"),
+                            "analysis.values.effect_size.value",
+                        ),
+                        _cell(
+                            visible.get("primary_inference"), "analysis.values.primary_inference"
+                        ),
+                    ]
+                ],
+            )
+        )
+        cond_sums = visible.get("condition_summaries")
+        if isinstance(cond_sums, list) and cond_sums:
+            tables.append(
+                _table(
+                    "repeated_condition_summary",
+                    "Repeated condition summaries",
+                    ["Condition", "N", "Mean", "SD", "Median", "IQR"],
+                    [
+                        [
+                            _cell(
+                                item.get("condition"),
+                                f"analysis.values.condition_summaries[{i}].condition",
+                            ),
+                            _cell(item.get("n"), f"analysis.values.condition_summaries[{i}].n"),
+                            _cell(
+                                item.get("mean"), f"analysis.values.condition_summaries[{i}].mean"
+                            ),
+                            _cell(
+                                item.get("standard_deviation"),
+                                f"analysis.values.condition_summaries[{i}].standard_deviation",
+                            ),
+                            _cell(
+                                item.get("median"),
+                                f"analysis.values.condition_summaries[{i}].median",
+                            ),
+                            _cell(item.get("iqr"), f"analysis.values.condition_summaries[{i}].iqr"),
+                        ]
+                        for i, item in enumerate(cond_sums)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
+        sphericity = visible.get("sphericity") or {}
+        gg = visible.get("greenhouse_geisser") or {}
+        tables.append(
+            _table(
+                "repeated_sphericity",
+                "Mauchly's sphericity test and Greenhouse-Geisser correction",
+                [
+                    "Mauchly W",
+                    "df",
+                    "p-value",
+                    "Sphericity status",
+                    "GG epsilon",
+                    "Corrected num df",
+                    "Corrected den df",
+                    "Corrected p",
+                ],
+                [
+                    [
+                        _cell(sphericity.get("statistic"), "analysis.values.sphericity.statistic"),
+                        _cell(
+                            sphericity.get("degrees_of_freedom"),
+                            "analysis.values.sphericity.degrees_of_freedom",
+                        ),
+                        _cell(sphericity.get("p_value"), "analysis.values.sphericity.p_value"),
+                        _cell(sphericity.get("status"), "analysis.values.sphericity.status"),
+                        _cell(gg.get("epsilon"), "analysis.values.greenhouse_geisser.epsilon"),
+                        _cell(
+                            gg.get("corrected_numerator_df"),
+                            "analysis.values.greenhouse_geisser.corrected_numerator_df",
+                        ),
+                        _cell(
+                            gg.get("corrected_denominator_df"),
+                            "analysis.values.greenhouse_geisser.corrected_denominator_df",
+                        ),
+                        _cell(
+                            gg.get("corrected_p_value"),
+                            "analysis.values.greenhouse_geisser.corrected_p_value",
+                        ),
+                    ]
+                ],
+            )
+        )
+        pairwise = visible.get("pairwise_comparisons")
+        if isinstance(pairwise, list) and pairwise:
+            tables.append(
+                _table(
+                    "repeated_pairwise",
+                    "Repeated-measures pairwise comparisons (Holm-adjusted)",
+                    [
+                        "Contrast",
+                        "First condition",
+                        "Second condition",
+                        "Mean difference",
+                        "SE",
+                        "t statistic",
+                        "df",
+                        "Raw p",
+                        "Holm p",
+                        "CI lower",
+                        "CI upper",
+                        "Cohen's dz",
+                        "Decision",
+                    ],
+                    [
+                        [
+                            _cell(
+                                item.get("contrast_id"),
+                                f"analysis.values.pairwise_comparisons[{i}].contrast_id",
+                            ),
+                            _cell(
+                                item.get("first_condition"),
+                                f"analysis.values.pairwise_comparisons[{i}].first_condition",
+                            ),
+                            _cell(
+                                item.get("second_condition"),
+                                f"analysis.values.pairwise_comparisons[{i}].second_condition",
+                            ),
+                            _cell(
+                                item.get("estimate"),
+                                f"analysis.values.pairwise_comparisons[{i}].estimate",
+                            ),
+                            _cell(
+                                item.get("standard_error"),
+                                f"analysis.values.pairwise_comparisons[{i}].standard_error",
+                            ),
+                            _cell(
+                                item.get("statistic"),
+                                f"analysis.values.pairwise_comparisons[{i}].statistic",
+                            ),
+                            _cell(
+                                item.get("degrees_of_freedom"),
+                                f"analysis.values.pairwise_comparisons[{i}].degrees_of_freedom",
+                            ),
+                            _cell(
+                                item.get("raw_p_value"),
+                                f"analysis.values.pairwise_comparisons[{i}].raw_p_value",
+                            ),
+                            _cell(
+                                item.get("adjusted_p_value"),
+                                f"analysis.values.pairwise_comparisons[{i}].adjusted_p_value",
+                            ),
+                            _cell(
+                                (item.get("confidence_interval") or {}).get("lower"),
+                                f"analysis.values.pairwise_comparisons[{i}].confidence_interval.lower",
+                            ),
+                            _cell(
+                                (item.get("confidence_interval") or {}).get("upper"),
+                                f"analysis.values.pairwise_comparisons[{i}].confidence_interval.upper",
+                            ),
+                            _cell(
+                                (item.get("effect_size") or {}).get("value"),
+                                f"analysis.values.pairwise_comparisons[{i}].effect_size.value",
+                            ),
+                            _cell(
+                                item.get("decision"),
+                                f"analysis.values.pairwise_comparisons[{i}].decision",
+                            ),
+                        ]
+                        for i, item in enumerate(pairwise)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
+
+    if analysis["method_id"] == "friedman_test" and status != "unavailable":
+        cond_sums = visible.get("condition_summaries") or []
+        tables.append(
+            _table(
+                "friedman_omnibus",
+                "Friedman rank-sum omnibus test",
+                [
+                    "Friedman Q",
+                    "df",
+                    "p-value",
+                    "Kendall's W",
+                    "Conditions",
+                    "Complete units",
+                ],
+                [
+                    [
+                        _cell(visible.get("test_statistic"), "analysis.values.test_statistic"),
+                        _cell(
+                            visible.get("degrees_of_freedom"), "analysis.values.degrees_of_freedom"
+                        ),
+                        _cell(visible.get("p_value"), "analysis.values.p_value"),
+                        _cell(
+                            (visible.get("effect_size") or {}).get("value"),
+                            "analysis.values.effect_size.value",
+                        ),
+                        _cell(len(cond_sums), "sections.dataset.condition_count"),
+                        _cell(dataset.get("complete_units"), "sections.dataset.complete_units"),
+                    ]
+                ],
+            )
+        )
+        if isinstance(cond_sums, list) and cond_sums:
+            tables.append(
+                _table(
+                    "repeated_condition_summary",
+                    "Repeated condition summaries",
+                    ["Condition", "N", "Median", "Q25", "Q75", "IQR", "Mean"],
+                    [
+                        [
+                            _cell(
+                                item.get("condition"),
+                                f"analysis.values.condition_summaries[{i}].condition",
+                            ),
+                            _cell(item.get("n"), f"analysis.values.condition_summaries[{i}].n"),
+                            _cell(
+                                item.get("median"),
+                                f"analysis.values.condition_summaries[{i}].median",
+                            ),
+                            _cell(item.get("q25"), f"analysis.values.condition_summaries[{i}].q25"),
+                            _cell(item.get("q75"), f"analysis.values.condition_summaries[{i}].q75"),
+                            _cell(item.get("iqr"), f"analysis.values.condition_summaries[{i}].iqr"),
+                            _cell(
+                                item.get("mean"), f"analysis.values.condition_summaries[{i}].mean"
+                            ),
+                        ]
+                        for i, item in enumerate(cond_sums)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
+        pairwise = visible.get("pairwise_comparisons")
+        if isinstance(pairwise, list) and pairwise:
+            tables.append(
+                _table(
+                    "friedman_pairwise",
+                    "Friedman pairwise Wilcoxon signed-rank tests (Holm-adjusted)",
+                    [
+                        "Contrast",
+                        "First condition",
+                        "Second condition",
+                        "Wilcoxon statistic",
+                        "Raw p",
+                        "Holm p",
+                        "Rank-biserial r",
+                        "Decision",
+                    ],
+                    [
+                        [
+                            _cell(
+                                item.get("contrast_id"),
+                                f"analysis.values.pairwise_comparisons[{i}].contrast_id",
+                            ),
+                            _cell(
+                                item.get("first_condition"),
+                                f"analysis.values.pairwise_comparisons[{i}].first_condition",
+                            ),
+                            _cell(
+                                item.get("second_condition"),
+                                f"analysis.values.pairwise_comparisons[{i}].second_condition",
+                            ),
+                            _cell(
+                                item.get("statistic"),
+                                f"analysis.values.pairwise_comparisons[{i}].statistic",
+                            ),
+                            _cell(
+                                item.get("raw_p_value"),
+                                f"analysis.values.pairwise_comparisons[{i}].raw_p_value",
+                            ),
+                            _cell(
+                                item.get("adjusted_p_value"),
+                                f"analysis.values.pairwise_comparisons[{i}].adjusted_p_value",
+                            ),
+                            _cell(
+                                (item.get("effect_size") or {}).get("value"),
+                                f"analysis.values.pairwise_comparisons[{i}].effect_size.value",
+                            ),
+                            _cell(
+                                item.get("decision"),
+                                f"analysis.values.pairwise_comparisons[{i}].decision",
+                            ),
+                        ]
+                        for i, item in enumerate(pairwise)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
     coefficients = visible.get("coefficients")
     if (
         analysis["method_id"] == "logistic_regression"

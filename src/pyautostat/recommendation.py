@@ -452,6 +452,53 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             ),
             "OLS residualisation (statsmodels.api.OLS) + numpy corrcoef",
         ),
+        # Phase 7: Repeated-Measures Workflow -----------------------------------------
+        MethodCapability(
+            "repeated_measures_anova",
+            "One-way repeated-measures ANOVA",
+            "compare_groups",
+            "mean",
+            ("quantitative", "condition", "unit_identifier"),
+            ("repeated",),
+            "3 or more conditions",
+            "At least 3 complete units across all conditions and nonzero within-subject variance",
+            (
+                "Explicit repeated observational units across conditions",
+                "Units independent of other units",
+                "Continuous outcome / mean target",
+                "One observation per unit-condition",
+                "Complete panel across declared conditions",
+                "Within-subject sphericity (Greenhouse-Geisser correction applied when rejected)",
+            ),
+            True,
+            "runnable",
+            "Sphericity evaluated via Mauchly's test; Holm-adjusted paired t follow-up.",
+            "pyautostat.repeated_measures.repeated_measures_anova",
+        ),
+        MethodCapability(
+            "friedman_test",
+            "Friedman rank-sum test",
+            "compare_groups",
+            "distribution",
+            ("ordered_numeric", "condition", "unit_identifier"),
+            ("repeated",),
+            "3 or more conditions",
+            "At least 3 complete units across all conditions and within-unit rank variability",
+            (
+                "Explicit repeated observational units across conditions",
+                "Units independent of other units",
+                "Meaningful rank ordering across conditions",
+                "One observation per unit-condition",
+                "Complete panel across declared conditions",
+            ),
+            True,
+            "runnable",
+            (
+                "Friedman evaluates within-unit rank differences; Kendall's W effect size; "
+                "Holm-adjusted Wilcoxon follow-up."
+            ),
+            "pyautostat.repeated_measures.friedman_test",
+        ),
     )
 }
 
@@ -868,7 +915,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         )
     assert question.outcome is not None and question.predictor is not None
     required_columns = [question.outcome, question.predictor, *(question.controls or ())]
-    if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
+    if spec.design in (StudyDesign.PAIRED, StudyDesign.REPEATED) and spec.unit_id is not None:
         required_columns.append(spec.unit_id)
     usable = frame[required_columns].dropna()
 
@@ -904,6 +951,33 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             )
         assert spec.unit_id is not None
         return _paired_compare(
+            frame,
+            question.outcome,
+            question.predictor,
+            spec.unit_id,
+            spec.condition_order,
+            types,
+            context,
+            record,
+            finish,
+            warnings,
+        )
+
+    if spec.design == StudyDesign.REPEATED:
+        if objective != Objective.COMPARE_GROUPS or question.estimand not in {
+            "mean",
+            "distribution",
+        }:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "Repeated-measures support is limited to three or more condition "
+                    "mean or rank-distribution comparisons.",
+                ),
+                rationale="The declared repeated target has no supported method.",
+            )
+        assert spec.unit_id is not None
+        return _repeated_compare(
             frame,
             question.outcome,
             question.predictor,
@@ -1227,6 +1301,194 @@ def _paired_compare(
         rationale=(
             "The declared paired design, explicit unit identifier, two conditions, and mean "
             "estimand support a paired-samples t-test on complete paired differences."
+        ),
+    )
+
+
+def _repeated_compare(
+    frame: pd.DataFrame,
+    outcome: str,
+    condition: str,
+    unit_id: str,
+    condition_order: tuple[Any, ...] | list[Any] | None,
+    types: dict[str, str],
+    context: dict[str, Any],
+    record: Any,
+    finish: Any,
+    warnings: list[str],
+) -> Recommendation:
+    target = context.get("estimand")
+    valid_types = _QUANTITATIVE if target == "mean" else _ORDERED
+    if types[outcome] not in valid_types or _numeric(frame[outcome].dropna()) is None:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("A repeated-measures comparison needs an ordered numeric outcome.",),
+            rationale="The declared repeated target requires meaningful numeric ordering.",
+        )
+    observed_conditions = list(pd.unique(frame[condition].dropna()))
+    if len(observed_conditions) < 3:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                "Repeated-measures inference requires at least three observed condition levels.",
+            ),
+            rationale="Fewer than three conditions need a paired or one-sample method.",
+        )
+    if condition_order is None:
+        return finish(
+            RecommendationStatus.NEEDS_INPUT,
+            missing=(
+                MissingInformation(
+                    "condition_order",
+                    "Supply an explicit condition_order sequence with at least three conditions.",
+                ),
+            ),
+            rationale="Repeated-measures analysis requires an explicit condition order.",
+        )
+    order = list(condition_order)
+    if len(order) < 3:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                "Repeated-measures analysis requires at least three declared conditions "
+                "in condition_order.",
+            ),
+            rationale="Condition order must have at least three levels for repeated measures.",
+        )
+    if len(order) != len(set(order)):
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("condition_order contains duplicate condition labels.",),
+            rationale="Repeated condition labels must be distinct.",
+        )
+    if set(order) != set(observed_conditions):
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                f"condition_order must name the {len(observed_conditions)} observed "
+                "condition levels exactly.",
+            ),
+            rationale=(
+                "Every observed condition must be explicitly ordered without extra or "
+                "missing levels."
+            ),
+        )
+    usable = frame[[unit_id, condition, outcome]].dropna()
+    if usable.duplicated([unit_id, condition]).any():
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                "At least one unit has multiple usable observations in the same condition; "
+                "PyAutoStat will not average duplicates automatically.",
+            ),
+            rationale=(
+                "Repeated-measures analysis requires one usable outcome per unit per declared "
+                "condition."
+            ),
+        )
+    pivot = usable.pivot(index=unit_id, columns=condition, values=outcome)
+    complete = pivot.dropna(subset=order)
+    complete_units = int(len(complete))
+    total_units = int(frame[unit_id].dropna().nunique())
+    incomplete_units = total_units - complete_units
+    missing_unit_rows = int(frame[unit_id].isna().sum())
+    order_labels = [str(item) for item in order]
+    context.update(
+        {
+            "unit_id": unit_id,
+            "condition_order": order_labels,
+            "total_units": total_units,
+            "complete_units": complete_units,
+            "incomplete_units": incomplete_units,
+            "missing_unit_rows": missing_unit_rows,
+        }
+    )
+    record(
+        "condition_order",
+        order_labels,
+        "Explicit researcher condition order declaration.",
+    )
+    record(
+        "complete_units",
+        complete_units,
+        "Only units observed across all declared conditions are usable.",
+    )
+    if incomplete_units:
+        warnings.append(
+            f"{incomplete_units} unit(s) without all conditions were excluded "
+            "from repeated-measures analysis."
+        )
+    if missing_unit_rows:
+        warnings.append(
+            f"{missing_unit_rows} row(s) with missing unit identifiers could not "
+            "be used in repeated analysis."
+        )
+    if complete_units < 3:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                "At least three complete units are required for repeated-measures inference.",
+            ),
+            rationale="Repeated-measures methods require sufficient complete within-unit panels.",
+        )
+    panel_values = complete[order].to_numpy(dtype=float)
+    if not np.isfinite(panel_values).all():
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("Complete repeated outcomes must be finite numeric values.",),
+            rationale="The repeated-measures numerical backend cannot use nonfinite outcomes.",
+        )
+    if float(np.ptp(panel_values)) == 0.0:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("Repeated-measures analysis requires variability in the outcome variable.",),
+            rationale="Zero variation makes repeated-measures statistical estimation undefined.",
+        )
+    context["assumption_checks"].append(
+        {
+            "assumption": "independent_units",
+            "category": "researcher_design_fact",
+            "status": "confirmed",
+        }
+    )
+    if target == "distribution":
+        record(
+            "method",
+            "friedman_test",
+            "Explicit repeated-measures design and 3+ condition rank-distribution target.",
+        )
+        return finish(
+            RecommendationStatus.READY,
+            method_id="friedman_test",
+            rationale=(
+                "The same units are observed under three or more ordered conditions and the "
+                "declared target is a repeated rank/distribution comparison. Friedman therefore "
+                "evaluates whether the within-unit ranks differ across conditions."
+            ),
+            alternatives=(
+                _alternative(
+                    "repeated_measures_anova",
+                    "Targets repeated condition means rather than within-unit rank distributions.",
+                ),
+            ),
+        )
+    record(
+        "method",
+        "repeated_measures_anova",
+        "Explicit repeated-measures design and 3+ condition mean estimand.",
+    )
+    return finish(
+        RecommendationStatus.READY,
+        method_id="repeated_measures_anova",
+        rationale=(
+            "The same units are observed under three or more conditions and the declared target "
+            "is the repeated-condition mean pattern."
+        ),
+        alternatives=(
+            _alternative(
+                "friedman_test",
+                "Targets within-unit rank distributions, not population means.",
+            ),
         ),
     )
 

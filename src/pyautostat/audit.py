@@ -825,6 +825,108 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                     summaries,
                     findings,
                 )
+    if method in {"repeated_measures_anova", "friedman_test"}:
+        order = source.metadata.get("condition_order")
+        pairwise = values.get("pairwise_comparisons")
+        summaries = values.get("condition_summaries")
+        if not isinstance(order, list) or len(order) < 3:
+            _mismatch(
+                "analysis.metadata.condition_order", "at least three conditions", order, findings
+            )
+        else:
+            expected_count = len(order) * (len(order) - 1) // 2
+            if not isinstance(pairwise, list) or len(pairwise) != expected_count:
+                _mismatch(
+                    "analysis.values.pairwise_comparisons",
+                    f"complete family of {expected_count} pairs",
+                    pairwise,
+                    findings,
+                )
+            else:
+                expected_pairs = {
+                    (str(order[first]), str(order[second]))
+                    for first in range(len(order))
+                    for second in range(first + 1, len(order))
+                }
+                observed_pairs = set()
+                for index, item in enumerate(pairwise):
+                    path = f"analysis.values.pairwise_comparisons[{index}]"
+                    if not isinstance(item, dict):
+                        _mismatch(path, "pairwise record", item, findings)
+                        continue
+                    observed_pairs.add(
+                        (str(item.get("first_condition")), str(item.get("second_condition")))
+                    )
+                    adjusted = item.get("adjusted_p_value")
+                    if not (
+                        isinstance(adjusted, (int, float))
+                        and not isinstance(adjusted, bool)
+                        and math.isfinite(float(adjusted))
+                        and 0 <= float(adjusted) <= 1
+                    ):
+                        _mismatch(
+                            f"{path}.adjusted_p_value", "finite probability", adjusted, findings
+                        )
+                    contrast = item.get("contrast")
+                    if (
+                        not isinstance(contrast, dict)
+                        or contrast.get("definition") != "first condition minus second condition"
+                        or contrast.get("first") != item.get("first_condition")
+                        or contrast.get("second") != item.get("second_condition")
+                    ):
+                        _mismatch(
+                            f"{path}.contrast", "first-minus-second orientation", contrast, findings
+                        )
+                if observed_pairs != expected_pairs:
+                    _mismatch(
+                        "analysis.values.pairwise_comparisons.pairs",
+                        sorted(expected_pairs),
+                        sorted(observed_pairs),
+                        findings,
+                    )
+            if not isinstance(summaries, list) or [
+                str(item.get("condition")) for item in summaries if isinstance(item, dict)
+            ] != [str(item) for item in order]:
+                _mismatch(
+                    "analysis.values.condition_summaries",
+                    "one summary in recorded condition order",
+                    summaries,
+                    findings,
+                )
+        if method == "repeated_measures_anova":
+            eff = values.get("effect_size")
+            if isinstance(eff, dict):
+                p_eta2 = eff.get("value")
+                if not (isinstance(p_eta2, (int, float)) and 0.0 <= float(p_eta2) <= 1.0):
+                    _mismatch(
+                        "analysis.values.effect_size.value",
+                        "value in [0, 1]",
+                        p_eta2,
+                        findings,
+                    )
+            gg = values.get("greenhouse_geisser")
+            if isinstance(gg, dict) and gg.get("epsilon") is not None:
+                eps = gg.get("epsilon")
+                k = len(order) if isinstance(order, list) else 3
+                lower = 1.0 / (k - 1) - 1e-6
+                if not (isinstance(eps, (int, float)) and lower <= float(eps) <= 1.00001):
+                    _mismatch(
+                        "analysis.values.greenhouse_geisser.epsilon",
+                        f"epsilon in [{1.0 / (k - 1)}, 1]",
+                        eps,
+                        findings,
+                    )
+        if method == "friedman_test":
+            eff = values.get("effect_size")
+            if isinstance(eff, dict):
+                w = eff.get("value")
+                if not (isinstance(w, (int, float)) and 0.0 <= float(w) <= 1.0):
+                    _mismatch(
+                        "analysis.values.effect_size.value",
+                        "value in [0, 1]",
+                        w,
+                        findings,
+                    )
     return tuple(findings)
 
 

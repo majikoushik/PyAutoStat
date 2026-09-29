@@ -79,6 +79,10 @@ _VALUES = (
     "scoring",
     "formula",
     "item_frequencies",
+    "sphericity",
+    "greenhouse_geisser",
+    "anova_table",
+    "condition_summaries",
 )
 
 

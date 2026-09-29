@@ -45,6 +45,11 @@ _EFFECT_DEFINITIONS = {
     "welch_anova": "Not applicable; group means and pairwise mean differences are reported.",
     "one_way_anova": "Between-group sum of squares divided by total sum of squares.",
     "kruskal_wallis": "Truncated rank epsilon-squared from H, group count, and sample size.",
+    "repeated_measures_anova": (
+        "Condition sum of squares divided by condition sum of squares plus error sum of "
+        "squares (partial eta-squared)."
+    ),
+    "friedman_test": "Friedman Q divided by n*(k - 1) (Kendall's W rank concordance).",
 }
 
 _NULL_HYPOTHESES = {
@@ -73,6 +78,9 @@ _NULL_HYPOTHESES = {
         "The partial population Pearson correlation is zero, controlling for the declared "
         "covariates."
     ),
+    # Phase 7
+    "repeated_measures_anova": "All repeated-condition population means are equal.",
+    "friedman_test": "The repeated-condition within-unit rank distributions are equal.",
 }
 
 
@@ -103,7 +111,7 @@ def _label(value: Any) -> str | int | float | bool:
 def _degrees(value: Any, method_id: str) -> float | int | list[float | int] | None:
     if method_id == "mann_whitney_u":
         return None
-    if method_id in ("one_way_anova", "welch_anova"):
+    if method_id in ("one_way_anova", "welch_anova", "repeated_measures_anova"):
         if not isinstance(value, (list, tuple)) or len(value) != 2:
             raise InsufficientDataError("The backend returned invalid ANOVA degrees of freedom.")
         checked = [_number(item, "ANOVA degrees of freedom") for item in value]
@@ -1530,6 +1538,199 @@ def _fisher_result(
     )
 
 
+def _repeated_measures_anova_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    outcome = specification.question.outcome
+    condition = specification.question.predictor
+    unit_id = specification.unit_id
+    assert outcome is not None and condition is not None and unit_id is not None
+
+    raw = analyzer.repeated_measures_anova(
+        unit_id,
+        condition,
+        outcome,
+        condition_order=specification.condition_order,
+        alpha=specification.options.alpha,
+        confidence_level=specification.options.confidence_level,
+    )
+    statistic = _number(raw.get("statistic"), "F statistic")
+    primary_p = _number(raw.get("primary_p_value"), "primary p-value", probability=True)
+    uncorrected_p = _number(raw.get("uncorrected_p_value"), "uncorrected p-value", probability=True)
+    corrected_p = _number(raw.get("corrected_p_value"), "corrected p-value", probability=True)
+
+    prim_dfs = raw.get("primary_degrees_of_freedom", {})
+    df_list = [prim_dfs.get("numerator"), prim_dfs.get("denominator")]
+    degrees_of_freedom = _degrees(df_list, "repeated_measures_anova")
+
+    effect = raw.get("effect_size", {})
+    effect_val = _number(effect.get("value"), "partial eta-squared")
+    effect_size_record = {
+        "name": "partial_eta_squared",
+        "value": effect_val,
+        "definition": _EFFECT_DEFINITIONS["repeated_measures_anova"],
+        "confidence_interval": None,
+        "status": "available",
+        "reason": None,
+    }
+
+    sample_info = raw.get("sample", {})
+    analyzed_rows = int(sample_info.get("analyzed_rows", len(analyzer.df)))
+    excluded_rows = int(sample_info.get("excluded_rows", 0))
+
+    sphericity = _json_safe(raw.get("sphericity"))
+    greenhouse_geisser = _json_safe(raw.get("greenhouse_geisser"))
+    condition_summaries = _json_safe(raw.get("condition_summaries"))
+    pairwise_comparisons = _json_safe(raw.get("pairwise_comparisons"))
+    multiplicity = _json_safe(raw.get("multiplicity"))
+
+    values: dict[str, Any] = {
+        "statistic": statistic,
+        "test_statistic": statistic,
+        "degrees_of_freedom": degrees_of_freedom,
+        "p_value": primary_p,
+        "uncorrected_p_value": uncorrected_p,
+        "corrected_p_value": corrected_p,
+        "primary_estimate": None,
+        "estimate_name": "condition means",
+        "estimate_unit": (specification.data_dictionary or {}).get(outcome, {}).get("unit"),
+        "effect_size": effect_size_record,
+        "confidence_interval": None,
+        "sphericity": sphericity,
+        "greenhouse_geisser": greenhouse_geisser,
+        "sums_of_squares": _json_safe(raw.get("sums_of_squares")),
+        "mean_squares": _json_safe(raw.get("mean_squares")),
+        "condition_summaries": condition_summaries,
+        "pairwise_comparisons": pairwise_comparisons,
+        "multiplicity": multiplicity,
+        "primary_inference": raw.get("correction_applied"),
+        "primary_inference_rule": raw.get("primary_inference_rule"),
+    }
+
+    order_labels = [_label(item) for item in raw.get("condition_order", ())]
+    return AnalysisResult(
+        method_id="repeated_measures_anova",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed_rows,
+        excluded_rows=excluded_rows,
+        values=values,
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", ())),
+        metadata={
+            "method_name": recommendation.method_name,
+            "backend_test": raw.get("method"),
+            "numerical_source": "pyautostat.repeated_measures.repeated_measures_anova",
+            "sample": sample_info,
+            "unit_id": unit_id,
+            "condition_order": order_labels,
+            "group_order": order_labels,
+            "null_hypothesis": _NULL_HYPOTHESES["repeated_measures_anova"],
+            "null_value": 0.0,
+            "null_quantity": "condition means",
+            "alternative_hypothesis": "at least one condition mean differs",
+            "sphericity": sphericity,
+            "greenhouse_geisser": greenhouse_geisser,
+            "pairwise_method": "paired_t",
+            "multiplicity_control": "holm",
+            "pairwise_comparison_count": len(pairwise_comparisons)
+            if isinstance(pairwise_comparisons, list)
+            else 0,
+            "primary_inference": raw.get("correction_applied"),
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _friedman_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    outcome = specification.question.outcome
+    condition = specification.question.predictor
+    unit_id = specification.unit_id
+    assert outcome is not None and condition is not None and unit_id is not None
+
+    raw = analyzer.friedman_test(
+        unit_id,
+        condition,
+        outcome,
+        condition_order=specification.condition_order,
+        alpha=specification.options.alpha,
+    )
+    statistic = _number(raw.get("statistic"), "Friedman Q statistic")
+    p_value = _number(raw.get("p_value"), "Friedman p-value", probability=True)
+    df_val = _degrees(raw.get("degrees_of_freedom"), "friedman_test")
+
+    effect = raw.get("effect_size", {})
+    effect_val = _number(effect.get("value"), "Kendall's W")
+    effect_size_record = {
+        "name": "Kendall's W",
+        "value": effect_val,
+        "definition": _EFFECT_DEFINITIONS["friedman_test"],
+        "confidence_interval": None,
+        "status": "available",
+        "reason": None,
+    }
+
+    sample_info = raw.get("sample", {})
+    analyzed_rows = int(sample_info.get("analyzed_rows", len(analyzer.df)))
+    excluded_rows = int(sample_info.get("excluded_rows", 0))
+
+    condition_summaries = _json_safe(raw.get("condition_summaries"))
+    pairwise_comparisons = _json_safe(raw.get("pairwise_comparisons"))
+    multiplicity = _json_safe(raw.get("multiplicity"))
+
+    values: dict[str, Any] = {
+        "statistic": statistic,
+        "test_statistic": statistic,
+        "degrees_of_freedom": df_val,
+        "p_value": p_value,
+        "primary_estimate": None,
+        "estimate_name": "within-unit rank distributions",
+        "estimate_unit": None,
+        "effect_size": effect_size_record,
+        "confidence_interval": None,
+        "condition_summaries": condition_summaries,
+        "pairwise_comparisons": pairwise_comparisons,
+        "multiplicity": multiplicity,
+    }
+
+    order_labels = [_label(item) for item in raw.get("condition_order", ())]
+    return AnalysisResult(
+        method_id="friedman_test",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed_rows,
+        excluded_rows=excluded_rows,
+        values=values,
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", ())),
+        metadata={
+            "method_name": recommendation.method_name,
+            "backend_test": raw.get("method"),
+            "numerical_source": "pyautostat.repeated_measures.friedman_test",
+            "sample": sample_info,
+            "unit_id": unit_id,
+            "condition_order": order_labels,
+            "group_order": order_labels,
+            "null_hypothesis": _NULL_HYPOTHESES["friedman_test"],
+            "null_value": 0.0,
+            "null_quantity": "within-unit rank distributions",
+            "alternative_hypothesis": "at least one condition rank distribution differs",
+            "pairwise_method": "wilcoxon_signed_rank",
+            "multiplicity_control": "holm",
+            "pairwise_comparison_count": len(pairwise_comparisons)
+            if isinstance(pairwise_comparisons, list)
+            else 0,
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
 def execute_specification(
     analyzer: StatisticalAnalyzer, specification: AnalysisSpecification
 ) -> AnalysisResult:
@@ -1618,6 +1819,10 @@ def execute_specification(
             return _kendall_tau_b_result(analyzer, specification, recommendation)
         if method_id == "partial_pearson_correlation":
             return _partial_pearson_result(analyzer, specification, recommendation)
+        if method_id == "repeated_measures_anova":
+            return _repeated_measures_anova_result(analyzer, specification, recommendation)
+        if method_id == "friedman_test":
+            return _friedman_result(analyzer, specification, recommendation)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, recommendation, str(exc))
@@ -1716,6 +1921,10 @@ def execute_selected_method(
             return _kendall_tau_b_result(analyzer, specification, explicit)
         if method_id == "partial_pearson_correlation":
             return _partial_pearson_result(analyzer, specification, explicit)
+        if method_id == "repeated_measures_anova":
+            return _repeated_measures_anova_result(analyzer, specification, explicit)
+        if method_id == "friedman_test":
+            return _friedman_result(analyzer, specification, explicit)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, explicit, str(exc))

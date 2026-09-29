@@ -10,11 +10,24 @@ It is not a substitute for scientific design review or subject-matter judgment.
 - Conventional effect-magnitude labels are descriptive communication conventions rather than
   universal practical-importance thresholds. Practical importance remains dependent on a
   researcher-declared quantity, direction, and threshold.
-- The statistical catalogue is deliberately limited. Repeated measures with more than two
-  conditions, clustered models, logistic and other generalized regressions, regularized models,
-  interactions, polynomial construction, mixed models, survival analysis, causal inference,
+- The statistical catalogue is deliberately limited. Clustered models, mixed-effects models,
+  mixed ANOVA, factorial repeated-measures ANOVA, multinomial, ordinal, count, regularized,
+  interaction, and polynomial regression, survival analysis, causal inference,
   exact-table extensions beyond Fisher's 2x2 test, and broad multiplicity procedures are
   unsupported.
+- One-way repeated-measures ANOVA evaluates overall mean differences across 3 or more repeated
+  conditions for the same units using complete-case panels. Units with missing repeated observations
+  are excluded; missingness is not modeled, and missing completely at random is not assumed.
+  Mauchly's test evaluates sphericity; failing to reject sphericity does not prove equal pairwise
+  variance. Greenhouse-Geisser correction adjusts degrees of freedom and p-values when sphericity
+  is violated; it does not change the observed F statistic. Pairwise follow-up uses per-contrast
+  analytical confidence intervals alongside Holm-adjusted p-values; confidence intervals are not
+  simultaneous confidence bands. Repeated-measures ANOVA does not establish causality.
+- The Friedman test evaluates within-unit rank distributions across 3 or more repeated conditions.
+  It evaluates ranks, not means, and does not universally test equality of medians unless condition
+  distributions have identical shapes and spreads. Complete-case panels are required; missingness is
+  not modeled. Pairwise follow-up uses paired Wilcoxon signed-rank tests with Holm adjustment.
+  Omnibus significance does not imply that every pairwise contrast differs.
 - OLS regression targets an additive conditional mean for independent observational units. It
   uses one complete-case sample and an intercept; it does not impute, transform, select, or delete
   predictors or observations. Treatment-coded nominal, Boolean, and ordinal terms are relative to
