@@ -505,7 +505,7 @@ The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data
 
 `update_question(draft, **changes)` preserves confirmed answers, reconstructs a new draft, and leaves the old draft unchanged on invalid input. When the objective changes, it clears the previous predictor, target, and design; switching to descriptive also clears the old outcome. Supply new role selections explicitly. `profile(data_dictionary=...)` makes a copied declaration available to later question preparation; an explicit `data_dictionary` or `variable_types` correction takes precedence. The builder reuses dataset variable intelligence without running full profiling, hypothesis tests, or recommendations.
 
-`ready` means question fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired designs require an explicit unit-ID column; repeated and clustered designs remain representable but unsupported for execution.
+`ready` means question fields and basic selected-data checks are complete. It does not establish an appropriate method, valid assumptions, or a certified analysis plan. Paired and repeated designs require an explicit unit-ID column and condition order; arbitrary clustered designs remain representable but unsupported for execution.
 
 ### Method recommendation
 
@@ -595,7 +595,7 @@ print(result.metadata["sample"], result.metadata["group_order"])
 The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable
 **legacy explicit calculations**, but the guided recommender does not select them automatically.
 Kendall remains available as a coefficient matrix in profiling and now also has an explicit
-guided inferential route. Repeated designs with more than two conditions, clustered methods, and
+guided inferential route. Two-way repeated designs, mixed ANOVA, clustered methods, and
 Fisher tests beyond 2x2 remain unavailable.
 
 `AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. The `method_label` property resolves a display name from the existing method metadata without changing serialization. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.

@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Corrected Mauchly sphericity p-value using the higher-order Box/Anderson asymptotic chi-square
+  approximation, matching published SPSS and reference results.
+- Replaced mislabeled repeated-measures reference fixture with genuine external reference data from
+  Andy Field's Bushtucker example, validating exact arithmetic and published rounded SPSS values.
+- Strengthened Greenhouse-Geisser and repeated-measures audit checks to use actual emitted schema
+  keys, enforcing corrected degrees-of-freedom identities, corrected p-value identities, primary
+  inference consistency, and sphericity branch consistency with corruption detection tests.
+- Reconciled repeated-measures documentation across README and docs to accurately describe
+  supported one-way 3+ condition designs, complete-case matching, and explicit boundaries (including
+  that Friedman requires ordered numeric outcomes and does not auto-encode textual labels).
+- Fixed line-length formatting issue in installed-wheel smoke test.
+
 ### Added
 
 - Added complete repeated-measures analysis for 3+ conditions on the same observational units:
@@ -126,6 +140,14 @@ rule-based, reproducible, and independent of generative AI or external services.
 
 ### Fixed
 
+- Corrected SPSS-compatible Mauchly sphericity p-value approximation using the higher-order
+  Box (1954) and Anderson asymptotic chi-square correction with degree-of-freedom expansion.
+- Replaced synthetic repeated-measures reference fixture with genuine Andy Field (2012) Bushtucker
+  external reference data and verified ANOVA, Mauchly, and Greenhouse-Geisser quantities.
+- Strengthened Greenhouse-Geisser degrees of freedom, corrected p-value, primary inference branch,
+  and sphericity consistency auditor invariants with comprehensive corruption tests.
+- Reconciled repeated-measures capabilities and unsupported boundaries across user-facing documentation.
+- Formatted multiplicity assertions in installed-wheel smoke test within maximum line length constraints.
 - Repeated-measures pairwise inference now reports mathematically unavailable zero-variance
   contrasts explicitly with descriptive mean differences and degenerate intervals instead of
   producing contradictory statistics.

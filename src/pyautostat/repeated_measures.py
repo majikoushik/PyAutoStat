@@ -460,14 +460,34 @@ def repeated_measures_anova(
         epsilon_gg = float(lower_bound_eps)
 
     # Mauchly's sphericity test
-    df_mauchly = (k * (k - 1)) // 2 - 1
+    # Evaluates H0: orthonormal contrast covariance matrix Sigma_c is proportional to identity.
+    # Uses Box (1954) / Anderson (1958, 2003) asymptotic chi-square approximation with the
+    # second-order correction term w2, matching SPSS and R mauchly.test:
+    #   d = k - 1 (dimension of orthonormal contrast space)
+    #   df_mauchly = d*(d+1)/2 - 1 = k*(k-1)/2 - 1
+    #   df_resid = n - 1
+    #   f = 1 - (2*d^2 + d + 2) / (6*d*df_resid)
+    #   chi2 = -df_resid * f * ln(W)
+    #   w2 = (d+2)*(d-1)*(d-2)*(2*d^3 + 6*d^2 + 3*k + 2) / (288 * (df_resid * d * f)^2)
+    #   p = p1 + w2 * (p2 - p1), where p1 ~ chi2(df), p2 ~ chi2(df + 4)
+    # For k=3 (d=2), (d-2)=0 so w2=0 and p reproduces the standard first-order chi2.sf.
+    d = k - 1
+    df_mauchly = (d * (d + 1)) // 2 - 1
     if det_c > 1e-15 and tr_c > 1e-15 and math.isfinite(det_c):
-        mean_diag = tr_c / (k - 1)
-        w_mauchly = float(det_c / (mean_diag ** (k - 1)))
+        mean_diag = tr_c / d
+        w_mauchly = float(det_c / (mean_diag**d))
         w_mauchly = float(min(1.0, max(0.0, w_mauchly)))
-        d_factor = 1.0 - (2.0 * (k - 1) ** 2 + (k - 1) + 2.0) / (6.0 * (k - 1) * (n - 1))
-        chi2_mauchly = float(-(n - 1) * d_factor * np.log(max(w_mauchly, 1e-15)))
-        p_mauchly = float(stats.chi2.sf(chi2_mauchly, df_mauchly))
+        df_resid = n - 1
+        d_factor = 1.0 - (2.0 * d**2 + d + 2.0) / (6.0 * d * df_resid)
+        chi2_mauchly = float(-df_resid * d_factor * np.log(max(w_mauchly, 1e-15)))
+        p1 = float(stats.chi2.sf(chi2_mauchly, df_mauchly))
+        denom_w2 = 288.0 * ((df_resid * d * d_factor) ** 2)
+        if denom_w2 > 0 and d > 2:
+            w2 = (d + 2) * (d - 1) * (d - 2) * (2 * d**3 + 6 * d**2 + 3 * k + 2) / denom_w2
+            p2 = float(stats.chi2.sf(chi2_mauchly, df_mauchly + 4))
+            p_mauchly = float(min(1.0, max(0.0, p1 + w2 * (p2 - p1))))
+        else:
+            p_mauchly = p1
         sphericity_status = "not_rejected" if p_mauchly >= alpha else "rejected"
     else:
         w_mauchly = None
@@ -677,6 +697,7 @@ def repeated_measures_anova(
             "p_value": p_mauchly,
             "alpha": alpha,
             "status": sphericity_status,
+            "sphericity_supported": (sphericity_status in ("not_rejected", "confirmed")),
             "decision": (
                 "Sphericity assumption violated; correction recommended."
                 if sphericity_status == "rejected"

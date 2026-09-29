@@ -1097,76 +1097,141 @@ def test_fixed_external_reference_mauchly_and_greenhouse_geisser():
     """Verify Mauchly's sphericity and GG against Andy Field (2012) Bushtucker dataset.
 
     Provenance: Andy Field (2012), 'Discovering Statistics Using IBM SPSS Statistics',
-    4th edition, Chapter 13: Repeated-Measures ANOVA, Bushtucker dataset (k=4, n=8).
-    SPSS outputs:
-      Mauchly's W = 0.803, Chi-Square(5) = 1.258, p = 0.939
-      Greenhouse-Geisser epsilon = 0.893
+    4th edition, Chapter 13: Repeated-Measures ANOVA, Bushtucker dataset (k=4 conditions,
+    n=8 subjects).
+    Data from the published textbook example:
+      Subject 1: stick=8,  kangaroo=7, fish=1, witchetty=6
+      Subject 2: stick=9,  kangaroo=5, fish=2, witchetty=5
+      Subject 3: stick=6,  kangaroo=2, fish=3, witchetty=8
+      Subject 4: stick=5,  kangaroo=3, fish=1, witchetty=9
+      Subject 5: stick=8,  kangaroo=4, fish=5, witchetty=8
+      Subject 6: stick=7,  kangaroo=5, fish=6, witchetty=7
+      Subject 7: stick=10, kangaroo=2, fish=7, witchetty=2
+      Subject 8: stick=12, kangaroo=6, fish=8, witchetty=1
+
+    Reference quantities (high-precision and published SPSS / Field outputs):
+      SS_condition  = 83.125
+      SS_error      = 153.375
+      df_condition  = 3
+      df_error      = 21
+      MS_condition  = 27.708333...
+      MS_error      = 7.303571...
+      F             = 3.793806... (SPSS reports F(3, 21) = 3.794)
+      uncorrected p = 0.025570... (SPSS reports p = .026)
+      partial eta^2 = 0.351480... (SS_cond / (SS_cond + SS_error))
+
+      Mauchly W     = 0.136248... (SPSS reports W = .136)
+      chi-square    = 11.40598... (SPSS reports 11.406, df = 5)
+      Mauchly p     = 0.046846... (SPSS reports p = .047)
+      Mauchly status = "rejected" at alpha = 0.05
+
+      Greenhouse-Geisser epsilon = 0.532846... (SPSS reports .533)
+      corrected df_num           = 1.598537... (SPSS reports 1.599)
+      corrected df_den           = 11.189757... (SPSS reports 11.190)
+      corrected p                = 0.062584... (SPSS reports p = .063)
+
+      Under PyAutoStat policy: because Mauchly p < 0.05, GG correction is primary.
+      Primary p-value = 0.062584... (not the uncorrected 0.025570...).
     """
-    subjects = list(range(1, 9)) * 4
-    conds = (
-        ["stick_insect"] * 8 + ["kangaroo_testicle"] * 8 + ["fish_eye"] * 8 + ["witchetty_grub"] * 8
-    )
-    scores = [
-        # stick_insect
-        8.0,
-        9.0,
-        7.0,
-        10.0,
-        6.0,
-        8.0,
-        7.0,
-        9.0,
-        # kangaroo_testicle
-        7.0,
-        8.0,
-        6.0,
-        8.0,
-        5.0,
-        7.0,
-        6.0,
-        8.0,
-        # fish_eye
-        1.0,
-        2.0,
-        0.0,
-        3.0,
-        1.0,
-        2.0,
-        1.0,
-        2.0,
-        # witchetty_grub
-        6.0,
-        5.0,
-        7.0,
-        5.0,
-        4.0,
-        6.0,
-        5.0,
-        4.0,
+    data = [
+        (1, "stick_insect", 8.0),
+        (1, "kangaroo_testicle", 7.0),
+        (1, "fish_eye", 1.0),
+        (1, "witchetty_grub", 6.0),
+        (2, "stick_insect", 9.0),
+        (2, "kangaroo_testicle", 5.0),
+        (2, "fish_eye", 2.0),
+        (2, "witchetty_grub", 5.0),
+        (3, "stick_insect", 6.0),
+        (3, "kangaroo_testicle", 2.0),
+        (3, "fish_eye", 3.0),
+        (3, "witchetty_grub", 8.0),
+        (4, "stick_insect", 5.0),
+        (4, "kangaroo_testicle", 3.0),
+        (4, "fish_eye", 1.0),
+        (4, "witchetty_grub", 9.0),
+        (5, "stick_insect", 8.0),
+        (5, "kangaroo_testicle", 4.0),
+        (5, "fish_eye", 5.0),
+        (5, "witchetty_grub", 8.0),
+        (6, "stick_insect", 7.0),
+        (6, "kangaroo_testicle", 5.0),
+        (6, "fish_eye", 6.0),
+        (6, "witchetty_grub", 7.0),
+        (7, "stick_insect", 10.0),
+        (7, "kangaroo_testicle", 2.0),
+        (7, "fish_eye", 7.0),
+        (7, "witchetty_grub", 2.0),
+        (8, "stick_insect", 12.0),
+        (8, "kangaroo_testicle", 6.0),
+        (8, "fish_eye", 8.0),
+        (8, "witchetty_grub", 1.0),
     ]
-    df = pd.DataFrame({"subject": subjects, "condition": conds, "score": scores})
+    df = pd.DataFrame(data, columns=["subject", "condition", "score"])
     order = ("stick_insect", "kangaroo_testicle", "fish_eye", "witchetty_grub")
     res = repeated_measures_anova(df, "subject", "condition", "score", order)
 
-    sph = res["sphericity"]
-    # Mauchly's W, Chi-square(5), and p-value from Mauchly (1940) and Box (1954)
-    assert sph["mauchly_w"] == pytest.approx(0.067749, abs=1e-4)
-    assert sph["chi2_statistic"] == pytest.approx(15.403901, abs=1e-3)
-    assert sph["df"] == 5
-    assert sph["p_value"] == pytest.approx(0.008769, abs=1e-4)
-    assert sph["status"] == "rejected"
-
-    # Greenhouse-Geisser epsilon from Greenhouse & Geisser (1959)
-    gg = res["greenhouse_geisser"]
-    assert gg["epsilon"] == pytest.approx(0.465156, abs=1e-4)
-    # Bound verification: 1/(k-1) <= eps <= 1
-    assert 1.0 / 3.0 <= gg["epsilon"] <= 1.0
-
-    # Omnibus F check: F(3, 21) = 80.0536, p = 1.168e-11 (matches statsmodels AnovaRM)
+    # 1. Ordinary RM-ANOVA table quantities
     anova = res["anova_table"]
-    assert anova["f_statistic"] == pytest.approx(80.0536, abs=1e-2)
+    assert anova["ss_condition"] == pytest.approx(83.125, rel=1e-6)
+    assert anova["ss_error"] == pytest.approx(153.375, rel=1e-6)
     assert anova["df_condition"] == 3
     assert anova["df_error"] == 21
+    assert anova["ms_condition"] == pytest.approx(27.708333, abs=1e-5)
+    assert anova["ms_error"] == pytest.approx(7.303571, abs=1e-5)
+    assert anova["f_statistic"] == pytest.approx(3.793806, abs=1e-5)
+    assert anova["p_value"] == pytest.approx(0.025570, abs=1e-5)
+
+    # Cross-check ordinary RM-ANOVA F and uncorrected p against statsmodels AnovaRM
+    from statsmodels.stats.anova import AnovaRM
+
+    sm_aov = AnovaRM(df, "score", "subject", within=["condition"]).fit()
+    sm_table = sm_aov.anova_table
+    assert float(sm_table.loc["condition", "F Value"]) == pytest.approx(
+        anova["f_statistic"], rel=1e-5
+    )
+    assert float(sm_table.loc["condition", "Pr > F"]) == pytest.approx(anova["p_value"], rel=1e-5)
+
+    # Effect size identity
+    eta_p2 = anova["ss_condition"] / (anova["ss_condition"] + anova["ss_error"])
+    assert res["effect_size"]["value"] == pytest.approx(0.351480, abs=1e-5)
+    assert math.isclose(res["effect_size"]["value"], eta_p2, rel_tol=1e-9)
+
+    # 2. Mauchly's sphericity test
+    sph = res["sphericity"]
+    assert sph["mauchly_w"] == pytest.approx(0.136248, abs=1e-4)
+    assert sph["chi2_statistic"] == pytest.approx(11.40598, abs=1e-3)
+    assert sph["df"] == 5
+    assert sph["p_value"] == pytest.approx(0.046846, abs=1e-4)
+    assert sph["status"] == "rejected"
+    assert sph["sphericity_supported"] is False
+
+    # 3. Greenhouse-Geisser epsilon and corrected quantities
+    gg = res["greenhouse_geisser"]
+    assert gg["epsilon"] == pytest.approx(0.532846, abs=1e-4)
+    assert 1.0 / 3.0 <= gg["epsilon"] <= 1.0
+    assert gg["corrected_numerator_df"] == pytest.approx(1.598537, abs=1e-4)
+    assert gg["corrected_denominator_df"] == pytest.approx(11.189757, abs=1e-4)
+    assert gg["corrected_p_value"] == pytest.approx(0.062584, abs=1e-4)
+
+    # 4. Primary inference: Mauchly rejected at alpha=0.05 -> GG correction is primary
+    assert res["primary_inference"] == "greenhouse_geisser"
+    assert res["correction_applied"] == "Greenhouse-Geisser"
+    assert res["p_value"] == pytest.approx(0.062584, abs=1e-4)
+    assert res["degrees_of_freedom"]["corrected_condition"] == pytest.approx(1.598537, abs=1e-4)
+    assert res["degrees_of_freedom"]["corrected_error"] == pytest.approx(11.189757, abs=1e-4)
+
+    # 5. Published rounded values from Andy Field (2012) textbook / SPSS output
+    assert round(anova["f_statistic"], 3) == 3.794
+    assert round(anova["p_value"], 3) == 0.026
+    assert round(sph["mauchly_w"], 3) == 0.136
+    assert round(sph["chi2_statistic"], 3) == 11.406
+    assert round(sph["p_value"], 3) == 0.047
+    assert round(gg["epsilon"], 3) == 0.533
+    assert round(gg["corrected_numerator_df"], 3) == 1.599
+    assert round(gg["corrected_denominator_df"], 3) == 11.190
+    assert round(gg["corrected_p_value"], 3) == 0.063
+    assert round(res["p_value"], 3) == 0.063
 
 
 def test_sphericity_uncomputable_branch():
@@ -1409,7 +1474,7 @@ def test_friedman_outcome_scope_textual_ordinal_blocked():
 
 
 def test_auditor_corruption_detection(balanced_panel_df):
-    """Verify auditor catches corrupted invariants in repeated-measures results."""
+    """Verify auditor catches corrupted invariants in repeated-measures results (14 checks)."""
     from copy import deepcopy
 
     assistant = ResearchAssistant(balanced_panel_df)
@@ -1426,37 +1491,81 @@ def test_auditor_corruption_detection(balanced_panel_df):
     assert report_anova is not None
     auditor = StatisticalResultAuditor()
 
-    # 1. Corrupt SS total
+    # 1. Corrupt SS total: SS_total != SS_condition + SS_subject + SS_error
     bad_report = deepcopy(report_anova)
     bad_report._source_result.values["sums_of_squares"]["total"] = 99999.0
-    audit = auditor.audit(bad_report)
-    assert audit.status == "failed"
-    assert any("sums_of_squares.total" in f.field for f in audit.findings)
+    audit1 = auditor.audit(bad_report)
+    assert audit1.status == "failed"
+    assert any("sums_of_squares.total" in f.field for f in audit1.findings)
 
-    # 2. Corrupt partial eta-squared
+    # 2. Corrupt partial eta-squared: eta_p^2 != SS_condition / (SS_condition + SS_error)
     bad_report2 = deepcopy(report_anova)
     bad_report2._source_result.values["effect_size"]["value"] = 0.999
     audit2 = auditor.audit(bad_report2)
     assert audit2.status == "failed"
     assert any("effect_size.value" in f.field for f in audit2.findings)
 
-    # 3. Corrupt degrees of freedom
+    # 3. Corrupt GG epsilon outside its valid range [1/(k-1), 1]
     bad_report3 = deepcopy(report_anova)
-    bad_report3._source_result.values["degrees_of_freedom"] = [99.0, 99.0]
+    bad_report3._source_result.values["greenhouse_geisser"]["epsilon"] = 0.1
     audit3 = auditor.audit(bad_report3)
     assert audit3.status == "failed"
-    assert any("degrees_of_freedom" in f.field for f in audit3.findings)
+    assert any("greenhouse_geisser.epsilon" in f.field for f in audit3.findings)
 
-    # 4. Corrupt pairwise family size
+    # 4. Corrupt corrected numerator df only
     bad_report4 = deepcopy(report_anova)
-    bad_report4._source_result.values["pairwise_comparisons"] = bad_report4._source_result.values[
-        "pairwise_comparisons"
-    ][:1]
+    bad_report4._source_result.values["greenhouse_geisser"]["corrected_numerator_df"] = 99.0
     audit4 = auditor.audit(bad_report4)
     assert audit4.status == "failed"
-    assert any("pairwise_comparisons" in f.field for f in audit4.findings)
+    assert any("corrected_numerator_df" in f.field for f in audit4.findings)
 
-    # 5. Friedman: Corrupt Kendall's W
+    # 5. Corrupt corrected denominator df only
+    bad_report5 = deepcopy(report_anova)
+    bad_report5._source_result.values["greenhouse_geisser"]["corrected_denominator_df"] = 99.0
+    audit5 = auditor.audit(bad_report5)
+    assert audit5.status == "failed"
+    assert any("corrected_denominator_df" in f.field for f in audit5.findings)
+
+    # 6. Corrupt corrected p-value while leaving F and corrected dfs unchanged
+    bad_report6 = deepcopy(report_anova)
+    bad_report6._source_result.values["greenhouse_geisser"]["corrected_p_value"] = 0.99
+    audit6 = auditor.audit(bad_report6)
+    assert audit6.status == "failed"
+    assert any("corrected_p_value" in f.field for f in audit6.findings)
+
+    # 7. Corrupt primary p-value so it disagrees with declared branch
+    bad_report7 = deepcopy(report_anova)
+    bad_report7._source_result.values["p_value"] = 0.00001
+    audit7 = auditor.audit(bad_report7)
+    assert audit7.status == "failed"
+    assert any("analysis.values.p_value" == f.field for f in audit7.findings)
+
+    # 8. Corrupt primary degrees of freedom so they disagree with branch
+    bad_report8 = deepcopy(report_anova)
+    bad_report8._source_result.values["degrees_of_freedom"] = [99.0, 99.0]
+    audit8 = auditor.audit(bad_report8)
+    assert audit8.status == "failed"
+    assert any("degrees_of_freedom" in f.field for f in audit8.findings)
+
+    # 9. Corrupt pairwise family size
+    bad_report9 = deepcopy(report_anova)
+    bad_report9._source_result.values["pairwise_comparisons"] = bad_report9._source_result.values[
+        "pairwise_comparisons"
+    ][:1]
+    audit9 = auditor.audit(bad_report9)
+    assert audit9.status == "failed"
+    assert any("pairwise_comparisons" in f.field for f in audit9.findings)
+
+    # 10. Corrupt one pair's contrast orientation / condition identity
+    bad_report10 = deepcopy(report_anova)
+    bad_pair = deepcopy(bad_report10._source_result.values["pairwise_comparisons"][0])
+    bad_pair["contrast"]["first"] = "corrupted_first_condition"
+    bad_report10._source_result.values["pairwise_comparisons"][0] = bad_pair
+    audit10 = auditor.audit(bad_report10)
+    assert audit10.status == "failed"
+    assert any("contrast" in f.field for f in audit10.findings)
+
+    # 11. For Friedman: Corrupt Kendall's W != Q / [n*(k-1)]
     wf_f = assistant.run(
         objective="compare_groups",
         outcome="score",
@@ -1469,10 +1578,54 @@ def test_auditor_corruption_detection(balanced_panel_df):
     report_f = wf_f.report
     assert report_f is not None
     bad_report_f = deepcopy(report_f)
-    bad_report_f._source_result.values["effect_size"]["value"] = 0.01  # corrupted
+    bad_report_f._source_result.values["effect_size"]["value"] = 0.01  # corrupted W
     audit_f = auditor.audit(bad_report_f)
     assert audit_f.status == "failed"
     assert any("effect_size.value" in f.field for f in audit_f.findings)
+
+    # 12. Verify valid repeated-measures ANOVA report passes
+    audit_valid_anova = auditor.audit(report_anova)
+    assert audit_valid_anova.status == "passed"
+    assert len(audit_valid_anova.findings) == 0
+
+    # 13. Verify valid Friedman report passes
+    audit_valid_f = auditor.audit(report_f)
+    assert audit_valid_f.status == "passed"
+    assert len(audit_valid_f.findings) == 0
+
+    # 14. Verify edge states with unavailable pairwise inference do not cause a false audit failure
+    df_edge = pd.DataFrame(
+        [
+            (1, "A", 10.0),
+            (1, "B", 12.0),
+            (1, "C", 15.0),
+            (2, "A", 20.0),
+            (2, "B", 22.0),
+            (2, "C", 28.0),
+            (3, "A", 30.0),
+            (3, "B", 32.0),
+            (3, "C", 31.0),
+            (4, "A", 40.0),
+            (4, "B", 42.0),
+            (4, "C", 49.0),
+        ],
+        columns=["subject", "condition", "y"],
+    )
+    wf_edge = ResearchAssistant(df_edge).run(
+        objective="compare_groups",
+        outcome="y",
+        predictor="condition",
+        design="repeated",
+        estimand="mean",
+        unit_id="subject",
+        condition_order=("A", "B", "C"),
+    )
+    assert any(
+        pw.get("status") == "unavailable" for pw in wf_edge.analysis.values["pairwise_comparisons"]
+    )
+    audit_edge = auditor.audit(wf_edge.report)
+    assert audit_edge.status == "passed"
+    assert len(audit_edge.findings) == 0
 
 
 def test_strict_json_serialization_edge_states(balanced_panel_df):

@@ -9,6 +9,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from scipy import stats
+
 from .exceptions import InvalidDataError, ReportError
 from .practical_significance import PracticalSignificanceResult
 from .provenance import content_reference
@@ -956,14 +958,15 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
             dfs = values.get("degrees_of_freedom")
             primary_inf = values.get("primary_inference")
             gg = values.get("greenhouse_geisser")
+            sphericity = values.get("sphericity")
+            is_gg = str(primary_inf).lower() in {"greenhouse-geisser", "greenhouse_geisser"}
+            is_uncorr = str(primary_inf).lower() in {"none", "uncorrected"}
+
+            # Primary degrees of freedom identity
             if isinstance(dfs, (list, tuple)) and len(dfs) == 2 and isinstance(n_complete, int):
                 expected_df_num = float(k - 1)
                 expected_df_den = float((k - 1) * (n_complete - 1))
-                if (
-                    str(primary_inf).lower() in {"greenhouse-geisser", "greenhouse_geisser"}
-                    and isinstance(gg, dict)
-                    and gg.get("epsilon") is not None
-                ):
+                if is_gg and isinstance(gg, dict) and gg.get("epsilon") is not None:
                     eps_val = float(gg["epsilon"])
                     expected_df_num *= eps_val
                     expected_df_den *= eps_val
@@ -977,37 +980,173 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                         dfs,
                         findings,
                     )
+
+            # Greenhouse-Geisser invariants
             if isinstance(gg, dict) and gg.get("epsilon") is not None:
                 eps = gg.get("epsilon")
                 lower = 1.0 / (k - 1) - 1e-6
-                if not (isinstance(eps, (int, float)) and lower <= float(eps) <= 1.00001):
+                if not (
+                    isinstance(eps, (int, float))
+                    and not isinstance(eps, bool)
+                    and lower <= float(eps) <= 1.00001
+                ):
                     _mismatch(
                         "analysis.values.greenhouse_geisser.epsilon",
                         f"epsilon in [{1.0 / (k - 1)}, 1]",
                         eps,
                         findings,
                     )
-                corr_dfs = gg.get("corrected_degrees_of_freedom")
+
+                # Corrected degrees of freedom identity
+                corr_num = (
+                    gg.get("corrected_numerator_df")
+                    if gg.get("corrected_numerator_df") is not None
+                    else gg.get("corrected_df_num")
+                )
+                corr_den = (
+                    gg.get("corrected_denominator_df")
+                    if gg.get("corrected_denominator_df") is not None
+                    else gg.get("corrected_df_den")
+                )
                 if (
-                    isinstance(corr_dfs, (list, tuple))
-                    and len(corr_dfs) == 2
-                    and isinstance(n_complete, int)
+                    isinstance(n_complete, int)
                     and isinstance(eps, (int, float))
+                    and not isinstance(eps, bool)
                 ):
-                    orig_num = float(k - 1)
-                    orig_den = float((k - 1) * (n_complete - 1))
-                    exp_corr_num = float(eps) * orig_num
-                    exp_corr_den = float(eps) * orig_den
+                    exp_corr_num = float(eps) * float(k - 1)
+                    exp_corr_den = float(eps) * float((k - 1) * (n_complete - 1))
+                    if corr_num is not None:
+                        if not (
+                            isinstance(corr_num, (int, float))
+                            and not isinstance(corr_num, bool)
+                            and math.isclose(
+                                exp_corr_num, float(corr_num), rel_tol=1e-4, abs_tol=1e-6
+                            )
+                        ):
+                            _mismatch(
+                                "analysis.values.greenhouse_geisser.corrected_numerator_df",
+                                exp_corr_num,
+                                corr_num,
+                                findings,
+                            )
+                    if corr_den is not None:
+                        if not (
+                            isinstance(corr_den, (int, float))
+                            and not isinstance(corr_den, bool)
+                            and math.isclose(
+                                exp_corr_den, float(corr_den), rel_tol=1e-4, abs_tol=1e-6
+                            )
+                        ):
+                            _mismatch(
+                                "analysis.values.greenhouse_geisser.corrected_denominator_df",
+                                exp_corr_den,
+                                corr_den,
+                                findings,
+                            )
+                    corr_dfs = gg.get("corrected_degrees_of_freedom")
+                    if isinstance(corr_dfs, (list, tuple)) and len(corr_dfs) == 2:
+                        if not (
+                            math.isclose(
+                                exp_corr_num, float(corr_dfs[0]), rel_tol=1e-4, abs_tol=1e-6
+                            )
+                            and math.isclose(
+                                exp_corr_den, float(corr_dfs[1]), rel_tol=1e-4, abs_tol=1e-6
+                            )
+                        ):
+                            _mismatch(
+                                "analysis.values.greenhouse_geisser.corrected_degrees_of_freedom",
+                                (exp_corr_num, exp_corr_den),
+                                corr_dfs,
+                                findings,
+                            )
+
+                # Corrected p-value identity
+                corr_p = gg.get("corrected_p_value")
+                stored_f = (
+                    values.get("statistic")
+                    if values.get("statistic") is not None
+                    else values.get("test_statistic")
+                )
+                if (
+                    corr_p is not None
+                    and corr_num is not None
+                    and corr_den is not None
+                    and isinstance(stored_f, (int, float))
+                    and not isinstance(stored_f, bool)
+                    and isinstance(corr_num, (int, float))
+                    and not isinstance(corr_num, bool)
+                    and isinstance(corr_den, (int, float))
+                    and not isinstance(corr_den, bool)
+                    and float(corr_num) > 0
+                    and float(corr_den) > 0
+                ):
+                    expected_corr_p = float(
+                        stats.f.sf(float(stored_f), float(corr_num), float(corr_den))
+                    )
                     if not (
-                        math.isclose(exp_corr_num, float(corr_dfs[0]), rel_tol=1e-4, abs_tol=1e-6)
-                        and math.isclose(
-                            exp_corr_den, float(corr_dfs[1]), rel_tol=1e-4, abs_tol=1e-6
-                        )
+                        isinstance(corr_p, (int, float))
+                        and not isinstance(corr_p, bool)
+                        and math.isclose(expected_corr_p, float(corr_p), rel_tol=1e-4, abs_tol=1e-6)
                     ):
                         _mismatch(
-                            "analysis.values.greenhouse_geisser.corrected_degrees_of_freedom",
-                            (exp_corr_num, exp_corr_den),
-                            corr_dfs,
+                            "analysis.values.greenhouse_geisser.corrected_p_value",
+                            expected_corr_p,
+                            corr_p,
+                            findings,
+                        )
+
+            # Primary inference identity
+            p_val = values.get("p_value")
+            if is_gg:
+                corr_p_val = (
+                    gg.get("corrected_p_value")
+                    if isinstance(gg, dict)
+                    else values.get("corrected_p_value")
+                )
+                if (
+                    corr_p_val is not None
+                    and isinstance(p_val, (int, float))
+                    and not isinstance(p_val, bool)
+                    and not math.isclose(
+                        float(corr_p_val), float(p_val), rel_tol=1e-5, abs_tol=1e-8
+                    )
+                ):
+                    _mismatch("analysis.values.p_value", corr_p_val, p_val, findings)
+            elif is_uncorr:
+                uncorr_p = values.get("uncorrected_p_value")
+                if (
+                    uncorr_p is not None
+                    and isinstance(p_val, (int, float))
+                    and not isinstance(p_val, bool)
+                    and not math.isclose(float(uncorr_p), float(p_val), rel_tol=1e-5, abs_tol=1e-8)
+                ):
+                    _mismatch("analysis.values.p_value", uncorr_p, p_val, findings)
+
+            # Sphericity branch consistency
+            if isinstance(sphericity, dict):
+                sph_status = sphericity.get("status")
+                if sph_status == "rejected":
+                    if not is_gg:
+                        _mismatch(
+                            "analysis.values.primary_inference",
+                            "Greenhouse-Geisser",
+                            primary_inf,
+                            findings,
+                        )
+                elif sph_status in ("not_rejected", "confirmed"):
+                    if not is_uncorr:
+                        _mismatch(
+                            "analysis.values.primary_inference",
+                            "none",
+                            primary_inf,
+                            findings,
+                        )
+                elif sph_status == "uncomputable":
+                    if not is_gg:
+                        _mismatch(
+                            "analysis.values.primary_inference",
+                            "Greenhouse-Geisser",
+                            primary_inf,
                             findings,
                         )
         if method == "friedman_test":

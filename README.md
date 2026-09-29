@@ -464,10 +464,10 @@ with an `unknown` resource level and an advisory warning.
 - Automatic selection requires the estimand and design; it does not choose a favorable p-value.
 - Source values are not automatically recoded, imputed, removed, sampled, or truncated.
 - Outlier flags are review cues and never automatic deletion rules.
-- Repeated measures with more than two conditions, clustered models, logistic and other
-  generalized regression families, interactions, mixed models,
-  survival analysis, causal inference, sparse exact-table alternatives, broad post-hoc procedures,
-  and formal equivalence/noninferiority tests are unsupported.
+- Two-way repeated-measures ANOVA, mixed ANOVA, clustered models, mixed-effects models,
+  logistic and other generalized regression families, interactions,
+  survival analysis, causal inference, sparse exact-table alternatives beyond Fisher's 2x2 test,
+  broad post-hoc procedures, and formal equivalence/noninferiority tests are unsupported.
 - Current templates are publication-oriented aids, not journal or regulatory certification.
 
 Read [scientific limitations](docs/SCIENTIFIC_LIMITATIONS.md) before applying results in research

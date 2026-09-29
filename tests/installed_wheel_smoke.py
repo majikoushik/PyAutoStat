@@ -359,7 +359,8 @@ assert "repeated_pairwise" in rm_smoke.report.to_csv_tables()
 assert rm_smoke.audit.status == "passed"
 json.dumps(rm_smoke.to_dict(), allow_nan=False)
 json.loads(rm_smoke.to_json())
-assert rm_smoke.analysis.values["multiplicity"]["decision_basis"] == "Holm-adjusted p-value < alpha"
+rm_mult = rm_smoke.analysis.values["multiplicity"]
+assert rm_mult["decision_basis"] == "Holm-adjusted p-value < alpha"
 
 friedman_smoke = ResearchAssistant(repeated_smoke_df).run(
     objective="compare_groups",
@@ -379,7 +380,8 @@ assert "friedman_pairwise" in friedman_smoke.report.to_csv_tables()
 assert friedman_smoke.audit.status == "passed"
 json.dumps(friedman_smoke.to_dict(), allow_nan=False)
 json.loads(friedman_smoke.to_json())
-assert friedman_smoke.analysis.values["multiplicity"]["decision_basis"] == "Holm-adjusted p-value < alpha"
+fr_mult = friedman_smoke.analysis.values["multiplicity"]
+assert fr_mult["decision_basis"] == "Holm-adjusted p-value < alpha"
 
 html = guided.report.to_html(style="apa")
 assert isinstance(html, str) and "<!doctype html>" in html

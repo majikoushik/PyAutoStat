@@ -34,7 +34,7 @@ statistic is calculated by the existing execution adapter. A Mann–Whitney scen
 distribution estimand and is labelled `different_estimand` relative to a Welch mean comparison.
 Its estimate is displayed, but no estimate change or direct robustness conclusion is calculated.
 Paired scenarios require the same explicit unit-ID and two-condition contract as the primary
-paired workflow. Repeated, clustered, coefficient-only, and unknown methods remain incompatible
+paired workflow. Repeated-measures (3+ conditions), clustered, coefficient-only, and unknown methods remain incompatible
 or unavailable; no independent method is substituted.
 
 For `same_estimand` scenarios, the result records point-estimate difference, direction, effective

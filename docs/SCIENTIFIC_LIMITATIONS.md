@@ -23,11 +23,12 @@ It is not a substitute for scientific design review or subject-matter judgment.
   is violated; it does not change the observed F statistic. Pairwise follow-up uses per-contrast
   analytical confidence intervals alongside Holm-adjusted p-values; confidence intervals are not
   simultaneous confidence bands. Repeated-measures ANOVA does not establish causality.
-- The Friedman test evaluates within-unit rank distributions across 3 or more repeated conditions.
-  It evaluates ranks, not means, and does not universally test equality of medians unless condition
-  distributions have identical shapes and spreads. Complete-case panels are required; missingness is
-  not modeled. Pairwise follow-up uses paired Wilcoxon signed-rank tests with Holm adjustment.
-  Omnibus significance does not imply that every pairwise contrast differs.
+- The Friedman test evaluates within-unit rank distributions across 3 or more repeated conditions
+  for ordered numeric outcomes. Textual ordinal labels require explicit numeric scoring and are not
+  automatically encoded. It evaluates within-unit ranks, not mean differences, and does not universally
+  test equality of medians unless condition distributions have identical shapes and spreads. Complete-case
+  panels are required; missingness is not modeled. Pairwise follow-up uses paired Wilcoxon signed-rank
+  tests with Holm adjustment. Omnibus significance does not imply that every pairwise contrast differs.
 - OLS regression targets an additive conditional mean for independent observational units. It
   uses one complete-case sample and an intercept; it does not impute, transform, select, or delete
   predictors or observations. Treatment-coded nominal, Boolean, and ordinal terms are relative to
