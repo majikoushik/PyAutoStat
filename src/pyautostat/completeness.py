@@ -86,6 +86,8 @@ def assess_reporting_completeness(
         "kruskal_wallis",
         "pearson_chi_square",
         "linear_regression",
+        "point_biserial_correlation",
+        "partial_pearson_correlation",
     }
 
     def item(
@@ -135,7 +137,8 @@ def assess_reporting_completeness(
                 else [question["outcome"]]
                 if method == "one_sample_t" and question.get("outcome") is not None
                 else [question["outcome"], *question.get("predictors", [])]
-                if method == "linear_regression" and question.get("outcome") is not None
+                if method in {"linear_regression", "logistic_regression"}
+                and question.get("outcome") is not None
                 else [question["outcome"], question["predictor"]]
                 if question.get("outcome") is not None and question.get("predictor") is not None
                 else None
@@ -195,7 +198,13 @@ def assess_reporting_completeness(
             "Primary effect estimate",
             results.get("primary_estimate"),
             "sections.results.primary_estimate",
-            applicable=inference and method not in {"welch_anova", "linear_regression"},
+            applicable=inference
+            and method
+            not in {
+                "welch_anova",
+                "linear_regression",
+                "logistic_regression",
+            },
         ),
         item(
             "EFFECT_SIZE_REPORTED",
@@ -203,7 +212,8 @@ def assess_reporting_completeness(
             "Method-specific effect size",
             results.get("effect_size"),
             "sections.results.effect_size",
-            applicable=inference and method not in {"welch_anova", "linear_regression"},
+            applicable=inference
+            and method not in {"welch_anova", "linear_regression", "logistic_regression"},
         ),
         item(
             "CONFIDENCE_INTERVAL_REPORTED",
@@ -211,7 +221,8 @@ def assess_reporting_completeness(
             "Confidence interval",
             results.get("confidence_interval"),
             "sections.results.confidence_interval",
-            applicable=inference and method not in {"welch_anova", "linear_regression"},
+            applicable=inference
+            and method not in {"welch_anova", "linear_regression", "logistic_regression"},
             unavailable=(
                 source_values.get("confidence_interval") is None
                 and method in {"pearson_correlation", "wilcoxon_signed_rank", "fisher_exact"}
@@ -303,6 +314,151 @@ def assess_reporting_completeness(
                 "VIF, heteroscedasticity, residual, and influence diagnostics",
                 results.get("diagnostics"),
                 "sections.results.diagnostics",
+            ),
+        )
+    if method == "logistic_regression":
+        logistic_coefficients = results.get("coefficients")
+        odds_ratios = (
+            logistic_coefficients
+            if isinstance(logistic_coefficients, list)
+            and logistic_coefficients
+            and all(
+                isinstance(item, dict) and item.get("odds_ratio") is not None
+                for item in logistic_coefficients
+            )
+            else None
+        )
+        coefficient_intervals = (
+            logistic_coefficients
+            if isinstance(logistic_coefficients, list)
+            and logistic_coefficients
+            and all(
+                isinstance(item, dict)
+                and item.get("confidence_interval") is not None
+                and item.get("odds_ratio_ci") is not None
+                for item in logistic_coefficients
+            )
+            else None
+        )
+        items += (
+            item(
+                "LOGISTIC_EVENT_REPORTED",
+                "results",
+                "Modeled event and reference level",
+                results.get("event_level") if results.get("non_event_level") is not None else None,
+                "sections.results.event_level",
+            ),
+            item(
+                "LOGISTIC_MODEL_FIT_REPORTED",
+                "results",
+                "Likelihood fit and McFadden pseudo-R-squared",
+                results.get("model_fit"),
+                "sections.results.model_fit",
+            ),
+            item(
+                "LOGISTIC_COEFFICIENTS_REPORTED",
+                "results",
+                "Coefficients, odds ratios, and intervals",
+                logistic_coefficients,
+                "sections.results.coefficients",
+            ),
+            item(
+                "LOGISTIC_ODDS_RATIOS_REPORTED",
+                "results",
+                "Per-term odds ratios",
+                odds_ratios,
+                "sections.results.coefficients.odds_ratio",
+            ),
+            item(
+                "LOGISTIC_INTERVALS_REPORTED",
+                "results",
+                "Coefficient and odds-ratio confidence intervals",
+                coefficient_intervals,
+                "sections.results.coefficients.confidence_interval",
+            ),
+            item(
+                "LOGISTIC_DIAGNOSTICS_REPORTED",
+                "diagnostics",
+                "Convergence and design diagnostics",
+                results.get("diagnostics"),
+                "sections.results.diagnostics",
+            ),
+            item(
+                "LOGISTIC_COVARIANCE_REPORTED",
+                "methods",
+                "Coefficient covariance estimator",
+                results.get("covariance_type"),
+                "sections.results.covariance_type",
+            ),
+            item(
+                "LOGISTIC_SAMPLE_COUNTS_REPORTED",
+                "results",
+                "Analyzed, event, and non-event counts",
+                (
+                    [
+                        dataset.get("analyzed_rows"),
+                        results.get("event_count"),
+                        results.get("non_event_count"),
+                    ]
+                    if results.get("event_count") is not None
+                    and results.get("non_event_count") is not None
+                    else None
+                ),
+                "sections.results.event_count",
+            ),
+        )
+    if method == "mcnemar":
+        items += (
+            item(
+                "MCNEMAR_TRANSITIONS_REPORTED",
+                "results",
+                "Paired binary transition table",
+                results.get("transition_table"),
+                "sections.results.transition_table",
+            ),
+            item(
+                "MCNEMAR_EVENT_REPORTED",
+                "results",
+                "Event and condition orientation",
+                results.get("event_level") if results.get("condition_order") is not None else None,
+                "sections.results.event_level",
+            ),
+        )
+    if method == "point_biserial_correlation":
+        items += (
+            item(
+                "POINT_BISERIAL_CODING_REPORTED",
+                "results",
+                "Binary positive/reference coding",
+                results.get("binary_encoding"),
+                "sections.results.binary_encoding",
+            ),
+        )
+    if method == "kendall_tau_b":
+        items += (
+            item(
+                "KENDALL_TIES_REPORTED",
+                "results",
+                "Tau-b variant and tie metadata",
+                results.get("ties"),
+                "sections.results.ties",
+            ),
+        )
+    if method == "partial_pearson_correlation":
+        items += (
+            item(
+                "PARTIAL_CONTROLS_REPORTED",
+                "results",
+                "Ordered linear-adjustment controls",
+                results.get("controls"),
+                "sections.results.controls",
+            ),
+            item(
+                "PARTIAL_CONTROL_DESIGN_REPORTED",
+                "results",
+                "Effective control design",
+                results.get("control_design"),
+                "sections.results.control_design",
             ),
         )
     if method == "cronbach_alpha":

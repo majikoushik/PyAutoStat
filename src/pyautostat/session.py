@@ -99,7 +99,7 @@ def build_session_snapshot(
         actions.insert(0, "provide_missing_information")
     if status in {"completed", "partial"}:
         method_id = workflow.analysis.method_id if workflow.analysis is not None else None
-        if method_id not in {"linear_regression", "cronbach_alpha"}:
+        if method_id not in {"linear_regression", "logistic_regression", "cronbach_alpha"}:
             actions.extend(["run_sensitivity", "assess_practical_significance"])
         actions.extend(
             ["generate_report", "save_report", "audit_report", "create_reproducibility_record"]

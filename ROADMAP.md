@@ -16,6 +16,10 @@ It supports bounded simple and multiple ordinary least-squares conditional-mean 
 explicit treatment coding, classical or HC3 covariance inference, and stored diagnostics.
 It also supports researcher-declared multi-item internal-consistency analysis with Cronbach's
 alpha, deterministic bootstrap uncertainty, item diagnostics, and explicit reverse scoring.
+It supports binary logistic regression, exact paired-binary McNemar inference, point-biserial
+correlation, explicit inferential Kendall tau-b, and partial Pearson correlation with declared
+quantitative controls. Binary and paired orientations remain explicit, and these methods do not
+add classification thresholds or causal adjustment claims.
 The established analysis, planning, and reporting capabilities are checked into `main`, and their
 GitHub CI matrix passed. A release remains a separate owner decision.
 

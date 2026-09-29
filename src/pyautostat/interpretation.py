@@ -143,6 +143,10 @@ _METHODS = {
     "pearson_chi_square": ("Pearson chi-square independence test", "Cramer's V"),
     "fisher_exact": ("Fisher's exact test", "sample odds ratio"),
     "linear_regression": ("Ordinary least-squares linear regression", "R-squared"),
+    "mcnemar": ("Exact two-sided McNemar test", "paired proportion difference"),
+    "point_biserial_correlation": ("Point-biserial correlation", "point-biserial r"),
+    "kendall_tau_b": ("Kendall's tau-b", "Kendall's tau-b"),
+    "partial_pearson_correlation": ("Partial Pearson correlation", "partial Pearson r"),
 }
 _SIGNED_GROUP = {
     "welch_t",
@@ -150,6 +154,7 @@ _SIGNED_GROUP = {
     "paired_t",
     "wilcoxon_signed_rank",
     "mann_whitney_u",
+    "mcnemar",
 }
 _GROUP = _SIGNED_GROUP | {
     "welch_anova",
@@ -158,7 +163,13 @@ _GROUP = _SIGNED_GROUP | {
     "pearson_chi_square",
 }
 _NONNEGATIVE = {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
-_CORRELATIONS = {"pearson_correlation", "spearman_correlation"}
+_CORRELATIONS = {
+    "pearson_correlation",
+    "spearman_correlation",
+    "point_biserial_correlation",
+    "kendall_tau_b",
+    "partial_pearson_correlation",
+}
 _TWO_SIDED = _SIGNED_GROUP | _CORRELATIONS | {"one_sample_t"}
 
 
@@ -375,6 +386,106 @@ def _regression_interpretation(result: AnalysisResult) -> InterpretationResult:
     )
 
 
+def _logistic_interpretation(result: AnalysisResult) -> InterpretationResult:
+    """Interpret model-level logistic inference and preserve coefficient records."""
+    values = result.values
+    fit = values.get("model_fit")
+    coefficients = values.get("coefficients")
+    diagnostics = values.get("diagnostics")
+    if (
+        not isinstance(fit, dict)
+        or not isinstance(coefficients, list)
+        or not isinstance(diagnostics, dict)
+    ):
+        return _unavailable(result, "The structured logistic model result is incomplete.")
+    event = values.get("event_level")
+    p_value = _finite(fit.get("lr_p_value"))
+    statistic = _finite(fit.get("lr_statistic"))
+    pseudo_r2 = _finite(fit.get("mcfadden_r2"))
+    if event is None or p_value is None or statistic is None:
+        return _unavailable(result, "The modeled event or likelihood-ratio result is missing.")
+    alpha = result.specification.options.alpha if result.specification is not None else 0.05
+    evidence = (
+        "provided evidence that at least one non-intercept coefficient differs from zero"
+        if p_value < alpha
+        else "did not provide evidence that a non-intercept coefficient differs from zero"
+    )
+    summary = (
+        f"Binary logistic regression modeled event {event!r} in {result.sample_size} complete "
+        f"observations and {evidence} (likelihood-ratio p = {_fmt(p_value)})."
+    )
+    findings = [
+        InterpretationFinding(
+            "model_likelihood_ratio",
+            summary,
+            ("values.model_fit.lr_statistic", "values.model_fit.lr_p_value"),
+        )
+    ]
+    for coefficient in coefficients:
+        if not isinstance(coefficient, dict) or coefficient.get("term_type") == "intercept":
+            continue
+        odds_ratio = _finite(coefficient.get("odds_ratio"))
+        if odds_ratio is not None:
+            if coefficient.get("term_type") == "categorical":
+                message = (
+                    f"Holding the other included predictors constant, the estimated odds of "
+                    f"event {event!r} for {coefficient.get('level')!r} were "
+                    f"{_fmt(odds_ratio)} times those for reference category "
+                    f"{coefficient.get('reference_level')!r}."
+                )
+            else:
+                direction = "lower" if odds_ratio < 1 else "higher" if odds_ratio > 1 else "equal"
+                message = (
+                    f"Holding the other included predictors constant, a one-unit increase in "
+                    f"{coefficient.get('term_label')} was associated with {direction} estimated "
+                    f"event odds ({_fmt(odds_ratio)} times as large)."
+                )
+            findings.append(
+                InterpretationFinding(
+                    "logistic_odds_ratio",
+                    message,
+                    ("values.coefficients",),
+                )
+            )
+    limitations = (
+        "Odds ratios describe odds, not constant probability differences.",
+        "Holding other included predictors constant does not establish causation.",
+        "Model fit is in-sample and is not validated predictive performance.",
+        "McFadden pseudo-R-squared is likelihood based and is not ordinary R-squared.",
+    )
+    return InterpretationResult(
+        status=InterpretationStatus.AVAILABLE,
+        method_id=result.method_id,
+        execution_status=result.status,
+        summary=summary,
+        method_explanation=(
+            "The model estimates conditional log odds of the declared event. Exponentiated "
+            "coefficients are adjusted odds ratios using the recorded predictor coding."
+        ),
+        hypothesis_interpretation=summary,
+        effect_interpretation=(
+            f"McFadden pseudo-R-squared was {_fmt(pseudo_r2)}."
+            if pseudo_r2 is not None
+            else "McFadden pseudo-R-squared was unavailable."
+        ),
+        assumption_notes=(
+            "Verify independent observational units, the event definition, predictor units "
+            "and reference levels, model form, and estimation stability.",
+        ),
+        limitations=limitations,
+        conclusion=summary,
+        findings=tuple(findings),
+        warnings=result.warnings,
+        metadata={
+            "sample_size": result.sample_size,
+            "excluded_rows": result.excluded_rows,
+            "p_value": p_value,
+            "test_statistic": statistic,
+            "primary_estimate": pseudo_r2,
+        },
+    )
+
+
 def _context(result: AnalysisResult) -> tuple[str, str | None]:
     """Return the method description and the verified group contrast, if any."""
     method = result.method_id
@@ -419,7 +530,7 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
             contrast = result.metadata.get("contrast")
             expected_definition = (
                 "first condition minus second condition"
-                if method in {"paired_t", "wilcoxon_signed_rank"}
+                if method in {"paired_t", "wilcoxon_signed_rank", "mcnemar"}
                 else "first group minus second group"
             )
             if (
@@ -429,7 +540,7 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
                 or contrast.get("second") != order[1]
             ):
                 raise InvalidDataError("The recorded first-minus-second contrast is inconsistent.")
-            if method in {"paired_t", "wilcoxon_signed_rank"}:
+            if method in {"paired_t", "wilcoxon_signed_rank", "mcnemar"}:
                 pairs = result.metadata.get("sample", {}).get("complete_pairs")
                 return (
                     f"{_METHODS[method][0]} compared paired {question.outcome} values across "
@@ -464,7 +575,13 @@ def _context(result: AnalysisResult) -> tuple[str, str | None]:
             or order != [question.outcome, question.predictor]
         ):
             raise InvalidDataError("Correlation variable ordering is missing or inconsistent.")
-        target = "linear" if method == "pearson_correlation" else "monotonic rank"
+        target = {
+            "pearson_correlation": "linear",
+            "spearman_correlation": "monotonic rank",
+            "point_biserial_correlation": "binary-continuous",
+            "kendall_tau_b": "ordinal concordance",
+            "partial_pearson_correlation": "linearly adjusted partial",
+        }[method]
         return (
             f"{_METHODS[method][0]} assessed {target} association between "
             f"{order[0]} and {order[1]}.",
@@ -775,6 +892,8 @@ class InterpretationEngine:
             )
         if result.method_id == "linear_regression":
             return _regression_interpretation(result)
+        if result.method_id == "logistic_regression":
+            return _logistic_interpretation(result)
         if result.method_id == "cronbach_alpha":
             return _reliability_interpretation(result)
         if result.method_id not in _METHODS:
@@ -863,6 +982,9 @@ class InterpretationEngine:
                 in {
                     "pearson_correlation",
                     "spearman_correlation",
+                    "point_biserial_correlation",
+                    "kendall_tau_b",
+                    "partial_pearson_correlation",
                     "mann_whitney_u",
                     "wilcoxon_signed_rank",
                 }
@@ -1194,7 +1316,16 @@ class InterpretationEngine:
                 else {"analytical t interval"}
                 if is_mean_test
                 else {"paired-observation percentile bootstrap"}
-                if method == "spearman_correlation"
+                if method
+                in {
+                    "spearman_correlation",
+                    "point_biserial_correlation",
+                    "kendall_tau_b",
+                }
+                else {"complete-row percentile bootstrap with model refitting"}
+                if method == "partial_pearson_correlation"
+                else {"paired-unit percentile bootstrap"}
+                if method == "mcnemar"
                 else {"observation-row percentile bootstrap"}
                 if method == "pearson_chi_square"
                 else {"independent within-group percentile bootstrap"}
@@ -1329,6 +1460,10 @@ class InterpretationEngine:
         if method in {
             "pearson_correlation",
             "spearman_correlation",
+            "point_biserial_correlation",
+            "kendall_tau_b",
+            "partial_pearson_correlation",
+            "mcnemar",
             "pearson_chi_square",
             "fisher_exact",
         }:
@@ -1337,6 +1472,21 @@ class InterpretationEngine:
             limitations.append(
                 "Spearman correlation describes monotonic rank association, not necessarily "
                 "a linear relationship."
+            )
+        if method == "kendall_tau_b":
+            limitations.append(
+                "Kendall tau-b describes pairwise ordinal concordance, not linear association "
+                "or percent variance explained."
+            )
+        if method == "partial_pearson_correlation":
+            limitations.append(
+                "Adjustment describes association conditional on the included controls; it "
+                "does not establish that confounding has been removed."
+            )
+        if method == "mcnemar":
+            limitations.append(
+                "McNemar inference concerns paired marginal event probabilities and does not "
+                "by itself establish a causal condition effect."
             )
         if method == "wilcoxon_signed_rank":
             limitations.append(

@@ -43,11 +43,12 @@ relations.
 Tables may include `sample_accounting`, `group_sizes`, `group_summaries`, `statistical_results`,
 `effect_estimates`, `confidence_intervals`, `pairwise_comparisons`, `descriptive_statistics`,
 `regression_coefficients`, `regression_model_fit`, `regression_vif`,
-`regression_diagnostics`, `reliability_summary`, `reliability_items`,
-`inter_item_correlations`, and optional `histogram_N_bins`. CSV export returns one UTF-8 string per
-table ID. HTML and Markdown render the same table cells; JSON retains raw numeric values. Display
-formatting is centralized and never changes the underlying p-value. A computational p-value of
-zero displays as a qualified inequality.
+`regression_diagnostics`, `logistic_coefficients`, `logistic_model_fit`,
+`logistic_diagnostics`, `mcnemar_transition_table`, `reliability_summary`,
+`reliability_items`, `inter_item_correlations`, and optional `histogram_N_bins`. CSV export returns
+one UTF-8 string per table ID. HTML and Markdown render the same table cells; JSON retains raw
+numeric values. Display formatting is centralized and never changes the underlying p-value. A
+computational p-value of zero displays as a qualified inequality.
 
 | Method | Report content | Limit |
 | --- | --- | --- |
@@ -59,6 +60,11 @@ zero displays as a qualified inequality.
 | `pearson_correlation` | r/p and effective pair count | Current guided result has no CI, so report is partial |
 | `pearson_chi_square` | Chi-square/df/p and Cramer's V/interval | No cell-specific or causal conclusion |
 | `linear_regression` | Complete coefficient table, model fit, VIF, and diagnostic summary from the stored OLS result | Executive summary stays model-level; no causal or out-of-sample prediction claim |
+| `logistic_regression` | Modeled event, complete-case counts, likelihood fit, convergence, coefficient/log-odds and odds-ratio tables, reference coding, VIF and condition diagnostics | Odds ratios are not probability differences; pseudo-R-squared is not OLS R-squared; no causal or validated predictive claim |
+| `mcnemar` | Ordered paired transition table, discordant counts, exact p-value, condition event rates, paired proportion difference and paired-unit bootstrap interval | Requires explicit unit identity, condition order, and event; does not establish causality |
+| `point_biserial_correlation` | Explicit binary coding, continuous-variable association r/p, group summaries and paired-observation bootstrap interval | Association framing is distinct from a two-group mean test and is not causal |
+| `kendall_tau_b` | Tie-aware tau-b/p, tie metadata and paired-observation bootstrap interval | Explicit guided selection only; tau is not variance explained |
+| `partial_pearson_correlation` | Ordered controls, effective df, partial r/t/p and complete-row model-refitting bootstrap interval | Linear adjustment does not establish that confounding was removed |
 | `cronbach_alpha` | Alpha/bootstrap summary, ordered item diagnostics and missingness, and complete inter-item matrix | Non-inferential; no universal cutoff, dimensionality, or validity claim |
 
 Unavailable analyses yield `status="unavailable"` and no reader-facing numerical result table. Partial interpretations yield `status="partial"` with available numbers and explicit missing information. Contradictory row accounting and mismatched supplied interpretations raise `ReportError`. Supplied interpretations must match the current deterministic result exactly. provenance content references are separate from both report schema versions.

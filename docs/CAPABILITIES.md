@@ -121,11 +121,15 @@ implemented. `audit=False` also makes an otherwise successful workflow partial.
 | Three-or-more rank distributions | Independent | Kruskal-Wallis + Dunn-Holm | Automatically guided | Omnibus H/epsilon-squared and every pairwise mean-rank contrast with adjusted p and rank-biserial effect | At least five usable values per group; pairwise effect intervals unavailable |
 | Linear numerical association | Independent rows | Pearson correlation | Automatically guided | r and p-value | Confidence interval unavailable, so interpretation is partial |
 | Continuous conditional mean | Independent rows | Ordinary least-squares linear regression | Automatically guided for `objective="regression"` and direct | Coefficients/SE/t/p/CI, model F, R-squared/adjusted R-squared, residual error, continuous-predictor standardized beta | Additive main effects only; associations are noncausal and fit is not out-of-sample validation |
+| Binary event probability/odds | Independent rows | Binary logistic regression | Guided `objective="regression"` | Likelihood fit, coefficients/SE/z/p/CI, odds ratios/CI, convergence and collinearity diagnostics | Exactly two outcome levels and explicit orientation; no classification metrics or causal claim |
+| Paired binary marginal event proportions | Paired with explicit unit ID | Exact two-sided McNemar | Automatically guided for `estimand="proportion"` | Transition table, exact p, paired proportion difference and paired-unit bootstrap CI | Exactly two conditions and one usable binary response per unit/condition |
+| Binary/continuous symmetric association | Independent rows | Point-biserial correlation | Automatically guided for an explicit association target | r_pb/p, explicit 0/1 coding and paired-observation bootstrap CI | Positive level determines sign; not substituted for a group mean test |
+| Partial linear association | Independent rows | Partial Pearson correlation | Guided with explicit controls | Partial r/t/df/p and complete-row refitting bootstrap CI | Quantitative controls only; conditioning is not causal deconfounding |
 | Multi-item internal consistency | Researcher-declared item set | Cronbach's alpha | Focused `reliability()` facade, guided `objective="reliability"`, and direct | Alpha, deterministic respondent-row bootstrap CI, item/deletion diagnostics, inter-item matrix | No scale discovery, dimensionality/validity claim, or universal adequacy cutoff |
 | Categorical independence | Independent rows | Pearson chi-square | Automatically guided when the expected-count policy passes | Chi-square, Cramer's V, optional bootstrap CI | At least two levels per axis and every expected cell at least five |
 | Monotonic numerical association | Independent rows | Spearman rank correlation | Automatically guided and direct | rho, p-value, deterministic paired-observation bootstrap CI | Ties allowed; does not establish linearity or causation |
 | Sparse 2x2 categorical independence | Independent rows | Fisher's exact test | Automatically guided fallback and direct | Two-sided p and ordered sample odds ratio; CI explicitly unavailable | Exactly 2x2; no category collapsing or RxC extension |
-| Kendall association | Independent rows | Kendall coefficient | Descriptive coefficient matrix only | Coefficient | Inferential workflow unavailable |
+| Kendall ordinal concordance | Independent rows | Kendall tau-b | Descriptive matrix and explicit guided inferential preference | Tau-b/p, ties and paired-observation bootstrap CI | Spearman remains the monotonic default; tau is not variance explained |
 
 Diagnostics never silently change a declared mean target into a rank-distribution target. Group
 and paired directions follow the recorded contrast. Missing rows use the documented
@@ -169,8 +173,8 @@ Common blockers remain explicit:
   duplicate paired unit/condition rows, unusable pairs, or unsupported sparse tables return a
   data-limited or unsupported result as documented. Sparse 2x2 tables use Fisher; larger sparse
   tables remain unsupported.
-- Repeated measures with more than two conditions, clustered models, mixed models, logistic,
-  generalized, regularized, interaction, and polynomial regression, survival analysis, causal
+- Repeated measures with more than two conditions, clustered models, mixed models, multinomial,
+  ordinal, count, regularized, interaction, and polynomial regression, survival analysis, causal
   inference, Fisher extensions beyond 2x2,
   broader multiplicity families, and formal equivalence or noninferiority tests are not
   implemented.

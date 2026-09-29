@@ -78,6 +78,21 @@ _RULES = {
     "spearman_rho": _EffectRule(
         "Spearman rho", "monotonic rank-association strength", _CORRELATION_BANDS, signed=True
     ),
+    "point_biserial_r": _EffectRule(
+        "Point-biserial r", "binary-continuous association", _CORRELATION_BANDS, signed=True
+    ),
+    "partial_pearson_r": _EffectRule(
+        "Partial Pearson r", "linearly adjusted association", _CORRELATION_BANDS, signed=True
+    ),
+    "kendall_tau_b": _EffectRule(
+        "Kendall's tau-b", "pairwise ordinal concordance adjusted for ties", None, signed=True
+    ),
+    "paired_proportion_difference": _EffectRule(
+        "Paired proportion difference",
+        "first-minus-second paired event probability",
+        None,
+        signed=True,
+    ),
     "odds_ratio": _EffectRule("Sample odds ratio", "2x2 odds association", None),
 }
 
@@ -102,6 +117,14 @@ _MEASURE_ALIASES = {
     "pearson r": "pearson_r",
     "spearman_rho": "spearman_rho",
     "spearman rho": "spearman_rho",
+    "point_biserial_r": "point_biserial_r",
+    "point-biserial r": "point_biserial_r",
+    "partial_pearson_r": "partial_pearson_r",
+    "partial pearson r": "partial_pearson_r",
+    "kendall_tau_b": "kendall_tau_b",
+    "kendall's tau-b": "kendall_tau_b",
+    "paired_proportion_difference": "paired_proportion_difference",
+    "paired proportion difference": "paired_proportion_difference",
     "odds_ratio": "odds_ratio",
     "sample odds ratio": "odds_ratio",
 }
@@ -698,7 +721,17 @@ def effect_narrative(
     if (
         (rule.nonnegative and estimate < 0)
         or (
-            canonical in {"rank_biserial", "paired_rank_biserial", "pearson_r", "spearman_rho"}
+            canonical
+            in {
+                "rank_biserial",
+                "paired_rank_biserial",
+                "pearson_r",
+                "spearman_rho",
+                "point_biserial_r",
+                "partial_pearson_r",
+                "kendall_tau_b",
+                "paired_proportion_difference",
+            }
             and abs(estimate) > 1
         )
         or (canonical in {"eta_squared", "cramers_v"} and estimate > 1)
@@ -736,12 +769,35 @@ def effect_narrative(
             "Its sign follows the declared paired contrast; it is not universally a median "
             "difference."
         )
-    elif canonical in {"pearson_r", "spearman_rho"}:
+    elif canonical in {"pearson_r", "spearman_rho", "point_biserial_r", "partial_pearson_r"}:
         direction = "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
-        relationship = "linear" if canonical == "pearson_r" else "monotonic rank-order"
+        relationship = {
+            "pearson_r": "linear",
+            "spearman_rho": "monotonic rank-order",
+            "point_biserial_r": "binary-continuous",
+            "partial_pearson_r": "linearly adjusted",
+        }[canonical]
         details.append(
             f"The observed {relationship} association is {direction}; a zero value does not "
             "establish population independence."
+        )
+        if canonical == "point_biserial_r":
+            details.append(
+                "Equivalently, it is standardized separation in the continuous variable across "
+                "the explicitly coded binary groups."
+            )
+        if canonical == "partial_pearson_r":
+            details.append("The adjustment does not establish that confounding has been removed.")
+    elif canonical == "kendall_tau_b":
+        direction = "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
+        details.append(
+            f"The observed pairwise ordinal concordance is {direction}; tau-b is not percent "
+            "variance explained."
+        )
+    elif canonical == "paired_proportion_difference":
+        details.append(
+            "Its sign follows the declared first-condition minus second-condition order; no "
+            "universal magnitude threshold is applied."
         )
     elif canonical == "cramers_v":
         details.append("The measure is nonnegative and has no direction.")

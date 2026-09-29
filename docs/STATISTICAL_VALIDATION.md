@@ -142,7 +142,14 @@ The guided engine provides two bounded dependent-design methods for exactly two 
 
 For two independent groups with a quantitative mean target, the default recommendation is Welch's t-test; the pooled Student method is an explicit alternative requiring a justified equal-variance assumption. For three or more groups, a mean target selects Welch ANOVA plus Games-Howell and a distribution target selects Kruskal-Wallis plus Dunn-Holm. Standard ANOVA plus Tukey-Kramer remains a conditional explicit choice. Normality and Levene p-values never switch the target or certify an assumption.
 
-An explicit finite reference, continuous outcome, independent design declaration, and mean target select one-sample t. For numeric association, an unspecified linear versus monotonic target produces one clarification question. Pearson is the runnable linear option and Spearman is the runnable monotonic option for at least three complete varying numerical/ordinal pairs; Kendall remains descriptive in the profile only. Neither marginal normality nor a diagnostic p-value switches between them. For categorical association, recommendation constructs the shared complete-case contingency grid without running a test: adequate expected counts select Pearson chi-square, while a sparse observed 2×2 table selects Fisher exact. Sparse tables larger than 2×2 remain blocked and categories are never collapsed. Observed declared missing codes block a finalized recommendation until the researcher normalizes them outside the package. Warnings and `context.assumption_checks` distinguish design confirmation, checked feasibility, and conditions that still need review.
+An explicit finite reference, continuous outcome, independent design declaration, and mean target
+select one-sample t. For numeric association, an unspecified linear versus monotonic target
+produces one clarification question. Pearson is the runnable linear option and Spearman is the
+runnable monotonic default; an explicit Kendall preference selects inferential tau-b. Neither
+marginal normality nor a diagnostic p-value switches among them. For categorical association,
+recommendation constructs the shared complete-case contingency grid without running a test:
+adequate expected counts select Pearson chi-square, while a sparse observed 2×2 table selects
+Fisher exact. Larger sparse tables remain blocked and categories are never collapsed.
 
 ## Execution mapping
 
@@ -154,7 +161,29 @@ The guided path requests 499 backend bootstrap resamples with effective seed 0 b
 
 ## Interpretation policy
 
-`ResearchAssistant.interpret(result)` reads the original `AnalysisResult`. Supported guided methods include descriptive profile, the established group comparisons, Pearson correlation, Pearson chi-square, one-sample t, paired Wilcoxon, inferential Spearman, and Fisher exact. Valid internal Student and standard ANOVA adapter results also have templates, although the guided selector does not choose them. The profile-wide Spearman and Kendall matrices remain descriptive and are not reused as inferential results.
+`ResearchAssistant.interpret(result)` reads the original `AnalysisResult`. Supported guided methods
+include the five binary and extended-association methods. The profile-wide Spearman and Kendall
+matrices remain descriptive and are not reused as inferential results; explicit guided Kendall
+inference computes a fresh pair-specific tau-b.
+
+## Binary and conditional association validation
+
+Binary logistic regression uses statsmodels maximum-likelihood `Logit` with explicit event
+coding. It retains deterministic treatment/reference coding and blocks rank-deficient or
+nonfinite designs. Nonconvergence, nonfinite inference, and unstable separation signals are not
+presented as completed coefficients. Wald log-odds intervals are exponentiated for odds-ratio
+intervals. McFadden pseudo-R-squared is only a likelihood-based fit index.
+
+McNemar builds complete pairs from unit ID and condition, never row order. Its exact two-sided
+p-value is the binomial test of discordant `b` against `b + c` with probability 0.5, including a
+valid p-value of 1 when there are no discordant pairs. The primary first-minus-second event-
+proportion difference is `(b - c) / n`; its bootstrap resamples whole units.
+
+Point-biserial inference uses SciPy on the declared 0/1 orientation and resamples intact
+binary/continuous rows. Kendall calls SciPy with `variant="b"` and resamples X/Y rows together.
+Partial Pearson fits both variables on the same intercept-plus-control matrix and tests residual
+correlation with `df = n - k - 2`. Its bootstrap resamples complete original rows and refits both
+OLS models rather than independently resampling residuals.
 
 The unrounded recorded p-value is compared to the specification's alpha with `p < alpha`; a value equal to alpha does not reject. Missing or invalid p-values produce no threshold conclusion. Display formatting preserves the numeric source; computational zero is shown as an inequality with a machine-precision warning. A nonsignificant result is insufficient evidence against the null, not proof of no effect or equivalence. No adjustment or practical-importance threshold is claimed without recorded evidence.
 

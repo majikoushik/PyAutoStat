@@ -742,10 +742,26 @@ def build_research_report(
         "target": visible.get("target"),
         "covariance_type": visible.get("covariance_type"),
         "intercept": visible.get("intercept"),
+        "event_level": visible.get("event_level"),
+        "non_event_level": visible.get("non_event_level"),
+        "event_count": visible.get("event_count"),
+        "non_event_count": visible.get("non_event_count"),
+        "event_rate": visible.get("event_rate"),
         "model_fit": visible.get("model_fit"),
         "coefficients": visible.get("coefficients"),
         "design_matrix": visible.get("design_matrix"),
         "diagnostics": visible.get("diagnostics"),
+        "transition_table": visible.get("transition_table"),
+        "condition_order": visible.get("condition_order"),
+        "first_event_proportion": visible.get("first_event_proportion"),
+        "second_event_proportion": visible.get("second_event_proportion"),
+        "matched_odds_ratio": visible.get("matched_odds_ratio"),
+        "binary_encoding": visible.get("binary_encoding"),
+        "group_sizes": visible.get("group_sizes"),
+        "group_means": visible.get("group_means"),
+        "ties": visible.get("ties"),
+        "controls": visible.get("controls"),
+        "control_design": visible.get("control_design"),
         "items": visible.get("items"),
         "item_count": visible.get("item_count"),
         "cronbach_alpha": visible.get("cronbach_alpha"),
@@ -964,8 +980,103 @@ def build_research_report(
                 ],
             )
         )
+    transition = visible.get("transition_table")
+    if isinstance(transition, dict) and status != "unavailable":
+        rows = transition.get("rows", {})
+        columns = transition.get("columns", {})
+        tables.append(
+            _table(
+                "mcnemar_transition_table",
+                "Paired binary transition table",
+                [
+                    f"{rows.get('condition')} / {columns.get('condition')}",
+                    f"Event ({columns.get('event')})",
+                    f"Non-event ({columns.get('non_event')})",
+                ],
+                [
+                    [
+                        _cell(f"Event ({rows.get('event')})"),
+                        _cell(transition.get("first_event_second_event")),
+                        _cell(transition.get("first_event_second_non_event")),
+                    ],
+                    [
+                        _cell(f"Non-event ({rows.get('non_event')})"),
+                        _cell(transition.get("first_non_event_second_event")),
+                        _cell(transition.get("first_non_event_second_non_event")),
+                    ],
+                ],
+            )
+        )
     coefficients = visible.get("coefficients")
-    if isinstance(coefficients, list) and coefficients and status != "unavailable":
+    if (
+        analysis["method_id"] == "logistic_regression"
+        and isinstance(coefficients, list)
+        and coefficients
+        and status != "unavailable"
+    ):
+        tables.append(
+            _table(
+                "logistic_coefficients",
+                "Logistic coefficients and odds ratios",
+                [
+                    "Term",
+                    "Predictor",
+                    "Comparison level",
+                    "Reference level",
+                    "b",
+                    "SE",
+                    "z",
+                    "p",
+                    "b CI lower",
+                    "b CI upper",
+                    "Odds ratio",
+                    "OR CI lower",
+                    "OR CI upper",
+                    "Covariance",
+                ],
+                [
+                    [
+                        _cell(item.get("term_label")),
+                        _cell(item.get("predictor")),
+                        _cell(item.get("level")),
+                        _cell(item.get("reference_level")),
+                        _cell(item.get("estimate")),
+                        _cell(item.get("standard_error")),
+                        _cell(item.get("statistic")),
+                        _cell(item.get("p_value")),
+                        _cell((item.get("confidence_interval") or {}).get("lower")),
+                        _cell((item.get("confidence_interval") or {}).get("upper")),
+                        _cell(item.get("odds_ratio")),
+                        _cell((item.get("odds_ratio_ci") or {}).get("lower")),
+                        _cell((item.get("odds_ratio_ci") or {}).get("upper")),
+                        _cell(item.get("covariance_type")),
+                    ]
+                    for item in coefficients
+                    if isinstance(item, dict)
+                ],
+            )
+        )
+        model_fit = visible.get("model_fit")
+        if isinstance(model_fit, dict):
+            tables.append(
+                _table(
+                    "logistic_model_fit",
+                    "Logistic model fit",
+                    ["Measure", "Value"],
+                    _mapping_rows(model_fit, "analysis.values.model_fit"),
+                )
+            )
+        diagnostics = visible.get("diagnostics")
+        if isinstance(diagnostics, dict):
+            tables.append(
+                _table(
+                    "logistic_diagnostics",
+                    "Logistic convergence and design diagnostics",
+                    ["Measure", "Value"],
+                    _mapping_rows(diagnostics, "analysis.values.diagnostics"),
+                )
+            )
+    elif isinstance(coefficients, list) and coefficients and status != "unavailable":
         tables.append(
             _table(
                 "regression_coefficients",

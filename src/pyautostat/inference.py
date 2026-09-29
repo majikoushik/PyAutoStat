@@ -180,11 +180,13 @@ def paired_values(
     condition_col: str,
     value_col: str,
     condition_order: tuple[Any, Any] | list[Any] | None,
+    *,
+    numeric: bool = True,
 ) -> dict[str, Any]:
     """Construct explicit complete pairs; row order is never used as pair identity."""
     for name in (unit_id, condition_col):
         _column(frame, name)
-    _column(frame, value_col, numeric=True)
+    _column(frame, value_col, numeric=numeric)
     if len({unit_id, condition_col, value_col}) != 3:
         raise InvalidTestError("unit_id, condition_col, and value_col must be different columns.")
     usable = frame[[unit_id, condition_col, value_col]].dropna()
@@ -198,8 +200,12 @@ def paired_values(
         raise InsufficientDataError("Paired analysis requires exactly two ordered conditions.")
     pivot = usable.pivot(index=unit_id, columns=condition_col, values=value_col)
     complete = pivot.dropna(subset=order)
-    first = _finite_numeric(complete[order[0]], value_col)
-    second = _finite_numeric(complete[order[1]], value_col)
+    if numeric:
+        first = _finite_numeric(complete[order[0]], value_col)
+        second = _finite_numeric(complete[order[1]], value_col)
+    else:
+        first = complete[order[0]].to_numpy(copy=True)
+        second = complete[order[1]].to_numpy(copy=True)
     if len(first) < 2:
         raise InsufficientDataError("At least two finite complete pairs are required.")
     complete_pairs = int(len(first))
@@ -207,7 +213,7 @@ def paired_values(
     return {
         "first": first,
         "second": second,
-        "differences": first - second,
+        "differences": first - second if numeric else None,
         "condition_order": order,
         "complete_pairs": complete_pairs,
         "analyzed_rows": 2 * complete_pairs,

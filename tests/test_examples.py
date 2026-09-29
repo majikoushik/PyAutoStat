@@ -22,6 +22,7 @@ SCRIPTS = (
     "explainable_recommendation_and_report.py",
     "multigroup_analysis.py",
     "linear_regression.py",
+    "binary_and_extended_association.py",
 )
 
 
@@ -50,6 +51,7 @@ def _run_example(filename: str, *arguments: str) -> subprocess.CompletedProcess[
         ("basic_inference.py", "FISHER EXACT 2x2 INFERENCE"),
         ("multigroup_analysis.py", "GUIDED WELCH ANOVA AND GAMES-HOWELL"),
         ("linear_regression.py", "MODEL FIT"),
+        ("binary_and_extended_association.py", "PARTIAL ASSOCIATION"),
     ),
 )
 def test_introductory_examples_run_from_repository_root(filename, expected):

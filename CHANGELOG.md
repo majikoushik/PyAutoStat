@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added five complete binary-outcome and extended-association workflows: binary logistic
+  regression, exact unit-ID McNemar inference, point-biserial correlation, explicit inferential
+  Kendall tau-b, and partial Pearson correlation for declared quantitative controls. The methods
+  preserve event/positive-level and condition orientation, use paired-unit or complete-row
+  bootstrap uncertainty where appropriate, integrate with deterministic interpretation,
+  canonical reports and tables, semantic audit, analysis plans, replay, session snapshots, and a
+  synthetic example, and explicitly block separation, duplicate pairs, rank-deficient adjustment,
+  and ambiguous binary coding. No classification metrics, automatic thresholds, causal claims,
+  control selection, or additional generalized models were added.
+
 - Added a complete researcher-declared survey and scale reliability workflow centered on
   Cronbach's alpha, with complete-case and per-item missingness accounting, deterministic
   respondent-row bootstrap intervals, corrected item-total correlations, alpha-if-deleted,

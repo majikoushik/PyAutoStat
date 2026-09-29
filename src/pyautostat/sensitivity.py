@@ -52,6 +52,11 @@ _QUANTITIES = {
     "pearson_chi_square": "cramers_v",
     "fisher_exact": "odds_ratio",
     "cronbach_alpha": "cronbach_alpha",
+    "logistic_regression": "coefficient_vector",
+    "mcnemar": "paired_proportion_difference",
+    "point_biserial_correlation": "point_biserial_r",
+    "kendall_tau_b": "kendall_tau_b",
+    "partial_pearson_correlation": "partial_pearson_r",
 }
 
 

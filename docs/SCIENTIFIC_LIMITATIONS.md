@@ -34,6 +34,17 @@ It is not a substitute for scientific design review or subject-matter judgment.
 - Inferential Spearman targets monotonic rank association. Its percentile interval resamples
   observation pairs together; ties are allowed. It neither guarantees linearity nor establishes
   causation.
+- Binary logistic regression estimates conditional event odds under the declared model. Odds
+  ratios are not constant probability differences; convergence and full rank do not prove model
+  correctness, causal identification, or out-of-sample predictive performance.
+- Exact McNemar inference compares paired marginal event probabilities for two conditions. It
+  requires correct unit identity, condition order, and event definition and does not establish a
+  causal before/after effect.
+- Point-biserial sign depends on the declared positive category. Kendall tau-b describes ordinal
+  concordance rather than linear association or variance explained.
+- Partial Pearson describes residual linear association conditional on the included quantitative
+  controls. Control selection remains a scientific decision; adjustment does not establish that
+  confounding was removed or identify an independent causal effect.
 - Cronbach's alpha describes covariance-based internal consistency for the exact declared item set
   and complete-case sample. It does not establish unidimensionality; construct, content,
   criterion, convergent, or discriminant validity; measurement invariance; temporal stability;

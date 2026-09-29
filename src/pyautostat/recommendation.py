@@ -11,6 +11,7 @@ import pandas as pd
 
 from .categorical import contingency_counts
 from .exceptions import InsufficientDataError, InvalidDataError
+from .logistic_regression import build_logistic_design_matrix
 from .question_builder import QuestionDraft, QuestionStatus
 from .regression import build_design_matrix
 from .reliability import calculate_reliability
@@ -334,6 +335,123 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             "Supported only for 2x2 tables; the odds-ratio interval is unavailable.",
             "StatisticalAnalyzer.fisher_exact",
         ),
+        # Phase 6: Binary Outcomes & Extended Association --------------------------------
+        MethodCapability(
+            "logistic_regression",
+            "Binary logistic regression",
+            "regression",
+            "event_probability",
+            ("binary_outcome", "one_or_more_predictors"),
+            ("independent",),
+            "not_applicable",
+            "Binary outcome (exactly 2 levels, ≥ 2 per class), ≥ 10 complete cases, "
+            "full-rank predictor design, positive residual degrees of freedom",
+            (
+                "Independent observational units",
+                "Binary outcome with researcher-declared event level",
+                "Log-odds linear specification",
+                "Finite complete-case observations",
+            ),
+            True,
+            "runnable",
+            (
+                "Odds ratios describe association strength, not causal effects or absolute "
+                "probability changes. McFadden pseudo-R\u00b2 is a likelihood-based fit index "
+                "and is not directly comparable with OLS R\u00b2. "
+                "Binary predictors are not automatically inferred from data."
+            ),
+            "statsmodels.api.Logit (Wald inference)",
+        ),
+        MethodCapability(
+            "mcnemar",
+            "McNemar\u2019s test for paired binary outcomes",
+            "compare_groups",
+            "proportion",
+            ("binary_outcome", "two_conditions", "unit_id"),
+            ("paired",),
+            "not_applicable",
+            "Exactly two outcome levels and two conditions; at least two complete unit pairs",
+            (
+                "Paired binary design (same unit measured twice or matched pairs)",
+                "Marginal homogeneity null hypothesis",
+                "Concordant pairs are uninformative",
+            ),
+            True,
+            "runnable",
+            (
+                "Tests marginal homogeneity in the discordant cells only; "
+                "does not establish causal superiority or independence."
+            ),
+            "scipy.stats.binomtest (exact two-sided)",
+        ),
+        MethodCapability(
+            "point_biserial_correlation",
+            "Point-biserial correlation with inference",
+            "association",
+            "linear",
+            ("continuous", "binary"),
+            ("independent",),
+            "not_applicable",
+            "Exactly two levels in the binary variable, \u2265 3 complete pairs, "
+            "variation in the continuous variable",
+            (
+                "Independent observational pairs",
+                "Continuous variable is at least approximately continuous",
+            ),
+            True,
+            "runnable",
+            (
+                "r\u1d65\u1d47 equals the Pearson r between the continuous variable and the 0/1 "
+                "binary encoding; causal direction is not established from the coefficient."
+            ),
+            "scipy.stats.pointbiserialr",
+        ),
+        MethodCapability(
+            "kendall_tau_b",
+            "Kendall\u2019s tau-b with inference",
+            "association",
+            "monotonic",
+            ("ordered_numeric", "ordered_numeric"),
+            ("independent",),
+            "not_applicable",
+            "\u2265 3 complete varying numeric pairs",
+            (
+                "Independent observational pairs",
+                "Meaningful outcome ordering",
+                "Tied pairs are handled using the tau-b correction",
+            ),
+            True,
+            "runnable",
+            (
+                "Targets monotonic rank association and is not linear or causal. "
+                "Spearman rho remains the guided default; "
+                "Kendall\u2019s tau-b requires explicit selection."
+            ),
+            "scipy.stats.kendalltau",
+        ),
+        MethodCapability(
+            "partial_pearson_correlation",
+            "Partial Pearson correlation",
+            "association",
+            "linear_controlled",
+            ("continuous", "continuous", "one_or_more_controls"),
+            ("independent",),
+            "not_applicable",
+            "All columns numeric, \u2265 (number_of_controls + 3) complete cases, "
+            "full-rank control matrix",
+            (
+                "Independent observational units",
+                "All analysis and control variables are numeric",
+                "Full-rank control variable design",
+            ),
+            True,
+            "runnable",
+            (
+                "Partial correlation alone does not establish causal control or independent "
+                "causal effects; control-variable choice must be theoretically justified."
+            ),
+            "OLS residualisation (statsmodels.api.OLS) + numpy corrcoef",
+        ),
     )
 }
 
@@ -387,6 +505,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 question.predictor,
                 *(question.predictors or ()),
                 *(question.items or ()),
+                *(question.controls or ()),
             )
             if name is not None
         )
@@ -399,6 +518,9 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
     context: dict[str, Any] = {
         "objective": objective.value if objective is not None else None,
         "estimand": question.estimand,
+        "event_level": question.event_level,
+        "controls": list(question.controls or ()),
+        "association_measure": question.association_measure,
         "design": spec.design.value,
         "variable_types": types,
         "availability": draft.availability,
@@ -602,6 +724,69 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 ),
                 rationale="The declared dependence structure requires another model.",
             )
+        if question.estimand == "event_probability":
+            if types.get(question.outcome) not in _CATEGORICAL:
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(
+                        "Binary logistic regression requires an analytically declared binary "
+                        "outcome.",
+                    ),
+                    rationale="A two-valued numeric outcome is not silently treated as binary.",
+                )
+            if question.event_level is None:
+                return finish(
+                    RecommendationStatus.NEEDS_INPUT,
+                    missing=(MissingInformation("event_level", "Declare the modeled event."),),
+                    rationale="Logistic coefficient orientation requires a declared event.",
+                )
+            allowed = _QUANTITATIVE | _CATEGORICAL
+            unsupported = [name for name in predictors if types.get(name) not in allowed]
+            if unsupported:
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(f"Unsupported logistic predictor types: {unsupported!r}.",),
+                    rationale="Identifiers and unknown types are not model terms.",
+                )
+            try:
+                design = build_logistic_design_matrix(
+                    frame,
+                    question.outcome,
+                    predictors,
+                    types,
+                    event_level=question.event_level,
+                    reference_levels=spec.options.reference_levels,
+                    data_dictionary=spec.data_dictionary,
+                )
+            except (InsufficientDataError, InvalidDataError) as exc:
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(str(exc),),
+                    rationale="The declared binary model is not estimable from these data.",
+                )
+            context.update(
+                {
+                    "event_level": design["event_level"],
+                    "non_event_level": design["non_event_level"],
+                    "available_observations": design["analyzed_rows"],
+                    "excluded_rows": design["excluded_rows"],
+                    "design_feasibility": {
+                        "rank": design["rank"],
+                        "parameter_count": design["parameter_count"],
+                        "residual_degrees_of_freedom": design["residual_df"],
+                        "full_rank": True,
+                    },
+                }
+            )
+            record("method", "logistic_regression", "Declared binary event-probability target.")
+            return finish(
+                RecommendationStatus.READY,
+                method_id="logistic_regression",
+                rationale=(
+                    "Binary logistic regression models the declared event's conditional odds "
+                    "using the ordered predictors; odds ratios are not probability differences."
+                ),
+            )
         if question.estimand != "conditional_mean":
             return finish(
                 RecommendationStatus.UNSUPPORTED,
@@ -682,7 +867,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             ),
         )
     assert question.outcome is not None and question.predictor is not None
-    required_columns = [question.outcome, question.predictor]
+    required_columns = [question.outcome, question.predictor, *(question.controls or ())]
     if spec.design == StudyDesign.PAIRED and spec.unit_id is not None:
         required_columns.append(spec.unit_id)
     usable = frame[required_columns].dropna()
@@ -707,12 +892,13 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         if objective != Objective.COMPARE_GROUPS or question.estimand not in {
             "mean",
             "distribution",
+            "proportion",
         }:
             return finish(
                 RecommendationStatus.UNSUPPORTED,
                 blockers=(
-                    "Paired support is limited to two-condition mean or rank-distribution "
-                    "comparisons.",
+                    "Paired support is limited to two-condition mean, rank-distribution, "
+                    "or binary-proportion comparisons.",
                 ),
                 rationale="The declared paired target has no supported method.",
             )
@@ -878,8 +1064,11 @@ def _paired_compare(
     warnings: list[str],
 ) -> Recommendation:
     target = context.get("estimand")
+    is_proportion = target == "proportion"
     valid_types = _QUANTITATIVE if target == "mean" else _ORDERED
-    if types[outcome] not in valid_types or _numeric(frame[outcome].dropna()) is None:
+    if not is_proportion and (
+        types[outcome] not in valid_types or _numeric(frame[outcome].dropna()) is None
+    ):
         return finish(
             RecommendationStatus.UNSUPPORTED,
             blockers=("A paired comparison needs an ordered numeric outcome.",),
@@ -946,6 +1135,32 @@ def _paired_compare(
             RecommendationStatus.UNSUPPORTED,
             blockers=("At least two complete pairs are required for paired inference.",),
             rationale="The paired methods require complete within-unit contrasts.",
+        )
+    if is_proportion:
+        event_level = context.get("event_level")
+        observed_outcomes = list(pd.unique(usable[outcome]))
+        if types[outcome] not in _CATEGORICAL or len(observed_outcomes) != 2:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("McNemar requires one genuinely binary outcome.",),
+                rationale="A paired proportion target requires exactly two outcome levels.",
+            )
+        if event_level is None:
+            return finish(
+                RecommendationStatus.NEEDS_INPUT,
+                missing=(MissingInformation("event_level", "Declare the binary event level."),),
+                rationale="The signed paired effect needs an explicit event orientation.",
+            )
+        context["event_level"] = event_level
+        context["bootstrap_samples"] = 499
+        record("method", "mcnemar", "Paired binary proportion target with explicit unit IDs.")
+        return finish(
+            RecommendationStatus.READY,
+            method_id="mcnemar",
+            rationale=(
+                "Exact McNemar inference compares marginal event probabilities within the "
+                "same explicitly paired units; the primary effect follows condition order."
+            ),
         )
     first = _numeric(complete[order[0]])
     second = _numeric(complete[order[1]])
@@ -1218,6 +1433,110 @@ def _association(
     n = len(usable)
     context["complete_pairs"] = n
     record("association_types", [left, right], "Declared or suggested analytical types.")
+    controls = tuple(context.get("controls") or ())
+    if controls:
+        if target != "partial_linear":
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Declared controls require estimand='partial_linear'.",),
+                rationale="Conditioning changes the association target and is kept explicit.",
+            )
+        control_types = [types.get(name) for name in controls]
+        if not numeric_pair or any(kind not in _QUANTITATIVE for kind in control_types):
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Partial Pearson currently requires quantitative X, Y, and controls.",),
+                rationale="Ordinal and categorical controls are not silently assigned scores.",
+            )
+        if n < len(controls) + 3:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Too few complete rows for the declared control model.",),
+                rationale=(
+                    "Partial correlation needs positive effective residual degrees of freedom."
+                ),
+            )
+        matrix = np.column_stack(
+            [np.ones(n), *[np.asarray(usable[name], dtype=float) for name in controls]]
+        )
+        if not np.isfinite(matrix).all() or np.linalg.matrix_rank(matrix) != matrix.shape[1]:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("The control design matrix is nonfinite or rank deficient.",),
+                rationale="Redundant controls are not silently removed.",
+            )
+        context["effective_control_terms"] = len(controls)
+        context["residual_degrees_of_freedom"] = n - len(controls) - 2
+        record("method", "partial_pearson_correlation", "Explicit linear adjustment target.")
+        return finish(
+            RecommendationStatus.READY,
+            method_id="partial_pearson_correlation",
+            rationale=(
+                "Partial Pearson correlates residuals after fitting the same declared numeric "
+                "control model to both variables; this does not establish deconfounding."
+            ),
+        )
+    binary_continuous = (left in _CATEGORICAL and right in _QUANTITATIVE) or (
+        right in _CATEGORICAL and left in _QUANTITATIVE
+    )
+    if binary_continuous:
+        binary_name = first if left in _CATEGORICAL else second
+        continuous_name = second if binary_name == first else first
+        if target is None:
+            question = {
+                "field": "objective",
+                "question": "Do you want a symmetric association or a group mean comparison?",
+                "explanation": (
+                    "Point-biserial association and a two-group mean comparison frame "
+                    "different research questions."
+                ),
+                "input_type": "select",
+                "required": True,
+                "options": [
+                    {"value": "compare_groups", "label": "Compare group outcomes"},
+                    {"value": "association", "label": "Symmetric association"},
+                ],
+            }
+            return finish(
+                RecommendationStatus.NEEDS_INPUT,
+                missing=(MissingInformation("objective", str(question["question"])),),
+                questions=(question,),
+                rationale="Choose the scientific framing before method selection.",
+            )
+        if usable[binary_name].nunique() != 2:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Point-biserial correlation requires exactly two binary levels.",),
+                rationale="The selected categorical variable is not binary.",
+            )
+        if target not in {"linear", "point_biserial"}:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Binary-continuous association requires a point-biserial target.",),
+                rationale="A group comparison is not substituted for an association question.",
+            )
+        if context.get("event_level") is None:
+            return finish(
+                RecommendationStatus.NEEDS_INPUT,
+                missing=(MissingInformation("event_level", "Declare the positive binary level."),),
+                rationale="The sign of point-biserial r depends on the positive-level coding.",
+            )
+        if n < 3 or _spread(np.asarray(usable[continuous_name], dtype=float)) in {None, 0}:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=("Point-biserial correlation needs three varying complete pairs.",),
+                rationale="The coefficient is undefined for these data.",
+            )
+        context.update({"binary_variable": binary_name, "continuous_variable": continuous_name})
+        record("method", "point_biserial_correlation", "Binary-continuous association target.")
+        return finish(
+            RecommendationStatus.READY,
+            method_id="point_biserial_correlation",
+            rationale=(
+                "Point-biserial r is the symmetric Pearson association between the continuous "
+                "variable and the explicitly oriented 0/1 binary coding; it is not a group test."
+            ),
+        )
     if ordered_numeric_pair:
         if target is None:
             question = {
@@ -1254,6 +1573,27 @@ def _association(
                     RecommendationStatus.UNSUPPORTED,
                     blockers=("The ordered pair must contain finite numeric values.",),
                     rationale="The Spearman backend cannot use nonfinite or unencoded values.",
+                )
+            if context.get("association_measure") == "kendall":
+                record("method", "kendall_tau_b", "Explicit Kendall preference.")
+                return finish(
+                    RecommendationStatus.READY,
+                    method_id="kendall_tau_b",
+                    rationale=(
+                        "Kendall tau-b estimates pairwise ordinal concordance and adjusts for "
+                        "ties. Spearman remains the default when no method preference is supplied."
+                    ),
+                    alternatives=(
+                        _alternative(
+                            "spearman_correlation", "Guided default for monotonic association."
+                        ),
+                    ),
+                )
+            if context.get("association_measure") not in {None, "spearman"}:
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=("association_measure must be 'spearman' or 'kendall'.",),
+                    rationale="The explicit method preference was not reinterpreted.",
                 )
             record("method", "spearman_correlation", "Explicit monotonic association target.")
             return finish(

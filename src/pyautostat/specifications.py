@@ -87,11 +87,14 @@ class ResearchQuestion:
     reference_value: float | None = None
     predictors: tuple[str, ...] | None = None
     items: tuple[str, ...] | None = None
+    controls: tuple[str, ...] | None = None
+    event_level: Any | None = None
+    association_measure: str | None = None
 
     def __post_init__(self) -> None:
         if self.objective is not None:
             object.__setattr__(self, "objective", _enum(self.objective, Objective, "objective"))
-        for name in ("outcome", "predictor", "estimand", "description"):
+        for name in ("outcome", "predictor", "estimand", "description", "association_measure"):
             _name(getattr(self, name), name)
         if self.predictors is not None:
             if isinstance(self.predictors, (str, bytes)) or not isinstance(
@@ -117,6 +120,24 @@ class ResearchQuestion:
             if len(set(checked_items)) != len(checked_items):
                 raise InvalidDataError("items must not contain duplicates.")
             object.__setattr__(self, "items", checked_items)
+        if self.controls is not None:
+            if isinstance(self.controls, (str, bytes)) or not isinstance(
+                self.controls, (list, tuple)
+            ):
+                raise InvalidDataError("controls must be a nonempty sequence of column names.")
+            checked_controls = tuple(self.controls)
+            if not checked_controls or any(
+                not isinstance(item, str) or not item.strip() for item in checked_controls
+            ):
+                raise InvalidDataError("controls must contain nonempty column names.")
+            if len(set(checked_controls)) != len(checked_controls):
+                raise InvalidDataError("controls must not contain duplicates.")
+            object.__setattr__(self, "controls", checked_controls)
+        if self.event_level is not None:
+            checked_event = _json_value(self.event_level, "event_level")
+            if isinstance(checked_event, (list, dict)):
+                raise InvalidDataError("event_level must be a non-missing JSON scalar value.")
+            object.__setattr__(self, "event_level", checked_event)
         if self.predictor is not None and self.predictors is not None:
             if self.predictors != (self.predictor,):
                 raise InvalidDataError(
@@ -131,6 +152,11 @@ class ResearchQuestion:
             ):
                 raise InvalidDataError("reference_value must be a finite numeric value.")
             object.__setattr__(self, "reference_value", float(value))
+        if self.controls is not None:
+            if self.outcome in self.controls or self.predictor in self.controls:
+                raise InvalidDataError(
+                    "controls must differ from both the outcome and predictor variables."
+                )
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -145,6 +171,12 @@ class ResearchQuestion:
             payload["predictors"] = list(self.predictors)
         if self.items is not None:
             payload["items"] = list(self.items)
+        if self.controls is not None:
+            payload["controls"] = list(self.controls)
+        if self.event_level is not None:
+            payload["event_level"] = _json_value(self.event_level)
+        if self.association_measure is not None:
+            payload["association_measure"] = self.association_measure
         return payload
 
     @classmethod

@@ -251,6 +251,116 @@ class ResearchWorkflowResult:
                 f"Jarque-Bera p={diagnostics.get('residual_normality', {}).get('p_value')}; "
                 f"influence flags={diagnostics.get('influence', {}).get('flagged_count')}."
             )
+        if self.analysis is not None and self.analysis.method_id == "logistic_regression":
+            values = self.analysis.values
+            fit = values.get("model_fit", {})
+            lines.extend(
+                [
+                    thin,
+                    " MODEL",
+                    f"   Binary logistic model for {outcome}; event={values.get('event_level')!r}.",
+                    " EVENT",
+                    f"   Events={values.get('event_count')}; "
+                    f"non-events={values.get('non_event_count')}.",
+                    " SAMPLE",
+                    f"   Complete observations={self.analysis.sample_size}; "
+                    f"excluded={self.analysis.excluded_rows or 0}.",
+                    " MODEL FIT",
+                    f"   LR={fit.get('lr_statistic')}; p={fit.get('lr_p_value')}; "
+                    f"McFadden pseudo-R-squared={fit.get('mcfadden_r2')}.",
+                    " ODDS RATIOS",
+                ]
+            )
+            for item in values.get("coefficients", []):
+                if item.get("term_type") != "intercept":
+                    lines.append(
+                        f"   - {item.get('term_label')}: OR={item.get('odds_ratio')}; "
+                        f"p={item.get('p_value')}"
+                    )
+            diagnostics = values.get("diagnostics", {})
+            lines.extend(
+                [
+                    " DIAGNOSTICS",
+                    f"   Converged={diagnostics.get('converged')}; covariance="
+                    f"{diagnostics.get('covariance_type')}; condition number="
+                    f"{diagnostics.get('condition_number')}.",
+                ]
+            )
+        if self.analysis is not None and self.analysis.method_id == "mcnemar":
+            values = self.analysis.values
+            table = values.get("transition_table", {})
+            lines.extend(
+                [
+                    thin,
+                    " PAIRED BINARY COMPARISON",
+                    " EVENT",
+                    f"   Modeled event={values.get('event_level')!r}.",
+                    " CONDITIONS",
+                    f"   Ordered first-minus-second contrast={values.get('condition_order')}.",
+                    " COMPLETE PAIRS",
+                    f"   Complete pairs={table.get('total_pairs')}; "
+                    f"incomplete units="
+                    f"{self.analysis.metadata.get('sample', {}).get('incomplete_units')}.",
+                    " EVENT PROPORTIONS",
+                    f"   First={values.get('first_event_proportion')}; "
+                    f"second={values.get('second_event_proportion')}.",
+                    " DIFFERENCE",
+                    f"   First minus second={values.get('primary_estimate')}.",
+                    " DISCORDANT PAIRS",
+                    f"   b={table.get('discordant_b')}; c={table.get('discordant_c')}.",
+                    " TEST",
+                    f"   Exact two-sided p={values.get('p_value')}.",
+                ]
+            )
+        if self.analysis is not None and self.analysis.method_id in {
+            "point_biserial_correlation",
+            "kendall_tau_b",
+            "partial_pearson_correlation",
+        }:
+            values = self.analysis.values
+            heading = {
+                "point_biserial_correlation": " ASSOCIATION",
+                "kendall_tau_b": " MONOTONIC ASSOCIATION",
+                "partial_pearson_correlation": " PARTIAL ASSOCIATION",
+            }[self.analysis.method_id]
+            lines.extend(
+                [
+                    thin,
+                    heading,
+                    f"   {values.get('estimate_name')}={values.get('primary_estimate')}; "
+                    f"p={values.get('p_value')}.",
+                ]
+            )
+            if self.analysis.method_id == "point_biserial_correlation":
+                continuous = self.analysis.metadata.get("continuous_variable")
+                lines.extend(
+                    [
+                        f" BINARY CODING: {values.get('binary_encoding')}.",
+                        f" CONTINUOUS VARIABLE: {continuous}.",
+                        f" r_pb: {values.get('primary_estimate')}.",
+                        f" CI: {values.get('confidence_interval')}.",
+                        f" p: {values.get('p_value')}.",
+                    ]
+                )
+            if self.analysis.method_id == "kendall_tau_b":
+                lines.extend(
+                    [
+                        f" tau-b: {values.get('primary_estimate')}.",
+                        f" CI: {values.get('confidence_interval')}.",
+                        f" p: {values.get('p_value')}.",
+                        f" TIES: {values.get('ties')}.",
+                    ]
+                )
+            if self.analysis.method_id == "partial_pearson_correlation":
+                lines.extend(
+                    [
+                        f" VARIABLES: {outcome}, {predictor}.",
+                        f" CONTROLS: {values.get('controls')}.",
+                        f" partial r: {values.get('primary_estimate')}.",
+                        f" CI: {values.get('confidence_interval')}.",
+                        f" p: {values.get('p_value')}.",
+                    ]
+                )
 
         # ── Needs-input / blocked ────────────────────────────────────────────
         if self.missing_information:

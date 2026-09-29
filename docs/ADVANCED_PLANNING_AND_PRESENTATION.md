@@ -16,11 +16,13 @@ plan = assistant.analysis_plan(
 ```
 
 `StatisticalAnalysisPlan` schema version 1 records the question, design, selected method and
-rationale, alpha, confidence level, target quantities, complete-case rule, no-automatic-outlier
-rule, ordered sensitivity scenarios, optional researcher threshold, multiplicity state, report
-style, audit/reproducibility settings, planning declaration, warnings, limitations, and local
-provenance. Status is `ready`, `needs_input`, or `unsupported`. Creation performs intake and
-recommendation only; it executes no hypothesis test and reads no eventual p-value.
+rationale, event/positive level, condition order, ordered predictors or controls, categorical
+references, covariance choice, alpha, confidence level, target quantities, complete-case rule,
+no-automatic-outlier rule, ordered sensitivity scenarios, optional researcher threshold,
+multiplicity state, report style, audit/reproducibility settings, planning declaration, warnings,
+limitations, and local provenance. Status is `ready`, `needs_input`, or `unsupported`. Creation
+performs intake and recommendation only; it executes no hypothesis test and reads no eventual
+p-value.
 
 Multiplicity is `not_applicable`, `none_planned`, `unknown`, or `planned_method`. The last state
 requires `multiplicity_method` text. That procedure is recorded as unsupported for execution;

@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 import pyautostat
-from pyautostat import ResearchAssistant, StudyPlanner
+from pyautostat import AnalysisOptions, ResearchAssistant, StudyPlanner
 
 module_path = Path(pyautostat.__file__).resolve()
 assert module_path.is_relative_to(Path(sys.prefix).resolve()), module_path
@@ -173,6 +173,123 @@ assert regression.analysis.method_id == "linear_regression"
 assert regression.analysis.values["covariance_type"] == "HC3"
 assert "regression_diagnostics" in regression.report.to_csv_tables()
 assert regression.audit.status == "passed"
+
+phase6_options = AnalysisOptions(random_seed=7, bootstrap_samples=100)
+logistic = ResearchAssistant(
+    pd.DataFrame(
+        {
+            "event": [
+                "no",
+                "yes",
+                "yes",
+                "no",
+                "yes",
+                "no",
+                "no",
+                "yes",
+                "yes",
+                "no",
+                "no",
+                "yes",
+                "no",
+                "yes",
+                "no",
+                "no",
+                "yes",
+                "yes",
+                "no",
+                "yes",
+            ],
+            "x": list(range(20)),
+        }
+    )
+).run(
+    objective="regression",
+    outcome="event",
+    predictors=["x"],
+    design="independent",
+    estimand="event_probability",
+    event_level="yes",
+    variable_types={"event": "nominal", "x": "continuous"},
+)
+assert logistic.status.value == "completed"
+assert logistic.analysis.method_id == "logistic_regression"
+assert "ODDS RATIOS" in logistic.explain()
+assert "logistic_coefficients" in logistic.report.to_csv_tables()
+
+mcnemar_rows = []
+for unit, (before, after) in enumerate([(0, 1), (0, 1), (0, 0), (1, 1), (1, 0), (0, 1)]):
+    mcnemar_rows.extend(
+        [
+            {"unit": unit, "condition": "before", "response": before},
+            {"unit": unit, "condition": "after", "response": after},
+        ]
+    )
+mcnemar = ResearchAssistant(pd.DataFrame(mcnemar_rows)).run(
+    objective="compare_groups",
+    outcome="response",
+    predictor="condition",
+    design="paired",
+    estimand="proportion",
+    unit_id="unit",
+    condition_order=("after", "before"),
+    event_level=1,
+    options=phase6_options,
+    variable_types={"response": "nominal", "condition": "nominal"},
+)
+assert mcnemar.status.value == "completed"
+assert mcnemar.analysis.method_id == "mcnemar"
+assert "PAIRED BINARY COMPARISON" in mcnemar.explain()
+assert "mcnemar_transition_table" in mcnemar.report.to_csv_tables()
+
+association_frame = pd.DataFrame(
+    {
+        "binary": [False, False, False, False, True, True, True, True],
+        "score": [1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 8.0, 9.0],
+        "rank": [8.0, 7.0, 7.0, 5.0, 4.0, 3.0, 2.0, 1.0],
+        "control": [2.0, 1.0, 3.0, 2.0, 5.0, 4.0, 6.0, 5.0],
+    }
+)
+point = ResearchAssistant(association_frame).run(
+    objective="association",
+    outcome="binary",
+    predictor="score",
+    design="independent",
+    estimand="point_biserial",
+    options=phase6_options,
+    variable_types={"binary": "boolean", "score": "continuous"},
+)
+kendall = ResearchAssistant(association_frame).run(
+    objective="association",
+    outcome="score",
+    predictor="rank",
+    design="independent",
+    estimand="monotonic",
+    association_measure="kendall",
+    options=phase6_options,
+    variable_types={"score": "continuous", "rank": "continuous"},
+)
+partial = ResearchAssistant(association_frame).run(
+    objective="association",
+    outcome="score",
+    predictor="rank",
+    controls=["control"],
+    design="independent",
+    estimand="partial_linear",
+    options=phase6_options,
+    variable_types={"score": "continuous", "rank": "continuous", "control": "continuous"},
+)
+for workflow, method, heading in (
+    (point, "point_biserial_correlation", "BINARY CODING"),
+    (kendall, "kendall_tau_b", "MONOTONIC ASSOCIATION"),
+    (partial, "partial_pearson_correlation", "PARTIAL ASSOCIATION"),
+):
+    assert workflow.status.value == "completed"
+    assert workflow.analysis.method_id == method
+    assert heading in workflow.explain()
+    assert "<!doctype html>" in workflow.report.to_html()
+    assert workflow.audit.status == "passed"
+    json.loads(workflow.to_json())
 
 reliability = ResearchAssistant(
     pd.DataFrame(

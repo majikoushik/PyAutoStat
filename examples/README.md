@@ -17,6 +17,7 @@ python examples/basic_inference.py
 python examples/multigroup_analysis.py
 python examples/linear_regression.py
 python examples/scale_reliability.py
+python examples/binary_and_extended_association.py
 ~~~
 
 It prints the dataset story, deterministic recommendation rationale (why this
@@ -46,6 +47,11 @@ audit. It uses synthetic data and writes no files.
 `scale_reliability.py` demonstrates the beginner Cronbach-alpha workflow with an explicit item
 set, declared reverse scoring, complete-case accounting, item diagnostics, deterministic
 bootstrap uncertainty, audit, and replay. It uses synthetic data and writes no files.
+
+`binary_and_extended_association.py` demonstrates binary logistic regression, exact long-format
+McNemar inference, point-biserial correlation, explicit Kendall tau-b inference, and partial
+Pearson correlation. Every binary direction, pair identity, condition order, and control variable
+is declared; the example uses synthetic data and writes no files.
 
 ## Install
 

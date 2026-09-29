@@ -341,6 +341,7 @@ class ResearchAssistant:
         predictor: str | None = None,
         predictors: list[str] | tuple[str, ...] | None = None,
         items: list[str] | tuple[str, ...] | None = None,
+        controls: list[str] | tuple[str, ...] | None = None,
         design: str | StudyDesign | None = None,
         estimand: str | None = None,
         description: str | None = None,
@@ -352,6 +353,8 @@ class ResearchAssistant:
         reference_value: float | None = None,
         covariance_type: str | None = None,
         reference_levels: dict[str, Any] | None = None,
+        event_level: Any | None = None,
+        association_measure: str | None = None,
         draft: QuestionDraft | None = None,
         specification: AnalysisSpecification | None = None,
         include_profile: bool = False,
@@ -425,6 +428,7 @@ class ResearchAssistant:
             predictor,
             predictors,
             items,
+            controls,
             design,
             estimand,
             description,
@@ -436,6 +440,8 @@ class ResearchAssistant:
             reference_value,
             covariance_type,
             reference_levels,
+            event_level,
+            association_measure,
         )
         if (draft is not None or specification is not None) and any(
             value is not None for value in raw_values
@@ -457,6 +463,7 @@ class ResearchAssistant:
                 predictor=predictor,
                 predictors=predictors,
                 items=items,
+                controls=controls,
                 design=design,
                 estimand=estimand,
                 description=description,
@@ -468,6 +475,8 @@ class ResearchAssistant:
                 reference_value=reference_value,
                 covariance_type=covariance_type,
                 reference_levels=reference_levels,
+                event_level=event_level,
+                association_measure=association_measure,
             )
 
         profile = None
@@ -615,6 +624,7 @@ class ResearchAssistant:
         predictor: str | None = None,
         predictors: list[str] | tuple[str, ...] | None = None,
         items: list[str] | tuple[str, ...] | None = None,
+        controls: list[str] | tuple[str, ...] | None = None,
         design: str | StudyDesign | None = None,
         estimand: str | None = None,
         description: str | None = None,
@@ -626,6 +636,8 @@ class ResearchAssistant:
         reference_value: float | None = None,
         covariance_type: str | None = None,
         reference_levels: dict[str, Any] | None = None,
+        event_level: Any | None = None,
+        association_measure: str | None = None,
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
@@ -636,6 +648,7 @@ class ResearchAssistant:
             predictor=predictor,
             predictors=predictors,
             items=items,
+            controls=controls,
             design=design,
             estimand=estimand,
             description=description,
@@ -653,6 +666,8 @@ class ResearchAssistant:
             reference_value=reference_value,
             covariance_type=covariance_type,
             reference_levels=reference_levels,
+            event_level=event_level,
+            association_measure=association_measure,
             specification=specification,
         )
         if self._ledger is not None:
@@ -679,6 +694,7 @@ class ResearchAssistant:
             "predictor",
             "predictors",
             "items",
+            "controls",
             "design",
             "estimand",
             "description",
@@ -688,6 +704,8 @@ class ResearchAssistant:
             "unit_id",
             "condition_order",
             "reference_value",
+            "event_level",
+            "association_measure",
         }
         unknown = set(changes) - allowed
         if unknown:
@@ -712,17 +730,23 @@ class ResearchAssistant:
             "predictor": previous.predictor,
             "predictors": previous.predictors,
             "items": previous.items,
+            "controls": previous.controls,
             "estimand": previous.estimand,
             "description": previous.description,
             "reference_value": previous.reference_value,
+            "event_level": previous.event_level,
+            "association_measure": previous.association_measure,
         }
         selected_design: StudyDesign | str = old.design
         if switched:
             values["predictor"] = None
             values["predictors"] = None
             values["items"] = None
+            values["controls"] = None
             values["estimand"] = None
             values["reference_value"] = None
+            values["event_level"] = None
+            values["association_measure"] = None
             selected_design = StudyDesign.UNKNOWN
             selected_unit_id = None
             selected_condition_order = None
@@ -738,9 +762,12 @@ class ResearchAssistant:
             "predictor",
             "predictors",
             "items",
+            "controls",
             "estimand",
             "description",
             "reference_value",
+            "event_level",
+            "association_measure",
         ):
             if key in changes:
                 values[key] = changes[key]
@@ -1019,7 +1046,7 @@ class ResearchAssistant:
             raise InvalidDataError("sensitivity_analysis requires a result with its specification.")
         if result.status.value != "available":
             raise InvalidDataError("sensitivity_analysis requires an available base result.")
-        if result.method_id == "linear_regression":
+        if result.method_id in {"linear_regression", "logistic_regression"}:
             raise InvalidDataError(
                 "Integrated regression sensitivity is not yet supported. Run separate explicit "
                 "classical and HC3 specifications and compare the coefficient-level records; "

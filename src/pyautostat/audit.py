@@ -252,7 +252,7 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
         ):
             if actual != reference:
                 _mismatch(path, reference, actual, findings)
-    if method in {"paired_t", "wilcoxon_signed_rank"}:
+    if method in {"paired_t", "wilcoxon_signed_rank", "mcnemar"}:
         contrast = source.metadata.get("contrast")
         order = source.metadata.get("condition_order")
         if (
@@ -367,6 +367,323 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
             _mismatch(
                 "analysis.values.diagnostics", "complete diagnostic record", diagnostics, findings
             )
+    if method == "logistic_regression":
+        coefficients = values.get("coefficients")
+        design = values.get("design_matrix")
+        fit = values.get("model_fit")
+        diagnostics = values.get("diagnostics")
+        if values.get("event_level") != question.event_level:
+            _mismatch(
+                "analysis.values.event_level",
+                question.event_level,
+                values.get("event_level"),
+                findings,
+            )
+        if values.get("predictors") != list(question.predictors or ()):
+            _mismatch(
+                "analysis.values.predictors",
+                list(question.predictors or ()),
+                values.get("predictors"),
+                findings,
+            )
+        if not isinstance(design, dict) or design.get("full_rank") is not True:
+            _mismatch("analysis.values.design_matrix.full_rank", True, design, findings)
+        elif isinstance(coefficients, list):
+            parameter_count = design.get("parameter_count")
+            if len(coefficients) != parameter_count:
+                _mismatch(
+                    "analysis.values.coefficients",
+                    f"{parameter_count} coefficient records",
+                    len(coefficients),
+                    findings,
+                )
+            terms = [item.get("term") for item in coefficients if isinstance(item, dict)]
+            if terms != design.get("term_names"):
+                _mismatch(
+                    "analysis.values.design_matrix.term_names",
+                    terms,
+                    design.get("term_names"),
+                    findings,
+                )
+        if not isinstance(diagnostics, dict) or diagnostics.get("converged") is not True:
+            _mismatch("analysis.values.diagnostics.converged", True, diagnostics, findings)
+        elif diagnostics.get("covariance_type") != specification.options.covariance_type:
+            _mismatch(
+                "analysis.values.diagnostics.covariance_type",
+                specification.options.covariance_type,
+                diagnostics.get("covariance_type"),
+                findings,
+            )
+        event_count = values.get("event_count")
+        non_event_count = values.get("non_event_count")
+        if not (
+            isinstance(event_count, int)
+            and isinstance(non_event_count, int)
+            and event_count + non_event_count == source.sample_size
+        ):
+            _mismatch(
+                "analysis.values.event_count",
+                "event and non-event counts sum to analyzed n",
+                (event_count, non_event_count),
+                findings,
+            )
+        if not isinstance(fit, dict) or fit.get("analyzed_rows") != source.sample_size:
+            _mismatch(
+                "analysis.values.model_fit.analyzed_rows",
+                source.sample_size,
+                fit,
+                findings,
+            )
+        elif isinstance(design, dict) and source.sample_size is not None:
+            parameter_count = design.get("parameter_count")
+            llf = fit.get("log_likelihood")
+            llnull = fit.get("null_log_likelihood")
+            if (
+                isinstance(parameter_count, (int, float))
+                and isinstance(llf, (int, float))
+                and isinstance(llnull, (int, float))
+                and int(parameter_count) > 0
+                and math.isfinite(float(llf))
+                and math.isfinite(float(llnull))
+                and float(llnull) != 0
+            ):
+                expected_fit = {
+                    "lr_statistic": -2.0 * (float(llnull) - float(llf)),
+                    "mcfadden_r2": 1.0 - float(llf) / float(llnull),
+                    "aic": -2.0 * float(llf) + 2.0 * int(parameter_count),
+                    "bic": -2.0 * float(llf) + math.log(source.sample_size) * int(parameter_count),
+                    "model_degrees_of_freedom": int(parameter_count) - 1,
+                    "residual_degrees_of_freedom": source.sample_size - int(parameter_count),
+                }
+                for field, expected in expected_fit.items():
+                    actual = fit.get(field)
+                    if not isinstance(actual, (int, float)) or not math.isclose(
+                        expected, actual, rel_tol=1e-9, abs_tol=1e-12
+                    ):
+                        _mismatch(
+                            f"analysis.values.model_fit.{field}",
+                            expected,
+                            actual,
+                            findings,
+                        )
+            else:
+                _mismatch(
+                    "analysis.values.model_fit",
+                    "finite likelihoods and parameter count",
+                    fit,
+                    findings,
+                )
+        if values.get("covariance_type") != specification.options.covariance_type:
+            _mismatch(
+                "analysis.values.covariance_type",
+                specification.options.covariance_type,
+                values.get("covariance_type"),
+                findings,
+            )
+        if isinstance(coefficients, list):
+            for index, item in enumerate(coefficients):
+                if not isinstance(item, dict):
+                    continue
+                beta = item.get("estimate")
+                odds_ratio = item.get("odds_ratio")
+                ci = item.get("confidence_interval")
+                odds_ci = item.get("odds_ratio_ci")
+                if item.get("covariance_type") != specification.options.covariance_type:
+                    _mismatch(
+                        f"analysis.values.coefficients[{index}].covariance_type",
+                        specification.options.covariance_type,
+                        item.get("covariance_type"),
+                        findings,
+                    )
+                if not (
+                    isinstance(beta, (int, float))
+                    and isinstance(odds_ratio, (int, float))
+                    and math.isclose(math.exp(beta), odds_ratio, rel_tol=1e-10)
+                ):
+                    _mismatch(
+                        f"analysis.values.coefficients[{index}].odds_ratio",
+                        "exp(coefficient)",
+                        odds_ratio,
+                        findings,
+                    )
+                if isinstance(ci, dict) and isinstance(odds_ci, dict):
+                    expected_interval = (math.exp(ci["lower"]), math.exp(ci["upper"]))
+                    actual_lower = odds_ci.get("lower")
+                    actual_upper = odds_ci.get("upper")
+                    valid_odds_interval = (
+                        isinstance(actual_lower, (int, float))
+                        and isinstance(actual_upper, (int, float))
+                        and math.isclose(expected_interval[0], actual_lower, rel_tol=1e-10)
+                        and math.isclose(expected_interval[1], actual_upper, rel_tol=1e-10)
+                    )
+                    if not valid_odds_interval:
+                        _mismatch(
+                            f"analysis.values.coefficients[{index}].odds_ratio_ci",
+                            expected_interval,
+                            (actual_lower, actual_upper),
+                            findings,
+                        )
+        else:
+            _mismatch("analysis.values.coefficients", "coefficient records", coefficients, findings)
+    if method == "mcnemar":
+        table = values.get("transition_table")
+        if not isinstance(table, dict) or sum(
+            int(table.get(key, 0))
+            for key in (
+                "first_event_second_event",
+                "first_event_second_non_event",
+                "first_non_event_second_event",
+                "first_non_event_second_non_event",
+            )
+        ) != int(source.metadata.get("sample", {}).get("complete_pairs", -1)):
+            _mismatch(
+                "analysis.values.transition_table", "counts equal complete pairs", table, findings
+            )
+        elif table.get("discordant_b") != table.get("first_event_second_non_event") or table.get(
+            "discordant_c"
+        ) != table.get("first_non_event_second_event"):
+            _mismatch(
+                "analysis.values.transition_table", "consistent discordant counts", table, findings
+            )
+        complete_pairs = source.metadata.get("sample", {}).get("complete_pairs")
+        if isinstance(table, dict) and isinstance(complete_pairs, int) and complete_pairs > 0:
+            first_rate = (
+                table["first_event_second_event"] + table["first_event_second_non_event"]
+            ) / complete_pairs
+            second_rate = (
+                table["first_event_second_event"] + table["first_non_event_second_event"]
+            ) / complete_pairs
+            difference = first_rate - second_rate
+            for path, expected, actual in (
+                ("first_event_proportion", first_rate, values.get("first_event_proportion")),
+                ("second_event_proportion", second_rate, values.get("second_event_proportion")),
+                ("primary_estimate", difference, values.get("primary_estimate")),
+            ):
+                if not isinstance(actual, (int, float)) or not math.isclose(
+                    expected, actual, rel_tol=1e-10, abs_tol=1e-12
+                ):
+                    _mismatch(f"analysis.values.{path}", expected, actual, findings)
+        if values.get("event_level") != question.event_level:
+            _mismatch(
+                "analysis.values.event_level",
+                question.event_level,
+                values.get("event_level"),
+                findings,
+            )
+        expected_order = list(specification.condition_order or ())
+        if values.get("condition_order") != expected_order:
+            _mismatch(
+                "analysis.values.condition_order",
+                expected_order,
+                values.get("condition_order"),
+                findings,
+            )
+        if isinstance(table, dict):
+            b = table.get("discordant_b")
+            c = table.get("discordant_c")
+            matched = values.get("matched_odds_ratio")
+            if isinstance(b, int) and isinstance(c, int):
+                expected_status = (
+                    "positive_infinity"
+                    if c == 0 and b > 0
+                    else "zero"
+                    if b == 0 and c > 0
+                    else "undefined"
+                    if b == 0 and c == 0
+                    else "finite"
+                )
+                expected_value = float(b / c) if c > 0 else None
+                if not isinstance(matched, dict) or matched.get("status") != expected_status:
+                    _mismatch(
+                        "analysis.values.matched_odds_ratio.status",
+                        expected_status,
+                        matched,
+                        findings,
+                    )
+                elif matched.get("value") != expected_value:
+                    _mismatch(
+                        "analysis.values.matched_odds_ratio.value",
+                        expected_value,
+                        matched.get("value"),
+                        findings,
+                    )
+    if method in {
+        "point_biserial_correlation",
+        "kendall_tau_b",
+        "partial_pearson_correlation",
+    }:
+        estimate = values.get("primary_estimate")
+        if not isinstance(estimate, (int, float)) or not -1 <= float(estimate) <= 1:
+            _mismatch(
+                "analysis.values.primary_estimate", "coefficient in [-1, 1]", estimate, findings
+            )
+        if method == "point_biserial_correlation":
+            coding = values.get("binary_encoding")
+            if (
+                not isinstance(coding, dict)
+                or coding.get("positive_level") != question.event_level
+                or coding.get("negative_level") == coding.get("positive_level")
+            ):
+                _mismatch("analysis.values.binary_encoding", question.event_level, coding, findings)
+        if method == "kendall_tau_b":
+            if values.get("ties", {}).get("variant") != "b":
+                _mismatch("analysis.values.ties.variant", "b", values.get("ties"), findings)
+            if question.association_measure != "kendall":
+                _mismatch(
+                    "specification.question.association_measure",
+                    "kendall",
+                    question.association_measure,
+                    findings,
+                )
+        if method == "partial_pearson_correlation":
+            if values.get("controls") != list(question.controls or ()):
+                _mismatch(
+                    "analysis.values.controls",
+                    list(question.controls or ()),
+                    values.get("controls"),
+                    findings,
+                )
+            controls = list(question.controls or ())
+            expected_df = (source.sample_size or 0) - len(controls) - 2
+            if values.get("degrees_of_freedom") != expected_df:
+                _mismatch(
+                    "analysis.values.degrees_of_freedom",
+                    expected_df,
+                    values.get("degrees_of_freedom"),
+                    findings,
+                )
+            control_design = values.get("control_design")
+            if not isinstance(control_design, dict) or control_design.get(
+                "effective_control_terms"
+            ) != len(controls):
+                _mismatch(
+                    "analysis.values.control_design.effective_control_terms",
+                    len(controls),
+                    control_design,
+                    findings,
+                )
+            if isinstance(estimate, (int, float)):
+                statistic = values.get("test_statistic")
+                if abs(float(estimate)) < 1:
+                    expected_statistic = float(estimate) * math.sqrt(
+                        expected_df / (1.0 - float(estimate) ** 2)
+                    )
+                    if not isinstance(statistic, (int, float)) or not math.isclose(
+                        expected_statistic, statistic, rel_tol=1e-9, abs_tol=1e-12
+                    ):
+                        _mismatch(
+                            "analysis.values.test_statistic",
+                            expected_statistic,
+                            statistic,
+                            findings,
+                        )
+                elif statistic is not None:
+                    _mismatch(
+                        "analysis.values.test_statistic",
+                        None,
+                        statistic,
+                        findings,
+                    )
     if method == "cronbach_alpha":
         declared_items = list(question.items or ())
         if values.get("items") != declared_items:

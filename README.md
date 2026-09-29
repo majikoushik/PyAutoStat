@@ -170,6 +170,43 @@ point coefficients. Coefficients are conditional associations, not causal effect
 in-sample fit, not out-of-sample predictive accuracy. See
 [`examples/linear_regression.py`](examples/linear_regression.py).
 
+### Binary outcomes and extended association
+
+Binary logistic regression uses the existing regression objective with
+`estimand="event_probability"` and an explicit modeled event:
+
+```python
+logistic = ResearchAssistant(df).run(
+    objective="regression",
+    outcome="churned",
+    predictors=["age", "monthly_spend", "membership"],
+    estimand="event_probability",
+    design="independent",
+    event_level="yes",
+    variable_types={
+        "churned": "nominal",
+        "age": "continuous",
+        "monthly_spend": "continuous",
+        "membership": "nominal",
+    },
+)
+```
+
+The result records likelihood fit, McFadden pseudo-R-squared, convergence, VIF and condition
+diagnostics, and coefficient-level log-odds and odds ratios with intervals. Odds ratios are not
+constant probability changes, the fit is not out-of-sample predictive validation, and the model
+does not establish causation. Non-Boolean categories require `event_level`; Boolean outcomes use
+`True`, while analytically declared binary `{0, 1}` outcomes use `1` when no level is supplied.
+
+Paired binary proportions use exact two-sided McNemar inference with explicit `unit_id`,
+`condition_order`, and `event_level`. Point-biserial correlation uses an explicit positive level.
+Kendall tau-b is selected with `estimand="monotonic", association_measure="kendall"`; Spearman
+remains the default monotonic method. Partial Pearson uses `estimand="partial_linear"` and an
+explicit nonempty `controls=[...]` list. Its linear adjustment describes a conditional
+association; it does not show that confounding was removed. All four effect intervals resample
+whole observation pairs, units, or complete rows as required. See
+[`examples/binary_and_extended_association.py`](examples/binary_and_extended_association.py).
+
 ### Survey and scale reliability
 
 Declare the scored items that form a proposed scale; PyAutoStat never discovers a scale or
@@ -233,9 +270,15 @@ remain distinct from a completed workflow.
 - Explicit standard one-way ANOVA with complete Tukey-Kramer comparisons when equal-variance
   assumptions are independently justified.
 - Pearson linear and Spearman monotonic numerical association inference.
+- Explicit Kendall tau-b inference with tie-aware concordance and paired-row bootstrap uncertainty.
+- Point-biserial correlation for explicitly oriented binary/continuous association.
+- Partial Pearson correlation after linear adjustment for declared numerical controls.
 - Pearson chi-square categorical association plus Fisher's exact fallback for sparse 2x2 tables.
 - Simple and multiple OLS conditional-mean regression with continuous, Boolean, nominal, and
   categorical ordinal predictors; explicit classical or HC3 covariance and diagnostics.
+- Binary logistic regression for a declared event-probability target, with odds-ratio inference,
+  convergence and separation safeguards, likelihood fit, and design diagnostics.
+- Exact two-sided McNemar inference for two-condition paired binary outcomes identified by unit ID.
 - Researcher-declared multi-item scale reliability with Cronbach's alpha, deterministic bootstrap
   uncertainty, item diagnostics, missingness accounting, and optional explicit reverse scoring.
 - Effect estimates, supported confidence intervals, sample accounting, assumptions, and warnings.

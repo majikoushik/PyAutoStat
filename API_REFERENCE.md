@@ -141,8 +141,9 @@ Valid objectives are `descriptive`, `compare_groups`, `compare_reference`, `asso
 `compare_reference` requires one continuous `outcome`, `estimand="mean"`, and a finite explicit
 `reference_value`; it has no predictor. Accepted design values
 are `independent`, `paired`, `repeated`, `clustered`, and `unknown`; only documented supported
-designs execute. Comparison estimands are `mean` and `distribution`. Association targets include
-`linear`, `monotonic`, and `categorical_independence`, with unavailable targets retained as
+designs execute. Comparison estimands are `mean`, `distribution`, and paired binary `proportion`.
+Association targets include `linear`, `point_biserial`, `monotonic`, `partial_linear`, and
+`categorical_independence`, with unavailable targets retained as
 unsupported rather than replaced.
 
 `ResearchWorkflowResult` exposes `status`, `specification`, `draft`, `recommendation`, `analysis`,
@@ -232,6 +233,42 @@ preferred when reports, interpretation, audit, replay, and session records are n
 The existing sensitivity comparison contract is scalar, so it does not currently compare a full
 regression coefficient vector. Run separately declared classical and HC3 specifications instead;
 their covariance estimator remains part of each coefficient and model record.
+
+### Binary logistic regression and extended association
+
+The guided binary logistic request uses `objective="regression"`, a nonempty ordered
+`predictors` list, `estimand="event_probability"`, `design="independent"`, and an explicit
+`event_level` when the binary orientation is not inherently Boolean or an analytically declared
+`{0, 1}` coding. Exactly two outcome levels must remain in the complete-case sample. Predictor
+treatment coding, reference levels, rank validation, VIF, condition number, and complete-case
+accounting follow the linear-regression contract. Statsmodels `Logit` reports log likelihoods,
+likelihood-ratio inference, AIC, BIC, McFadden pseudo-R-squared, convergence and iterations, plus
+per-term `b`, SE, Wald z, p, coefficient CI, odds ratio, and odds-ratio CI. Classical covariance
+is the default and explicit HC3 is supported. Nonconvergence and perfect or near separation block
+ordinary coefficient inference; no penalized fallback, classification threshold, accuracy, ROC,
+or AUC is generated.
+
+Exact McNemar inference uses `objective="compare_groups"`, `estimand="proportion"`,
+`design="paired"`, and explicit `unit_id`, `condition_order`, and `event_level`. The shared
+long-format unit-pair builder rejects duplicate unit-condition rows and records complete and
+incomplete units. The primary effect is first-condition minus second-condition event proportion;
+the transition table, discordant `b` and `c`, exact two-sided binomial p-value, paired-unit
+bootstrap interval, and status-coded matched odds ratio are retained.
+
+Point-biserial association accepts one declared binary and one quantitative variable with
+`estimand="point_biserial"` (or `linear`) and explicit positive `event_level`. Its sign follows the
+0/1 coding, and its bootstrap resamples binary/continuous observation pairs. Kendall tau-b is an
+explicit `association_measure="kendall"` preference for `estimand="monotonic"`; otherwise guided
+monotonic association remains Spearman. Kendall uses SciPy `variant="b"` and a paired-observation
+bootstrap interval.
+
+Partial Pearson uses `estimand="partial_linear"` and an explicit ordered, nonempty `controls`
+list. This release supports quantitative controls in their original units. It forms one complete-
+case sample, fits both OLS adjustment models with an intercept, correlates their residuals, and
+uses `df = n - k - 2`, where `k` is the effective non-intercept control-term count. Each bootstrap
+draw resamples complete original rows and refits both models. Adjustment is a conditional
+association description and does not establish removal of confounding or an independent causal
+effect.
 
 ### Scale reliability workflow
 
@@ -413,7 +450,13 @@ restored = AnalysisSpecification.from_dict(saved)
 rechecked = assistant.prepare_question(specification=restored)
 ```
 
-`prepare_question()` accepts optional `objective`, `outcome`, `predictor`, `design`, `estimand`, `description`, `options`, `data_dictionary`, `variable_types`, and `specification`. Objectives are `descriptive`, `compare_groups`, and `association`. For comparison, `predictor` names the group or condition column. For association it names the second variable. A descriptive request needs none of these optional inferential details. Comparison needs both variables, target, and design. Association needs two variables and the dependence structure across rows; this is distinct from two x/y values occupying one row. `unknown` design remains unresolved. `mean` and `distribution` are distinct comparison targets. Other explicitly named targets can be recorded but later support is not guaranteed.
+`prepare_question()` accepts optional `objective`, `outcome`, `predictor`, `predictors`, `items`,
+`controls`, `design`, `estimand`, `event_level`, `association_measure`, `description`, `options`,
+`data_dictionary`, `variable_types`, and `specification`. For comparison, `predictor` names the
+group or condition column. For association it names the second variable. `controls` is restricted
+to association requests, while `predictors` is restricted to regression. A descriptive request
+needs none of these inferential details. `unknown` design remains unresolved; essential event and
+pairing orientations produce structured `needs_input` rather than arbitrary level selection.
 
 The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data_limited`, `unsupported`), `missing_information`, `questions`, `warnings`, `blockers`, `variable_suggestions`, and `availability`. `questions` carry `field`, `question`, `explanation`, `input_type`, `required`, and options with stable `value` and display `label`; `to_dict()` is JSON-compatible. A future GUI should render these records and send selected values through `update_question()`. `availability` reports total, complete, and missing-relevant rows using complete-case counts. It is an availability summary, not a missing-data treatment. Declared missing codes remain ordinary observed values until the caller normalizes them. All-missing selected columns, no complete rows, and a group with fewer than two observed categories produce `data_limited` with blockers. An unsupported objective raises an actionable error; `unsupported` is reserved for future requests that cannot be represented. Constant variables produce warnings. Invalid column names and incompatible declarations raise package errors.
 
@@ -448,9 +491,14 @@ print(recommendation.explain(diagnostics=result.metadata["diagnostics"]))
 | Group comparison, distribution | Three or more independent groups, ordered numeric outcome, at least five usable outcomes per group | `kruskal_wallis` with all Dunn comparisons and Holm adjustment |
 | Group comparison, mean | Three or more independent groups, positive finite within-group variance | `welch_anova` with all Games-Howell comparisons; standard one-way ANOVA remains an explicit equal-variance option |
 | Group comparison, distribution | Paired two-condition data with explicit unit ID and condition order, at least two nonzero differences | `wilcoxon_signed_rank`; zeros use the recorded `wilcox` policy |
+| Group comparison, proportion | Paired two-condition binary outcome with explicit unit ID, condition order, and event | exact `mcnemar` with paired proportion difference |
 | Association, linear | Two quantitative variables, independent observational pairs, at least three complete varying pairs | `pearson_correlation`, including the existing pairwise p-value when numerically valid |
 | Association, monotonic | Two varying ordered numeric variables and at least three complete pairs | `spearman_correlation` with rho, p-value, and paired-observation bootstrap CI when available |
+| Association, monotonic with explicit Kendall preference | Two varying ordered numeric variables and at least three complete pairs | `kendall_tau_b`; Spearman remains the default without the preference |
+| Association, binary/continuous | Exactly one genuine binary variable with explicit positive level and one quantitative variable | `point_biserial_correlation` |
+| Association, partial linear | Two quantitative variables and one or more explicit quantitative controls | `partial_pearson_correlation` with complete-row model-refitting bootstrap |
 | Association, categorical independence | Two categorical variables, independent observations, at least two categories per axis | `pearson_chi_square` when every expected count is at least five; otherwise `fisher_exact` for 2x2 only |
+| Regression, event probability | Exactly binary declared outcome/event, independent rows, estimable full-rank predictor design | `logistic_regression` with likelihood and odds-ratio inference |
 
 Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. A paired mean question without a unit ID returns `needs_input`; compatible two-condition paired data select `paired_t`. Repeated and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
 
@@ -495,11 +543,17 @@ print(result.metadata["sample"], result.metadata["group_order"])
 | `spearman_correlation` | `spearman_correlation()` / `scipy.stats.spearmanr` | Spearman rho/p and deterministic paired-observation bootstrap CI when enough valid resamples exist |
 | `pearson_chi_square` | `categorical_association()` | Chi-square, df, p, observed/expected table, Cramer's V and optional bootstrap CI |
 | `fisher_exact` | `fisher_exact()` / `scipy.stats.fisher_exact` | Ordered observed 2x2 table, two-sided p, and SciPy's unconditional sample odds ratio; CI unavailable |
+| `logistic_regression` | `statsmodels.api.Logit` | Declared event/reference, model likelihood fit, convergence, coefficients and odds ratios with Wald intervals, VIF and condition diagnostics |
+| `mcnemar` | shared unit-ID pair builder / `scipy.stats.binomtest` | Ordered transition table, exact two-sided p, event proportions, paired proportion difference and paired-unit bootstrap CI |
+| `point_biserial_correlation` | `scipy.stats.pointbiserialr` | Explicit 0/1 coding, r_pb/p, group counts/means and paired-observation bootstrap CI |
+| `kendall_tau_b` | `scipy.stats.kendalltau(variant="b")` | Tau-b/p, tie metadata and paired-observation bootstrap CI |
+| `partial_pearson_correlation` | two statsmodels OLS residual models + Pearson r | Ordered controls, effective df, partial r/p and complete-row model-refitting bootstrap CI |
 
 The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable
 **legacy explicit calculations**, but the guided recommender does not select them automatically.
-Kendall remains coefficient-only in profiling. Repeated designs with more than two conditions,
-clustered methods, and Fisher tests beyond 2x2 remain unavailable.
+Kendall remains available as a coefficient matrix in profiling and now also has an explicit
+guided inferential route. Repeated designs with more than two conditions, clustered methods, and
+Fisher tests beyond 2x2 remain unavailable.
 
 `AnalysisResult` retains its version 1 common envelope (`method_id`, `status`, `sample_size`, `excluded_rows`, `values`, `assumptions`, `warnings`, `metadata`). Additive `specification` and `recommendation` fields retain the actual validated request and selected method; `to_dict()` serializes both. The `method_label` property resolves a display name from the existing method metadata without changing serialization. `values` uses `test_statistic`, `degrees_of_freedom`, `p_value`, `primary_estimate`, `estimate_name`, `estimate_unit`, `effect_size`, and `confidence_interval`. Each interval names its `quantity`, `method`, `level`, and bounds. `None` means the backend provided no supported value. The descriptive path uses `values.profile` and explicit `None` inferential fields. `metadata.sample` records original, analyzed and excluded rows, with group sizes or effective pair count where relevant. `metadata.group_order` follows the backend's first-observed order. For two-group tests, `metadata.contrast` defines first minus second; the mean difference, Cohen's d, U orientation and rank-biserial sign use this order. `metadata.diagnostics` preserves backend assumption results; `warnings` combines intake, recommendation and backend warnings without duplicates.
 
@@ -791,7 +845,9 @@ analysis records `created_after_analysis=True`. `plan_adherence()` compares reco
 a result as `matched`, `changed`, or `not_recorded` and makes no conduct inference. When supplied,
 the optional performed sensitivity and practical-significance records are also compared with the
 planned scenario specifications and meaningful-effect threshold. It does not invent a reason for
-a change.
+a change. Binary and extended-association plans retain modeled event/positive level, condition
+order, ordered predictors or controls, regression references, covariance, bootstrap settings,
+and an explicit Kendall preference where applicable.
 
 ```python
 planner = StudyPlanner()

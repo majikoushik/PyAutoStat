@@ -124,6 +124,7 @@ _TYPE_OPTIONS = (
     ("nominal", "Unordered categories"),
     ("ordinal", "Ordered categories"),
     ("identifier", "Identifier"),
+    ("boolean", "Boolean / binary"),
 )
 
 
@@ -135,6 +136,7 @@ def prepare_question(
     predictor: str | None = None,
     predictors: tuple[str, ...] | list[str] | None = None,
     items: tuple[str, ...] | list[str] | None = None,
+    controls: tuple[str, ...] | list[str] | None = None,
     design: str | StudyDesign | None = None,
     estimand: str | None = None,
     description: str | None = None,
@@ -148,6 +150,8 @@ def prepare_question(
     reference_value: float | None = None,
     covariance_type: str | None = None,
     reference_levels: dict[str, Any] | None = None,
+    event_level: Any | None = None,
+    association_measure: str | None = None,
 ) -> QuestionDraft:
     """Build or revalidate a question against the assistant's copied DataFrame."""
     if specification is not None and not isinstance(specification, AnalysisSpecification):
@@ -160,6 +164,7 @@ def prepare_question(
     selected_predictor = predictor if predictor is not None else prior.predictor
     selected_predictors = predictors if predictors is not None else prior.predictors
     selected_items = items if items is not None else prior.items
+    selected_controls = controls if controls is not None else prior.controls
     if selected_objective == Objective.REGRESSION and selected_predictors is None:
         if selected_predictor is not None:
             selected_predictors = (selected_predictor,)
@@ -172,6 +177,11 @@ def prepare_question(
         description=description if description is not None else prior.description,
         reference_value=(reference_value if reference_value is not None else prior.reference_value),
         items=tuple(selected_items) if selected_items is not None else None,
+        controls=tuple(selected_controls) if selected_controls is not None else None,
+        event_level=event_level if event_level is not None else prior.event_level,
+        association_measure=(
+            association_measure if association_measure is not None else prior.association_measure
+        ),
     )
     selected_design = cast(StudyDesign, design if design is not None else base.design)
     selected_options = options if options is not None else base.options
@@ -224,6 +234,10 @@ def prepare_question(
         raise InvalidDataError(
             "Reliability uses an explicit items list, not outcome or predictor roles."
         )
+    if question.objective != Objective.ASSOCIATION and question.controls is not None:
+        raise InvalidDataError("controls is supported only for objective='association'.")
+    if question.objective != Objective.ASSOCIATION and question.association_measure is not None:
+        raise InvalidDataError("association_measure is supported only for objective='association'.")
     if question.objective != Objective.REGRESSION and (
         selected_options.covariance_type != "classical"
         or selected_options.reference_levels is not None
@@ -231,12 +245,21 @@ def prepare_question(
         raise InvalidDataError(
             "covariance_type and reference_levels are supported only for objective='regression'."
         )
-    if question.objective != Objective.RELIABILITY and (
-        selected_options.bootstrap_samples != 499 or selected_options.reverse_scoring is not None
+    if (
+        question.objective
+        not in {
+            Objective.RELIABILITY,
+            Objective.ASSOCIATION,
+            Objective.COMPARE_GROUPS,
+        }
+        and selected_options.bootstrap_samples != 499
     ):
         raise InvalidDataError(
-            "bootstrap_samples and reverse_scoring are supported only for objective='reliability'."
+            "bootstrap_samples is supported only for objective='reliability', "
+            "'association', or 'compare_groups'."
         )
+    if question.objective != Objective.RELIABILITY and selected_options.reverse_scoring is not None:
+        raise InvalidDataError("reverse_scoring is supported only for objective='reliability'.")
     dictionary = validate_data_dictionary(
         frame, data_dictionary if data_dictionary is not None else base.data_dictionary
     )
@@ -285,6 +308,12 @@ def prepare_question(
                 f"item column {selected_column!r} does not exist. "
                 f"Available columns: {list(frame.columns)!r}."
             )
+    for selected_column in question.controls or ():
+        if selected_column not in frame.columns:
+            raise ColumnNotFoundError(
+                f"control column {selected_column!r} does not exist. "
+                f"Available columns: {list(frame.columns)!r}."
+            )
     if (
         question.objective in (Objective.COMPARE_GROUPS, Objective.ASSOCIATION)
         and question.outcome is not None
@@ -313,7 +342,12 @@ def prepare_question(
     selected = list(
         dict.fromkeys(
             column
-            for column in (question.outcome, question.predictor, *(question.predictors or ()))
+            for column in (
+                question.outcome,
+                question.predictor,
+                *(question.predictors or ()),
+                *(question.controls or ()),
+            )
             if column is not None
         )
     )
@@ -387,7 +421,7 @@ def prepare_question(
                 for column in selected
             },
         )
-    elif question.objective == Objective.RELIABILITY and selected:
+    elif question.objective in {Objective.RELIABILITY, Objective.ASSOCIATION} and selected:
         spec = AnalysisSpecification(
             question=spec.question,
             design=spec.design,
@@ -451,7 +485,11 @@ def prepare_question(
                 "What would you like to compare?",
                 "The target is chosen by the researcher, not by a normality test.",
                 "select",
-                (("mean", "Mean values"), ("distribution", "Distributions or relative tendency")),
+                (
+                    ("mean", "Mean values"),
+                    ("distribution", "Distributions or relative tendency"),
+                    ("proportion", "Paired event proportions"),
+                ),
             )
         if spec.design == StudyDesign.UNKNOWN:
             ask(
@@ -524,9 +562,12 @@ def prepare_question(
             ask(
                 "estimand",
                 "What model target should be estimated?",
-                "OLS regression in this phase supports the conditional population mean.",
+                "Choose the outcome-appropriate model target.",
                 "select",
-                (("conditional_mean", "Conditional mean"),),
+                (
+                    ("conditional_mean", "Conditional mean"),
+                    ("event_probability", "Probability / odds of a binary event"),
+                ),
             )
         if spec.design == StudyDesign.UNKNOWN:
             ask(
@@ -555,6 +596,73 @@ def prepare_question(
                 (("internal_consistency", "Internal consistency"),),
             )
 
+    def default_event_for(column: str | None) -> Any | None:
+        if column is None:
+            return None
+        observed = frame[column].dropna()
+        if observed.nunique() != 2:
+            return None
+        if pd.api.types.is_bool_dtype(observed):
+            return True
+        declared = dictionary.get(column, {}).get("type")
+        values = set(observed.tolist())
+        if declared in {"boolean", "nominal"} and values == {0, 1}:
+            return 1
+        return None
+
+    event_variable: str | None = None
+    if question.objective == Objective.REGRESSION and question.estimand == "event_probability":
+        event_variable = question.outcome
+    elif (
+        question.objective == Objective.COMPARE_GROUPS
+        and question.estimand == "proportion"
+        and spec.design == StudyDesign.PAIRED
+    ):
+        event_variable = question.outcome
+    elif (
+        question.objective == Objective.ASSOCIATION
+        and question.estimand in {"linear", "point_biserial"}
+        and question.outcome
+        and question.predictor
+    ):
+        outcome_kind = hints[question.outcome]["suggested_type"]
+        predictor_kind = hints[question.predictor]["suggested_type"]
+        if outcome_kind in {"nominal_categorical", "boolean"} and predictor_kind in {
+            "continuous_numerical",
+            "discrete_numerical",
+        }:
+            event_variable = question.outcome
+        elif predictor_kind in {"nominal_categorical", "boolean"} and outcome_kind in {
+            "continuous_numerical",
+            "discrete_numerical",
+        }:
+            event_variable = question.predictor
+    if event_variable is not None and question.event_level is None:
+        automatic_event = default_event_for(event_variable)
+        if automatic_event is not None:
+            question = ResearchQuestion(**{**question.to_dict(), "event_level": automatic_event})
+            spec = AnalysisSpecification(
+                question=question,
+                design=spec.design,
+                options=spec.options,
+                variable_metadata=spec.variable_metadata,
+                data_dictionary=spec.data_dictionary,
+                unit_id=spec.unit_id,
+                condition_order=spec.condition_order,
+                analytical_variable_types=spec.analytical_variable_types,
+            )
+        else:
+            choices = tuple(
+                (str(value), str(value)) for value in pd.unique(frame[event_variable].dropna())
+            )
+            ask(
+                "event_level",
+                f"Which level of {event_variable!r} is the event / positive category?",
+                "The event defines coefficient and effect orientation; it is never chosen "
+                "alphabetically.",
+                "select",
+                choices,
+            )
     if spec.unit_id is not None and spec.unit_id in {
         question.outcome,
         question.predictor,

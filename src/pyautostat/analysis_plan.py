@@ -130,7 +130,13 @@ class StatisticalAnalysisPlan:
                 "predictor": question.predictor,
                 "predictors": list(question.predictors) if question.predictors else None,
                 "items": list(question.items) if question.items else None,
+                "controls": list(question.controls) if question.controls else None,
+                "event_level": question.event_level,
+                "association_measure": question.association_measure,
                 "unit_id": self.specification.unit_id,
+                "condition_order": list(self.specification.condition_order)
+                if self.specification.condition_order is not None
+                else None,
                 "estimand": question.estimand,
                 "study_design": self.specification.design.value,
                 "primary_method_id": self.primary_method_id,
@@ -304,6 +310,22 @@ def compare_plan_to_result(
             if executed is not None and executed.question.items is not None
             else None,
         ),
+        "controls": (
+            list(plan.specification.question.controls)
+            if plan.specification.question.controls is not None
+            else None,
+            list(executed.question.controls)
+            if executed is not None and executed.question.controls is not None
+            else None,
+        ),
+        "event_level": (
+            plan.specification.question.event_level,
+            executed.question.event_level if executed else None,
+        ),
+        "association_measure": (
+            plan.specification.question.association_measure,
+            executed.question.association_measure if executed else None,
+        ),
         "estimand": (
             plan.specification.question.estimand,
             executed.question.estimand if executed else None,
@@ -405,7 +427,7 @@ def compare_plan_to_result(
 
 
 def planned_quantity(method_id: str | None) -> str | None:
-    if method_id == "linear_regression":
+    if method_id in {"linear_regression", "logistic_regression"}:
         return "coefficient_vector"
     if method_id == "cronbach_alpha":
         return "cronbach_alpha"
@@ -417,7 +439,15 @@ def planned_interval_quantity(method_id: str | None) -> str | None:
         return "mean_difference"
     if method_id == "spearman_correlation":
         return "spearman_rho"
-    if method_id == "linear_regression":
+    if method_id == "point_biserial_correlation":
+        return "point_biserial_r"
+    if method_id == "kendall_tau_b":
+        return "kendall_tau_b"
+    if method_id == "partial_pearson_correlation":
+        return "partial_pearson_r"
+    if method_id == "mcnemar":
+        return "paired_proportion_difference"
+    if method_id in {"linear_regression", "logistic_regression"}:
         return "coefficient_vector"
     if method_id == "cronbach_alpha":
         return "cronbach_alpha"
@@ -433,12 +463,16 @@ def _alternative_hypothesis(method_id: str | None) -> str | None:
         "wilcoxon_signed_rank",
         "pearson_correlation",
         "spearman_correlation",
+        "point_biserial_correlation",
+        "kendall_tau_b",
+        "partial_pearson_correlation",
+        "mcnemar",
     }:
         return "two-sided"
     if method_id in {"welch_anova", "one_way_anova", "kruskal_wallis"}:
         return "at least one group differs"
     if method_id in {"pearson_chi_square", "fisher_exact"}:
         return "variables are associated"
-    if method_id == "linear_regression":
+    if method_id in {"linear_regression", "logistic_regression"}:
         return "at least one non-intercept slope differs from zero"
     return None

@@ -12,6 +12,17 @@ from scipy import stats
 from .analyzer import StatisticalAnalyzer
 from .exceptions import InsufficientDataError, InvalidTestError, PyAutoStatError
 from .inference import paired_values
+from .inference_extended import (
+    kendall_tau_b as _kendall_tau_b_backend,
+)
+from .inference_extended import (
+    mcnemar_test as _mcnemar_backend,
+)
+from .inference_extended import (
+    point_biserial_correlation as _point_biserial_backend,
+)
+from .logistic_regression import fit_logit
+from .logistic_regression import partial_pearson_correlation as _partial_pearson_backend
 from .question_builder import prepare_question
 from .recommendation import METHOD_CAPABILITIES, recommend_from_draft
 from .report import _json_safe
@@ -53,6 +64,15 @@ _NULL_HYPOTHESES = {
     "spearman_correlation": "The population Spearman monotonic correlation is zero.",
     "fisher_exact": "The two binary categorical variables are independent.",
     "linear_regression": "All non-intercept population slope coefficients are zero.",
+    # Phase 6
+    "logistic_regression": "All non-intercept population log-odds coefficients are zero.",
+    "mcnemar": "The paired binary outcome proportions are equal (marginal homogeneity).",
+    "point_biserial_correlation": "The population point-biserial correlation is zero.",
+    "kendall_tau_b": "The population Kendall\u2019s tau-b is zero.",
+    "partial_pearson_correlation": (
+        "The partial population Pearson correlation is zero, controlling for the declared "
+        "covariates."
+    ),
 }
 
 
@@ -981,6 +1001,455 @@ def _categorical_result(
     )
 
 
+def _logistic_regression_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    question = specification.question
+    assert question.outcome is not None and question.predictors is not None
+    variable_types = recommendation.context.get("variable_types")
+    if not isinstance(variable_types, dict):
+        raise InsufficientDataError(
+            "Logistic regression analytical variable types are unavailable."
+        )
+    raw = fit_logit(
+        analyzer.df,
+        question.outcome,
+        question.predictors,
+        variable_types=variable_types,
+        event_level=question.event_level,
+        covariance_type=specification.options.covariance_type,
+        reference_levels=specification.options.reference_levels,
+        data_dictionary=specification.data_dictionary,
+        confidence_level=specification.options.confidence_level,
+        alpha=specification.options.alpha,
+    )
+    fit = raw["model_fit"]
+    sample = raw["sample"]
+    n = sample["analyzed_rows"]
+    values = {
+        "test_statistic": fit["lr_statistic"],
+        "degrees_of_freedom": fit["lr_degrees_of_freedom"],
+        "p_value": fit["lr_p_value"],
+        "primary_estimate": fit["mcfadden_r2"],
+        "estimate_name": "McFadden pseudo-R\u00b2",
+        "estimate_unit": None,
+        "effect_size": {
+            "name": "McFadden pseudo-R\u00b2",
+            "value": fit["mcfadden_r2"],
+            "definition": (
+                "1 minus log-likelihood of fitted model divided by log-likelihood of null model; "
+                "a likelihood-based fit index, not comparable with OLS R\u00b2."
+            ),
+            "confidence_interval": None,
+            "status": "available" if fit["mcfadden_r2"] is not None else "unavailable",
+        },
+        "confidence_interval": None,
+        "outcome": raw["outcome"],
+        "predictors": raw["predictors"],
+        "target": raw["target"],
+        "event_level": raw["event_level"],
+        "non_event_level": raw["non_event_level"],
+        "event_count": raw["event_count"],
+        "non_event_count": raw["non_event_count"],
+        "event_rate": raw["event_rate"],
+        "intercept": True,
+        "covariance_type": specification.options.covariance_type,
+        "model_fit": fit,
+        "coefficients": raw["coefficients"],
+        "design_matrix": raw["design_matrix"],
+        "diagnostics": raw["diagnostics"],
+    }
+    return AnalysisResult(
+        method_id="logistic_regression",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=n,
+        excluded_rows=int(sample["excluded_rows"]),
+        values=_json_safe(values),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "backend_test": raw["method"],
+            "numerical_source": "statsmodels.api.Logit",
+            "sample": _json_safe(sample),
+            "regression_specification": {
+                "outcome": raw["outcome"],
+                "predictors": raw["predictors"],
+                "target": raw["target"],
+                "event_level": raw["event_level"],
+                "non_event_level": raw["non_event_level"],
+                "intercept": True,
+                "reference_levels": {
+                    item["predictor"]: item["reference_level"]
+                    for item in raw["design_matrix"]["coding"]
+                    if item.get("reference_level") is not None
+                },
+                "variable_types": variable_types,
+                "complete_case_policy": sample["missing_data_policy"],
+            },
+            "diagnostics": _json_safe(raw["diagnostics"]),
+            "null_hypothesis": _NULL_HYPOTHESES["logistic_regression"],
+            "inference": True,
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _mcnemar_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    outcome = specification.question.outcome
+    condition = specification.question.predictor
+    unit_id = specification.unit_id
+    assert outcome is not None and condition is not None and unit_id is not None
+    seed = specification.options.random_seed
+    raw = _mcnemar_backend(
+        analyzer.df,
+        unit_id,
+        condition,
+        outcome,
+        specification.condition_order,
+        event_level=specification.question.event_level,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=0 if seed is None else seed,
+    )
+    table = raw["transition_table"]
+    sample = raw["sample"]
+    analyzed = int(sample["analyzed_rows"])
+    excluded = int(sample["excluded_rows"])
+    statistic = _number(raw["statistic"], "McNemar exact statistic")
+    p_value = _number(raw["p_value"], "McNemar p-value", probability=True)
+    difference = _number(raw["paired_proportion_difference"], "paired proportion difference")
+    interval = _interval(
+        raw.get("confidence_interval"),
+        "paired proportion difference",
+        "paired-unit percentile bootstrap",
+        specification.options.confidence_level,
+    )
+    return AnalysisResult(
+        method_id="mcnemar",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values=_json_safe(
+            {
+                "test_statistic": statistic,
+                "degrees_of_freedom": None,
+                "p_value": p_value,
+                "primary_estimate": difference,
+                "estimate_name": "paired proportion difference",
+                "estimate_unit": "proportion",
+                "effect_size": {
+                    "name": "paired proportion difference",
+                    "value": difference,
+                    "definition": (
+                        "first-condition event proportion minus second-condition event proportion"
+                    ),
+                    "confidence_interval": interval,
+                },
+                "confidence_interval": interval,
+                "transition_table": table,
+                "event_level": raw["event_level"],
+                "non_event_level": raw["non_event_level"],
+                "condition_order": raw["condition_order"],
+                "first_event_proportion": raw["first_event_proportion"],
+                "second_event_proportion": raw["second_event_proportion"],
+                "matched_odds_ratio": raw["matched_odds_ratio"],
+            }
+        ),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.binomtest",
+            "method": raw["method"],
+            "statistic_type": raw.get("statistic_type"),
+            "sample": {
+                **sample,
+            },
+            "unit_id": unit_id,
+            "condition_variable": condition,
+            "outcome": outcome,
+            "condition_order": raw["condition_order"],
+            "group_order": raw["condition_order"],
+            "contrast": {
+                "first": raw["condition_order"][0],
+                "second": raw["condition_order"][1],
+                "definition": "first condition minus second condition",
+            },
+            "event_level": raw["event_level"],
+            "null_hypothesis": _NULL_HYPOTHESES["mcnemar"],
+            "null_value": 0.0,
+            "null_quantity": "paired proportion difference",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "discordance_cell_b": table["discordant_b"],
+                "discordance_cell_c": table["discordant_c"],
+                "total_discordant": table["total_discordant"],
+                "paired_binary_design": "Declared design; not verified from values.",
+            },
+            "bootstrap": raw["bootstrap"],
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
+            "effective_random_seed": raw["bootstrap"]["random_seed"],
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _point_biserial_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    first = specification.question.outcome
+    second = specification.question.predictor
+    assert first is not None and second is not None
+    types = recommendation.context.get("variable_types", {})
+    if types.get(first) in {"nominal_categorical", "boolean"}:
+        binary_col, continuous_col = first, second
+    else:
+        continuous_col, binary_col = first, second
+    seed = specification.options.random_seed
+    raw = _point_biserial_backend(
+        analyzer.df,
+        continuous_col,
+        binary_col,
+        positive_level=specification.question.event_level,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=0 if seed is None else seed,
+    )
+    r_pb = _number(raw["point_biserial_r"], "point-biserial r")
+    p_value = _number(raw["p_value"], "point-biserial p-value", probability=True)
+    analyzed = int(raw["sample_size"])
+    excluded = int(raw["excluded_rows"])
+    interval = _interval(
+        raw.get("confidence_interval"),
+        "point-biserial r",
+        "paired-observation percentile bootstrap",
+        specification.options.confidence_level,
+    )
+    return AnalysisResult(
+        method_id="point_biserial_correlation",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values=_json_safe(
+            {
+                "test_statistic": r_pb,
+                "degrees_of_freedom": int(raw["degrees_of_freedom"]),
+                "p_value": p_value,
+                "primary_estimate": r_pb,
+                "estimate_name": "point-biserial r",
+                "estimate_unit": None,
+                "effect_size": raw["effect_size"],
+                "confidence_interval": interval,
+                "binary_encoding": raw["binary_encoding"],
+                "group_sizes": raw["group_sizes"],
+                "group_means": raw["group_means"],
+            }
+        ),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.pointbiserialr",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed,
+                "excluded_rows": excluded,
+            },
+            "variable_order": [first, second],
+            "binary_variable": binary_col,
+            "continuous_variable": continuous_col,
+            "positive_level": raw["binary_encoding"]["positive_level"],
+            "null_hypothesis": _NULL_HYPOTHESES["point_biserial_correlation"],
+            "null_value": 0.0,
+            "null_quantity": "point-biserial r",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "binary_encoding": raw["binary_encoding"],
+                "independent_observational_pairs": "Declared design; not verified from values.",
+            },
+            "bootstrap": raw["bootstrap"],
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
+            "effective_random_seed": raw["bootstrap"]["random_seed"],
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _kendall_tau_b_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    first = specification.question.outcome
+    second = specification.question.predictor
+    assert first is not None and second is not None
+    seed = specification.options.random_seed
+    effective_seed = 0 if seed is None else seed
+    raw = _kendall_tau_b_backend(
+        analyzer.df,
+        first,
+        second,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=effective_seed,
+    )
+    tau = _number(raw["tau_b"], "Kendall's tau-b")
+    p_value = _number(raw["p_value"], "Kendall tau-b p-value", probability=True)
+    analyzed = int(raw["sample_size"])
+    excluded = int(raw["excluded_rows"])
+    interval = _interval(
+        raw.get("confidence_interval"),
+        "Kendall's tau-b",
+        "paired-observation percentile bootstrap",
+        specification.options.confidence_level,
+    )
+    return AnalysisResult(
+        method_id="kendall_tau_b",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values=_json_safe(
+            {
+                "test_statistic": tau,
+                "degrees_of_freedom": None,
+                "p_value": p_value,
+                "primary_estimate": tau,
+                "estimate_name": "Kendall's tau-b",
+                "estimate_unit": None,
+                "effect_size": raw["effect_size"],
+                "confidence_interval": interval,
+                "ties": raw["ties"],
+            }
+        ),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "scipy.stats.kendalltau",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed,
+                "excluded_rows": excluded,
+                "effective_pair_count": analyzed,
+            },
+            "variable_order": [first, second],
+            "ties": _json_safe(raw["ties"]),
+            "null_hypothesis": _NULL_HYPOTHESES["kendall_tau_b"],
+            "null_value": 0.0,
+            "null_quantity": "Kendall's tau-b",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "ties": _json_safe(raw["ties"]),
+                "independent_observational_pairs": "Declared design; not verified from values.",
+            },
+            "bootstrap": raw["bootstrap"],
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
+            "effective_random_seed": effective_seed,
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
+def _partial_pearson_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    first = specification.question.outcome
+    second = specification.question.predictor
+    assert first is not None and second is not None
+    controls = specification.question.controls
+    if not controls:
+        raise InsufficientDataError(
+            "Partial Pearson correlation requires at least one control variable."
+        )
+    raw = _partial_pearson_backend(
+        analyzer.df,
+        first,
+        second,
+        controls,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=(
+            0 if specification.options.random_seed is None else specification.options.random_seed
+        ),
+    )
+    pr = _number(raw["partial_r"], "partial Pearson r")
+    p_value = _number(raw["p_value"], "partial Pearson p-value", probability=True)
+    analyzed = int(raw["sample_size"])
+    excluded = int(raw["excluded_rows"])
+    interval = _interval(
+        raw.get("confidence_interval"),
+        "partial Pearson r",
+        "complete-row percentile bootstrap with model refitting",
+        specification.options.confidence_level,
+    )
+    return AnalysisResult(
+        method_id="partial_pearson_correlation",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed,
+        excluded_rows=excluded,
+        values=_json_safe(
+            {
+                "test_statistic": (
+                    _number(raw["statistic"], "partial Pearson t statistic")
+                    if raw.get("statistic") is not None
+                    else None
+                ),
+                "degrees_of_freedom": int(raw["degrees_of_freedom"]),
+                "p_value": p_value,
+                "primary_estimate": pr,
+                "estimate_name": "partial Pearson r",
+                "estimate_unit": None,
+                "effect_size": raw["effect_size"],
+                "confidence_interval": interval,
+                "controls": list(controls),
+                "control_design": raw["control_design"],
+            }
+        ),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", [])),
+        metadata={
+            "method_name": recommendation.method_name,
+            "numerical_source": "OLS residualisation (statsmodels.api.OLS) + numpy corrcoef",
+            "sample": {
+                "original_rows": len(analyzer.df),
+                "analyzed_rows": analyzed,
+                "excluded_rows": excluded,
+            },
+            "variable_order": [first, second],
+            "controls": list(controls),
+            "null_hypothesis": _NULL_HYPOTHESES["partial_pearson_correlation"],
+            "null_value": 0.0,
+            "null_quantity": "partial Pearson r",
+            "alternative_hypothesis": "two-sided",
+            "diagnostics": {
+                "control_count": len(controls),
+                "residualisation": "OLS; intercept included",
+                "causal_control_note": raw["limitation"],
+            },
+            "bootstrap": raw["bootstrap"],
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
+            "effective_random_seed": raw["bootstrap"]["random_seed"],
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
 def _fisher_result(
     analyzer: StatisticalAnalyzer,
     specification: AnalysisSpecification,
@@ -1139,6 +1608,16 @@ def execute_specification(
             return _categorical_result(analyzer, specification, recommendation)
         if method_id == "fisher_exact":
             return _fisher_result(analyzer, specification, recommendation)
+        if method_id == "logistic_regression":
+            return _logistic_regression_result(analyzer, specification, recommendation)
+        if method_id == "mcnemar":
+            return _mcnemar_result(analyzer, specification, recommendation)
+        if method_id == "point_biserial_correlation":
+            return _point_biserial_result(analyzer, specification, recommendation)
+        if method_id == "kendall_tau_b":
+            return _kendall_tau_b_result(analyzer, specification, recommendation)
+        if method_id == "partial_pearson_correlation":
+            return _partial_pearson_result(analyzer, specification, recommendation)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, recommendation, str(exc))
@@ -1227,6 +1706,16 @@ def execute_selected_method(
             return _categorical_result(analyzer, specification, explicit)
         if method_id == "fisher_exact":
             return _fisher_result(analyzer, specification, explicit)
+        if method_id == "logistic_regression":
+            return _logistic_regression_result(analyzer, specification, explicit)
+        if method_id == "mcnemar":
+            return _mcnemar_result(analyzer, specification, explicit)
+        if method_id == "point_biserial_correlation":
+            return _point_biserial_result(analyzer, specification, explicit)
+        if method_id == "kendall_tau_b":
+            return _kendall_tau_b_result(analyzer, specification, explicit)
+        if method_id == "partial_pearson_correlation":
+            return _partial_pearson_result(analyzer, specification, explicit)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, explicit, str(exc))
