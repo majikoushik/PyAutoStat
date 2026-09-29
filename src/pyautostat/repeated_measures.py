@@ -200,8 +200,8 @@ def friedman_test(
 
     columns = [panel[:, j] for j in range(k)]
     friedman_res = stats.friedmanchisquare(*columns)
-    stat = float(friedman_res.statistic)
-    p_val = float(friedman_res.pvalue)
+    stat = float(getattr(friedman_res, "statistic", friedman_res[0]))
+    p_val = float(getattr(friedman_res, "pvalue", friedman_res[1]))
 
     if not math.isfinite(stat) or not math.isfinite(p_val) or not 0 <= p_val <= 1:
         raise InsufficientDataError("Friedman backend returned an invalid statistic or p-value.")
@@ -228,8 +228,8 @@ def friedman_test(
         else:
             try:
                 w_res = stats.wilcoxon(diff, zero_method="wilcox", alternative="two-sided")
-                pair_stat = float(w_res.statistic)
-                pair_p = float(w_res.pvalue)
+                pair_stat = float(getattr(w_res, "statistic", w_res[0]))
+                pair_p = float(getattr(w_res, "pvalue", w_res[1]))
             except Exception:
                 pair_stat = 0.0
                 pair_p = 1.0

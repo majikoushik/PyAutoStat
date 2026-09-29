@@ -34,6 +34,14 @@ def _confidence_level(value: Any) -> float:
     return float(value)
 
 
+def _scipy_statistic(res: Any) -> float:
+    return float(getattr(res, "statistic", getattr(res, "correlation", res[0])))
+
+
+def _scipy_pvalue(res: Any) -> float:
+    return float(getattr(res, "pvalue", res[1]))
+
+
 def _bootstrap_options(samples: Any, random_state: Any) -> tuple[int, int]:
     if (
         isinstance(samples, bool)
@@ -246,8 +254,8 @@ def point_biserial_correlation(
     if np.unique(continuous).size < 2:
         raise InsufficientDataError("The continuous variable must vary.")
     result = stats.pointbiserialr(encoded, continuous)
-    coefficient = float(result.statistic)
-    p_value = float(result.pvalue)
+    coefficient = _scipy_statistic(result)
+    p_value = _scipy_pvalue(result)
     if not math.isfinite(coefficient) or not math.isfinite(p_value):
         raise InsufficientDataError("Point-biserial inference returned a nonfinite value.")
     rng = np.random.default_rng(seed)
@@ -257,7 +265,7 @@ def point_biserial_correlation(
         bx, by = encoded[indices], continuous[indices]
         if np.unique(bx).size != 2 or np.unique(by).size < 2:
             continue
-        candidate = float(stats.pointbiserialr(bx, by).statistic)
+        candidate = _scipy_statistic(stats.pointbiserialr(bx, by))
         if math.isfinite(candidate):
             estimates.append(candidate)
     interval = _bootstrap_interval(estimates, level, requested, seed, "point-biserial r")
@@ -333,8 +341,8 @@ def kendall_tau_b(
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         result = stats.kendalltau(x, y, **options)
-    coefficient = float(result.statistic)
-    p_value = float(result.pvalue)
+    coefficient = _scipy_statistic(result)
+    p_value = _scipy_pvalue(result)
     if not math.isfinite(coefficient) or not math.isfinite(p_value):
         raise InsufficientDataError("Kendall tau-b inference returned a nonfinite value.")
     rng = np.random.default_rng(seed)
@@ -344,7 +352,7 @@ def kendall_tau_b(
         bx, by = x[indices], y[indices]
         if np.unique(bx).size < 2 or np.unique(by).size < 2:
             continue
-        candidate = float(stats.kendalltau(bx, by, **options).statistic)
+        candidate = _scipy_statistic(stats.kendalltau(bx, by, **options))
         if math.isfinite(candidate):
             estimates.append(candidate)
     interval = _bootstrap_interval(estimates, level, requested, seed, "Kendall tau-b")

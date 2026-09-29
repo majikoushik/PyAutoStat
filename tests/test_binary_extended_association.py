@@ -17,6 +17,10 @@ from pyautostat.exceptions import InvalidDataError
 from pyautostat.reproducibility import reproduce
 
 
+def _scipy_stat(res: object) -> float:
+    return float(getattr(res, "statistic", getattr(res, "correlation", res[0])))  # type: ignore[index]
+
+
 def test_logistic_matches_statsmodels_and_integrates_report_audit_replay():
     rng = np.random.default_rng(42)
     x = rng.normal(size=180)
@@ -163,9 +167,11 @@ def test_point_biserial_matches_scipy_and_positive_level_reverses_sign():
     positive_b = ResearchAssistant(frame).run(event_level="B", **common)
     positive_a = ResearchAssistant(frame).run(event_level="A", **common)
     expected = stats.pointbiserialr((frame["group"] == "B").astype(int), frame["score"])
-    assert positive_b.analysis.values["primary_estimate"] == pytest.approx(expected.statistic)
-    assert positive_b.analysis.values["p_value"] == pytest.approx(expected.pvalue)
-    assert positive_a.analysis.values["primary_estimate"] == pytest.approx(-expected.statistic)
+    exp_stat = _scipy_stat(expected)
+    exp_p = float(getattr(expected, "pvalue", expected[1]))
+    assert positive_b.analysis.values["primary_estimate"] == pytest.approx(exp_stat)
+    assert positive_b.analysis.values["p_value"] == pytest.approx(exp_p)
+    assert positive_a.analysis.values["primary_estimate"] == pytest.approx(-exp_stat)
     assert positive_b.analysis.values["confidence_interval"]["method"] == (
         "paired-observation percentile bootstrap"
     )
@@ -186,7 +192,7 @@ def test_kendall_is_explicit_and_spearman_remains_default():
     expected = stats.kendalltau(frame["x"], frame["y"], variant="b")
     assert default.analysis.method_id == "spearman_correlation"
     assert kendall.analysis.method_id == "kendall_tau_b"
-    assert kendall.analysis.values["primary_estimate"] == pytest.approx(expected.statistic)
+    assert kendall.analysis.values["primary_estimate"] == pytest.approx(_scipy_stat(expected))
     assert kendall.analysis.values["ties"]["variant"] == "b"
 
 
@@ -212,7 +218,7 @@ def test_partial_pearson_matches_residual_reference_and_uses_correct_df():
     residual_y = sm.OLS(frame["y"], design).fit().resid
     expected = stats.pearsonr(residual_x, residual_y)
     assert workflow.status.value == "completed"
-    assert workflow.analysis.values["primary_estimate"] == pytest.approx(expected.statistic)
+    assert workflow.analysis.values["primary_estimate"] == pytest.approx(_scipy_stat(expected))
     assert workflow.analysis.values["degrees_of_freedom"] == n - 2 - 2
     assert workflow.analysis.values["confidence_interval"]["method"] == (
         "complete-row percentile bootstrap with model refitting"
@@ -461,7 +467,7 @@ def test_point_biserial_auto_orientation_missing_rows_pearson_equivalence_and_re
     complete = frame.dropna()
     expected = stats.pearsonr(complete["binary"].astype(int), complete["score"])
     assert workflow.status.value == "completed"
-    assert workflow.analysis.values["primary_estimate"] == pytest.approx(expected.statistic)
+    assert workflow.analysis.values["primary_estimate"] == pytest.approx(_scipy_stat(expected))
     assert workflow.analysis.excluded_rows == 1
     assert workflow.analysis.metadata["continuous_variable"] == "score"
     assert workflow.analysis.metadata["binary_variable"] == "binary"
@@ -509,7 +515,7 @@ def test_kendall_negative_missing_deterministic_interval_and_replay():
     first = ResearchAssistant(frame).run(**common)
     second = ResearchAssistant(frame).run(**common)
     expected = stats.kendalltau(frame["x"], frame["y"], nan_policy="omit", variant="b")
-    assert first.analysis.values["primary_estimate"] == pytest.approx(expected.statistic)
+    assert first.analysis.values["primary_estimate"] == pytest.approx(_scipy_stat(expected))
     assert first.analysis.values["primary_estimate"] < 0
     assert first.analysis.excluded_rows == 1
     assert (
