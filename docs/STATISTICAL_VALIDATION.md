@@ -99,8 +99,8 @@ The declared numerical floors are NumPy 1.23.5, pandas 1.4 (excluding 2.1.0), Sc
 0.16. These bounds follow the statsmodels OLS backend's supported dependency range while retaining
 the public `scipy.stats.studentized_range` distribution required for Games-Howell and Tukey-Kramer
 inference. CI includes a Python 3.10 minimum-stack route pinned to NumPy 1.23.5, pandas 1.5.3,
-SciPy 1.8.0, and statsmodels 0.15.0 for focused multi-group and regression suites. The full suite
-runs on Linux and Windows for Python 3.10 through 3.13.
+SciPy 1.8.0, and statsmodels 0.15.0 for focused multi-group, regression, extended association, and
+repeated-measures suites. The full suite runs on Linux and Windows for Python 3.10 through 3.13.
 
 ### Reliability numerical policy
 
@@ -205,3 +205,37 @@ causal identification remain for researcher verification. Narrative output canno
 causation and does not replace the structured result used for audit or replay.
 
 Two-group and paired estimate direction follows the stored first-minus-second contrast; one-sample direction is observed minus reference. Analytical t intervals are for the named raw mean differences; separate bootstrap intervals belong to their named effects. Wilcoxon is described as a paired signed-rank/distribution analysis, not universally as a median test. Spearman is described as monotonic rank association, without linearity or causality claims. Fisher reports an ordered-table sample odds ratio, not a risk ratio or causal effect. Pearson, Wilcoxon, and Fisher currently lack a primary-effect CI, so interpretation is partial with an explicit uncertainty limitation. Intervals require finite ordered bounds, a valid recorded confidence level, the correct quantity, and the expected construction method. An analytical t interval must contain its raw point estimate; a percentile-bootstrap interval need not contain its original estimate. A valid raw mean difference remains interpretable if Cohen's d is unavailable, yielding partial status. Bootstrap intervals are not treated as equivalent threshold tests. Omnibus significance identifies no specific pairwise difference; Cramer's V has no sign. Diagnostic non-rejection does not prove normality or equal variance, and a declared independent design is not mathematical verification. Associations and group differences alone do not establish causation.
+
+## Repeated-measures numerical policy and validation
+
+One-way repeated-measures ANOVA evaluates continuous outcomes across three or more ordered
+conditions on the same observational units. Numerical validation covers:
+- Balanced complete-case panel arithmetic: the sum-of-squares partition identity
+  `SS_total = SS_condition + SS_subject + SS_error` and the partial eta-squared formula
+  `eta_p^2 = SS_condition / (SS_condition + SS_error)` are checked against exact arithmetic.
+- Independent RM-ANOVA verification: omnibus F statistic, numerator and denominator degrees of
+  freedom, and uncorrected p-values are cross-checked against `statsmodels.stats.anova.AnovaRM` on
+  balanced complete one-factor fixtures.
+- Sphericity reference: Mauchly's sphericity statistic W, transformed chi-square statistic, df,
+  p-value, and Greenhouse-Geisser epsilon are checked against published external reference
+  benchmarks (Andy Field, 2012, Bushtucker dataset with k=4 conditions and n=8 subjects).
+- Conservative correction policy: Greenhouse-Geisser corrected degrees of freedom and p-values are
+  reported as primary when sphericity is rejected (`p < alpha`) or uncomputable (singular contrast
+  covariance). The omnibus F statistic is unchanged by degrees-of-freedom correction.
+- Pairwise mean comparisons: post-hoc contrasts use paired t-tests on the omnibus-complete panel
+  with Holm multiplicity adjustment. When paired differences have zero variance, descriptive mean
+  differences remain available while t, p, and Cohen's dz are reported as unavailable (`None`) with
+  a degenerate analytical interval `[mean, mean]` and explicit reason metadata.
+- Friedman rank-sum test: within-unit rank distributions are evaluated via
+  `scipy.stats.friedmanchisquare`, and Kendall's W coefficient of concordance `Q / (n * (k - 1))`
+  is verified on `[0, 1]`. Post-hoc follow-up uses paired Wilcoxon signed-rank tests reusing the
+  established paired-Wilcoxon contract; contrasts with fewer than two nonzero differences or
+  backend numerical failures are recorded as unavailable rather than converted to `p = 1`.
+- Multiplicity family preservation: the planned pairwise family size `k * (k - 1) / 2` is
+  preserved. If any pair is unavailable, multiplicity adjustment is reported as unavailable for the
+  family rather than silently shrinking the family.
+- Decision convention: all omnibus and pairwise inferential decisions strictly follow the
+  package-wide `p < alpha` rejection threshold.
+- Distributional robustness: strict JSON serialization (`allow_nan=False`), minimum-stack
+  compatibility, and isolated wheel installations are verified.
+

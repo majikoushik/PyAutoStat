@@ -858,15 +858,22 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                         (str(item.get("first_condition")), str(item.get("second_condition")))
                     )
                     adjusted = item.get("adjusted_p_value")
-                    if not (
-                        isinstance(adjusted, (int, float))
-                        and not isinstance(adjusted, bool)
-                        and math.isfinite(float(adjusted))
-                        and 0 <= float(adjusted) <= 1
-                    ):
-                        _mismatch(
-                            f"{path}.adjusted_p_value", "finite probability", adjusted, findings
-                        )
+                    is_unavailable = (
+                        item.get("status") == "unavailable" or item.get("decision") == "unavailable"
+                    )
+                    if is_unavailable:
+                        if adjusted is not None:
+                            _mismatch(f"{path}.adjusted_p_value", None, adjusted, findings)
+                    else:
+                        if not (
+                            isinstance(adjusted, (int, float))
+                            and not isinstance(adjusted, bool)
+                            and math.isfinite(float(adjusted))
+                            and 0 <= float(adjusted) <= 1
+                        ):
+                            _mismatch(
+                                f"{path}.adjusted_p_value", "finite probability", adjusted, findings
+                            )
                     contrast = item.get("contrast")
                     if (
                         not isinstance(contrast, dict)
@@ -904,10 +911,74 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                         p_eta2,
                         findings,
                     )
+            ss_table = values.get("sums_of_squares")
+            if isinstance(ss_table, dict):
+                ss_c = ss_table.get("condition")
+                ss_s = ss_table.get("subject")
+                ss_e = ss_table.get("error")
+                ss_t = ss_table.get("total")
+                if (
+                    isinstance(ss_c, (int, float))
+                    and not isinstance(ss_c, bool)
+                    and isinstance(ss_s, (int, float))
+                    and not isinstance(ss_s, bool)
+                    and isinstance(ss_e, (int, float))
+                    and not isinstance(ss_e, bool)
+                    and isinstance(ss_t, (int, float))
+                    and not isinstance(ss_t, bool)
+                ):
+                    expected_total = float(ss_c) + float(ss_s) + float(ss_e)
+                    if not math.isclose(expected_total, float(ss_t), rel_tol=1e-5, abs_tol=1e-8):
+                        _mismatch(
+                            "analysis.values.sums_of_squares.total",
+                            expected_total,
+                            ss_t,
+                            findings,
+                        )
+                    denom = float(ss_c) + float(ss_e)
+                    if denom > 0 and isinstance(eff, dict):
+                        eff_val = eff.get("value")
+                        if isinstance(eff_val, (int, float)) and not isinstance(eff_val, bool):
+                            expected_eta = float(ss_c) / denom
+                            actual_eta = float(eff_val)
+                            if not math.isclose(
+                                expected_eta, actual_eta, rel_tol=1e-5, abs_tol=1e-8
+                            ):
+                                _mismatch(
+                                    "analysis.values.effect_size.value",
+                                    expected_eta,
+                                    actual_eta,
+                                    findings,
+                                )
+            k = len(order) if isinstance(order, list) else 3
+            sample_info = source.metadata.get("sample", {})
+            n_complete = sample_info.get("complete_units")
+            dfs = values.get("degrees_of_freedom")
+            primary_inf = values.get("primary_inference")
             gg = values.get("greenhouse_geisser")
+            if isinstance(dfs, (list, tuple)) and len(dfs) == 2 and isinstance(n_complete, int):
+                expected_df_num = float(k - 1)
+                expected_df_den = float((k - 1) * (n_complete - 1))
+                if (
+                    str(primary_inf).lower() in {"greenhouse-geisser", "greenhouse_geisser"}
+                    and isinstance(gg, dict)
+                    and gg.get("epsilon") is not None
+                ):
+                    eps_val = float(gg["epsilon"])
+                    expected_df_num *= eps_val
+                    expected_df_den *= eps_val
+                if not (
+                    math.isclose(expected_df_num, float(dfs[0]), rel_tol=1e-4, abs_tol=1e-6)
+                    and math.isclose(expected_df_den, float(dfs[1]), rel_tol=1e-4, abs_tol=1e-6)
+                ):
+                    _mismatch(
+                        "analysis.values.degrees_of_freedom",
+                        (expected_df_num, expected_df_den),
+                        dfs,
+                        findings,
+                    )
             if isinstance(gg, dict) and gg.get("epsilon") is not None:
                 eps = gg.get("epsilon")
-                k = len(order) if isinstance(order, list) else 3
                 lower = 1.0 / (k - 1) - 1e-6
                 if not (isinstance(eps, (int, float)) and lower <= float(eps) <= 1.00001):
                     _mismatch(
@@ -916,7 +987,41 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                         eps,
                         findings,
                     )
+                corr_dfs = gg.get("corrected_degrees_of_freedom")
+                if (
+                    isinstance(corr_dfs, (list, tuple))
+                    and len(corr_dfs) == 2
+                    and isinstance(n_complete, int)
+                    and isinstance(eps, (int, float))
+                ):
+                    orig_num = float(k - 1)
+                    orig_den = float((k - 1) * (n_complete - 1))
+                    exp_corr_num = float(eps) * orig_num
+                    exp_corr_den = float(eps) * orig_den
+                    if not (
+                        math.isclose(exp_corr_num, float(corr_dfs[0]), rel_tol=1e-4, abs_tol=1e-6)
+                        and math.isclose(
+                            exp_corr_den, float(corr_dfs[1]), rel_tol=1e-4, abs_tol=1e-6
+                        )
+                    ):
+                        _mismatch(
+                            "analysis.values.greenhouse_geisser.corrected_degrees_of_freedom",
+                            (exp_corr_num, exp_corr_den),
+                            corr_dfs,
+                            findings,
+                        )
         if method == "friedman_test":
+            k = len(order) if isinstance(order, list) else 3
+            sample_info = source.metadata.get("sample", {})
+            n_complete = sample_info.get("complete_units")
+            df_val = values.get("degrees_of_freedom")
+            if df_val != k - 1:
+                _mismatch(
+                    "analysis.values.degrees_of_freedom",
+                    k - 1,
+                    df_val,
+                    findings,
+                )
             eff = values.get("effect_size")
             if isinstance(eff, dict):
                 w = eff.get("value")
@@ -927,6 +1032,22 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                         w,
                         findings,
                     )
+                q_stat = values.get("statistic") or values.get("test_statistic")
+                if (
+                    isinstance(q_stat, (int, float))
+                    and isinstance(n_complete, int)
+                    and n_complete > 0
+                    and k > 1
+                    and isinstance(w, (int, float))
+                ):
+                    expected_w = float(q_stat) / (n_complete * (k - 1))
+                    if not math.isclose(expected_w, float(w), rel_tol=1e-5, abs_tol=1e-8):
+                        _mismatch(
+                            "analysis.values.effect_size.value",
+                            expected_w,
+                            w,
+                            findings,
+                        )
     return tuple(findings)
 
 

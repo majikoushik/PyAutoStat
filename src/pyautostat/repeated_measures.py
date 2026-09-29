@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import math
 from itertools import combinations
 from typing import Any
@@ -11,6 +12,7 @@ import pandas as pd
 from scipy import stats
 
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidTestError
+from .inference import _scipy_result_value
 from .multigroup import adjust_pvalues
 
 
@@ -212,7 +214,6 @@ def friedman_test(
 
     # Pairwise post-hoc comparisons using paired Wilcoxon signed-rank tests
     pair_records: list[dict[str, Any]] = []
-    raw_p_values: list[float] = []
     pair_combos = list(combinations(range(k), 2))
 
     for i, j in pair_combos:
@@ -221,26 +222,51 @@ def friedman_test(
         diff = panel[:, i] - panel[:, j]
         nonzero = diff[diff != 0]
 
+        pair_stat: float | None = None
+        pair_p: float | None = None
+        pair_effect: float | None = None
+        pair_status = "available"
+        pair_reason: str | None = None
+
         if len(nonzero) == 0:
-            pair_stat = 0.0
-            pair_p = 1.0
-            pair_effect = 0.0
+            pair_status = "unavailable"
+            pair_reason = (
+                "All complete paired differences are zero; signed-rank inference is undefined."
+            )
+        elif len(nonzero) < 2:
+            pair_status = "unavailable"
+            pair_reason = (
+                "Wilcoxon signed-rank inference needs at least two nonzero paired differences."
+            )
         else:
             try:
-                w_res = stats.wilcoxon(diff, zero_method="wilcox", alternative="two-sided")
-                pair_stat = float(getattr(w_res, "statistic", w_res[0]))
-                pair_p = float(getattr(w_res, "pvalue", w_res[1]))
-            except Exception:
-                pair_stat = 0.0
-                pair_p = 1.0
+                method_parameter = (
+                    "method" if "method" in inspect.signature(stats.wilcoxon).parameters else "mode"
+                )
+                options: dict[str, Any] = {
+                    "zero_method": "wilcox",
+                    "correction": False,
+                    "alternative": "two-sided",
+                    method_parameter: "auto",
+                }
+                w_res = stats.wilcoxon(diff, **options)
+                raw_stat = _scipy_result_value(w_res, "statistic", index=0)
+                raw_p = _scipy_result_value(w_res, "pvalue", index=1)
+                if not math.isfinite(raw_stat) or not math.isfinite(raw_p) or not 0 <= raw_p <= 1:
+                    pair_status = "unavailable"
+                    pair_reason = "Wilcoxon returned an invalid statistic or p-value."
+                else:
+                    pair_stat = float(raw_stat)
+                    pair_p = float(raw_p)
+                    ranks = stats.rankdata(np.abs(nonzero), method="average")
+                    positive = float(ranks[nonzero > 0].sum())
+                    negative = float(ranks[nonzero < 0].sum())
+                    denom = positive + negative
+                    pair_effect = float((positive - negative) / denom) if denom > 0 else 0.0
+            except Exception as exc:
+                pair_status = "unavailable"
+                pair_reason = f"Wilcoxon computation failed: {exc}"
 
-            ranks = stats.rankdata(np.abs(nonzero), method="average")
-            positive = float(ranks[nonzero > 0].sum())
-            negative = float(ranks[nonzero < 0].sum())
-            denom = positive + negative
-            pair_effect = float((positive - negative) / denom) if denom > 0 else 0.0
-
-        raw_p_values.append(pair_p)
         pair_records.append(
             {
                 "contrast_id": f"{first_cond}_vs_{second_cond}",
@@ -258,11 +284,11 @@ def friedman_test(
                 "statistic": pair_stat,
                 "degrees_of_freedom": None,
                 "raw_p_value": pair_p,
-                "adjusted_p_value": pair_p,  # placeholder before Holm adjustment
+                "adjusted_p_value": None,
                 "adjustment_method": "holm",
                 "multiplicity_adjustment": "holm",
                 "alpha": alpha,
-                "decision": "fail_to_reject",
+                "decision": "unavailable" if pair_p is None else "fail_to_reject",
                 "confidence_interval": None,
                 "effect_size": {
                     "name": "matched-pairs rank-biserial correlation",
@@ -276,13 +302,28 @@ def friedman_test(
                 "n_pairs": n,
                 "family_size": len(pair_combos),
                 "method_id": "wilcoxon_signed_rank",
+                "status": pair_status,
+                "reason": pair_reason,
             }
         )
 
-    adjusted_p_values = adjust_pvalues(raw_p_values, method="holm")
-    for rec, adj_p in zip(pair_records, adjusted_p_values, strict=True):
-        rec["adjusted_p_value"] = float(adj_p)
-        rec["decision"] = "reject" if adj_p <= alpha else "fail_to_reject"
+    if all(rec.get("raw_p_value") is not None for rec in pair_records):
+        raw_p_values = [float(rec["raw_p_value"]) for rec in pair_records]
+        adjusted_p_values = adjust_pvalues(raw_p_values, method="holm")
+        for rec, adj_p in zip(pair_records, adjusted_p_values, strict=True):
+            rec["adjusted_p_value"] = float(adj_p)
+            rec["decision"] = "reject" if adj_p < alpha else "fail_to_reject"
+        multiplicity_status = "available"
+        multiplicity_reason = None
+    else:
+        for rec in pair_records:
+            rec["adjusted_p_value"] = None
+            rec["decision"] = "unavailable"
+        multiplicity_status = "unavailable"
+        multiplicity_reason = (
+            "Multiplicity adjustment is unavailable because one or more planned pairwise "
+            "contrasts could not be evaluated; the planned family size is preserved."
+        )
 
     return {
         "method": "Friedman test for repeated ranks",
@@ -308,7 +349,9 @@ def friedman_test(
             "method": "holm",
             "number_of_comparisons": len(pair_records),
             "alpha": alpha,
-            "decision_basis": "Holm-adjusted p-value <= alpha",
+            "decision_basis": "Holm-adjusted p-value < alpha",
+            "status": multiplicity_status,
+            "reason": multiplicity_reason,
         },
         "sample": {
             "original_rows": panel_info["analyzed_rows"] + panel_info["excluded_rows"],
@@ -469,7 +512,6 @@ def repeated_measures_anova(
 
     # Pairwise paired t-tests on the omnibus-complete panel
     pair_records: list[dict[str, Any]] = []
-    raw_p_values: list[float] = []
     pair_combos = list(combinations(range(k), 2))
     t_crit = float(stats.t.ppf((1.0 + confidence_level) / 2.0, df=n - 1))
 
@@ -481,20 +523,29 @@ def repeated_measures_anova(
         diff_sd = float(np.std(diff, ddof=1)) if n > 1 else 0.0
         se = float(diff_sd / math.sqrt(n)) if n > 0 else 0.0
 
-        if se > 0 and math.isfinite(se):
-            t_val = float(diff_mean / se)
-            pair_p = float(2.0 * stats.t.sf(abs(t_val), df=n - 1))
+        if diff_sd > 0 and se > 0 and math.isfinite(diff_sd) and math.isfinite(se):
+            t_num = float(diff_mean / se)
+            t_val: float | None = t_num
+            pair_p: float | None = float(2.0 * stats.t.sf(abs(t_num), df=n - 1))
             ci_lower = float(diff_mean - t_crit * se)
             ci_upper = float(diff_mean + t_crit * se)
-            cohen_dz = float(diff_mean / diff_sd)
+            ci_method = "analytical paired t confidence interval"
+            cohen_dz: float | None = float(diff_mean / diff_sd)
+            pair_status = "available"
+            pair_reason: str | None = None
         else:
-            t_val = 0.0
-            pair_p = 1.0 if diff_mean == 0.0 else 0.0
+            t_val = None
+            pair_p = None
             ci_lower = diff_mean
             ci_upper = diff_mean
-            cohen_dz = 0.0
+            ci_method = "analytical paired t confidence interval (degenerate zero-variance sample)"
+            cohen_dz = None
+            pair_status = "unavailable"
+            pair_reason = (
+                "Paired differences have zero variance: Cohen's dz and a finite paired t "
+                "statistic are unavailable."
+            )
 
-        raw_p_values.append(pair_p)
         pair_records.append(
             {
                 "contrast_id": f"{first_cond}_vs_{second_cond}",
@@ -511,19 +562,19 @@ def repeated_measures_anova(
                 "mean_difference": diff_mean,
                 "statistic_name": "paired t statistic",
                 "statistic": t_val,
-                "degrees_of_freedom": n - 1,
-                "standard_error": se,
+                "degrees_of_freedom": n - 1 if t_val is not None else None,
+                "standard_error": se if se > 0 else 0.0,
                 "raw_p_value": pair_p,
-                "adjusted_p_value": pair_p,  # placeholder before Holm adjustment
+                "adjusted_p_value": None,
                 "adjustment_method": "holm",
                 "multiplicity_adjustment": "holm",
                 "alpha": alpha,
-                "decision": "fail_to_reject",
+                "decision": "unavailable" if pair_p is None else "fail_to_reject",
                 "confidence_interval": {
                     "lower": ci_lower,
                     "upper": ci_upper,
                     "level": confidence_level,
-                    "method": "analytical paired t confidence interval",
+                    "method": ci_method,
                     "quantity": "mean difference",
                     "multiplicity_adjusted": False,
                 },
@@ -539,13 +590,28 @@ def repeated_measures_anova(
                 "n_pairs": n,
                 "family_size": len(pair_combos),
                 "method_id": "paired_t",
+                "status": pair_status,
+                "reason": pair_reason,
             }
         )
 
-    adjusted_p_values = adjust_pvalues(raw_p_values, method="holm")
-    for rec, adj_p in zip(pair_records, adjusted_p_values, strict=True):
-        rec["adjusted_p_value"] = float(adj_p)
-        rec["decision"] = "reject" if adj_p <= alpha else "fail_to_reject"
+    if all(rec.get("raw_p_value") is not None for rec in pair_records):
+        raw_p_values = [float(rec["raw_p_value"]) for rec in pair_records]
+        adjusted_p_values = adjust_pvalues(raw_p_values, method="holm")
+        for rec, adj_p in zip(pair_records, adjusted_p_values, strict=True):
+            rec["adjusted_p_value"] = float(adj_p)
+            rec["decision"] = "reject" if adj_p < alpha else "fail_to_reject"
+        multiplicity_status = "available"
+        multiplicity_reason = None
+    else:
+        for rec in pair_records:
+            rec["adjusted_p_value"] = None
+            rec["decision"] = "unavailable"
+        multiplicity_status = "unavailable"
+        multiplicity_reason = (
+            "Multiplicity adjustment is unavailable because one or more planned pairwise "
+            "contrasts could not be evaluated; the planned family size is preserved."
+        )
 
     return {
         "method": "One-way repeated-measures ANOVA",
@@ -604,8 +670,10 @@ def repeated_measures_anova(
         "sphericity": {
             "test_name": "Mauchly's test of sphericity",
             "statistic": w_mauchly,
+            "mauchly_w": w_mauchly,
             "chi2_statistic": chi2_mauchly,
             "degrees_of_freedom": df_mauchly,
+            "df": df_mauchly,
             "p_value": p_mauchly,
             "alpha": alpha,
             "status": sphericity_status,
@@ -639,7 +707,9 @@ def repeated_measures_anova(
             "method": "holm",
             "number_of_comparisons": len(pair_records),
             "alpha": alpha,
-            "decision_basis": "Holm-adjusted p-value <= alpha",
+            "decision_basis": "Holm-adjusted p-value < alpha",
+            "status": multiplicity_status,
+            "reason": multiplicity_reason,
         },
         "sample": {
             "original_rows": panel_info["analyzed_rows"] + panel_info["excluded_rows"],

@@ -552,18 +552,18 @@ def _repeated_measures_anova_interpretation(result: AnalysisResult) -> Interpret
     )
     _finding(findings, "rm_anova_omnibus", summary, "values.test_statistic", "values.p_value")
 
-    if p_val <= alpha:
+    if p_val < alpha:
         hyp_text = (
             "The omnibus test provides evidence of an overall difference among condition means "
             f"(F({df_num:.2f}, {df_den:.2f}) = {_fmt(stat)}, "
-            f"{_p_display(p_val)} <= alpha = {alpha}). {sph_note} Pairwise comparisons identify "
+            f"{_p_display(p_val)} < alpha = {alpha}). {sph_note} Pairwise comparisons identify "
             "which specific condition contrasts differ after Holm multiplicity adjustment."
         )
     else:
         hyp_text = (
             "The omnibus test does not provide sufficient evidence of an overall difference among "
             f"condition means (F({df_num:.2f}, {df_den:.2f}) = {_fmt(stat)}, "
-            f"{_p_display(p_val)} > alpha = {alpha}). "
+            f"{_p_display(p_val)} >= alpha = {alpha}). "
             f"{sph_note} Failing to reject does not prove that all condition means are equal."
         )
     _finding(findings, "rm_anova_decision", hyp_text, "values.p_value")
@@ -616,6 +616,18 @@ def _repeated_measures_anova_interpretation(result: AnalysisResult) -> Interpret
                     f"Contrast {c_first} minus {c_second}: mean difference = {_fmt(diff_m)}"
                     f"{ci_str}{dz_str}, raw p = {_fmt(raw_p) if raw_p is not None else 'N/A'}, "
                     f"Holm-adjusted {_p_display(adj_p)} ({dec_str})."
+                )
+                _finding(
+                    findings,
+                    f"rm_anova_pair_{c_first}_{c_second}",
+                    msg,
+                    "values.pairwise_comparisons",
+                )
+            elif diff_m is not None:
+                reason = pw.get("reason") or "paired differences had zero variance"
+                msg = (
+                    f"Contrast {c_first} minus {c_second}: the mean difference was {_fmt(diff_m)}, "
+                    f"but paired-t inference could not be computed because {reason}."
                 )
                 _finding(
                     findings,
@@ -718,18 +730,18 @@ def _friedman_interpretation(result: AnalysisResult) -> InterpretationResult:
     )
     _finding(findings, "friedman_omnibus", summary, "values.test_statistic", "values.p_value")
 
-    if p_val <= alpha:
+    if p_val < alpha:
         hyp_text = (
             "The Friedman omnibus test provides evidence that within-unit rank distributions "
             f"differ across the declared conditions (Q({df_val}) = {_fmt(stat)}, "
-            f"{_p_display(p_val)} <= alpha = {alpha}). Pairwise Wilcoxon signed-rank tests "
+            f"{_p_display(p_val)} < alpha = {alpha}). Pairwise Wilcoxon signed-rank tests "
             "indicate which specific condition contrasts differ after Holm multiplicity adjustment."
         )
     else:
         hyp_text = (
             "The Friedman omnibus test does not provide sufficient evidence that within-unit rank "
             f"distributions differ across the declared conditions (Q({df_val}) = {_fmt(stat)}, "
-            f"{_p_display(p_val)} > alpha = {alpha}). Failing to reject does not prove that "
+            f"{_p_display(p_val)} >= alpha = {alpha}). Failing to reject does not prove that "
             "condition rank distributions or medians are equal."
         )
     _finding(findings, "friedman_decision", hyp_text, "values.p_value")
@@ -773,6 +785,18 @@ def _friedman_interpretation(result: AnalysisResult) -> InterpretationResult:
                     f"Contrast {c_first} minus {c_second}: "
                     f"raw p = {_fmt(raw_p) if raw_p is not None else 'N/A'}, "
                     f"Holm-adjusted {_p_display(adj_p)} ({dec_str}){rb_str}."
+                )
+                _finding(
+                    findings,
+                    f"friedman_pair_{c_first}_{c_second}",
+                    msg,
+                    "values.pairwise_comparisons",
+                )
+            else:
+                reason = pw.get("reason") or "there were insufficient nonzero paired differences"
+                msg = (
+                    f"Contrast {c_first} minus {c_second}: "
+                    f"the signed-rank comparison was unavailable because {reason}."
                 )
                 _finding(
                     findings,

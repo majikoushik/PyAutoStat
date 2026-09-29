@@ -357,7 +357,9 @@ assert "REPEATED-MEASURES ANALYSIS" in rm_smoke.explain()
 assert "repeated_anova_omnibus" in rm_smoke.report.to_csv_tables()
 assert "repeated_pairwise" in rm_smoke.report.to_csv_tables()
 assert rm_smoke.audit.status == "passed"
+json.dumps(rm_smoke.to_dict(), allow_nan=False)
 json.loads(rm_smoke.to_json())
+assert rm_smoke.analysis.values["multiplicity"]["decision_basis"] == "Holm-adjusted p-value < alpha"
 
 friedman_smoke = ResearchAssistant(repeated_smoke_df).run(
     objective="compare_groups",
@@ -375,7 +377,9 @@ assert "OMNIBUS TEST" in friedman_smoke.explain()
 assert "friedman_omnibus" in friedman_smoke.report.to_csv_tables()
 assert "friedman_pairwise" in friedman_smoke.report.to_csv_tables()
 assert friedman_smoke.audit.status == "passed"
+json.dumps(friedman_smoke.to_dict(), allow_nan=False)
 json.loads(friedman_smoke.to_json())
+assert friedman_smoke.analysis.values["multiplicity"]["decision_basis"] == "Holm-adjusted p-value < alpha"
 
 html = guided.report.to_html(style="apa")
 assert isinstance(html, str) and "<!doctype html>" in html

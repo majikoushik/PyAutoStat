@@ -410,12 +410,18 @@ class ResearchWorkflowResult:
                 lines.extend([thin, " PAIRWISE FOLLOW-UP"])
                 for pw in pairwise:
                     label = pw.get("orientation") or pw.get("contrast_id") or "contrast"
-                    lines.append(
-                        f"   - {label}: diff={pw.get('mean_difference')}; "
-                        f"t({pw.get('degrees_of_freedom')})={pw.get('statistic')}; "
-                        f"raw p={pw.get('raw_p_value')}; "
-                        f"Holm p={pw.get('adjusted_p_value')}"
-                    )
+                    if pw.get("statistic") is None:
+                        lines.append(
+                            f"   - {label}: diff={pw.get('mean_difference')}; "
+                            f"inference unavailable ({pw.get('reason') or 'zero variance'})"
+                        )
+                    else:
+                        lines.append(
+                            f"   - {label}: diff={pw.get('mean_difference')}; "
+                            f"t({pw.get('degrees_of_freedom')})={pw.get('statistic')}; "
+                            f"raw p={pw.get('raw_p_value')}; "
+                            f"Holm p={pw.get('adjusted_p_value')}"
+                        )
         if self.analysis is not None and self.analysis.method_id == "friedman_test":
             values = self.analysis.values
             eff = values.get("effect_size", {}).get("value")
@@ -441,11 +447,17 @@ class ResearchWorkflowResult:
                 lines.extend([thin, " PAIRWISE FOLLOW-UP"])
                 for pw in pairwise:
                     label = pw.get("orientation") or pw.get("contrast_id") or "contrast"
-                    lines.append(
-                        f"   - {label}: W={pw.get('statistic')}; "
-                        f"raw p={pw.get('raw_p_value')}; "
-                        f"Holm p={pw.get('adjusted_p_value')}"
-                    )
+                    if pw.get("statistic") is None:
+                        lines.append(
+                            f"   - {label}: signed-rank inference unavailable "
+                            f"({pw.get('reason') or 'insufficient nonzero differences'})"
+                        )
+                    else:
+                        lines.append(
+                            f"   - {label}: W={pw.get('statistic')}; "
+                            f"raw p={pw.get('raw_p_value')}; "
+                            f"Holm p={pw.get('adjusted_p_value')}"
+                        )
 
         # ── Needs-input / blocked ────────────────────────────────────────────
         if self.missing_information:
@@ -598,9 +610,16 @@ class ResearchWorkflowResult:
                         est_val = item.get("estimate")
                         adj_p = item.get("adjusted_p_value")
                         dec = item.get("decision")
-                        est_str = f"{est_name}={est_val:.4g}, " if est_val is not None else ""
-                        p_str = f"adjusted p={adj_p:.4g}" if adj_p is not None else ""
-                        lines.append(f"   - {c1!r} minus {c2!r}: {est_str}{p_str}, decision={dec}")
+                        parts = [
+                            p
+                            for p in (
+                                f"{est_name}={est_val:.4g}" if est_val is not None else "",
+                                f"adjusted p={adj_p:.4g}" if adj_p is not None else "",
+                                f"decision={dec}" if dec is not None else "",
+                            )
+                            if p
+                        ]
+                        lines.append(f"   - {c1!r} minus {c2!r}: {', '.join(parts)}")
                     if len(pairwise) > 6:
                         lines.append(
                             f"   - {len(pairwise) - 6} additional comparisons are preserved "

@@ -1322,7 +1322,10 @@ def _repeated_compare(
     if types[outcome] not in valid_types or _numeric(frame[outcome].dropna()) is None:
         return finish(
             RecommendationStatus.UNSUPPORTED,
-            blockers=("A repeated-measures comparison needs an ordered numeric outcome.",),
+            blockers=(
+                "A repeated-measures comparison needs an ordered numeric outcome; "
+                "textual ordinal labels are not automatically encoded.",
+            ),
             rationale="The declared repeated target requires meaningful numeric ordering.",
         )
     observed_conditions = list(pd.unique(frame[condition].dropna()))
@@ -1431,7 +1434,20 @@ def _repeated_compare(
             ),
             rationale="Repeated-measures methods require sufficient complete within-unit panels.",
         )
-    panel_values = complete[order].to_numpy(dtype=float)
+    try:
+        panel_values = complete[order].to_numpy(dtype=float)
+    except (ValueError, TypeError):
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                f"Outcome column {outcome!r} must contain ordered numeric values; "
+                "textual ordinal labels are not automatically encoded.",
+            ),
+            rationale=(
+                "Repeated-measures methods (including Friedman) require numeric outcome values "
+                "supporting ranking within unit."
+            ),
+        )
     if not np.isfinite(panel_values).all():
         return finish(
             RecommendationStatus.UNSUPPORTED,

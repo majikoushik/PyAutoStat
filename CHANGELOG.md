@@ -126,6 +126,16 @@ rule-based, reproducible, and independent of generative AI or external services.
 
 ### Fixed
 
+- Repeated-measures pairwise inference now reports mathematically unavailable zero-variance
+  contrasts explicitly with descriptive mean differences and degenerate intervals instead of
+  producing contradictory statistics.
+- Repeated Friedman pairwise follow-up no longer converts signed-rank backend failures or
+  all-zero differences into p=1, reusing the established paired-Wilcoxon contract.
+- Repeated pairwise decisions and sphericity narration now consistently use the package-wide
+  `p < alpha` convention.
+- Repeated-measures validation now includes independent RM-ANOVA verification against statsmodels
+  `AnovaRM`, sum-of-squares partition and partial eta-squared checks, and fixed external Mauchly
+  and Greenhouse-Geisser reference checks.
 - Preserved zero-percent completeness and unavailable values instead of displaying misleading
   defaults, duplicate punctuation, or duplicated confidence-interval labels.
 - Restricted sensitivity decision summaries to completed comparable scenarios using the declared

@@ -19,15 +19,18 @@ alpha, deterministic bootstrap uncertainty, item diagnostics, and explicit rever
 It supports binary logistic regression, exact paired-binary McNemar inference, point-biserial
 correlation, explicit inferential Kendall tau-b, and partial Pearson correlation with declared
 quantitative controls. Binary and paired orientations remain explicit, and these methods do not
-add classification thresholds or causal adjustment claims.
+add classification thresholds or causal adjustment claims. It also supports explicit repeated-measures
+designs for three or more conditions, including one-way repeated-measures ANOVA with sphericity
+evaluation and Greenhouse-Geisser correction, the Friedman rank-sum test, and planned Holm-adjusted
+pairwise follow-up.
 The established analysis, planning, and reporting capabilities are checked into `main`, and their
 GitHub CI matrix passed. A release remains a separate owner decision.
 
-The method catalogue is intentionally limited. Repeated measures with more than two conditions,
-clustered models, generalized and regularized regression families, interaction or polynomial
-model construction, mixed models, survival analysis, causal inference, broad
-multiplicity procedures, and sparse exact-table alternatives are not currently supported. Study
-design facts and scientific meaning remain researcher responsibilities.
+The method catalogue is intentionally limited. Mixed models, mixed ANOVA, factorial repeated-measures
+ANOVA, clustered regression, incomplete-panel longitudinal models, generalized estimating equations (GEE),
+generalized and regularized regression families, interaction or polynomial model construction, survival
+analysis, causal inference, broad multiplicity procedures, and sparse exact-table alternatives are not
+currently supported. Study design facts and scientific meaning remain researcher responsibilities.
 
 ## Near term: alpha hardening
 
