@@ -63,8 +63,8 @@ jobs:
         run: |
           pip install numpy==1.23.5 pandas==1.5.3 scipy==1.8.0 statsmodels==0.15.0 pytest
           pip install -e . --no-deps
-      - name: Verify minimum-stack multi-group and regression paths
-        run: pytest -q tests/test_multigroup_analysis.py tests/test_regression_workflow.py
+      - name: Verify minimum-stack multi-group, regression, and extended association paths
+        run: pytest -q tests/test_multigroup_analysis.py tests/test_regression_workflow.py tests/test_binary_extended_association.py
 
   build:
     name: Build distribution

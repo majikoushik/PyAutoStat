@@ -7,7 +7,12 @@ import pytest
 import statsmodels.api as sm
 from scipy import stats
 
-from pyautostat import AnalysisOptions, AnalysisSpecification, ResearchAssistant
+from pyautostat import (
+    AnalysisOptions,
+    AnalysisSpecification,
+    ResearchAssistant,
+    StatisticalAnalysisPlan,
+)
 from pyautostat.exceptions import InvalidDataError
 from pyautostat.reproducibility import reproduce
 
@@ -610,3 +615,401 @@ def test_method_selection_boundaries_remain_distinct():
         variable_types={"x": "continuous", "event": "continuous"},
     )
     assert regression.analysis.method_id == "linear_regression"
+
+
+def test_logistic_near_separation_is_handled_safely():
+    x = np.array([1] * 20 + [0] * 20)
+    event = np.array([1] * 20 + [0] * 15 + [1] * 5)
+    frame = pd.DataFrame({"event": event, "x": x})
+    workflow = ResearchAssistant(frame).run(
+        objective="regression",
+        outcome="event",
+        predictors=["x"],
+        estimand="event_probability",
+        design="independent",
+        event_level=1,
+        variable_types={"event": "nominal", "x": "continuous"},
+    )
+    assert workflow.status.value in {"data_limited", "failed"}
+    all_reasons = " ".join((*workflow.blockers, *workflow.warnings)).lower()
+    assert any(term in all_reasons for term in ("separat", "converge", "unreliable"))
+    payload = workflow.to_dict()
+    assert json.dumps(payload, allow_nan=False)
+    if workflow.report is not None:
+        report_payload = workflow.report.to_dict()
+        assert json.dumps(report_payload, allow_nan=False)
+
+
+def test_logistic_non_convergence_handling(monkeypatch):
+    frame = pd.DataFrame({"event": [0, 1] * 20, "x": np.linspace(-1, 1, 40)})
+    orig_fit = sm.Logit.fit
+
+    def mock_fit(self, *args, **kwargs):
+        res = orig_fit(self, *args, **kwargs)
+        res.mle_retvals = dict(res.mle_retvals, converged=False)
+        return res
+
+    monkeypatch.setattr(sm.Logit, "fit", mock_fit)
+
+    workflow = ResearchAssistant(frame).run(
+        objective="regression",
+        outcome="event",
+        predictors=["x"],
+        estimand="event_probability",
+        design="independent",
+        event_level=1,
+        variable_types={"event": "nominal", "x": "continuous"},
+    )
+    assert workflow.status.value in {"data_limited", "failed"}
+    assert "converge" in " ".join((*workflow.blockers, *workflow.warnings)).lower()
+    assert workflow.analysis is None or workflow.analysis.status.value == "unavailable"
+    assert json.dumps(workflow.to_dict(), allow_nan=False)
+
+
+def test_phase6_analysis_plan_metadata_and_round_trip():
+    rng = np.random.default_rng(99)
+    n = 60
+    log_df = pd.DataFrame(
+        {
+            "churn": rng.choice(["yes", "no"], size=n),
+            "usage": rng.normal(size=n),
+            "plan_type": rng.choice(["basic", "pro", "enterprise"], size=n),
+        }
+    )
+    assistant_log = ResearchAssistant(log_df)
+    draft_log = assistant_log.prepare_question(
+        objective="regression",
+        outcome="churn",
+        predictors=["usage", "plan_type"],
+        estimand="event_probability",
+        design="independent",
+        event_level="yes",
+        covariance_type="HC3",
+        reference_levels={"plan_type": "basic"},
+        options=AnalysisOptions(alpha=0.01, confidence_level=0.99),
+        variable_types={"churn": "nominal", "usage": "continuous", "plan_type": "nominal"},
+    )
+    plan_log = assistant_log.analysis_plan(draft_log)
+    assert plan_log.status.value == "ready"
+    assert plan_log.primary_method_id == "logistic_regression"
+    assert plan_log.effect_quantity == "coefficient_vector"
+    assert plan_log.confidence_interval_quantity == "coefficient_vector"
+    plan_log_dict = plan_log.to_dict()
+    assert plan_log_dict["objective"] == "regression"
+    assert plan_log_dict["outcome"] == "churn"
+    assert plan_log_dict["predictors"] == ["usage", "plan_type"]
+    assert plan_log_dict["estimand"] == "event_probability"
+    assert plan_log_dict["study_design"] == "independent"
+    assert plan_log_dict["event_level"] == "yes"
+    assert plan_log_dict["covariance_type"] == "HC3"
+    assert plan_log_dict["reference_levels"] == {"plan_type": "basic"}
+    assert plan_log_dict["alpha"] == 0.01
+    assert plan_log_dict["confidence_level"] == 0.99
+    restored_log = StatisticalAnalysisPlan.from_dict(plan_log_dict)
+    assert restored_log.to_dict() == plan_log_dict
+    assert restored_log.specification.question.event_level == "yes"
+    assert restored_log.specification.options.covariance_type == "HC3"
+    assert restored_log.specification.options.reference_levels == {"plan_type": "basic"}
+
+    pairs = [
+        {"unit": u, "condition": c, "resp": r}
+        for u, (b, a) in enumerate([("no", "yes")] * 10 + [("yes", "no")] * 5)
+        for c, r in (("before", b), ("after", a))
+    ]
+    mcnemar_df = pd.DataFrame(pairs)
+    assistant_mc = ResearchAssistant(mcnemar_df)
+    draft_mc = assistant_mc.prepare_question(
+        objective="compare_groups",
+        outcome="resp",
+        predictor="condition",
+        estimand="proportion",
+        design="paired",
+        unit_id="unit",
+        condition_order=("after", "before"),
+        event_level="yes",
+        options=AnalysisOptions(
+            random_seed=123, bootstrap_samples=150, alpha=0.01, confidence_level=0.99
+        ),
+        variable_types={"resp": "nominal", "condition": "nominal"},
+    )
+    plan_mc = assistant_mc.analysis_plan(draft_mc)
+    assert plan_mc.status.value == "ready"
+    assert plan_mc.primary_method_id == "mcnemar"
+    assert plan_mc.effect_quantity == "paired_proportion_difference"
+    plan_mc_dict = plan_mc.to_dict()
+    assert plan_mc_dict["unit_id"] == "unit"
+    assert plan_mc_dict["condition_order"] == ["after", "before"]
+    assert plan_mc_dict["event_level"] == "yes"
+    restored_mc = StatisticalAnalysisPlan.from_dict(plan_mc_dict)
+    assert restored_mc.specification.condition_order == ("after", "before")
+    assert restored_mc.specification.unit_id == "unit"
+    assert restored_mc.specification.question.event_level == "yes"
+    assert restored_mc.specification.options.random_seed == 123
+    assert restored_mc.specification.options.bootstrap_samples == 150
+
+    assoc_df = pd.DataFrame({"score": range(10), "flag": [True, False] * 5, "rank": range(10)})
+    assistant_assoc = ResearchAssistant(assoc_df)
+    draft_pb = assistant_assoc.prepare_question(
+        objective="association",
+        outcome="score",
+        predictor="flag",
+        estimand="point_biserial",
+        design="independent",
+        event_level=True,
+        variable_types={"score": "continuous", "flag": "boolean"},
+    )
+    plan_pb = assistant_assoc.analysis_plan(draft_pb)
+    assert plan_pb.primary_method_id == "point_biserial_correlation"
+    assert plan_pb.to_dict()["event_level"] is True
+    assert plan_pb.to_dict()["estimand"] == "point_biserial"
+
+    draft_kt = assistant_assoc.prepare_question(
+        objective="association",
+        outcome="score",
+        predictor="rank",
+        estimand="monotonic",
+        association_measure="kendall",
+        design="independent",
+        variable_types={"score": "continuous", "rank": "continuous"},
+    )
+    plan_kt = assistant_assoc.analysis_plan(draft_kt)
+    assert plan_kt.primary_method_id == "kendall_tau_b"
+    assert plan_kt.to_dict()["association_measure"] == "kendall"
+    assert plan_kt.to_dict()["estimand"] == "monotonic"
+
+
+def test_phase6_reporting_completeness_and_edge_cases():
+    frame = pd.DataFrame(
+        {
+            "event": ["no", "yes"] * 25,
+            "x": np.linspace(-2, 2, 50),
+            "tier": (["base", "base", "gold", "gold"] * 12 + ["base", "gold"]),
+        }
+    )
+    assistant = ResearchAssistant(frame)
+    log_wf = assistant.run(
+        objective="regression",
+        outcome="event",
+        predictors=["x", "tier"],
+        estimand="event_probability",
+        design="independent",
+        event_level="yes",
+        reference_levels={"tier": "base"},
+        variable_types={"event": "nominal", "x": "continuous", "tier": "nominal"},
+    )
+    assert log_wf.status.value == "completed"
+    comp = assistant.reporting_completeness(log_wf.report)
+    assert comp.status == "complete"
+    items_by_code = {item.code: item.status for item in comp.items}
+    for required_code in (
+        "LOGISTIC_EVENT_REPORTED",
+        "LOGISTIC_MODEL_FIT_REPORTED",
+        "LOGISTIC_COEFFICIENTS_REPORTED",
+        "LOGISTIC_ODDS_RATIOS_REPORTED",
+        "LOGISTIC_INTERVALS_REPORTED",
+        "LOGISTIC_DIAGNOSTICS_REPORTED",
+        "LOGISTIC_COVARIANCE_REPORTED",
+        "LOGISTIC_SAMPLE_COUNTS_REPORTED",
+    ):
+        assert items_by_code[required_code] == "present"
+    assert json.dumps(comp.to_dict(), allow_nan=False)
+
+    pairs_zero = [(0, 0), (1, 1), (0, 0), (1, 1)] * 5
+    rows_zero = [
+        {"unit": u, "condition": c, "resp": r}
+        for u, p in enumerate(pairs_zero)
+        for c, r in ((0, p[0]), (1, p[1]))
+    ]
+    asst_zero = ResearchAssistant(pd.DataFrame(rows_zero))
+    wf_zero = asst_zero.run(
+        objective="compare_groups",
+        outcome="resp",
+        predictor="condition",
+        estimand="proportion",
+        design="paired",
+        unit_id="unit",
+        condition_order=(0, 1),
+        event_level=1,
+        options=AnalysisOptions(bootstrap_samples=100),
+        variable_types={"resp": "nominal", "condition": "nominal"},
+    )
+    assert wf_zero.status.value == "completed"
+    assert wf_zero.analysis.values["matched_odds_ratio"]["status"] == "undefined"
+    comp_zero = asst_zero.reporting_completeness(wf_zero.report)
+    assert comp_zero.status == "complete"
+    assert json.dumps(comp_zero.to_dict(), allow_nan=False)
+
+    pairs_inf = [(1, 0), (1, 0), (0, 0), (1, 1)] * 5
+    rows_inf = [
+        {"unit": u, "condition": c, "resp": r}
+        for u, p in enumerate(pairs_inf)
+        for c, r in ((0, p[0]), (1, p[1]))
+    ]
+    asst_inf = ResearchAssistant(pd.DataFrame(rows_inf))
+    wf_inf = asst_inf.run(
+        objective="compare_groups",
+        outcome="resp",
+        predictor="condition",
+        estimand="proportion",
+        design="paired",
+        unit_id="unit",
+        condition_order=(0, 1),
+        event_level=1,
+        options=AnalysisOptions(bootstrap_samples=100),
+        variable_types={"resp": "nominal", "condition": "nominal"},
+    )
+    assert wf_inf.status.value == "completed"
+    assert wf_inf.analysis.values["matched_odds_ratio"]["status"] == "positive_infinity"
+    comp_inf = asst_inf.reporting_completeness(wf_inf.report)
+    assert comp_inf.status == "complete"
+    assert json.dumps(comp_inf.to_dict(), allow_nan=False)
+
+
+def test_phase6_audit_detects_deliberate_contradictions():
+    import copy
+
+    frame = pd.DataFrame({"event": [0, 1] * 20, "x": np.linspace(-1, 1, 40)})
+    assistant = ResearchAssistant(frame)
+    wf_log = assistant.run(
+        objective="regression",
+        outcome="event",
+        predictors=["x"],
+        estimand="event_probability",
+        design="independent",
+        event_level=1,
+        variable_types={"event": "nominal", "x": "continuous"},
+    )
+    assert wf_log.audit.status == "passed"
+
+    tampered = copy.deepcopy(wf_log.analysis)
+    tampered.values["coefficients"][1]["odds_ratio"] = 999.0
+    audit_res = assistant.audit(wf_log.report, result=tampered)
+    assert audit_res.status == "failed"
+    assert any("odds_ratio" in f.field for f in audit_res.findings)
+
+    tampered = copy.deepcopy(wf_log.analysis)
+    tampered.values["event_count"] = 999
+    audit_res = assistant.audit(wf_log.report, result=tampered)
+    assert audit_res.status == "failed"
+    assert any("event_count" in f.field for f in audit_res.findings)
+
+    tampered = copy.deepcopy(wf_log.analysis)
+    tampered.values["event_level"] = 0
+    audit_res = assistant.audit(wf_log.report, result=tampered)
+    assert audit_res.status == "failed"
+    assert any("event_level" in f.field for f in audit_res.findings)
+
+    tampered = copy.deepcopy(wf_log.analysis)
+    tampered.values["coefficients"][1]["odds_ratio_ci"]["upper"] = 999.0
+    audit_res = assistant.audit(wf_log.report, result=tampered)
+    assert audit_res.status == "failed"
+    assert any("odds_ratio_ci" in f.field for f in audit_res.findings)
+
+    pairs = [(0, 1), (1, 0), (0, 0), (1, 1)] * 5
+    m_rows = [
+        {"unit": u, "condition": c, "resp": r}
+        for u, p in enumerate(pairs)
+        for c, r in ((0, p[0]), (1, p[1]))
+    ]
+    asst_m = ResearchAssistant(pd.DataFrame(m_rows))
+    wf_m = asst_m.run(
+        objective="compare_groups",
+        outcome="resp",
+        predictor="condition",
+        estimand="proportion",
+        design="paired",
+        unit_id="unit",
+        condition_order=(0, 1),
+        event_level=1,
+        options=AnalysisOptions(bootstrap_samples=100),
+        variable_types={"resp": "nominal", "condition": "nominal"},
+    )
+    assert wf_m.audit.status == "passed"
+
+    tampered_m = copy.deepcopy(wf_m.analysis)
+    tampered_m.values["transition_table"]["first_event_second_event"] = 999
+    audit_m = asst_m.audit(wf_m.report, result=tampered_m)
+    assert audit_m.status == "failed"
+    assert any("transition_table" in f.field for f in audit_m.findings)
+
+    tampered_m = copy.deepcopy(wf_m.analysis)
+    tampered_m.values["transition_table"]["discordant_b"] = 999
+    audit_m = asst_m.audit(wf_m.report, result=tampered_m)
+    assert audit_m.status == "failed"
+    assert any("transition_table" in f.field for f in audit_m.findings)
+
+    tampered_m = copy.deepcopy(wf_m.analysis)
+    tampered_m.values["primary_estimate"] = 0.999
+    audit_m = asst_m.audit(wf_m.report, result=tampered_m)
+    assert audit_m.status == "failed"
+    assert any("primary_estimate" in f.field for f in audit_m.findings)
+
+    tampered_m = copy.deepcopy(wf_m.analysis)
+    tampered_m.values["condition_order"] = [1, 0]
+    audit_m = asst_m.audit(wf_m.report, result=tampered_m)
+    assert audit_m.status == "failed"
+    assert any("condition_order" in f.field for f in audit_m.findings)
+
+    rng = np.random.default_rng(101)
+    c1 = rng.normal(size=30)
+    x = 0.5 * c1 + rng.normal(size=30)
+    y = 0.3 * x + 0.4 * c1 + rng.normal(size=30)
+    asst_p = ResearchAssistant(pd.DataFrame({"x": x, "y": y, "c1": c1}))
+    wf_p = asst_p.run(
+        objective="association",
+        outcome="x",
+        predictor="y",
+        controls=["c1"],
+        estimand="partial_linear",
+        design="independent",
+        options=AnalysisOptions(bootstrap_samples=100),
+        variable_types={"x": "continuous", "y": "continuous", "c1": "continuous"},
+    )
+    assert wf_p.audit.status == "passed"
+
+    tampered_p = copy.deepcopy(wf_p.analysis)
+    tampered_p.values["degrees_of_freedom"] = 999
+    audit_p = asst_p.audit(wf_p.report, result=tampered_p)
+    assert audit_p.status == "failed"
+    assert any("degrees_of_freedom" in f.field for f in audit_p.findings)
+
+    tampered_p = copy.deepcopy(wf_p.analysis)
+    tampered_p.values["controls"] = ["wrong_control"]
+    audit_p = asst_p.audit(wf_p.report, result=tampered_p)
+    assert audit_p.status == "failed"
+    assert any("controls" in f.field for f in audit_p.findings)
+
+
+def test_phase6_session_snapshot_preserves_scientific_choices_and_strict_json():
+    frame = pd.DataFrame(
+        {
+            "event": ["no", "yes"] * 25,
+            "x": np.linspace(-1, 1, 50),
+            "grp": (["standard", "standard", "premium", "premium"] * 12 + ["standard", "premium"]),
+        }
+    )
+    assistant = ResearchAssistant(frame)
+    workflow = assistant.run(
+        objective="regression",
+        outcome="event",
+        predictors=["x", "grp"],
+        estimand="event_probability",
+        design="independent",
+        event_level="yes",
+        covariance_type="HC3",
+        reference_levels={"grp": "standard"},
+        variable_types={"event": "nominal", "x": "continuous", "grp": "nominal"},
+    )
+    plan = assistant.analysis_plan(workflow.specification)
+    snapshot = assistant.session_snapshot(workflow, analysis_plan=plan)
+    raw_json = snapshot.to_json()
+    parsed = json.loads(raw_json)
+    assert parsed["schema_version"] == 1
+    assert parsed["analysis_plan"]["specification"]["question"]["event_level"] == "yes"
+    assert (
+        parsed["analysis_plan"]["specification"]["options"]["reference_levels"]["grp"] == "standard"
+    )
+    assert parsed["analysis_plan"]["specification"]["options"]["covariance_type"] == "HC3"
+    assert parsed["workflow"]["analysis"]["values"]["event_level"] == "yes"
+    assert parsed["workflow"]["analysis"]["values"]["covariance_type"] == "HC3"
+    assert json.dumps(snapshot.to_dict(), allow_nan=False)
