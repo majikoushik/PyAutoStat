@@ -1525,7 +1525,7 @@ def _fisher_result(
             "odds_ratio_status": raw["odds_ratio_status"],
             "null_hypothesis": _NULL_HYPOTHESES["fisher_exact"],
             "null_value": 1.0,
-            "null_quantity": "sample odds ratio",
+            "null_quantity": "odds ratio",
             "alternative_hypothesis": "association",
             "diagnostics": {
                 "table_shape": [2, 2],

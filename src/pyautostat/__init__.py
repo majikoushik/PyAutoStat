@@ -31,6 +31,7 @@ from .interpretation import (
     InterpretationResult,
     InterpretationStatus,
 )
+from .method_contracts import METHOD_CONTRACTS, MethodContract
 from .narrate import (
     assumption_grade,
     coefficient_of_variation_narrative,
@@ -117,6 +118,8 @@ __all__ = [
     "Recommendation",
     "RecommendationStatus",
     "MethodCapability",
+    "MethodContract",
+    "METHOD_CONTRACTS",
     "AnalysisResult",
     "AnalysisStatus",
     "InterpretationEngine",
