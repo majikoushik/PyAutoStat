@@ -90,7 +90,13 @@ def _code(path: str) -> str:
         return "SAMPLE_COUNT_MISMATCH"
     if "confidence_interval" in path or "intervals" in path:
         return "INTERVAL_QUANTITY_MISMATCH" if "quantity" in path else "INTERVAL_MISMATCH"
-    if "effect_size" in path or "effect_estimates" in path:
+    if "degrees_of_freedom" in path or "_df" in path:
+        return "DEGREES_OF_FREEDOM_MISMATCH"
+    if "odds_ratio" in path:
+        return "ODDS_RATIO_MISMATCH"
+    if "pairwise_comparisons" in path or "multiplicity" in path:
+        return "MULTIPLICITY_MISMATCH"
+    if "effect_size" in path or "effect_estimates" in path or "rank_biserial" in path:
         return "EFFECT_SIZE_MISMATCH"
     if "method_id" in path or "method_name" in path:
         return "METHOD_MISMATCH"
@@ -222,13 +228,108 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
     if not valid_statistic and not allowed_missing_statistic:
         _mismatch("analysis.values.test_statistic", "finite statistic", statistic, findings)
     interval = values.get("confidence_interval")
-    if isinstance(interval, dict) and interval.get("quantity") != values.get("estimate_name"):
-        _mismatch(
-            "analysis.values.confidence_interval.quantity",
-            values.get("estimate_name"),
-            interval.get("quantity"),
-            findings,
-        )
+    if isinstance(interval, dict):
+        if interval.get("quantity") != values.get("estimate_name"):
+            _mismatch(
+                "analysis.values.confidence_interval.quantity",
+                values.get("estimate_name"),
+                interval.get("quantity"),
+                findings,
+            )
+        lower = interval.get("lower")
+        upper = interval.get("upper")
+        if (
+            isinstance(lower, (int, float))
+            and isinstance(upper, (int, float))
+            and not isinstance(lower, bool)
+            and not isinstance(upper, bool)
+        ):
+            if lower > upper:
+                _mismatch(
+                    "analysis.values.confidence_interval",
+                    "ordered bounds (lower <= upper)",
+                    (lower, upper),
+                    findings,
+                )
+            primary_est = values.get("primary_estimate")
+            if (
+                source.method_id in {"welch_t", "student_t", "paired_t", "one_sample_t"}
+                and isinstance(primary_est, (int, float))
+                and not isinstance(primary_est, bool)
+                and math.isfinite(float(primary_est))
+            ):
+                if not (lower <= float(primary_est) <= upper):
+                    _mismatch(
+                        "analysis.values.confidence_interval",
+                        f"interval containing primary estimate {primary_est}",
+                        (lower, upper),
+                        findings,
+                    )
+    effect = values.get("effect_size")
+    if isinstance(effect, dict):
+        eff_ci = effect.get("confidence_interval")
+        if isinstance(eff_ci, dict):
+            eff_lower = eff_ci.get("lower")
+            eff_upper = eff_ci.get("upper")
+            if (
+                isinstance(eff_lower, (int, float))
+                and isinstance(eff_upper, (int, float))
+                and not isinstance(eff_lower, bool)
+                and not isinstance(eff_upper, bool)
+            ):
+                if eff_lower > eff_upper:
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval",
+                        "ordered bounds (lower <= upper)",
+                        (eff_lower, eff_upper),
+                        findings,
+                    )
+        eff_val = effect.get("value")
+        if (
+            isinstance(eff_val, (int, float))
+            and not isinstance(eff_val, bool)
+            and math.isfinite(float(eff_val))
+        ):
+            eff_name = str(effect.get("name", "")).lower()
+            if any(
+                term in eff_name
+                for term in (
+                    "rank-biserial",
+                    "pearson r",
+                    "spearman rho",
+                    "kendall",
+                    "point-biserial",
+                )
+            ):
+                if not (-1.0 <= float(eff_val) <= 1.0):
+                    _mismatch(
+                        "analysis.values.effect_size.value", "value in [-1, 1]", eff_val, findings
+                    )
+            elif any(
+                term in eff_name
+                for term in ("cramér", "cramer", "eta-squared", "epsilon-squared", "kendall's w")
+            ):
+                if not (0.0 <= float(eff_val) <= 1.0):
+                    _mismatch(
+                        "analysis.values.effect_size.value", "value in [0, 1]", eff_val, findings
+                    )
+            if "cohen's d" in eff_name:
+                diff = values.get("primary_estimate")
+                if (
+                    isinstance(diff, (int, float))
+                    and not isinstance(diff, bool)
+                    and math.isfinite(float(diff))
+                    and abs(float(diff)) > 1e-12
+                ):
+                    if (float(diff) > 0 and float(eff_val) < 0) or (
+                        float(diff) < 0 and float(eff_val) > 0
+                    ):
+                        _mismatch(
+                            "analysis.values.effect_size.value",
+                            f"Cohen's d sign matching difference ({diff})",
+                            eff_val,
+                            findings,
+                        )
     sample = source.metadata.get("sample")
     if isinstance(sample, dict):
         original = sample.get("original_rows")
@@ -246,6 +347,48 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
             )
     method = source.method_id
     question = specification.question
+    if method in {"welch_t", "student_t", "mann_whitney_u"}:
+        contrast = source.metadata.get("contrast")
+        order = source.metadata.get("group_order")
+        if (
+            not isinstance(order, list)
+            or len(order) != 2
+            or not isinstance(contrast, dict)
+            or contrast.get("first") != order[0]
+            or contrast.get("second") != order[1]
+            or contrast.get("definition") != "first group minus second group"
+        ):
+            _mismatch("analysis.metadata.contrast", "declared group order", contrast, findings)
+        if isinstance(sample, dict) and isinstance(sample.get("group_sizes"), list):
+            group_sizes = sample["group_sizes"]
+            if (
+                sum(int(x.get("size", 0)) for x in group_sizes if isinstance(x, dict))
+                != source.sample_size
+            ):
+                _mismatch(
+                    "analysis.metadata.sample.group_sizes",
+                    "sum of sizes equals sample_size",
+                    group_sizes,
+                    findings,
+                )
+        if method in {"welch_t", "student_t"}:
+            dfs = values.get("degrees_of_freedom")
+            if not isinstance(dfs, (int, float)) or isinstance(dfs, bool) or float(dfs) <= 0:
+                _mismatch(
+                    "analysis.values.degrees_of_freedom",
+                    "positive degrees of freedom",
+                    dfs,
+                    findings,
+                )
+            if (
+                method == "student_t"
+                and source.sample_size is not None
+                and isinstance(dfs, (int, float))
+                and not isinstance(dfs, bool)
+            ):
+                expected_df = source.sample_size - 2
+                if not math.isclose(float(dfs), float(expected_df), rel_tol=1e-5):
+                    _mismatch("analysis.values.degrees_of_freedom", expected_df, dfs, findings)
     if method == "one_sample_t":
         reference = question.reference_value
         for path, actual in (
@@ -254,6 +397,39 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
         ):
             if actual != reference:
                 _mismatch(path, reference, actual, findings)
+        if source.sample_size is not None:
+            dfs = values.get("degrees_of_freedom")
+            if dfs is not None and dfs != source.sample_size - 1:
+                _mismatch(
+                    "analysis.values.degrees_of_freedom", source.sample_size - 1, dfs, findings
+                )
+    if (
+        method == "paired_t"
+        and isinstance(sample, dict)
+        and sample.get("complete_pairs") is not None
+    ):
+        expected_df = int(sample["complete_pairs"]) - 1
+        dfs = values.get("degrees_of_freedom")
+        if dfs is not None and dfs != expected_df:
+            _mismatch("analysis.values.degrees_of_freedom", expected_df, dfs, findings)
+    if method == "pearson_correlation":
+        r = values.get("primary_estimate")
+        if not isinstance(r, (int, float)) or isinstance(r, bool) or not (-1.0 <= float(r) <= 1.0):
+            _mismatch("analysis.values.primary_estimate", "correlation in [-1, 1]", r, findings)
+    if method == "spearman_correlation":
+        rho = values.get("primary_estimate")
+        if (
+            not isinstance(rho, (int, float))
+            or isinstance(rho, bool)
+            or not (-1.0 <= float(rho) <= 1.0)
+        ):
+            _mismatch("analysis.values.primary_estimate", "Spearman rho in [-1, 1]", rho, findings)
+    if method == "pearson_chi_square":
+        stat = values.get("test_statistic")
+        if not isinstance(stat, (int, float)) or isinstance(stat, bool) or float(stat) < 0:
+            _mismatch(
+                "analysis.values.test_statistic", "nonnegative chi-square statistic", stat, findings
+            )
     if method in {"paired_t", "wilcoxon_signed_rank", "mcnemar"}:
         contrast = source.metadata.get("contrast")
         order = source.metadata.get("condition_order")
@@ -801,6 +977,61 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                         _mismatch(
                             f"{path}.adjusted_p_value", "finite probability", adjusted, findings
                         )
+                    raw_p = (
+                        item.get("raw_p_value")
+                        if item.get("raw_p_value") is not None
+                        else item.get("p_value")
+                    )
+                    if isinstance(raw_p, (int, float)) and not isinstance(raw_p, bool):
+                        if not (0 <= float(raw_p) <= 1):
+                            _mismatch(
+                                f"{path}.p_value", "finite probability in [0, 1]", raw_p, findings
+                            )
+                        if (
+                            isinstance(adjusted, (int, float))
+                            and not isinstance(adjusted, bool)
+                            and float(adjusted) < float(raw_p) - 1e-9
+                        ):
+                            _mismatch(
+                                f"{path}.adjusted_p_value",
+                                "adjusted_p >= raw_p",
+                                adjusted,
+                                findings,
+                            )
+                    p_ci = item.get("confidence_interval")
+                    if isinstance(p_ci, dict):
+                        p_lower = p_ci.get("lower")
+                        p_upper = p_ci.get("upper")
+                        if (
+                            isinstance(p_lower, (int, float))
+                            and isinstance(p_upper, (int, float))
+                            and not isinstance(p_lower, bool)
+                            and not isinstance(p_upper, bool)
+                        ):
+                            if p_lower > p_upper:
+                                _mismatch(
+                                    f"{path}.confidence_interval",
+                                    "ordered bounds (lower <= upper)",
+                                    (p_lower, p_upper),
+                                    findings,
+                                )
+                            diff = item.get("mean_difference")
+                            if (
+                                isinstance(diff, (int, float))
+                                and not isinstance(diff, bool)
+                                and math.isfinite(float(diff))
+                            ):
+                                if not (p_lower <= float(diff) <= p_upper):
+                                    _mismatch(
+                                        f"{path}.confidence_interval",
+                                        f"interval containing mean difference {diff}",
+                                        (p_lower, p_upper),
+                                        findings,
+                                    )
+                    rb = item.get("rank_biserial")
+                    if isinstance(rb, (int, float)) and not isinstance(rb, bool):
+                        if not (-1.0 <= float(rb) <= 1.0):
+                            _mismatch(f"{path}.rank_biserial", "value in [-1, 1]", rb, findings)
                     contrast = item.get("contrast")
                     if (
                         not isinstance(contrast, dict)
@@ -876,6 +1107,64 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                             _mismatch(
                                 f"{path}.adjusted_p_value", "finite probability", adjusted, findings
                             )
+                        raw_p = (
+                            item.get("raw_p_value")
+                            if item.get("raw_p_value") is not None
+                            else item.get("p_value")
+                        )
+                        if isinstance(raw_p, (int, float)) and not isinstance(raw_p, bool):
+                            if not (0 <= float(raw_p) <= 1):
+                                _mismatch(
+                                    f"{path}.p_value",
+                                    "finite probability in [0, 1]",
+                                    raw_p,
+                                    findings,
+                                )
+                            if (
+                                isinstance(adjusted, (int, float))
+                                and not isinstance(adjusted, bool)
+                                and float(adjusted) < float(raw_p) - 1e-9
+                            ):
+                                _mismatch(
+                                    f"{path}.adjusted_p_value",
+                                    "adjusted_p >= raw_p",
+                                    adjusted,
+                                    findings,
+                                )
+                        p_ci = item.get("confidence_interval")
+                        if isinstance(p_ci, dict):
+                            p_lower = p_ci.get("lower")
+                            p_upper = p_ci.get("upper")
+                            if (
+                                isinstance(p_lower, (int, float))
+                                and isinstance(p_upper, (int, float))
+                                and not isinstance(p_lower, bool)
+                                and not isinstance(p_upper, bool)
+                            ):
+                                if p_lower > p_upper:
+                                    _mismatch(
+                                        f"{path}.confidence_interval",
+                                        "ordered bounds (lower <= upper)",
+                                        (p_lower, p_upper),
+                                        findings,
+                                    )
+                                diff = item.get("mean_difference")
+                                if (
+                                    isinstance(diff, (int, float))
+                                    and not isinstance(diff, bool)
+                                    and math.isfinite(float(diff))
+                                ):
+                                    if not (p_lower <= float(diff) <= p_upper):
+                                        _mismatch(
+                                            f"{path}.confidence_interval",
+                                            f"interval containing mean difference {diff}",
+                                            (p_lower, p_upper),
+                                            findings,
+                                        )
+                        rb = item.get("rank_biserial")
+                        if isinstance(rb, (int, float)) and not isinstance(rb, bool):
+                            if not (-1.0 <= float(rb) <= 1.0):
+                                _mismatch(f"{path}.rank_biserial", "value in [-1, 1]", rb, findings)
                     contrast = item.get("contrast")
                     if (
                         not isinstance(contrast, dict)
@@ -1133,7 +1422,7 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                             primary_inf,
                             findings,
                         )
-                elif sph_status in ("not_rejected", "confirmed"):
+                elif sph_status == "not_rejected":
                     if not is_uncorr:
                         _mismatch(
                             "analysis.values.primary_inference",

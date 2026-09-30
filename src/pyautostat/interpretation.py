@@ -528,7 +528,7 @@ def _repeated_measures_anova_interpretation(result: AnalysisResult) -> Interpret
         correction_note = (
             f"Greenhouse-Geisser correction was applied (epsilon = {_fmt(eps) if eps else 'N/A'})."
         )
-    elif sph_status in ("not_rejected", "confirmed"):
+    elif sph_status == "not_rejected":
         sph_note = (
             "Mauchly's test did not provide evidence against sphericity at the declared alpha "
             "level. The ordinary repeated-measures ANOVA degrees of freedom are retained "
@@ -745,7 +745,7 @@ def _friedman_interpretation(result: AnalysisResult) -> InterpretationResult:
             "The Friedman omnibus test does not provide sufficient evidence that within-unit rank "
             f"distributions differ across the declared conditions (Q({df_val}) = {_fmt(stat)}, "
             f"{_p_display(p_val)} >= alpha = {alpha}). Failing to reject does not prove that "
-            "condition rank distributions or medians are equal."
+            "condition rank distributions are equal."
         )
     _finding(findings, "friedman_decision", hyp_text, "values.p_value")
 
@@ -1877,6 +1877,11 @@ class InterpretationEngine:
             limitations.append(
                 "A location-shift interpretation requires a suitably symmetric paired-"
                 "difference distribution; this is not universally a median-difference test."
+            )
+        if method == "friedman_test":
+            limitations.append(
+                "Kendall's W reflects rank concordance across conditions, not percentage "
+                "of variance explained."
             )
         if method == "fisher_exact":
             limitations.append(
