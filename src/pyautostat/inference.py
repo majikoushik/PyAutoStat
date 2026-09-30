@@ -13,6 +13,11 @@ from scipy import stats
 
 from .categorical import contingency_counts
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidTestError
+from .uncertainty import (
+    fisher_exact_sample_or_ci,
+    matched_pairs_rank_biserial_bootstrap_ci,
+    one_sample_cohen_d_ci,
+)
 
 
 def _scipy_result_value(result: Any, *names: str, index: int) -> float:
@@ -166,7 +171,13 @@ def one_sample_t_test(
         "standard_error": standard_error,
         "sample_standard_deviation": sd,
         "confidence_interval": interval,
-        "effect_size": {"name": "one-sample Cohen's d", "value": effect},
+        "effect_size": {
+            "name": "one-sample Cohen's d",
+            "value": effect,
+            "confidence_interval": one_sample_cohen_d_ci(
+                mean, float(reference_value), sd, n, level
+            ),
+        },
         "sample_size": n,
         "excluded_rows": int(len(frame) - n),
         "alternative": "two-sided",
@@ -230,8 +241,14 @@ def paired_wilcoxon(
     condition_col: str,
     value_col: str,
     condition_order: tuple[Any, Any] | list[Any] | None,
+    *,
+    confidence_level: float = 0.95,
+    bootstrap_samples: int = 499,
+    random_state: int | None = 0,
 ) -> dict[str, Any]:
     """Two-sided Wilcoxon signed-rank inference with the ``wilcox`` zero policy."""
+    level = _confidence_level(confidence_level)
+    requested, seed = _bootstrap_options(bootstrap_samples, random_state)
     pairs = paired_values(frame, unit_id, condition_col, value_col, condition_order)
     differences = pairs["differences"]
     nonzero = differences[differences != 0]
@@ -264,14 +281,25 @@ def paired_wilcoxon(
     negative = float(ranks[nonzero < 0].sum())
     denominator = positive + negative
     effect = (positive - negative) / denominator
+    ci = (
+        matched_pairs_rank_biserial_bootstrap_ci(
+            differences,
+            confidence_level=level,
+            bootstrap_samples=requested,
+            random_state=seed,
+        )
+        if requested
+        else None
+    )
     return {
         "test": "Wilcoxon signed-rank test",
         "statistic": statistic,
         "p_value": p_value,
+        "confidence_interval": ci,
         "effect_size": {
             "name": "matched-pairs rank-biserial correlation",
             "value": float(effect),
-            "confidence_interval": None,
+            "confidence_interval": ci,
         },
         "positive_rank_sum": positive,
         "negative_rank_sum": negative,
@@ -381,8 +409,11 @@ def fisher_exact_test(
     frame: pd.DataFrame,
     row_variable: str,
     column_variable: str,
+    *,
+    confidence_level: float = 0.95,
 ) -> dict[str, Any]:
     """Two-sided Fisher exact inference for one observed 2x2 table."""
+    level = _confidence_level(confidence_level)
     table = contingency_counts(frame, row_variable, column_variable)
     observed = table["counts"]
     if observed.shape != (2, 2):
@@ -407,6 +438,7 @@ def fisher_exact_test(
             "The sample odds ratio is nonfinite because of zero cells; it is recorded as "
             f"{odds_status} rather than serialized as a nonfinite number."
         )
+    or_ci = fisher_exact_sample_or_ci(observed, confidence_level=level)
     return {
         "test": "Fisher's exact test",
         "statistic": odds_ratio,
@@ -417,7 +449,17 @@ def fisher_exact_test(
             "SciPy's unconditional sample odds ratio for the ordered 2x2 table: "
             "(row1,col1 * row2,col2) / (row1,col2 * row2,col1)."
         ),
-        "confidence_interval": None,
+        "confidence_interval": or_ci,
+        "effect_size": {
+            "name": "sample odds ratio",
+            "value": odds_ratio,
+            "definition": (
+                "SciPy's unconditional sample odds ratio for the ordered 2x2 table: "
+                "(row1,col1 * row2,col2) / (row1,col2 * row2,col1)."
+            ),
+            "confidence_interval": or_ci,
+            "status": odds_status,
+        },
         "row_levels": table["row_levels"],
         "column_levels": table["column_levels"],
         "row_ordering": table["row_ordering"],

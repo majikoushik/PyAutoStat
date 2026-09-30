@@ -400,7 +400,7 @@ def test_pearson_direction_without_causation_or_independence_claim(association):
     assert label in interpretation.effect_interpretation
     assert "causation" in " ".join(interpretation.limitations)
     assert "independent" not in interpretation.effect_interpretation
-    assert interpretation.status is InterpretationStatus.PARTIAL
+    assert interpretation.status is InterpretationStatus.AVAILABLE
 
 
 def test_chi_square_effect_has_no_direction():

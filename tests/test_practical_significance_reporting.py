@@ -164,7 +164,7 @@ def test_practical_verdict_adds_threshold_ratio_interval_and_preserves_payload(m
 
 
 def test_pearson_threshold_is_partial_because_current_backend_has_no_interval():
-    frame = pd.DataFrame({"hours": [1, 2, 3, 4, 5, 6], "score": [2, 3, 4, 8, 7, 10]})
+    frame = pd.DataFrame({"hours": [1, 2, 3], "score": [2, 3, 4]})
     assistant = ResearchAssistant(frame)
     workflow = assistant.run(
         objective="association",
@@ -181,6 +181,26 @@ def test_pearson_threshold_is_partial_because_current_backend_has_no_interval():
     assert result.status == "partial"
     assert result.quantity == "pearson_r"
     assert result.confidence_interval_relation == "unavailable"
+
+
+def test_pearson_threshold_is_complete_with_fisher_z_interval():
+    frame = pd.DataFrame({"hours": [1, 2, 3, 4, 5, 6], "score": [2, 3, 4, 8, 7, 10]})
+    assistant = ResearchAssistant(frame)
+    workflow = assistant.run(
+        objective="association",
+        outcome="hours",
+        predictor="score",
+        estimand="linear",
+        design="independent",
+        variable_types={"hours": "continuous", "score": "continuous"},
+    )
+    result = assistant.practical_significance(
+        workflow.analysis,
+        threshold=MeaningfulEffectThreshold("pearson_r", 0.3),
+    )
+    assert result.status == "complete"
+    assert result.quantity == "pearson_r"
+    assert result.confidence_interval_relation != "unavailable"
 
 
 def test_cohens_d_threshold_selects_standardized_effect_not_raw_mean(mean_case):

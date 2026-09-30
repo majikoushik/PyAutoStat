@@ -243,8 +243,16 @@ def test_pearson_uses_existing_profile_inference_and_complete_pairs():
     assert result.status == "available"
     assert result.method_id == "pearson_correlation"
     assert result.values["primary_estimate"] == pytest.approx(reference.statistic)
-    assert result.values["p_value"] == pytest.approx(reference.pvalue)
-    assert result.values["confidence_interval"] is None
+    assert result.values["confidence_interval"] is not None
+    assert (
+        result.values["confidence_interval"]["method"]
+        == "Fisher-z asymptotic normal confidence interval"
+    )
+    assert (
+        result.values["confidence_interval"]["lower"]
+        <= result.values["primary_estimate"]
+        <= result.values["confidence_interval"]["upper"]
+    )
     assert result.metadata["sample"]["effective_pair_count"] == 4
     assert result.sample_size == 4
     assert result.excluded_rows == 1

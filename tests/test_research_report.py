@@ -137,7 +137,7 @@ def test_valid_percentile_interval_outside_estimate_is_reported(welch_case):
 
 
 def test_pearson_report_is_partial_without_fabricated_interval():
-    frame = pd.DataFrame({"hours": [1.0, 2.0, 3.0, 4.0, 5.0], "score": [2.0, 4.0, 3.0, 6.0, 7.0]})
+    frame = pd.DataFrame({"hours": [1.0, 2.0, 3.0], "score": [2.0, 4.0, 3.0]})
     assistant = ResearchAssistant(frame)
     draft = assistant.prepare_question(
         objective="association",
@@ -150,11 +150,29 @@ def test_pearson_report_is_partial_without_fabricated_interval():
     result = assistant.analyze(draft)
     report = assistant.report(result)
     assert report.status == "partial"
-    assert report.to_dict()["sections"]["dataset"]["effective_pair_count"] == 5
+    assert report.to_dict()["sections"]["dataset"]["effective_pair_count"] == 3
     assert report.to_dict()["sections"]["results"]["confidence_interval"] is None
-    assert "confidence interval" in report.to_markdown().lower()
     assert all(table["id"] != "confidence_intervals" for table in report.to_dict()["tables"])
     assert "causation" in report.to_html()
+
+
+def test_pearson_report_is_complete_with_fisher_z_interval():
+    frame = pd.DataFrame({"hours": [1.0, 2.0, 3.0, 4.0, 5.0], "score": [2.0, 4.0, 3.0, 6.0, 7.0]})
+    assistant = ResearchAssistant(frame)
+    draft = assistant.prepare_question(
+        objective="association",
+        outcome="hours",
+        predictor="score",
+        estimand="linear",
+        design="independent",
+        variable_types={"hours": "continuous", "score": "continuous"},
+    )
+    result = assistant.analyze(draft)
+    report = assistant.report(result)
+    assert report.status == "complete"
+    assert report.to_dict()["sections"]["dataset"]["effective_pair_count"] == 5
+    assert report.to_dict()["sections"]["results"]["confidence_interval"] is not None
+    assert any(table["id"] == "confidence_intervals" for table in report.to_dict()["tables"])
 
 
 def test_descriptive_report_has_genuine_profile_table_and_optional_figure():

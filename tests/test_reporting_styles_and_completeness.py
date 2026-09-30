@@ -132,7 +132,7 @@ def test_completeness_distinguishes_report_defect_from_backend_limitation(report
     assert interval.status == "missing"
     assert assessment.status == "incomplete"
 
-    correlation = ResearchAssistant(pd.DataFrame({"x": [1, 2, 3, 4, 5], "y": [2, 1, 4, 3, 6]})).run(
+    correlation = ResearchAssistant(pd.DataFrame({"x": [1, 2, 3], "y": [2, 1, 4]})).run(
         objective="association",
         outcome="y",
         predictor="x",

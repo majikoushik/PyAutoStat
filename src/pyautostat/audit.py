@@ -271,19 +271,158 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
         if isinstance(eff_ci, dict):
             eff_lower = eff_ci.get("lower")
             eff_upper = eff_ci.get("upper")
+            eff_level = eff_ci.get("level")
+            eff_method = eff_ci.get("method")
+            eff_qty = eff_ci.get("quantity")
             if (
                 isinstance(eff_lower, (int, float))
                 and isinstance(eff_upper, (int, float))
                 and not isinstance(eff_lower, bool)
                 and not isinstance(eff_upper, bool)
             ):
-                if eff_lower > eff_upper:
+                if not (math.isfinite(float(eff_lower)) and math.isfinite(float(eff_upper))):
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval.finite",
+                        "finite bounds",
+                        (eff_lower, eff_upper),
+                        findings,
+                    )
+                elif eff_lower > eff_upper:
                     _mismatch(
                         "analysis.values.effect_size.confidence_interval",
                         "ordered bounds (lower <= upper)",
                         (eff_lower, eff_upper),
                         findings,
                     )
+                eff_name_check = str(effect.get("name", "")).lower()
+                if any(
+                    term in eff_name_check
+                    for term in (
+                        "rank-biserial",
+                        "pearson r",
+                        "spearman rho",
+                        "kendall",
+                        "point-biserial",
+                    )
+                ):
+                    if float(eff_lower) < -1.0001 or float(eff_upper) > 1.0001:
+                        _mismatch(
+                            "analysis.values.effect_size.confidence_interval.bounds",
+                            "bounds in [-1, 1]",
+                            (eff_lower, eff_upper),
+                            findings,
+                        )
+                elif any(
+                    term in eff_name_check
+                    for term in (
+                        "kendall's w",
+                        "eta_squared",
+                        "eta-squared",
+                        "r-squared",
+                        "cramér",
+                        "cramer",
+                        "epsilon-squared",
+                    )
+                ):
+                    if float(eff_lower) < -1e-6 or float(eff_upper) > 1.0001:
+                        _mismatch(
+                            "analysis.values.effect_size.confidence_interval.bounds",
+                            "bounds in [0, 1]",
+                            (eff_lower, eff_upper),
+                            findings,
+                        )
+                if source.method_id == "fisher_exact":
+                    if float(eff_lower) <= 0 or not math.isfinite(float(eff_lower)):
+                        _mismatch(
+                            "analysis.values.effect_size.confidence_interval.bounds",
+                            "strictly positive lower bound",
+                            eff_lower,
+                            findings,
+                        )
+                    eff_method_str = str(eff_method or "").lower()
+                    if "exact" in eff_method_str or "conditional" in eff_method_str:
+                        _mismatch(
+                            "analysis.values.effect_size.confidence_interval.method",
+                            "log-Wald sample odds ratio interval",
+                            eff_method,
+                            findings,
+                        )
+            if isinstance(eff_level, (int, float)) and not isinstance(eff_level, bool):
+                if not (0 < float(eff_level) < 1):
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval.level",
+                        "level in (0, 1)",
+                        eff_level,
+                        findings,
+                    )
+            if eff_method is not None:
+                if not isinstance(eff_method, str) or not eff_method.strip():
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval.method",
+                        "nonempty method",
+                        eff_method,
+                        findings,
+                    )
+            if eff_qty is not None and effect.get("name") is not None:
+                norm_eff_qty = (
+                    str(eff_qty)
+                    .strip()
+                    .lower()
+                    .replace("_", " ")
+                    .replace("-", " ")
+                    .replace("'s", "")
+                    .replace("'", "")
+                )
+                norm_name = (
+                    str(effect.get("name"))
+                    .strip()
+                    .lower()
+                    .replace("_", " ")
+                    .replace("-", " ")
+                    .replace("'s", "")
+                    .replace("'", "")
+                )
+                if norm_eff_qty != norm_name:
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval.quantity",
+                        effect.get("name"),
+                        eff_qty,
+                        findings,
+                    )
+            req = eff_ci.get("requested_resamples")
+            val = eff_ci.get("valid_resamples")
+            inv = eff_ci.get("invalid_resamples")
+            if isinstance(req, int) and isinstance(val, int):
+                if val > req or val < 0:
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval.valid_resamples",
+                        f"0 <= valid <= {req}",
+                        val,
+                        findings,
+                    )
+                if isinstance(inv, int) and inv != req - val:
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval.invalid_resamples",
+                        req - val,
+                        inv,
+                        findings,
+                    )
+                if req > 0 and val / req < 0.5:
+                    _mismatch(
+                        "analysis.values.effect_size.confidence_interval.valid_fraction",
+                        ">= 0.5",
+                        val / req,
+                        findings,
+                    )
+            if source.method_id == "pearson_correlation":
+                if source.sample_size is not None and source.sample_size <= 3:
+                    if eff_ci.get("status") == "available" or eff_ci.get("lower") is not None:
+                        _mismatch(
+                            "analysis.values.effect_size.confidence_interval",
+                            "unavailable when n <= 3",
+                            eff_ci,
+                            findings,
+                        )
         eff_val = effect.get("value")
         if (
             isinstance(eff_val, (int, float))

@@ -116,7 +116,7 @@ paired_rank = ResearchAssistant(paired).run(
     condition_order=("before", "after"),
     variable_types={"score": "continuous", "condition": "nominal"},
 )
-assert paired_rank.status.value == "partial"
+assert paired_rank.status.value == "completed"
 assert paired_rank.analysis.method_id == "wilcoxon_signed_rank"
 
 monotonic = ResearchAssistant(

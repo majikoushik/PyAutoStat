@@ -14,6 +14,12 @@ from scipy import stats
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidTestError
 from .inference import _scipy_result_value
 from .multigroup import adjust_pvalues
+from .uncertainty import (
+    friedman_kendall_w_bootstrap_ci,
+    matched_pairs_rank_biserial_bootstrap_ci,
+    paired_cohen_dz_ci,
+    repeated_measures_partial_eta_squared_ci,
+)
 
 
 def _helmert_contrasts(k: int) -> np.ndarray:
@@ -182,10 +188,15 @@ def friedman_test(
     condition_order: tuple[Any, ...] | list[Any] | None,
     *,
     alpha: float = 0.05,
+    confidence_level: float = 0.95,
+    bootstrap_samples: int = 499,
+    random_state: int | None = 0,
 ) -> dict[str, Any]:
     """Execute the Friedman repeated-rank omnibus test with complete Wilcoxon-Holm follow-up."""
     if not 0 < alpha < 1:
         raise InvalidTestError("alpha must be strictly between 0 and 1.")
+    if not 0 < confidence_level < 1:
+        raise InvalidTestError("confidence_level must be strictly between 0 and 1.")
 
     panel_info = repeated_panel(
         frame,
@@ -267,6 +278,16 @@ def friedman_test(
                 pair_status = "unavailable"
                 pair_reason = f"Wilcoxon computation failed: {exc}"
 
+        pair_ci = (
+            matched_pairs_rank_biserial_bootstrap_ci(
+                diff,
+                confidence_level=confidence_level,
+                bootstrap_samples=bootstrap_samples,
+                random_state=random_state,
+            )
+            if pair_status == "available"
+            else None
+        )
         pair_records.append(
             {
                 "contrast_id": f"{first_cond}_vs_{second_cond}",
@@ -289,7 +310,7 @@ def friedman_test(
                 "multiplicity_adjustment": "holm",
                 "alpha": alpha,
                 "decision": "unavailable" if pair_p is None else "fail_to_reject",
-                "confidence_interval": None,
+                "confidence_interval": pair_ci,
                 "effect_size": {
                     "name": "matched-pairs rank-biserial correlation",
                     "value": pair_effect,
@@ -297,7 +318,7 @@ def friedman_test(
                         "Positive minus negative signed-rank sums divided by their total; "
                         "positive values indicate higher ranks in the first condition."
                     ),
-                    "confidence_interval": None,
+                    "confidence_interval": pair_ci,
                 },
                 "n_pairs": n,
                 "family_size": len(pair_combos),
@@ -325,12 +346,20 @@ def friedman_test(
             "contrasts could not be evaluated; the planned family size is preserved."
         )
 
+    w_ci = friedman_kendall_w_bootstrap_ci(
+        panel,
+        confidence_level=confidence_level,
+        bootstrap_samples=bootstrap_samples,
+        random_state=random_state,
+    )
+
     return {
         "method": "Friedman test for repeated ranks",
         "statistic": stat,
         "degrees_of_freedom": df_omnibus,
         "p_value": p_val,
         "complete_units": n,
+        "confidence_interval": w_ci,
         "effect_size": {
             "name": "Kendall's W",
             "value": kendall_w,
@@ -338,7 +367,7 @@ def friedman_test(
                 "Kendall's coefficient of concordance W = Q / (n * (k - 1)); "
                 "describes overall within-unit rank agreement across conditions on a 0 to 1 scale."
             ),
-            "confidence_interval": None,
+            "confidence_interval": w_ci,
         },
         "conditions": order,
         "condition_order": order,
@@ -566,6 +595,11 @@ def repeated_measures_anova(
                 "statistic are unavailable."
             )
 
+        pair_dz_ci = (
+            paired_cohen_dz_ci(diff_mean, diff_sd, n, confidence_level=confidence_level)
+            if (pair_status == "available" and cohen_dz is not None and diff_sd > 0)
+            else None
+        )
         pair_records.append(
             {
                 "contrast_id": f"{first_cond}_vs_{second_cond}",
@@ -605,7 +639,7 @@ def repeated_measures_anova(
                         "Mean paired difference divided by the standard deviation of paired "
                         "differences."
                     ),
-                    "confidence_interval": None,
+                    "confidence_interval": pair_dz_ci,
                 },
                 "n_pairs": n,
                 "family_size": len(pair_combos),
@@ -685,8 +719,13 @@ def repeated_measures_anova(
                 "SS_condition / (SS_condition + SS_error); the proportion of within-subject "
                 "variance attributable to condition differences."
             ),
-            "confidence_interval": None,
+            "confidence_interval": repeated_measures_partial_eta_squared_ci(
+                f_stat, float(df_condition), float(df_error), confidence_level=confidence_level
+            ),
         },
+        "confidence_interval": repeated_measures_partial_eta_squared_ci(
+            f_stat, float(df_condition), float(df_error), confidence_level=confidence_level
+        ),
         "sphericity": {
             "test_name": "Mauchly's test of sphericity",
             "statistic": w_mauchly,

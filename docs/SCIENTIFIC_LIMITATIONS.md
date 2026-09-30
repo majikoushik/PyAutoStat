@@ -67,8 +67,9 @@ It is not a substitute for scientific design review or subject-matter judgment.
   or reverse-scores items automatically. Numeric Likert-style scores use ordinary variances and
   correlations; ordinal/polychoric alpha, omega, factor analysis, and PCA are unsupported.
 - Fisher's exact test is limited to ordered 2x2 tables. Its primary effect is SciPy's
-  unconditional sample odds ratio. Nonfinite zero-cell ratios are recorded as unavailable with a
-  status, and no odds-ratio confidence interval is currently supplied.
+  unconditional sample odds ratio. When all cells are positive, an asymptotic log-Wald confidence
+  interval matching the sample odds-ratio estimator is reported. When any cell is zero, the
+  confidence interval is explicitly recorded as unavailable without ad-hoc continuity corrections.
 - Missing data use analysis-specific complete cases. There is no automatic imputation or
   missing-data mechanism model.
 - Outliers are reported for review. They are never deleted automatically.

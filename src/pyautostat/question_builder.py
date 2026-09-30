@@ -251,12 +251,13 @@ def prepare_question(
             Objective.RELIABILITY,
             Objective.ASSOCIATION,
             Objective.COMPARE_GROUPS,
+            Objective.REGRESSION,
         }
         and selected_options.bootstrap_samples != 499
     ):
         raise InvalidDataError(
             "bootstrap_samples is supported only for objective='reliability', "
-            "'association', or 'compare_groups'."
+            "'association', 'compare_groups', or 'regression'."
         )
     if question.objective != Objective.RELIABILITY and selected_options.reverse_scoring is not None:
         raise InvalidDataError("reverse_scoring is supported only for objective='reliability'.")

@@ -60,12 +60,9 @@ target, not a scheduled next release.
 ## Candidate statistical capabilities
 
 Future milestones for statistical depth and expansion follow an explicit sequence:
-1. **Effect-size confidence intervals**: Implement defensible analytical and bootstrap intervals for
-   currently shipped effect sizes lacking CIs (see
-   [effect-size confidence interval gaps](docs/EFFECT_SIZE_CI_GAPS.md)).
-2. **Two-way factorial ANOVA**: Two factors, main effects, interaction, partial eta-squared, diagnostics,
+1. **Two-way factorial ANOVA**: Two factors, main effects, interaction, partial eta-squared, diagnostics,
    and planned follow-ups for balanced and unbalanced independent designs.
-3. **Intraclass correlation coefficient (ICC)**: Explicit Shrout & Fleiss / McGraw & Wong models,
+2. **Intraclass correlation coefficient (ICC)**: Explicit Shrout & Fleiss / McGraw & Wong models,
    types (consistency vs absolute agreement), unit levels (single vs average), and analytical CIs.
 
 A method or uncertainty algorithm should be added only when the complete contract can be supported:

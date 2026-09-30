@@ -11,6 +11,7 @@ import pandas as pd
 from scipy import stats
 
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidTestError
+from .uncertainty import dunn_pairwise_rank_biserial_bootstrap_ci
 
 
 def _confidence_level(value: Any) -> float:
@@ -423,6 +424,9 @@ def dunn(
     *,
     adjustment: str = "holm",
     alpha: float = 0.05,
+    confidence_level: float = 0.95,
+    bootstrap_samples: int = 499,
+    random_state: int | None = 0,
 ) -> dict[str, Any]:
     """All-pairs Dunn comparisons with a tie correction and central p adjustment."""
     grouped = _groups(frame, group_col, value_col)
@@ -463,6 +467,13 @@ def dunn(
         combined_ranks = stats.rankdata(np.concatenate([x, y]), method="average")
         u_first = float(np.sum(combined_ranks[: len(x)]) - len(x) * (len(x) + 1) / 2)
         rank_biserial = 2 * u_first / (len(x) * len(y)) - 1
+        dunn_ci = dunn_pairwise_rank_biserial_bootstrap_ci(
+            x,
+            y,
+            confidence_level=confidence_level,
+            bootstrap_samples=bootstrap_samples,
+            random_state=random_state,
+        )
         records.append(
             _pair_record(
                 procedure="dunn",
@@ -476,15 +487,13 @@ def dunn(
                 adjusted_p_value=adjusted_p,
                 adjustment_method=adjustment,
                 comparison_count=count,
-                confidence_interval=None,
+                confidence_interval=dunn_ci,
                 effect_size={
                     "name": "pairwise rank-biserial correlation",
                     "value": float(rank_biserial),
-                    "confidence_interval": None,
-                    "uncertainty_status": "unavailable",
-                    "reason": (
-                        "No validated pairwise effect interval is calculated for Dunn comparisons."
-                    ),
+                    "confidence_interval": dunn_ci,
+                    "uncertainty_status": dunn_ci["status"],
+                    "reason": dunn_ci.get("reason"),
                 },
                 n1=len(x),
                 n2=len(y),

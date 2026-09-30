@@ -997,9 +997,21 @@ class StatisticalAnalyzer:
         value_col: str,
         *,
         condition_order: tuple | list | None = None,
+        confidence_level: float = 0.95,
+        bootstrap_samples: int = 499,
+        random_state: int | None = 0,
     ) -> dict:
         """Run a two-sided paired Wilcoxon test using explicit unit identity."""
-        return _paired_wilcoxon(self.df, unit_id, condition_col, value_col, condition_order)
+        return _paired_wilcoxon(
+            self.df,
+            unit_id,
+            condition_col,
+            value_col,
+            condition_order,
+            confidence_level=confidence_level,
+            bootstrap_samples=bootstrap_samples,
+            random_state=random_state,
+        )
 
     def friedman_test(
         self,
@@ -1009,6 +1021,9 @@ class StatisticalAnalyzer:
         *,
         condition_order: tuple[Any, ...] | list[Any] | None = None,
         alpha: float = 0.05,
+        confidence_level: float = 0.95,
+        bootstrap_samples: int = 499,
+        random_state: int | None = 0,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Run Friedman repeated-measures test with Kendall's W and pairwise Wilcoxon."""
@@ -1016,6 +1031,9 @@ class StatisticalAnalyzer:
         cond = condition_col or kwargs.get("condition") or kwargs.get("predictor")
         val = value_col or kwargs.get("value") or kwargs.get("outcome")
         order = condition_order or kwargs.get("order")
+        b_samples = kwargs.get("bootstrap_samples", bootstrap_samples)
+        r_state = kwargs.get("random_state", random_state)
+        conf_level = kwargs.get("confidence_level", confidence_level)
         if unit is None or cond is None or val is None or order is None:
             raise InvalidTestError(
                 "unit_id, condition_col, value_col, and condition_order are required."
@@ -1027,6 +1045,9 @@ class StatisticalAnalyzer:
             val,
             condition_order=order,
             alpha=alpha,
+            confidence_level=conf_level,
+            bootstrap_samples=b_samples,
+            random_state=r_state,
         )
 
     def repeated_measures_anova(
@@ -1078,9 +1099,13 @@ class StatisticalAnalyzer:
             random_state=random_state,
         )
 
-    def fisher_exact(self, row_variable: str, column_variable: str) -> dict:
+    def fisher_exact(
+        self, row_variable: str, column_variable: str, *, confidence_level: float = 0.95
+    ) -> dict:
         """Run a two-sided Fisher exact test for an observed 2x2 table."""
-        return _fisher_exact_test(self.df, row_variable, column_variable)
+        return _fisher_exact_test(
+            self.df, row_variable, column_variable, confidence_level=confidence_level
+        )
 
     def welch_anova(
         self,
@@ -1128,9 +1153,21 @@ class StatisticalAnalyzer:
         *,
         adjustment: str = "holm",
         alpha: float = 0.05,
+        confidence_level: float = 0.95,
+        bootstrap_samples: int = 499,
+        random_state: int | None = 0,
     ) -> dict:
         """Run all Dunn rank comparisons with multiplicity adjustment."""
-        return _dunn(self.df, group_col, value_col, adjustment=adjustment, alpha=alpha)
+        return _dunn(
+            self.df,
+            group_col,
+            value_col,
+            adjustment=adjustment,
+            alpha=alpha,
+            confidence_level=confidence_level,
+            bootstrap_samples=bootstrap_samples,
+            random_state=random_state,
+        )
 
     def linear_regression(
         self,
@@ -1143,6 +1180,8 @@ class StatisticalAnalyzer:
         data_dictionary: dict[str, dict[str, object]] | None = None,
         confidence_level: float = 0.95,
         alpha: float = 0.05,
+        bootstrap_samples: int = 499,
+        random_state: int | None = 0,
     ) -> dict:
         """Fit validated OLS with treatment coding and stored diagnostics."""
         aliases = {
@@ -1162,6 +1201,8 @@ class StatisticalAnalyzer:
             data_dictionary=data_dictionary,
             confidence_level=confidence_level,
             alpha=alpha,
+            bootstrap_samples=bootstrap_samples,
+            random_state=random_state,
         )
 
     def scale_reliability(

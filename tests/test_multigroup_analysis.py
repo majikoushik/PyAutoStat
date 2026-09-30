@@ -113,9 +113,13 @@ def test_dunn_uses_tie_correction_pairwise_effect_and_holm():
     adjusted = adjust_pvalues([item["raw_p_value"] for item in raw["comparisons"]])
     assert [item["adjusted_p_value"] for item in raw["comparisons"]] == pytest.approx(adjusted)
     for item in raw["comparisons"]:
-        assert item["confidence_interval"] is None
+        assert item["confidence_interval"] is not None
+        assert (
+            item["confidence_interval"]["method"] == "independent within-group percentile bootstrap"
+        )
+        assert item["confidence_interval"]["multiplicity_adjusted"] is False
         assert -1 <= item["effect_size"]["value"] <= 1
-        assert item["effect_size"]["uncertainty_status"] == "unavailable"
+        assert item["effect_size"]["uncertainty_status"] == "available"
 
 
 def test_holm_is_monotone_and_restores_input_order():

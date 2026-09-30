@@ -235,7 +235,14 @@ def assess_reporting_completeness(
                 "friedman_test",
             },
             unavailable=(
-                source_values.get("confidence_interval") is None
+                (
+                    source_values.get("confidence_interval") is None
+                    or (
+                        isinstance(source_values.get("confidence_interval"), dict)
+                        and source_values.get("confidence_interval", {}).get("status")
+                        in {"unavailable", "uncomputable"}
+                    )
+                )
                 and method in {"pearson_correlation", "wilcoxon_signed_rank", "fisher_exact"}
             ),
         ),

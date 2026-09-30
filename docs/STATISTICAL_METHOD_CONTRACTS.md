@@ -27,26 +27,26 @@ audit invariants, and independent reference validation sources.
 |---|---|---|---|---|---|---|---|
 | `welch_t` | Welch independent-samples t-test | Independent groups, exactly 2 groups | Population mean difference (first group mean minus second group mean) | Sample mean difference (x̄₁ - x̄₂) | Cohen's d | `available` | `available` |
 | `student_t` | Student independent-samples t-test | Independent groups, exactly 2 groups | Population mean difference under equal variance assumption (μ₁ - μ₂) | Sample mean difference (x̄₁ - x̄₂) | Cohen's d | `available` | `available` |
-| `paired_t` | Paired-samples t-test | Paired / repeated measures with exactly 2 conditions and explicit unit identifier | Population mean paired difference (μ_D = μ₁ - μ₂) | Sample mean paired difference (D̄ = (1/n) Σ dᵢ) | Cohen's dz | `unavailable` | `available` |
-| `one_sample_t` | One-sample t-test | Single sample against a fixed external scalar reference value | Population mean minus declared reference value (μ - μ₀) | Sample mean difference from reference (x̄ - μ₀) | One-sample Cohen's d | `unavailable` | `available` |
+| `paired_t` | Paired-samples t-test | Paired / repeated measures with exactly 2 conditions and explicit unit identifier | Population mean paired difference (μ_D = μ₁ - μ₂) | Sample mean paired difference (D̄ = (1/n) Σ dᵢ) | Cohen's dz | `available` | `available` |
+| `one_sample_t` | One-sample t-test | Single sample against a fixed external scalar reference value | Population mean minus declared reference value (μ - μ₀) | Sample mean difference from reference (x̄ - μ₀) | One-sample Cohen's d | `available` | `available` |
 | `mann_whitney_u` | Mann-Whitney U test | Independent groups, exactly 2 groups | Rank distribution separation / stochastic superiority (P(X > Y) - P(Y > X)) | Matched rank-biserial correlation (r_rb = 2U/(n₁n₂) - 1) | Rank-biserial correlation | `available` | `available` |
-| `wilcoxon_signed_rank` | Paired Wilcoxon signed-rank test | Paired / repeated measures with exactly 2 conditions and explicit unit identifier | Matched-pairs signed-rank distribution center / location shift under symmetry | Matched-pairs rank-biserial correlation ((W⁺ - W⁻) / (W⁺ + W⁻)) | Matched-pairs rank-biserial correlation | `unavailable` | `unavailable` |
+| `wilcoxon_signed_rank` | Paired Wilcoxon signed-rank test | Paired / repeated measures with exactly 2 conditions and explicit unit identifier | Matched-pairs signed-rank distribution center / location shift under symmetry | Matched-pairs rank-biserial correlation ((W⁺ - W⁻) / (W⁺ + W⁻)) | Matched-pairs rank-biserial correlation | `available` | `available` |
 | `welch_anova` | Welch one-way ANOVA with Games-Howell comparisons | Independent groups, 3 or more groups | Heteroscedastic multi-group population mean equality; pairwise population mean differences | Group sample means; pairwise mean differences (x̄ⱼ - x̄ₘ) | Not applicable globally; unstandardized pairwise mean differences reported | `not_applicable` | `available` |
 | `one_way_anova` | Standard classical one-way ANOVA with Tukey-Kramer comparisons | Independent groups, 3 or more groups | Homoscedastic population mean equality (μ₁ = ... = μ_k); pairwise mean differences | Omnibus F; pairwise mean differences | Eta-squared (η²) | `available` | `available` |
 | `kruskal_wallis` | Kruskal-Wallis test with Dunn-Holm comparisons | Independent groups, 3 or more groups | Multi-group rank distribution equality / stochastic dominance | Rank epsilon-squared (ε²); pairwise mean-rank contrasts | Rank epsilon-squared | `available` | `unavailable` |
-| `pearson_correlation` | Pearson product-moment correlation | Single sample, bivariate continuous pairs | Population Pearson linear correlation coefficient (ρ) | Sample Pearson correlation coefficient (r) | Pearson r | `unavailable` | `unavailable` |
+| `pearson_correlation` | Pearson product-moment correlation | Single sample, bivariate continuous pairs | Population Pearson linear correlation coefficient (ρ) | Sample Pearson correlation coefficient (r) | Pearson r | `available` | `available` |
 | `spearman_correlation` | Spearman rank correlation | Single sample, bivariate ordered pairs | Population Spearman rank correlation coefficient (ρ_s) | Sample Spearman rank correlation (r_s) | Spearman rho | `available` | `available` |
 | `kendall_tau_b` | Kendall's tau-b with inference | Single sample, bivariate ordered pairs | Population Kendall's tau-b parameter (τ_b) | Sample Kendall tau-b (τ_b) | Kendall's tau-b | `available` | `available` |
 | `point_biserial_correlation` | Point-biserial correlation with inference | Independent observations with one continuous and one binary variable | Population point-biserial correlation (r_pb) | Sample point-biserial correlation (r_pb) | Point-biserial r | `available` | `available` |
 | `partial_pearson_correlation` | Partial Pearson correlation | Independent observations with two focal continuous variables and k >= 1 quantitative controls | Population partial Pearson correlation controlling for covariates (ρ_XY.Z) | Sample partial Pearson correlation (r_XY.Z) | Partial Pearson r | `available` | `available` |
 | `pearson_chi_square` | Pearson chi-square test of independence | Independent observations, cross-classification table (r x c) | Categorical independence / departure from multinomial product probabilities | Cramér's V | Cramér's V | `available` | `available` |
-| `fisher_exact` | Fisher's exact test | Independent observations, exactly 2x2 contingency table | Binary independence / odds ratio under hypergeometric distribution | Sample odds ratio (ad / bc) | Sample odds ratio | `unavailable` | `unavailable` |
+| `fisher_exact` | Fisher's exact test | Independent observations, exactly 2x2 contingency table | Binary independence / odds ratio under hypergeometric distribution | Sample odds ratio (ad / bc) | Sample odds ratio | `available` | `available` |
 | `mcnemar` | McNemar's test for paired binary outcomes | Paired design with explicit unit ID, exactly 2 conditions, and binary outcome | Paired marginal event probability difference (P(Y₁ = 1) - P(Y₂ = 1)) | Sample paired event proportion difference ((b - c) / n) | Paired proportion difference; matched odds ratio (b / c) | `available` | `available` |
-| `linear_regression` | Ordinary least-squares linear regression | Independent observations, continuous outcome, one or more predictors | Conditional mean coefficients (β_j) and in-sample explained variance (R²) under declared model | Sample R²; sample OLS slope coefficients (b_j) | In-sample R²; continuous standardized betas | `unavailable` | `available` |
+| `linear_regression` | Ordinary least-squares linear regression | Independent observations, continuous outcome, one or more predictors | Conditional mean coefficients (β_j) and in-sample explained variance (R²) under declared model | Sample R²; sample OLS slope coefficients (b_j) | In-sample R²; continuous standardized betas | `available` | `available` |
 | `logistic_regression` | Binary logistic regression | Independent observations, binary outcome, one or more predictors | Conditional log-odds coefficients (β_j) and odds ratios (OR_j = exp(β_j)) under declared model | Maximum likelihood log-odds coefficients (b_j) and odds ratios (exp(b_j)) | Odds ratios per predictor; McFadden pseudo-R² | `available` | `available` |
 | `cronbach_alpha` | Cronbach's alpha scale reliability | Multi-item survey or psychometric scale (2+ numeric/ordinal items) | Scale internal consistency coefficient (α) | Sample Cronbach's alpha (α̂) | Cronbach's alpha | `available` | `available` |
-| `repeated_measures_anova` | One-way repeated-measures ANOVA with Greenhouse-Geisser correction | Repeated measures with explicit unit ID, 3+ conditions, and long-format panel | Repeated-condition population mean equality; pairwise condition mean differences | Condition sample means; partial eta-squared (η_p²); pairwise mean differences | Partial eta-squared (η_p²) | `unavailable` | `available` |
-| `friedman_test` | Friedman rank-sum test with Wilcoxon-Holm follow-up | Repeated measures with explicit unit ID, 3+ conditions, and long-format panel | Within-unit rank distribution differences across conditions; Kendall's W rank concordance | Kendall's W; condition rank medians; pairwise rank-biserial correlations | Kendall's W | `unavailable` | `unavailable` |
+| `repeated_measures_anova` | One-way repeated-measures ANOVA with Greenhouse-Geisser correction | Repeated measures with explicit unit ID, 3+ conditions, and long-format panel | Repeated-condition population mean equality; pairwise condition mean differences | Condition sample means; partial eta-squared (η_p²); pairwise mean differences | Partial eta-squared (η_p²) | `available` | `available` |
+| `friedman_test` | Friedman rank-sum test with Wilcoxon-Holm follow-up | Repeated measures with explicit unit ID, 3+ conditions, and long-format panel | Within-unit rank distribution differences across conditions; Kendall's W rank concordance | Kendall's W; condition rank medians; pairwise rank-biserial correlations | Kendall's W | `available` | `available` |
 
 ---
 
@@ -154,9 +154,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: df = complete_pairs - 1
 - **Effect Size Quantity**: Cohen's dz
 - **Effect Size Definition**: Sample mean paired difference divided by the standard deviation of paired differences.
-- **Effect Size CI Status**: `unavailable`
+- **Effect Size CI Status**: `available`
 - **Primary Estimate CI Status**: `available`
-- **Confidence Interval Method**: Analytical Student-t interval for mean paired difference; Cohen's dz CI unavailable in this release.
+- **Confidence Interval Method**: Analytical Student-t interval for mean paired difference; exact noncentral-t inversion for Cohen's dz.
 - **Required Assumptions**:
   - Explicit paired or matched observational units.
   - Independent pairs across units.
@@ -172,7 +172,7 @@ audit invariants, and independent reference validation sources.
 - **Numerical Provenance**: scipy.stats.ttest_rel
 - **Interpretation Limitations**:
   - Mean paired difference is noncausal without condition randomization.
-  - Cohen's dz confidence interval is currently unavailable.
+  - Cohen's dz CI uses exact noncentral-t inversion targeting the population standardized paired difference.
   - Non-rejection does not prove zero difference.
 - **Audit Invariants**:
   - 2 * complete_pairs == analyzed_rows
@@ -180,6 +180,7 @@ audit invariants, and independent reference validation sources.
   - contrast condition order matches declared condition order
   - analytical CI contains sample mean paired difference
   - CI lower <= upper
+  - Cohen's dz CI lower <= upper
 - **Independent Validation Source**: Fisher (1925); SciPy cross-check; verified in tests/test_paired_analysis.py.
 
 ### `one_sample_t` — One-sample t-test
@@ -197,9 +198,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: df = n - 1
 - **Effect Size Quantity**: One-sample Cohen's d
 - **Effect Size Definition**: Sample mean minus reference value, divided by the sample standard deviation.
-- **Effect Size CI Status**: `unavailable`
+- **Effect Size CI Status**: `available`
 - **Primary Estimate CI Status**: `available`
-- **Confidence Interval Method**: Analytical Student-t interval for mean difference from reference; Cohen's d CI unavailable in this release.
+- **Confidence Interval Method**: Analytical Student-t interval for mean difference from reference; exact noncentral-t inversion for one-sample Cohen's d.
 - **Required Assumptions**:
   - Independent observations.
   - Continuous outcome scale.
@@ -215,12 +216,13 @@ audit invariants, and independent reference validation sources.
 - **Numerical Provenance**: scipy.stats.ttest_1samp
 - **Interpretation Limitations**:
   - Validity depends on the scientific relevance and justification of the reference value.
-  - One-sample Cohen's d confidence interval is currently unavailable.
+  - One-sample Cohen's d CI uses exact noncentral-t inversion targeting the population standardized difference.
 - **Audit Invariants**:
   - df == analyzed_rows - 1
   - metadata reference_value matches question specification
   - analytical CI contains sample mean difference from reference
   - CI lower <= upper
+  - one-sample Cohen's d CI lower <= upper
 - **Independent Validation Source**: Student (1908); SciPy cross-check; verified in tests/test_basic_inference.py.
 
 ### `mann_whitney_u` — Mann-Whitney U test
@@ -280,9 +282,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: None (not applicable)
 - **Effect Size Quantity**: Matched-pairs rank-biserial correlation
 - **Effect Size Definition**: Difference of positive and negative rank sums divided by total rank sum.
-- **Effect Size CI Status**: `unavailable`
-- **Primary Estimate CI Status**: `unavailable`
-- **Confidence Interval Method**: Confidence interval is unavailable in this release.
+- **Effect Size CI Status**: `available`
+- **Primary Estimate CI Status**: `available`
+- **Confidence Interval Method**: Paired-observation percentile bootstrap for matched-pairs rank-biserial correlation.
 - **Required Assumptions**:
   - Explicit paired or matched observational units.
   - Independent pairs across units.
@@ -299,13 +301,15 @@ audit invariants, and independent reference validation sources.
 - **Numerical Provenance**: scipy.stats.wilcoxon(zero_method='wilcox')
 - **Interpretation Limitations**:
   - NOT a universal test of medians; location shift strictly requires symmetry of paired differences.
-  - Confidence interval is currently unavailable.
+  - Matched-pairs rank-biserial CI uses unit-level paired percentile bootstrap; does not assume asymptotic normality.
 - **Audit Invariants**:
   - 2 * complete_pairs == analyzed_rows
   - contrast condition order matches declared condition order
   - degrees_of_freedom is None
   - p_value in [0, 1]
   - rank_biserial in [-1, 1]
+  - CI bounds in [-1, 1]
+  - CI lower <= upper
 - **Independent Validation Source**: Wilcoxon (1945); SciPy cross-check; verified in tests/test_paired_analysis.py.
 
 ### `welch_anova` — Welch one-way ANOVA with Games-Howell comparisons
@@ -452,9 +456,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: None stored in result; inferential df = n - 2
 - **Effect Size Quantity**: Pearson r
 - **Effect Size Definition**: Signed linear correlation between the two quantitative variables.
-- **Effect Size CI Status**: `unavailable`
-- **Primary Estimate CI Status**: `unavailable`
-- **Confidence Interval Method**: Confidence interval is unavailable in this release.
+- **Effect Size CI Status**: `available`
+- **Primary Estimate CI Status**: `available`
+- **Confidence Interval Method**: Fisher-z asymptotic normal confidence interval.
 - **Required Assumptions**:
   - Independent observational pairs.
   - Linear relationship between variables.
@@ -469,12 +473,14 @@ audit invariants, and independent reference validation sources.
 - **Interpretation Limitations**:
   - Measures linear association only; sensitive to outliers and nonlinear curvature.
   - r² is shared linear variance, not causal effect.
-  - Confidence interval is currently unavailable.
+  - Confidence interval uses Fisher-z transform; valid for n > 3.
 - **Audit Invariants**:
   - r in [-1, 1]
   - p_value in [0, 1]
   - analyzed_rows == effective_pair_count
   - analyzed_rows + excluded_rows == original_rows
+  - CI bounds in [-1, 1]
+  - CI lower <= upper
 - **Independent Validation Source**: Pearson (1895); SciPy cross-check; verified in tests/test_analyzer_correlation.py.
 
 ### `spearman_correlation` — Spearman rank correlation
@@ -698,9 +704,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: None (exact test)
 - **Effect Size Quantity**: Sample odds ratio
 - **Effect Size Definition**: Cross-product ratio (ad / bc) based on first-observed row and column order.
-- **Effect Size CI Status**: `unavailable`
-- **Primary Estimate CI Status**: `unavailable`
-- **Confidence Interval Method**: Confidence interval is unavailable in this release.
+- **Effect Size CI Status**: `available`
+- **Primary Estimate CI Status**: `available`
+- **Confidence Interval Method**: log-Wald confidence interval for sample odds-ratio estimator (unavailable when any cell is zero).
 - **Required Assumptions**:
   - Independent observations.
   - Exactly 2x2 contingency table.
@@ -716,13 +722,15 @@ audit invariants, and independent reference validation sources.
 - **Interpretation Limitations**:
   - Supported strictly for 2x2 tables.
   - Odds ratio direction depends on category level order.
-  - Confidence interval is currently unavailable.
+  - Odds-ratio CI uses asymptotic log-Wald method matching the sample OR estimator; unavailable when any cell count is zero (no silent continuity corrections).
   - Does not establish causality.
 - **Audit Invariants**:
   - observed_counts is a 2x2 matrix
   - degrees_of_freedom is None
   - p_value in [0, 1]
   - sample odds ratio >= 0 when finite
+  - sample odds ratio CI lower > 0 and finite when available
+  - CI lower <= upper
 - **Independent Validation Source**: Fisher (1935); SciPy cross-check; verified in tests/test_basic_inference.py.
 
 ### `mcnemar` — McNemar's test for paired binary outcomes
@@ -784,9 +792,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: Two dfs: [model df = p, residual df = n - p - 1]
 - **Effect Size Quantity**: In-sample R²; continuous standardized betas
 - **Effect Size Definition**: Observed outcome variance accounted for by the fitted in-sample model.
-- **Effect Size CI Status**: `unavailable`
+- **Effect Size CI Status**: `available`
 - **Primary Estimate CI Status**: `available`
-- **Confidence Interval Method**: Analytical Student-t intervals for coefficients (classical or HC3 covariance); R² CI unavailable.
+- **Confidence Interval Method**: Analytical Student-t intervals for coefficients (classical or HC3 covariance); case-resampling percentile bootstrap CI for in-sample R-squared.
 - **Required Assumptions**:
   - Independent observational units.
   - Linear conditional-mean specification.
@@ -804,13 +812,15 @@ audit invariants, and independent reference validation sources.
 - **Interpretation Limitations**:
   - Additive linear main effects only; associations are noncausal.
   - R² is an in-sample descriptive fit, NOT validated out-of-sample prediction.
-  - R² confidence interval is currently unavailable.
+  - In-sample R² CI uses case-resampling percentile bootstrap; reflects in-sample fit uncertainty, not predictive performance.
 - **Audit Invariants**:
   - r_squared in [0, 1]
   - p_value in [0, 1]
   - residual_df == analyzed_rows - parameter_count
   - coefficient analytical CI contains estimate
   - CI lower <= upper
+  - r_squared CI bounds in [0, 1]
+  - r_squared CI lower <= upper
   - design_matrix.full_rank is True
 - **Independent Validation Source**: Legendre (1805); Gauss (1809); statsmodels cross-check; verified in tests/test_regression_workflow.py.
 
@@ -920,9 +930,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: Uncorrected [k-1, (k-1)(n-1)]; GG-corrected [ε(k-1), ε(k-1)(n-1)]
 - **Effect Size Quantity**: Partial eta-squared (η_p²)
 - **Effect Size Definition**: Condition sum of squares divided by condition sum of squares plus error sum of squares (partial eta-squared).
-- **Effect Size CI Status**: `unavailable`
+- **Effect Size CI Status**: `available`
 - **Primary Estimate CI Status**: `available`
-- **Confidence Interval Method**: Analytical paired-t intervals for pairwise contrasts; partial eta-squared CI unavailable in this release.
+- **Confidence Interval Method**: Exact noncentral-F inversion confidence interval for partial eta-squared (using uncorrected F and df); analytical paired-t intervals and exact noncentral-t dz intervals for pairwise contrasts.
 - **Required Assumptions**:
   - Explicit repeated observational units across conditions.
   - Units independent of other units.
@@ -941,12 +951,14 @@ audit invariants, and independent reference validation sources.
 - **Interpretation Limitations**:
   - Mauchly non-rejection does NOT prove sphericity.
   - Greenhouse-Geisser correction applied when sphericity is rejected or uncomputable.
-  - Partial eta-squared confidence interval is currently unavailable.
+  - Partial eta-squared CI uses exact noncentral-F inversion on uncorrected F and degrees of freedom; GG correction modifies inferential p-values but not the observed SS-based effect.
   - Does not establish causality.
 - **Audit Invariants**:
   - ss_total == ss_condition + ss_subject + ss_error
   - partial_eta_squared == ss_condition / (ss_condition + ss_error)
   - partial_eta_squared in [0, 1]
+  - partial_eta_squared CI in [0, 1]
+  - partial_eta_squared CI lower <= upper
   - gg_epsilon in [1/(k-1), 1]
   - corrected dfs == epsilon * uncorrected dfs
   - corrected p matches F and corrected dfs
@@ -969,9 +981,9 @@ audit invariants, and independent reference validation sources.
 - **Degrees of Freedom**: df = k - 1
 - **Effect Size Quantity**: Kendall's W
 - **Effect Size Definition**: Friedman Q divided by n*(k - 1) (Kendall's W rank concordance).
-- **Effect Size CI Status**: `unavailable`
-- **Primary Estimate CI Status**: `unavailable`
-- **Confidence Interval Method**: Confidence intervals are unavailable in this release.
+- **Effect Size CI Status**: `available`
+- **Primary Estimate CI Status**: `available`
+- **Confidence Interval Method**: Participant-block percentile bootstrap for Kendall's W; paired-observation percentile bootstrap for pairwise rank-biserial contrasts.
 - **Required Assumptions**:
   - Explicit repeated observational units across conditions.
   - Units independent of other units.
@@ -988,11 +1000,13 @@ audit invariants, and independent reference validation sources.
 - **Interpretation Limitations**:
   - Friedman evaluates within-unit rank distributions, NOT a universal test of medians.
   - Kendall's W is rank concordance, NOT percentage of variance explained.
-  - Pairwise effect-size confidence intervals are currently unavailable.
+  - Kendall's W and pairwise rank-biserial intervals use participant/paired percentile bootstrap; approximate uncertainty intervals, not significance tests.
 - **Audit Invariants**:
   - df == k - 1
   - kendalls_w == Q / (n * (k - 1))
   - kendalls_w in [0, 1]
+  - kendalls_w CI in [0, 1]
+  - kendalls_w CI lower <= upper
   - complete family of k*(k-1)//2 pairwise records present
   - pairwise adjusted p_values in [0, 1]
   - pairwise rank_biserial in [-1, 1]

@@ -28,6 +28,10 @@ from .recommendation import METHOD_CAPABILITIES, recommend_from_draft
 from .report import _json_safe
 from .results import AnalysisResult, AnalysisStatus, Recommendation, RecommendationStatus
 from .specifications import AnalysisSpecification
+from .uncertainty import (
+    fisher_z_correlation_ci,
+    paired_cohen_dz_ci,
+)
 
 _GROUP_BACKENDS: dict[str, tuple[str, str, bool]] = {
     "welch_t": ("ttest", "mean", False),
@@ -189,10 +193,13 @@ def _regression_result(
         data_dictionary=specification.data_dictionary,
         confidence_level=specification.options.confidence_level,
         alpha=specification.options.alpha,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=specification.options.random_seed,
     )
     sample = raw["sample"]
     fit = raw["model_fit"]
     diagnostics = raw["diagnostics"]
+    r2_ci = fit.get("r_squared_confidence_interval")
     values = {
         "test_statistic": fit["model_f_statistic"],
         "degrees_of_freedom": [
@@ -202,12 +209,12 @@ def _regression_result(
         "p_value": fit["model_f_p_value"],
         "primary_estimate": fit["r_squared"],
         "estimate_name": "R-squared",
-        "confidence_interval": None,
+        "confidence_interval": r2_ci,
         "effect_size": {
             "name": "R-squared",
             "value": fit["r_squared"],
             "definition": "Observed outcome variance accounted for by the fitted in-sample model.",
-            "confidence_interval": None,
+            "confidence_interval": r2_ci,
             "status": "available",
         },
         "outcome": raw["outcome"],
@@ -250,6 +257,17 @@ def _regression_result(
             "diagnostics": _json_safe(diagnostics),
             "null_hypothesis": _NULL_HYPOTHESES["linear_regression"],
             "inference": True,
+            "bootstrap": _json_safe(r2_ci) if r2_ci is not None else None,
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
+            "effective_random_seed": (
+                r2_ci.get("random_seed")
+                if isinstance(r2_ci, dict) and r2_ci.get("random_seed") is not None
+                else (
+                    0
+                    if specification.options.random_seed is None
+                    else specification.options.random_seed
+                )
+            ),
         },
         specification=specification,
         recommendation=recommendation,
@@ -511,6 +529,12 @@ def _pearson_result(
         for item in profile.get("analysis_warnings", [])
         if item["section"] == "correlation"
     ]
+    ci = fisher_z_correlation_ci(
+        r,
+        count,
+        confidence_level=specification.options.confidence_level,
+    )
+    ci_available = ci if (isinstance(ci, dict) and ci.get("status") == "available") else None
     return AnalysisResult(
         method_id="pearson_correlation",
         status=AnalysisStatus.AVAILABLE,
@@ -527,9 +551,9 @@ def _pearson_result(
                 "name": "Pearson r",
                 "value": r,
                 "definition": "Signed linear correlation between the two quantitative variables.",
-                "confidence_interval": None,
+                "confidence_interval": ci,
             },
-            "confidence_interval": None,
+            "confidence_interval": ci_available,
         },
         assumptions=recommendation.required_assumptions,
         warnings=_warnings(recommendation, relevant_warnings),
@@ -593,6 +617,7 @@ def _one_sample_result(
     analyzed = int(raw["sample_size"])
     excluded = int(raw["excluded_rows"])
     unit = (specification.data_dictionary or {}).get(outcome, {}).get("unit")
+    effect_ci = raw.get("effect_size", {}).get("confidence_interval")
     return AnalysisResult(
         method_id="one_sample_t",
         status=AnalysisStatus.AVAILABLE,
@@ -614,7 +639,7 @@ def _one_sample_result(
                 "definition": (
                     "Observed sample mean minus reference value, divided by the sample SD."
                 ),
-                "confidence_interval": None,
+                "confidence_interval": effect_ci,
                 "status": "available" if effect is not None else "unavailable_zero_variance",
             },
             "confidence_interval": interval,
@@ -686,6 +711,12 @@ def _paired_result(
         "method": "analytical paired t interval",
     }
     effect = mean_difference / sd_difference
+    effect_ci = paired_cohen_dz_ci(
+        mean_difference,
+        sd_difference,
+        complete_pairs,
+        confidence_level=specification.options.confidence_level,
+    )
     analyzed_rows = int(pairs["analyzed_rows"])
     excluded_rows = int(pairs["excluded_rows"])
     total_units = int(pairs["total_units"])
@@ -716,7 +747,7 @@ def _paired_result(
                 "definition": (
                     "Mean paired difference divided by the sample SD of paired differences."
                 ),
-                "confidence_interval": None,
+                "confidence_interval": effect_ci,
             },
             "confidence_interval": interval,
         },
@@ -768,6 +799,9 @@ def _wilcoxon_result(
         condition,
         outcome,
         condition_order=specification.condition_order,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=specification.options.random_seed,
     )
     statistic = _number(raw["statistic"], "Wilcoxon statistic")
     p_value = _number(raw["p_value"], "Wilcoxon p-value", probability=True)
@@ -780,6 +814,7 @@ def _wilcoxon_result(
     }
     analyzed = int(raw["analyzed_rows"])
     excluded = int(raw["excluded_rows"])
+    interval = raw.get("confidence_interval")
     return AnalysisResult(
         method_id="wilcoxon_signed_rank",
         status=AnalysisStatus.AVAILABLE,
@@ -799,9 +834,9 @@ def _wilcoxon_result(
                     "Positive minus negative signed-rank sums divided by their total; positive "
                     "values favor the first declared condition."
                 ),
-                "confidence_interval": None,
+                "confidence_interval": interval,
             },
-            "confidence_interval": None,
+            "confidence_interval": interval,
         },
         assumptions=recommendation.required_assumptions,
         warnings=_warnings(recommendation, raw.get("warnings", [])),
@@ -841,6 +876,17 @@ def _wilcoxon_result(
                 "zero_method": "wilcox (zero differences omitted from ranks)",
                 "independent_pairs": "Declared design; not verified from values.",
             },
+            "bootstrap": raw.get("bootstrap"),
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
+            "effective_random_seed": (
+                raw["bootstrap"]["random_seed"]
+                if isinstance(raw.get("bootstrap"), dict)
+                else (
+                    0
+                    if specification.options.random_seed is None
+                    else specification.options.random_seed
+                )
+            ),
         },
         specification=specification,
         recommendation=recommendation,
@@ -1466,7 +1512,11 @@ def _fisher_result(
     row_variable = specification.question.outcome
     column_variable = specification.question.predictor
     assert row_variable is not None and column_variable is not None
-    raw = analyzer.fisher_exact(row_variable, column_variable)
+    raw = analyzer.fisher_exact(
+        row_variable,
+        column_variable,
+        confidence_level=specification.options.confidence_level,
+    )
     odds_raw = raw.get("odds_ratio")
     odds_ratio = _number(odds_raw, "sample odds ratio") if odds_raw is not None else None
     p_value = _number(raw["p_value"], "Fisher p-value", probability=True)
@@ -1482,6 +1532,8 @@ def _fisher_result(
         raise InsufficientDataError("Fisher contingency counts disagree with the dataset.")
     row_levels = [_label(item) for item in raw["row_levels"]]
     column_levels = [_label(item) for item in raw["column_levels"]]
+    ci = raw.get("confidence_interval")
+    ci_available = ci if (isinstance(ci, dict) and ci.get("status") == "available") else None
     return AnalysisResult(
         method_id="fisher_exact",
         status=AnalysisStatus.AVAILABLE,
@@ -1498,10 +1550,10 @@ def _fisher_result(
                 "name": "sample odds ratio",
                 "value": odds_ratio,
                 "definition": raw["odds_ratio_definition"],
-                "confidence_interval": None,
+                "confidence_interval": ci,
                 "status": raw["odds_ratio_status"],
             },
-            "confidence_interval": None,
+            "confidence_interval": ci_available,
         },
         assumptions=recommendation.required_assumptions,
         warnings=_warnings(recommendation, raw.get("warnings", [])),
@@ -1529,7 +1581,7 @@ def _fisher_result(
             "alternative_hypothesis": "association",
             "diagnostics": {
                 "table_shape": [2, 2],
-                "confidence_interval_status": "not_supported",
+                "confidence_interval_status": ("available" if ci is not None else "unavailable"),
                 "independent_observations": "Declared design; not verified from values.",
             },
         },
@@ -1567,11 +1619,12 @@ def _repeated_measures_anova_result(
 
     effect = raw.get("effect_size", {})
     effect_val = _number(effect.get("value"), "partial eta-squared")
+    effect_ci = effect.get("confidence_interval")
     effect_size_record = {
         "name": "partial_eta_squared",
         "value": effect_val,
         "definition": _EFFECT_DEFINITIONS["repeated_measures_anova"],
-        "confidence_interval": None,
+        "confidence_interval": effect_ci,
         "status": "available",
         "reason": None,
     }
@@ -1660,6 +1713,9 @@ def _friedman_result(
         outcome,
         condition_order=specification.condition_order,
         alpha=specification.options.alpha,
+        confidence_level=specification.options.confidence_level,
+        bootstrap_samples=specification.options.bootstrap_samples,
+        random_state=specification.options.random_seed,
     )
     statistic = _number(raw.get("statistic"), "Friedman Q statistic")
     p_value = _number(raw.get("p_value"), "Friedman p-value", probability=True)
@@ -1667,11 +1723,12 @@ def _friedman_result(
 
     effect = raw.get("effect_size", {})
     effect_val = _number(effect.get("value"), "Kendall's W")
+    effect_ci = effect.get("confidence_interval")
     effect_size_record = {
         "name": "Kendall's W",
         "value": effect_val,
         "definition": _EFFECT_DEFINITIONS["friedman_test"],
-        "confidence_interval": None,
+        "confidence_interval": effect_ci,
         "status": "available",
         "reason": None,
     }
@@ -1725,6 +1782,17 @@ def _friedman_result(
             "pairwise_comparison_count": len(pairwise_comparisons)
             if isinstance(pairwise_comparisons, list)
             else 0,
+            "bootstrap": raw.get("bootstrap"),
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
+            "effective_random_seed": (
+                raw["bootstrap"]["random_seed"]
+                if isinstance(raw.get("bootstrap"), dict)
+                else (
+                    0
+                    if specification.options.random_seed is None
+                    else specification.options.random_seed
+                )
+            ),
         },
         specification=specification,
         recommendation=recommendation,

@@ -7,16 +7,25 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added
-
+- Added effect-size confidence intervals for existing shipped effect quantities across the package:
+  - Exact noncentral-t inversion confidence intervals for paired Cohen's $d_z$ (`paired_t`) and one-sample Cohen's $d$ (`one_sample_t`), with exact bracketed root solving and degenerate handling.
+  - Fisher-z asymptotic normal confidence interval for Pearson correlation ($r$), with bounds $[-1, 1]$ and explicit unavailable status for $n \le 3$.
+  - Estimator-matched asymptotic log-Wald confidence interval for Fisher's exact sample odds ratio ($ad/bc$), with explicit unavailable status for zero-cell tables and strict refusal of silent continuity corrections.
+  - Deterministic participant/pair-level percentile bootstrap confidence intervals for matched-pairs rank-biserial correlation (`wilcoxon_signed_rank`) and Friedman Wilcoxon-Holm contrasts.
+  - Participant-block percentile bootstrap confidence interval for Friedman Kendall's $W$.
+  - Exact noncentral-F inversion confidence interval for repeated-measures ANOVA partial eta-squared ($\eta_p^2$) based on uncorrected observed F and uncorrected condition/error degrees of freedom, preserving SS-based point effect.
+  - Exact noncentral-t pairwise Cohen's $d_z$ confidence intervals on all repeated-measures pairwise paired-t contrasts, with explicit pointwise (`multiplicity_adjusted=False`) accounting.
+  - Independent within-group percentile bootstrap confidence intervals for Kruskal-Wallis post-hoc Dunn pairwise rank-biserial correlations, with explicit pointwise (`multiplicity_adjusted=False`) accounting.
+  - Case-resampling percentile bootstrap confidence interval for OLS in-sample $R^2$, preserving design matrix structure and categorical factor coding.
+- Added dedicated `src/pyautostat/uncertainty.py` module providing reusable, numerically validated root-finding and bootstrap helpers without raising package dependency floors.
 - Added machine-checkable authoritative method contract architecture (`MethodContract` dataclass and `METHOD_CONTRACTS` registry) covering all 22 executable statistical methods with 26 explicit scientific fields: estimand, hypotheses, primary estimate, effect size, uncertainty status, required assumptions, diagnostics, missing-data policy, degenerate-data behavior, multiplicity policy, numerical provenance, interpretation limitations, audit invariants, and independent validation sources.
 - Added comprehensive documentation deliverables:
   - `docs/STATISTICAL_METHOD_CONTRACTS.md`: authoritative scientific contract specification for every shipped inferential method.
   - `docs/EFFECT_SIZE_CI_GAPS.md`: uncertainty gap classification, candidate defensible confidence interval methods, and milestone priorities.
-- Added audit invariant hardening and extensive corruption test coverage (`tests/test_audit_hardening.py`):
+- Added audit invariant hardening and extensive corruption test coverage (`tests/test_audit_hardening.py`, `tests/test_effect_size_confidence_intervals.py`, and `tests/test_uncertainty_hardening.py`):
   - Verification of finite p-values in [0, 1] across all results.
   - Verification of confidence interval bound ordering (`lower <= upper`) and analytical Student-t point estimate inclusion.
-  - Verification of mathematical bounds on bounded effect sizes (rank-biserial, Pearson r, Spearman rho, Kendall tau-b, Cramér's V, Kendall's W, eta-squared, partial eta-squared, rank epsilon-squared).
+  - Verification of mathematical bounds on bounded effect sizes (rank-biserial, Pearson r, Spearman rho, Kendall tau-b, Cramér's V, Kendall's W, eta-squared, partial eta-squared, rank epsilon-squared, in-sample R-squared).
   - Two-group sample size and contrast order accounting.
   - Degrees of freedom invariants for Student-t ($df = n - 2$), one-sample t ($df = n - 1$), and paired t ($df = n_{\text{pairs}} - 1$).
   - Repeated-measures ANOVA sum-of-squares partition and partial eta-squared algebraic consistency.

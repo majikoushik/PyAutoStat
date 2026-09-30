@@ -415,9 +415,7 @@ def test_partial_and_unavailable_reports_are_audited_in_their_actual_state(case)
     changed = _altered(report, unavailable, ("status",), "complete")
     assert assistant.audit(changed).status == "failed"
 
-    pearson_frame = pd.DataFrame(
-        {"hours": [1.0, 2.0, 3.0, 4.0, 5.0], "score": [2.0, 4.0, 3.0, 6.0, 7.0]}
-    )
+    pearson_frame = pd.DataFrame({"hours": [1.0, 2.0, 3.0], "score": [2.0, 4.0, 3.0]})
     pearson_assistant = ResearchAssistant(pearson_frame)
     draft = pearson_assistant.prepare_question(
         objective="association",

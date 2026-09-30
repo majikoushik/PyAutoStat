@@ -287,13 +287,19 @@ def _metric(
         unit = None
     checked_interval = None
     if interval is not None:
-        if not isinstance(interval, dict):
-            raise InvalidDataError("The selected quantity has an invalid confidence interval.")
-        lower = _finite(interval.get("lower"), "confidence interval lower bound")
-        upper = _finite(interval.get("upper"), "confidence interval upper bound")
-        level = _finite(interval.get("level"), "confidence level")
-        if lower > upper or not 0 < level < 1:
-            raise InvalidDataError("The selected quantity has an invalid confidence interval.")
+        if isinstance(interval, dict) and (
+            interval.get("status") in {"unavailable", "uncomputable"}
+            or interval.get("lower") is None
+        ):
+            checked_interval = None
+        else:
+            if not isinstance(interval, dict):
+                raise InvalidDataError("The selected quantity has an invalid confidence interval.")
+            lower = _finite(interval.get("lower"), "confidence interval lower bound")
+            upper = _finite(interval.get("upper"), "confidence interval upper bound")
+            level = _finite(interval.get("level"), "confidence level")
+            if lower > upper or not 0 < level < 1:
+                raise InvalidDataError("The selected quantity has an invalid confidence interval.")
         interval_aliases = {
             "mean difference": "mean_difference",
             "mean paired difference": "mean_difference",

@@ -296,7 +296,7 @@ def test_mixed_type_association_requests_objective_clarification():
                 variable_types={"x": "continuous", "y": "continuous"},
             ),
             "pearson_correlation",
-            "partial",
+            "completed",
         ),
         (
             pd.DataFrame(

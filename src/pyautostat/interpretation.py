@@ -1611,7 +1611,9 @@ class InterpretationEngine:
                 "values.primary_estimate",
                 "values.effect_size",
             )
-        if method in {"welch_t", "student_t"} and isinstance(effect, dict):
+        if method in {"welch_t", "student_t", "paired_t", "one_sample_t"} and isinstance(
+            effect, dict
+        ):
             effect_interval = effect.get("confidence_interval")
             if effect_interval is not None:
                 if effect_value is None:
@@ -1627,6 +1629,11 @@ class InterpretationEngine:
                     effect_low = _finite(effect_interval.get("lower"))
                     effect_high = _finite(effect_interval.get("upper"))
                     effect_level = _finite(effect_interval.get("level"))
+                    expected_effect_methods = (
+                        {"exact noncentral-t inversion"}
+                        if method in {"paired_t", "one_sample_t"}
+                        else {"independent within-group percentile bootstrap"}
+                    )
                     if (
                         effect_low is None
                         or effect_high is None
@@ -1639,14 +1646,18 @@ class InterpretationEngine:
                         )
                         or effect_low > effect_high
                         or effect_interval.get("quantity") != expected_effect
-                        or effect_interval.get("method")
-                        != "independent within-group percentile bootstrap"
+                        or effect_interval.get("method") not in expected_effect_methods
                     ):
                         partial = True
                         warnings.append("The standardized-effect interval needs review.")
                     elif effect_text is not None:
+                        method_label = (
+                            "bootstrap"
+                            if "bootstrap" in str(effect_interval.get("method", ""))
+                            else "confidence"
+                        )
                         effect_text += (
-                            f" Its {_fmt(100 * effect_level)}% bootstrap interval was "
+                            f" Its {_fmt(100 * effect_level)}% {method_label} interval was "
                             f"{_fmt(effect_low)} to {_fmt(effect_high)}."
                         )
                         width = _confidence_interval_width(effect_value, effect_low, effect_high)
@@ -1715,6 +1726,26 @@ class InterpretationEngine:
                 if method == "pearson_chi_square"
                 else {"independent within-group percentile bootstrap"}
                 if method in {"mann_whitney_u", "one_way_anova", "kruskal_wallis"}
+                else {"Fisher-z asymptotic normal confidence interval"}
+                if method == "pearson_correlation"
+                else {
+                    "log-Wald confidence interval for sample odds-ratio estimator",
+                    (
+                        "log-Wald asymptotic normal confidence interval "
+                        "for sample odds-ratio estimator"
+                    ),
+                }
+                if method == "fisher_exact"
+                else {
+                    "paired-observation percentile bootstrap",
+                    "pair-level percentile bootstrap",
+                }
+                if method == "wilcoxon_signed_rank"
+                else {
+                    "case-resampling percentile bootstrap CI for in-sample R-squared",
+                    "case-resampling percentile bootstrap",
+                }
+                if method == "linear_regression"
                 else set()
             )
             if (
@@ -1884,10 +1915,17 @@ class InterpretationEngine:
                 "of variance explained."
             )
         if method == "fisher_exact":
-            limitations.append(
-                "The primary sample odds ratio has no supported confidence interval in this "
-                "release, and its direction depends on the recorded level order."
-            )
+            ci_rec = values.get("confidence_interval")
+            if not isinstance(ci_rec, dict) or ci_rec.get("status") != "available":
+                limitations.append(
+                    "The primary sample odds ratio has no supported confidence interval for "
+                    "sparse tables with zero cells, and its direction depends on the recorded "
+                    "level order."
+                )
+            else:
+                limitations.append(
+                    "The sample odds ratio direction depends on the recorded level order."
+                )
         if result.excluded_rows:
             limitations.append(f"{result.excluded_rows} row(s) were excluded from this analysis.")
         if conclusion is not None:

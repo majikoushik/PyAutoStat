@@ -167,16 +167,15 @@ def test_scientific_guardrails_in_contract_limitations():
     )
 
 
-def test_phase9_handoff_gap_methods_have_explicit_status():
-    """Effect size CI gaps intended for later implementation must be explicit."""
-    # Gaps that are 'unavailable'
-    assert METHOD_CONTRACTS["paired_t"].effect_size_ci_status == "unavailable"
-    assert METHOD_CONTRACTS["one_sample_t"].effect_size_ci_status == "unavailable"
-    assert METHOD_CONTRACTS["wilcoxon_signed_rank"].effect_size_ci_status == "unavailable"
-    assert METHOD_CONTRACTS["friedman_test"].effect_size_ci_status == "unavailable"
-    assert METHOD_CONTRACTS["fisher_exact"].effect_size_ci_status == "unavailable"
-    assert METHOD_CONTRACTS["repeated_measures_anova"].effect_size_ci_status == "unavailable"
-    assert METHOD_CONTRACTS["linear_regression"].effect_size_ci_status == "unavailable"
+def test_effect_size_confidence_interval_contract_status():
+    """Verify that implemented effect-size CIs are marked available and Welch is not_applicable."""
+    assert METHOD_CONTRACTS["paired_t"].effect_size_ci_status == "available"
+    assert METHOD_CONTRACTS["one_sample_t"].effect_size_ci_status == "available"
+    assert METHOD_CONTRACTS["wilcoxon_signed_rank"].effect_size_ci_status == "available"
+    assert METHOD_CONTRACTS["friedman_test"].effect_size_ci_status == "available"
+    assert METHOD_CONTRACTS["fisher_exact"].effect_size_ci_status == "available"
+    assert METHOD_CONTRACTS["repeated_measures_anova"].effect_size_ci_status == "available"
+    assert METHOD_CONTRACTS["linear_regression"].effect_size_ci_status == "available"
 
     # Welch ANOVA has no standardized global effect size by design
     assert METHOD_CONTRACTS["welch_anova"].effect_size_ci_status == "not_applicable"

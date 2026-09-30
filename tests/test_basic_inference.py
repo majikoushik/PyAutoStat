@@ -174,10 +174,14 @@ def test_wilcoxon_uses_unit_identity_matches_scipy_and_records_zeros():
     assert direct["zero_differences"] == 1
     assert direct["effect_size"]["value"] > 0
     workflow = _paired(frame)
-    assert workflow.status is WorkflowStatus.PARTIAL
+    assert workflow.status is WorkflowStatus.COMPLETED
     assert workflow.analysis is not None
     assert workflow.analysis.metadata["sample"]["complete_pairs"] == 5
-    assert workflow.analysis.values["confidence_interval"] is None
+    assert workflow.analysis.values["confidence_interval"] is not None
+    assert (
+        workflow.analysis.values["confidence_interval"]["method"]
+        == "paired-observation percentile bootstrap"
+    )
     assert "not universally" in " ".join(workflow.interpretation.limitations).lower()
     assert "paired t-test models" not in workflow.explain().lower()
 

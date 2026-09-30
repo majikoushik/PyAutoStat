@@ -223,11 +223,11 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         effect_size_definition=(
             "Sample mean paired difference divided by the standard deviation of paired differences."
         ),
-        effect_size_ci_status="unavailable",
+        effect_size_ci_status="available",
         primary_estimate_ci_status="available",
         ci_method=(
             "Analytical Student-t interval for mean paired difference; "
-            "Cohen's dz CI unavailable in this release."
+            "exact noncentral-t inversion for Cohen's dz."
         ),
         assumptions=(
             "Explicit paired or matched observational units.",
@@ -251,7 +251,10 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         numerical_provenance="scipy.stats.ttest_rel",
         interpretation_limitations=(
             ("Mean paired difference is noncausal without condition randomization."),
-            "Cohen's dz confidence interval is currently unavailable.",
+            (
+                "Cohen's dz CI uses exact noncentral-t inversion targeting the "
+                "population standardized paired difference."
+            ),
             "Non-rejection does not prove zero difference.",
         ),
         audit_invariants=(
@@ -260,6 +263,7 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "contrast condition order matches declared condition order",
             "analytical CI contains sample mean paired difference",
             "CI lower <= upper",
+            "Cohen's dz CI lower <= upper",
         ),
         validation_source=(
             "Fisher (1925); SciPy cross-check; verified in tests/test_paired_analysis.py."
@@ -289,11 +293,11 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         effect_size_definition=(
             "Sample mean minus reference value, divided by the sample standard deviation."
         ),
-        effect_size_ci_status="unavailable",
+        effect_size_ci_status="available",
         primary_estimate_ci_status="available",
         ci_method=(
             "Analytical Student-t interval for mean difference from "
-            "reference; Cohen's d CI unavailable in this release."
+            "reference; exact noncentral-t inversion for one-sample Cohen's d."
         ),
         assumptions=(
             "Independent observations.",
@@ -315,13 +319,17 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
                 "Validity depends on the scientific relevance and "
                 "justification of the reference value."
             ),
-            ("One-sample Cohen's d confidence interval is currently unavailable."),
+            (
+                "One-sample Cohen's d CI uses exact noncentral-t inversion targeting "
+                "the population standardized difference."
+            ),
         ),
         audit_invariants=(
             "df == analyzed_rows - 1",
             "metadata reference_value matches question specification",
             "analytical CI contains sample mean difference from reference",
             "CI lower <= upper",
+            "one-sample Cohen's d CI lower <= upper",
         ),
         validation_source=(
             "Student (1908); SciPy cross-check; verified in tests/test_basic_inference.py."
@@ -411,9 +419,11 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         effect_size_definition=(
             "Difference of positive and negative rank sums divided by total rank sum."
         ),
-        effect_size_ci_status="unavailable",
-        primary_estimate_ci_status="unavailable",
-        ci_method="Confidence interval is unavailable in this release.",
+        effect_size_ci_status="available",
+        primary_estimate_ci_status="available",
+        ci_method=(
+            "Paired-observation percentile bootstrap for matched-pairs rank-biserial correlation."
+        ),
         assumptions=(
             "Explicit paired or matched observational units.",
             "Independent pairs across units.",
@@ -441,7 +451,10 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
                 "NOT a universal test of medians; location shift strictly "
                 "requires symmetry of paired differences."
             ),
-            "Confidence interval is currently unavailable.",
+            (
+                "Matched-pairs rank-biserial CI uses unit-level paired percentile bootstrap; "
+                "does not assume asymptotic normality."
+            ),
         ),
         audit_invariants=(
             "2 * complete_pairs == analyzed_rows",
@@ -449,6 +462,8 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "degrees_of_freedom is None",
             "p_value in [0, 1]",
             "rank_biserial in [-1, 1]",
+            "CI bounds in [-1, 1]",
+            "CI lower <= upper",
         ),
         validation_source=(
             "Wilcoxon (1945); SciPy cross-check; verified in tests/test_paired_analysis.py."
@@ -676,9 +691,9 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         degrees_of_freedom="None stored in result; inferential df = n - 2",
         effect_size_quantity="Pearson r",
         effect_size_definition="Signed linear correlation between the two quantitative variables.",
-        effect_size_ci_status="unavailable",
-        primary_estimate_ci_status="unavailable",
-        ci_method="Confidence interval is unavailable in this release.",
+        effect_size_ci_status="available",
+        primary_estimate_ci_status="available",
+        ci_method="Fisher-z asymptotic normal confidence interval.",
         assumptions=(
             "Independent observational pairs.",
             "Linear relationship between variables.",
@@ -699,13 +714,15 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         interpretation_limitations=(
             ("Measures linear association only; sensitive to outliers and nonlinear curvature."),
             "r² is shared linear variance, not causal effect.",
-            "Confidence interval is currently unavailable.",
+            "Confidence interval uses Fisher-z transform; valid for n > 3.",
         ),
         audit_invariants=(
             "r in [-1, 1]",
             "p_value in [0, 1]",
             "analyzed_rows == effective_pair_count",
             "analyzed_rows + excluded_rows == original_rows",
+            "CI bounds in [-1, 1]",
+            "CI lower <= upper",
         ),
         validation_source=(
             "Pearson (1895); SciPy cross-check; verified in tests/test_analyzer_correlation.py."
@@ -1024,9 +1041,12 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         effect_size_definition=(
             "Cross-product ratio (ad / bc) based on first-observed row and column order."
         ),
-        effect_size_ci_status="unavailable",
-        primary_estimate_ci_status="unavailable",
-        ci_method="Confidence interval is unavailable in this release.",
+        effect_size_ci_status="available",
+        primary_estimate_ci_status="available",
+        ci_method=(
+            "log-Wald confidence interval for sample odds-ratio estimator "
+            "(unavailable when any cell is zero)."
+        ),
         assumptions=(
             "Independent observations.",
             "Exactly 2x2 contingency table.",
@@ -1049,7 +1069,11 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         interpretation_limitations=(
             "Supported strictly for 2x2 tables.",
             "Odds ratio direction depends on category level order.",
-            "Confidence interval is currently unavailable.",
+            (
+                "Odds-ratio CI uses asymptotic log-Wald method matching the sample "
+                "OR estimator; unavailable when any cell count is zero (no silent "
+                "continuity corrections)."
+            ),
             "Does not establish causality.",
         ),
         audit_invariants=(
@@ -1057,6 +1081,8 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "degrees_of_freedom is None",
             "p_value in [0, 1]",
             "sample odds ratio >= 0 when finite",
+            "sample odds ratio CI lower > 0 and finite when available",
+            "CI lower <= upper",
         ),
         validation_source=(
             "Fisher (1935); SciPy cross-check; verified in tests/test_basic_inference.py."
@@ -1148,11 +1174,11 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         effect_size_definition=(
             "Observed outcome variance accounted for by the fitted in-sample model."
         ),
-        effect_size_ci_status="unavailable",
+        effect_size_ci_status="available",
         primary_estimate_ci_status="available",
         ci_method=(
             "Analytical Student-t intervals for coefficients (classical or "
-            "HC3 covariance); R² CI unavailable."
+            "HC3 covariance); case-resampling percentile bootstrap CI for in-sample R-squared."
         ),
         assumptions=(
             "Independent observational units.",
@@ -1178,7 +1204,10 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         interpretation_limitations=(
             "Additive linear main effects only; associations are noncausal.",
             ("R² is an in-sample descriptive fit, NOT validated out-of-sample prediction."),
-            "R² confidence interval is currently unavailable.",
+            (
+                "In-sample R² CI uses case-resampling percentile bootstrap; "
+                "reflects in-sample fit uncertainty, not predictive performance."
+            ),
         ),
         audit_invariants=(
             "r_squared in [0, 1]",
@@ -1186,6 +1215,8 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "residual_df == analyzed_rows - parameter_count",
             "coefficient analytical CI contains estimate",
             "CI lower <= upper",
+            "r_squared CI bounds in [0, 1]",
+            "r_squared CI lower <= upper",
             "design_matrix.full_rank is True",
         ),
         validation_source=(
@@ -1361,11 +1392,12 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "Condition sum of squares divided by condition sum of squares "
             "plus error sum of squares (partial eta-squared)."
         ),
-        effect_size_ci_status="unavailable",
+        effect_size_ci_status="available",
         primary_estimate_ci_status="available",
         ci_method=(
-            "Analytical paired-t intervals for pairwise contrasts; partial "
-            "eta-squared CI unavailable in this release."
+            "Exact noncentral-F inversion confidence interval for partial eta-squared "
+            "(using uncorrected F and df); analytical paired-t intervals and exact "
+            "noncentral-t dz intervals for pairwise contrasts."
         ),
         assumptions=(
             "Explicit repeated observational units across conditions.",
@@ -1402,13 +1434,19 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         interpretation_limitations=(
             "Mauchly non-rejection does NOT prove sphericity.",
             ("Greenhouse-Geisser correction applied when sphericity is rejected or uncomputable."),
-            ("Partial eta-squared confidence interval is currently unavailable."),
+            (
+                "Partial eta-squared CI uses exact noncentral-F inversion on uncorrected F "
+                "and degrees of freedom; GG correction modifies inferential p-values but not "
+                "the observed SS-based effect."
+            ),
             "Does not establish causality.",
         ),
         audit_invariants=(
             "ss_total == ss_condition + ss_subject + ss_error",
             "partial_eta_squared == ss_condition / (ss_condition + ss_error)",
             "partial_eta_squared in [0, 1]",
+            "partial_eta_squared CI in [0, 1]",
+            "partial_eta_squared CI lower <= upper",
             "gg_epsilon in [1/(k-1), 1]",
             "corrected dfs == epsilon * uncorrected dfs",
             "corrected p matches F and corrected dfs",
@@ -1450,9 +1488,12 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         degrees_of_freedom="df = k - 1",
         effect_size_quantity="Kendall's W",
         effect_size_definition="Friedman Q divided by n*(k - 1) (Kendall's W rank concordance).",
-        effect_size_ci_status="unavailable",
-        primary_estimate_ci_status="unavailable",
-        ci_method="Confidence intervals are unavailable in this release.",
+        effect_size_ci_status="available",
+        primary_estimate_ci_status="available",
+        ci_method=(
+            "Participant-block percentile bootstrap for Kendall's W; "
+            "paired-observation percentile bootstrap for pairwise rank-biserial contrasts."
+        ),
         assumptions=(
             "Explicit repeated observational units across conditions.",
             "Units independent of other units.",
@@ -1483,12 +1524,17 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
         interpretation_limitations=(
             ("Friedman evaluates within-unit rank distributions, NOT a universal test of medians."),
             ("Kendall's W is rank concordance, NOT percentage of variance explained."),
-            ("Pairwise effect-size confidence intervals are currently unavailable."),
+            (
+                "Kendall's W and pairwise rank-biserial intervals use participant/paired "
+                "percentile bootstrap; approximate uncertainty intervals, not significance tests."
+            ),
         ),
         audit_invariants=(
             "df == k - 1",
             "kendalls_w == Q / (n * (k - 1))",
             "kendalls_w in [0, 1]",
+            "kendalls_w CI in [0, 1]",
+            "kendalls_w CI lower <= upper",
             "complete family of k*(k-1)//2 pairwise records present",
             "pairwise adjusted p_values in [0, 1]",
             "pairwise rank_biserial in [-1, 1]",

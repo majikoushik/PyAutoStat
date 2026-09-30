@@ -13,6 +13,7 @@ from statsmodels.stats.outliers_influence import OLSInfluence, variance_inflatio
 from statsmodels.stats.stattools import jarque_bera
 
 from .exceptions import InsufficientDataError, InvalidDataError
+from .uncertainty import ols_r_squared_case_bootstrap_ci
 
 _NUMERIC_TYPES = {"continuous_numerical", "discrete_numerical"}
 _CATEGORICAL_TYPES = {"nominal_categorical", "ordinal_categorical", "boolean"}
@@ -222,6 +223,8 @@ def fit_ols(
     data_dictionary: dict[str, dict[str, Any]] | None = None,
     confidence_level: float = 0.95,
     alpha: float = 0.05,
+    bootstrap_samples: int = 499,
+    random_state: int | None = 0,
 ) -> dict[str, Any]:
     """Fit OLS once and return strict JSON-ready coefficients and diagnostics."""
     covariance = covariance_type.upper()
@@ -336,6 +339,13 @@ def fit_ols(
         warnings.append(
             "Influence diagnostics flagged observations for review; no rows were removed."
         )
+    r2_ci = ols_r_squared_case_bootstrap_ci(
+        design["y"],
+        design["x"],
+        confidence_level=confidence_level,
+        bootstrap_samples=bootstrap_samples,
+        random_state=random_state,
+    )
     return {
         "method": "ordinary least squares linear regression",
         "outcome": outcome,
@@ -366,6 +376,7 @@ def fit_ols(
             "model_rank": design["rank"],
             "covariance_type": "classical" if covariance == "CLASSICAL" else "HC3",
             "r_squared": _finite(base.rsquared, "R-squared"),
+            "r_squared_confidence_interval": r2_ci,
             "adjusted_r_squared": _finite(base.rsquared_adj, "adjusted R-squared"),
             "model_f_statistic": model_f,
             "model_f_p_value": model_p,
