@@ -29,8 +29,11 @@ GitHub CI matrix passed. A release remains a separate owner decision.
 The method catalogue is intentionally limited. Mixed models, mixed ANOVA, factorial repeated-measures
 ANOVA, clustered regression, incomplete-panel longitudinal models, generalized estimating equations (GEE),
 generalized and regularized regression families, interaction or polynomial model construction, survival
-analysis, causal inference, broad multiplicity procedures, and sparse exact-table alternatives are not
-currently supported. Study design facts and scientific meaning remain researcher responsibilities.
+analysis, causal inference, broad multiplicity procedures, observed or post-hoc power (intentionally
+unsupported by scientific policy; prospective study planning is supported), and sparse exact-table
+alternatives are not currently supported. Study design facts and scientific meaning remain researcher
+responsibilities. See [statistical method contracts](docs/STATISTICAL_METHOD_CONTRACTS.md) for full
+contracts of all supported methods.
 
 ## Near term: alpha hardening
 
@@ -56,11 +59,16 @@ target, not a scheduled next release.
 
 ## Candidate statistical capabilities
 
-Potential additions include further paired or distributional methods, additional correlation
-inference, additional regression families, and repeated-measures models. These are candidates
-rather than commitments.
+Future milestones for statistical depth and expansion follow an explicit sequence:
+1. **Effect-size confidence intervals**: Implement defensible analytical and bootstrap intervals for
+   currently shipped effect sizes lacking CIs (see
+   [effect-size confidence interval gaps](docs/EFFECT_SIZE_CI_GAPS.md)).
+2. **Two-way factorial ANOVA**: Two factors, main effects, interaction, partial eta-squared, diagnostics,
+   and planned follow-ups for balanced and unbalanced independent designs.
+3. **Intraclass correlation coefficient (ICC)**: Explicit Shrout & Fleiss / McGraw & Wong models,
+   types (consistency vs absolute agreement), unit levels (single vs average), and analytical CIs.
 
-A method should be added only when the complete contract can be supported:
+A method or uncertainty algorithm should be added only when the complete contract can be supported:
 
 ```text
 design

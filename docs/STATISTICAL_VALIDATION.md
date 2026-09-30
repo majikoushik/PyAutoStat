@@ -1,5 +1,12 @@
 # Statistical validation baseline
 
+Authoritative contracts for every method are documented in
+[Statistical Method Contracts](STATISTICAL_METHOD_CONTRACTS.md), and current uncertainty
+classifications are tracked in [Effect-Size Confidence Interval Gaps](EFFECT_SIZE_CI_GAPS.md).
+
+PyAutoStat uses established SciPy/statsmodels numerical backends where appropriate and explicit,
+independently validated formulas where required by the method contract.
+
 ## Sensitivity and threshold rules
 
 Sensitivity execution uses the execution numerical adapters. Representative pooled-variance
@@ -218,10 +225,21 @@ conditions on the same observational units. Numerical validation covers:
   balanced complete one-factor fixtures.
 - Sphericity reference: Mauchly's sphericity statistic W, transformed chi-square statistic, df,
   p-value, and Greenhouse-Geisser epsilon are checked against published external reference
-  benchmarks (Andy Field, 2012, Bushtucker dataset with k=4 conditions and n=8 subjects).
+  benchmarks (Andy Field, 2012, Bushtucker dataset with k=4 conditions and n=8 subjects):
+  - `F = 3.79380603`
+  - `uncorrected p = 0.0255703`
+  - `partial eta^2 = 0.3514799`
+  - `Mauchly W = 0.1362480`
+  - `Mauchly p = 0.0468458`
+  - `GG epsilon = 0.53284555`
+  - `corrected df1 = 1.59853666`
+  - `corrected df2 = 11.18975661`
+  - `GG p = 0.06258412`
 - Conservative correction policy: Greenhouse-Geisser corrected degrees of freedom and p-values are
   reported as primary when sphericity is rejected (`p < alpha`) or uncomputable (singular contrast
-  covariance). The omnibus F statistic is unchanged by degrees-of-freedom correction.
+  covariance). The omnibus F statistic is unchanged by degrees-of-freedom correction. Mauchly
+  non-rejection is treated as insufficient evidence against sphericity, never proof that sphericity
+  holds.
 - Pairwise mean comparisons: post-hoc contrasts use paired t-tests on the omnibus-complete panel
   with Holm multiplicity adjustment. When paired differences have zero variance, descriptive mean
   differences remain available while t, p, and Cohen's dz are reported as unavailable (`None`) with

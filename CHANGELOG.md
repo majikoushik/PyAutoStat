@@ -7,6 +7,34 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added machine-checkable authoritative method contract architecture (`MethodContract` dataclass and `METHOD_CONTRACTS` registry) covering all 22 executable statistical methods with 26 explicit scientific fields: estimand, hypotheses, primary estimate, effect size, uncertainty status, required assumptions, diagnostics, missing-data policy, degenerate-data behavior, multiplicity policy, numerical provenance, interpretation limitations, audit invariants, and independent validation sources.
+- Added comprehensive documentation deliverables:
+  - `docs/STATISTICAL_METHOD_CONTRACTS.md`: authoritative scientific contract specification for every shipped inferential method.
+  - `docs/EFFECT_SIZE_CI_GAPS.md`: uncertainty gap classification, candidate defensible confidence interval methods, and milestone priorities.
+- Added audit invariant hardening and extensive corruption test coverage (`tests/test_audit_hardening.py`):
+  - Verification of finite p-values in [0, 1] across all results.
+  - Verification of confidence interval bound ordering (`lower <= upper`) and analytical Student-t point estimate inclusion.
+  - Verification of mathematical bounds on bounded effect sizes (rank-biserial, Pearson r, Spearman rho, Kendall tau-b, Cramér's V, Kendall's W, eta-squared, partial eta-squared, rank epsilon-squared).
+  - Two-group sample size and contrast order accounting.
+  - Degrees of freedom invariants for Student-t ($df = n - 2$), one-sample t ($df = n - 1$), and paired t ($df = n_{\text{pairs}} - 1$).
+  - Repeated-measures ANOVA sum-of-squares partition and partial eta-squared algebraic consistency.
+  - Greenhouse-Geisser corrected degrees of freedom and p-value consistency.
+  - Friedman Kendall's W consistency with Friedman Q.
+  - Logistic regression odds ratio consistency with beta ($\text{OR} = \exp(\beta)$) and exponentiated Wald CI consistency.
+  - Pairwise multiplicity count matching and Holm step-down invariant ($adjusted\_p \ge raw\_p$).
+
+### Changed
+
+- Hardened scientific narration and metadata across result interpretation:
+  - Corrected Friedman non-rejection phrasing to avoid universal equality-of-medians claims.
+  - Clarified that Kendall's W represents within-unit rank concordance rather than percentage of variance explained.
+  - Canonicalized Mauchly sphericity status checks to strictly `"not_rejected"`.
+  - Distinguished Fisher's exact inferential null hypothesis (`odds ratio = 1.0`) from the sample cross-product effect estimate.
+- Documented intentional non-support of observed/post-hoc power by scientific policy in `docs/SCIENTIFIC_LIMITATIONS.md` and `ROADMAP.md` (Hoenig & Heisey, 2001).
+- Clarified that logistic regression uses analytical Wald z-intervals for coefficients and exponentiated Wald intervals for odds ratios, not bootstrap intervals.
+
 ## [0.4.0] - 2026-09-30
 
 This release expands PyAutoStat with new descriptive, inferential,
