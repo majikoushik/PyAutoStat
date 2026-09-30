@@ -14,7 +14,7 @@ week8_scores = week4_scores + rng.normal(3.5, 3.5, n_participants)
 
 rows = []
 for i in range(n_participants):
-    pid = f"P{i+1:03d}"
+    pid = f"P{i + 1:03d}"
     rows.append({"participant": pid, "session": "baseline", "score": float(baseline_scores[i])})
     rows.append({"participant": pid, "session": "week4", "score": float(week4_scores[i])})
     rows.append({"participant": pid, "session": "week8", "score": float(week8_scores[i])})

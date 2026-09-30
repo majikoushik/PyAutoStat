@@ -4,7 +4,6 @@ import pandas as pd
 
 from pyautostat import ResearchAssistant, reproduce
 
-
 responses = pd.DataFrame(
     {
         "clarity": [1, 2, 3, 4, 5, 4, 3, 2, 5, 4, 2, 3],

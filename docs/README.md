@@ -15,8 +15,12 @@ technical and scientific detail.
 - [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md): sensitivity
   scenario comparability and researcher-defined meaningful-effect thresholds.
 
-## Scientific methodology
-
+- [Statistical method contracts](STATISTICAL_METHOD_CONTRACTS.md): authoritative scientific contracts,
+  estimands, null hypotheses, uncertainty classifications, assumptions, degenerate data policies,
+  and validation sources for every shipped inferential method.
+- [Effect-size confidence interval gaps](EFFECT_SIZE_CI_GAPS.md): explicit classification of missing
+  effect-size confidence intervals, candidate methods, validation requirements, and future
+  implementation priorities.
 - [Statistical validation](STATISTICAL_VALIDATION.md): numerical definitions, method-selection
   rules, validation cases, dependency behavior, and interpretation policies.
 - [Scientific limitations](SCIENTIFIC_LIMITATIONS.md): unsupported claims, design responsibilities,

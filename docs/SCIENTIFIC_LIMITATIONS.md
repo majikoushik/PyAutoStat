@@ -86,8 +86,15 @@ It is not a substitute for scientific design review or subject-matter judgment.
   no universal threshold or generic decision rule. Nonsignificance is not equivalence; formal
   equivalence and noninferiority tests are unsupported.
 - Prospective power and precision calculations depend on anticipated effects, SDs, allocation,
-  and distributional approximations supplied by the researcher. They do not guarantee achieved
-  power and do not implement automatic observed post-hoc power.
+  and distributional approximations supplied by the researcher. Observed or post-hoc power
+  calculated retrospectively from observed sample statistics is intentionally unsupported by
+  scientific policy, as it is a direct 1:1 transformation of the p-value and offers no independent
+  evidence of study adequacy (Hoenig & Heisey, 2001).
+- Confidence intervals are reported where an independently validated method is implemented.
+  Missing uncertainty is explicitly classified (`unavailable`, `not_applicable`, `not_supported`,
+  or `uncomputable`) rather than silently omitted; see
+  [Effect-Size Confidence Interval Gaps](EFFECT_SIZE_CI_GAPS.md) and
+  [Statistical Method Contracts](STATISTICAL_METHOD_CONTRACTS.md).
 - General, APA-oriented, and IEEE-oriented templates organize the same canonical numbers. They do
   not guarantee journal, regulatory, accessibility, or publication compliance.
 - Reporting completeness checks whether applicable implemented fields are represented. It is not

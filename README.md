@@ -80,9 +80,7 @@ print(frequency["narrative"])
 cross_tab = assistant.cross_tab(
     "class_section",
     "exam_score",
-    data_dictionary={
-        "exam_score": {"type": "ordinal", "ordinal_order": [55, 61, 67, 74, 81, 88]}
-    },
+    data_dictionary={"exam_score": {"type": "ordinal", "ordinal_order": [55, 61, 67, 74, 81, 88]}},
 )
 print(cross_tab["counts"])
 print(cross_tab["row_percent"])
@@ -115,14 +113,14 @@ workflow = assistant.run(
     variable_types={"exam_score": "continuous"},
 )
 
-print(workflow.status.value)              # completed
-print(workflow.analysis.method_id)        # welch_t (stable machine identifier)
-print(workflow.analysis.method_label)     # Welch independent-samples t-test
+print(workflow.status.value)  # completed
+print(workflow.analysis.method_id)  # welch_t (stable machine identifier)
+print(workflow.analysis.method_label)  # Welch independent-samples t-test
 print(workflow.recommendation.rationale_text)  # Why this test, alternatives, verification
-print(workflow.explain())                 # Qualified, printable result overview
+print(workflow.explain())  # Qualified, printable result overview
 print(workflow.interpretation.findings_plain)
 print(workflow.audit.status)
-html = workflow.report.to_html()          # Includes a deterministic executive summary
+html = workflow.report.to_html()  # Includes a deterministic executive summary
 ```
 
 `run()` connects question validation, one method recommendation, one statistical execution,
@@ -235,7 +233,7 @@ repeated = ResearchAssistant(df).run(
     objective="compare_groups",
     outcome="score",
     predictor="visit",
-    estimand="mean",              # or "distribution" for Friedman
+    estimand="mean",  # or "distribution" for Friedman
     design="repeated",
     unit_id="participant_id",
     condition_order=("baseline", "week4", "week8"),

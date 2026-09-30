@@ -126,8 +126,11 @@ three finding examples appear in prose, while the structured detail remains avai
 
 ```python
 workflow = assistant.run(
-    objective="compare_groups", outcome="score", predictor="group",
-    estimand="mean", design="independent",
+    objective="compare_groups",
+    outcome="score",
+    predictor="group",
+    estimand="mean",
+    design="independent",
     variable_types={"score": "continuous"},
 )
 ```
@@ -321,7 +324,7 @@ workflow = ResearchAssistant(df).run(
     design="repeated",
     unit_id="participant_id",
     condition_order=("baseline", "week4", "week8"),
-    estimand="mean",              # or "distribution" for Friedman
+    estimand="mean",  # or "distribution" for Friedman
     variable_types={"score": "continuous", "session": "ordinal"},
 )
 ```
@@ -480,9 +483,7 @@ their validated configuration records.
 ### Question intake and specification details
 
 ```python
-draft = assistant.prepare_question(
-    objective="compare_groups", outcome="score", predictor="group"
-)
+draft = assistant.prepare_question(objective="compare_groups", outcome="score", predictor="group")
 print(draft.status)  # needs_input
 print([item.field for item in draft.questions])  # estimand, design
 draft = assistant.update_question(draft, estimand="mean", design="independent")
@@ -511,8 +512,11 @@ The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data
 
 ```python
 draft = assistant.prepare_question(
-    objective="compare_groups", outcome="score", predictor="group",
-    estimand="mean", design="independent",
+    objective="compare_groups",
+    outcome="score",
+    predictor="group",
+    estimand="mean",
+    design="independent",
 )
 recommendation = assistant.recommend_test(draft)
 # Alternatively: assistant.recommend_test(specification=draft.specification)
@@ -895,11 +899,17 @@ and an explicit Kendall preference where applicable.
 ```python
 planner = StudyPlanner()
 independent = planner.independent_mean_power(
-    target_difference=5, sd_group1=10, sd_group2=12,
-    alpha=0.05, target_power=0.80, allocation_ratio=1,
+    target_difference=5,
+    sd_group1=10,
+    sd_group2=12,
+    alpha=0.05,
+    target_power=0.80,
+    allocation_ratio=1,
 )
 paired = planner.paired_mean_precision(
-    sd_difference=5, confidence_level=0.95, target_half_width=2,
+    sd_difference=5,
+    confidence_level=0.95,
+    target_half_width=2,
 )
 ```
 

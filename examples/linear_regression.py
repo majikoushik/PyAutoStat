@@ -4,7 +4,6 @@ import pandas as pd
 
 from pyautostat import ResearchAssistant
 
-
 data = pd.DataFrame(
     {
         "score": [58, 61, 65, 67, 70, 72, 75, 77, 80, 83, 85, 88],

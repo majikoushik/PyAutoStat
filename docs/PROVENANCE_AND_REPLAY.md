@@ -27,8 +27,11 @@ from pyautostat import ResearchAssistant, reproduce
 assistant = ResearchAssistant(frame)
 assistant.enable_tracking()  # optional; only subsequent calls are observed
 draft = assistant.prepare_question(
-    objective="compare_groups", outcome="score", predictor="group",
-    estimand="mean", design="independent",
+    objective="compare_groups",
+    outcome="score",
+    predictor="group",
+    estimand="mean",
+    design="independent",
     variable_types={"score": "continuous"},
 )
 recommendation = assistant.recommend_test(draft)
