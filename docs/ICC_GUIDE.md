@@ -90,9 +90,16 @@ For a balanced panel with $n$ targets and $k$ raters ($N = n \times k$ observati
 
 ### Method-of-Moments Variance Components
 
-- **Target Variance**: $\sigma_T^2 = \max\left(0, \frac{BMS - EMS}{k}\right)$ (or $\frac{BMS - WMS}{k}$ for one-way)
-- **Rater Variance**: $\sigma_R^2 = \max\left(0, \frac{JMS - EMS}{n}\right)$
+PyAutoStat reports unconstrained ANOVA method-of-moments variance component estimates without artificial clamping to zero:
+
+- **Target Variance**: $\sigma_T^2 = \frac{BMS - EMS}{k}$ (or $\frac{BMS - WMS}{k}$ for one-way random)
+- **Rater Variance**: $\sigma_R^2 = \frac{JMS - EMS}{n}$
 - **Residual Variance**: $\sigma_e^2 = EMS$
+- **Total Variance (Absolute Agreement)**: $\sigma_{\text{total, agreement}}^2 = \sigma_T^2 + \sigma_R^2 + \sigma_e^2$
+- **Total Variance (Consistency)**: $\sigma_{\text{total, consistency}}^2 = \sigma_T^2 + \sigma_e^2$
+
+In finite samples, if $BMS < EMS$ or $JMS < EMS$, the unconstrained method-of-moments estimate of target variance or rater variance can be negative. PyAutoStat deliberately preserves these negative estimates rather than clamping them to zero, because a negative variance component estimate provides critical diagnostic evidence that within-target residual variability or rater variability exceeds between-target variability, indicating a potential violation of the additive random-effects model.
+
 
 ---
 

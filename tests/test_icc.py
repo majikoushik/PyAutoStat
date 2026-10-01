@@ -289,6 +289,47 @@ def test_negative_icc_preserved_not_clamped():
     assert any("negative" in w.lower() for w in result["warnings"])
 
 
+def test_negative_variance_components_preserved_not_clamped():
+    """Construct data where BMS < EMS and JMS < EMS, verifying unconstrained negative
+    target and rater variance components are preserved without artificial clamping.
+    """
+    df = pd.DataFrame(
+        {
+            "target": ["T1", "T1", "T2", "T2", "T3", "T3"],
+            "rater": ["R1", "R2", "R1", "R2", "R1", "R2"],
+            "score": [10.0, 1.0, 1.0, 10.0, 5.0, 7.0],
+        }
+    )
+    res = intraclass_correlation(
+        df,
+        target="target",
+        rater="rater",
+        outcome="score",
+        model="two_way_random",
+        definition="absolute_agreement",
+        unit="single",
+    )
+    vc = res["variance_components"]
+    # Target variance: (BMS - EMS)/k = (0.1667 - 41.1667)/2 = -20.5 < 0
+    assert vc["target_variance"] < 0.0
+    assert vc["target_variance"] == pytest.approx(-20.5)
+
+    # Rater variance: (JMS - EMS)/n = (0.6667 - 41.1667)/3 = -13.5 < 0
+    assert vc["rater_variance"] < 0.0
+    assert vc["rater_variance"] == pytest.approx(-13.5)
+
+    # Residual variance is positive
+    assert vc["residual_variance"] > 0.0
+    assert vc["residual_variance"] == pytest.approx(41.166666666666664)
+
+    # One-way target variance is also negative: (BMS - WMS)/k < 0
+    assert vc["target_variance_oneway"] < 0.0
+    assert vc["target_variance_oneway"] == pytest.approx(-13.75)
+
+    # Overall estimate is negative and preserved
+    assert res["estimate"] < 0.0
+
+
 # ── StatisticalAnalyzer and ResearchAssistant APIs ────────────────────────────
 
 

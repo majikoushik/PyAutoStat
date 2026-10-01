@@ -274,3 +274,44 @@ def test_mcgraw_wong_c2_and_a3_equivalences(shrout_fleiss_1979_table4: pd.DataFr
         unit="average",
     )
     assert a3k["estimate"] == pytest.approx(icc2k["estimate"], rel=1e-8)
+
+
+def test_shrout_fleiss_table4_confidence_intervals(shrout_fleiss_1979_table4: pd.DataFrame):
+    """Validate 95% confidence intervals against Shrout & Fleiss (1979) Table 4:
+    - ICC(1,1): [-0.133, 0.723] (Table 4 reports -0.13 to 0.72)
+    - ICC(2,1): [0.019, 0.761] (Table 4 reports 0.02 to 0.76; Satterthwaite approximation)
+    - ICC(3,1): [0.342, 0.947] (Table 4 reports 0.34 to 0.95)
+    - ICC(1,k): [-0.884, 0.912] (Table 4 reports -0.88 to 0.91)
+    - ICC(2,k): [0.071, 0.927] (Table 4 reports 0.07 to 0.93; Satterthwaite approximation)
+    - ICC(3,k): [0.676, 0.986] (Table 4 reports 0.68 to 0.99)
+    """
+    df = shrout_fleiss_1979_table4
+    res = intraclass_correlation(
+        df,
+        "target",
+        "rater",
+        "score",
+        model="two_way_random",
+        definition="absolute_agreement",
+        unit="single",
+        confidence_level=0.95,
+    )
+    variants = {v["variant"]: v for v in res["all_variants"]}
+
+    # Case 1: One-way random
+    assert variants["icc_1_1"]["confidence_interval"]["lower"] == pytest.approx(-0.133, abs=0.01)
+    assert variants["icc_1_1"]["confidence_interval"]["upper"] == pytest.approx(0.723, abs=0.01)
+    assert variants["icc_1_k"]["confidence_interval"]["lower"] == pytest.approx(-0.884, abs=0.01)
+    assert variants["icc_1_k"]["confidence_interval"]["upper"] == pytest.approx(0.912, abs=0.01)
+
+    # Case 2: Two-way random (Satterthwaite CI)
+    assert variants["icc_2_1"]["confidence_interval"]["lower"] == pytest.approx(0.019, abs=0.01)
+    assert variants["icc_2_1"]["confidence_interval"]["upper"] == pytest.approx(0.761, abs=0.01)
+    assert variants["icc_2_k"]["confidence_interval"]["lower"] == pytest.approx(0.071, abs=0.01)
+    assert variants["icc_2_k"]["confidence_interval"]["upper"] == pytest.approx(0.927, abs=0.01)
+
+    # Case 3: Two-way mixed (Consistency)
+    assert variants["icc_3_1"]["confidence_interval"]["lower"] == pytest.approx(0.342, abs=0.01)
+    assert variants["icc_3_1"]["confidence_interval"]["upper"] == pytest.approx(0.947, abs=0.01)
+    assert variants["icc_3_k"]["confidence_interval"]["lower"] == pytest.approx(0.676, abs=0.01)
+    assert variants["icc_3_k"]["confidence_interval"]["upper"] == pytest.approx(0.986, abs=0.01)

@@ -67,11 +67,9 @@ target, not a scheduled next release.
 
 ## Candidate statistical capabilities
 
-Future milestones for statistical depth and expansion follow an explicit sequence of priorities:
-1. **Intraclass correlation coefficient (ICC)**: Complete support for all 6 Shrout & Fleiss / McGraw &
-   Wong variants, analytical CIs, ANOVA components, and complete-target filtering is implemented.
-2. Subsequent candidate methods will be evaluated based on user demand, statistical validity,
-   and independent numerical verification.
+Future candidate statistical methods remain open and will be evaluated based on demonstrated
+scientific demand, feasibility of complete contracts, and independent numerical verification.
+Candidate methods will only be scheduled when the complete contract can be supported:
 
 A method or uncertainty algorithm should be added only when the complete contract can be supported:
 
