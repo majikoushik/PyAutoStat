@@ -5,69 +5,205 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## \[Unreleased\]
 
-- Added Intraclass Correlation Coefficient (ICC) for quantitative rater reliability and agreement:
-  - Supported all 6 canonical Shrout & Fleiss (1979) and McGraw & Wong (1996) variants: ICC(1,1), ICC(1,k), ICC(2,1), ICC(2,k), ICC(3,1), ICC(3,k) as well as McGraw-Wong C(2) and A(3) aliases.
-  - Fully crossed target-by-rater design validation ($n \ge 2, k \ge 2$) with complete-target panel filtering (excluding incomplete targets while retaining full target ratings and transparent sample accounting).
-  - ANOVA mean squares decomposition: Between-targets ($BMS$), Between-judges/raters ($JMS$), Residual/Error ($EMS$), and Within-targets ($WMS$).
-  - Method-of-moments variance component estimates: target variance $\sigma_T^2$, rater variance $\sigma_R^2$, and residual variance $\sigma_e^2$.
-  - Analytical F-inversion confidence intervals: exact central F-inversion for one-way random and two-way mixed consistency variants, and Satterthwaite effective degrees of freedom approximation for two-way random absolute agreement variants.
-  - Scientific non-clamping safeguard: negative sample ICC estimates are preserved without clamping to zero to diagnose when within-target noise exceeds between-target variance.
-  - Hypothesis testing: F-test of $H_0: \text{ICC} = 0$, plus systematic rater effect F-test ($F = JMS / EMS$).
-  - Full research pipeline integration: dataset profiling -> question formulation -> method recommendation -> execution -> interpretation -> reporting -> semantic audit -> reproducibility replay.
-  - Added comprehensive `docs/ICC_GUIDE.md` detailing models, definitions, units, mathematical formulas, and reporting standards.
-  - Added dedicated report tables: `icc_summary`, `icc_anova_table`, `icc_variance_components`, and `icc_all_variants`.
-  - Added reporting completeness evaluation checks for ICC estimate, interval, ANOVA table, variance components, and F-test.
-- Added independent two-way factorial ANOVA with main effects and interaction ($Y = \mu + A + B + A \times B + \epsilon$):
-  - Deterministic evaluation of full factorial models without term dropping or automatic model simplification.
-  - Explicit sums of squares policies: Type II (hierarchical) sums of squares conditioning on the alternative main effect while ignoring higher-order interactions, and Type III (fully conditional) sums of squares using sum-to-zero / deviation contrast coding ($C(k-1)$ with $-1$ on the final level) tested against the full model.
-  - Partial eta-squared ($\eta_p^2 = \text{SS}_{\text{term}} / (\text{SS}_{\text{term}} + \text{SS}_{\text{error}})$) for all terms with exact noncentral-$F$ inversion confidence intervals (`confidence_interval` dict with `quantity`, `method`, `level`, `lower`, `upper`, `status`).
-  - Cell summaries with cell count ($N$), mean, sample standard deviation, and standard error for every observed factor-level combination $(a_j, b_k)$.
-  - Least-squares unweighted estimated marginal means (EMMs) with analytical standard errors for factor $A$ and factor $B$.
-  - Planned follow-up contrasts: simple main effects of factor $A$ within each level of factor $B$, simple main effects of factor $B$ within each level of factor $A$, marginal mean comparisons, and $2 \times 2$ difference-of-differences interaction contrasts using the full-model residual mean square error ($\text{MSE}_{\text{resid}}$) and residual degrees of freedom ($\text{df}_{\text{resid}}$), with Holm step-down multiplicity adjustment.
-  - Full residual diagnostics: residual degrees of freedom, MSE, RMSE, Shapiro-Wilk and D'Agostino-Pearson normality tests, and cell-level Levene homoscedasticity test across all factor-level cells.
-  - Empty cell / missing combination detection and complete validation safeguards.
-  - Semantic audit invariants: non-negative sums of squares, factor degrees of freedom accounting, error degrees of freedom ($N - J$), $F$-statistic and p-value consistency, partial eta-squared algebraic consistency, exact noncentral-$F$ CI validity, follow-up contrast consistency, and cell summary accounting.
-  - Public API integration across `ResearchAssistant(df).run(...)`, `ResearchAssistant(df).two_way_anova(...)`, `StatisticalAnalyzer(df).two_way_anova(...)`, `InsightEngine`, `ReportGenerator`, `AuditResult`, and export formats.
-- Added effect-size confidence intervals for existing shipped effect quantities across the package:
-  - Exact noncentral-t inversion confidence intervals for paired Cohen's $d_z$ (`paired_t`) and one-sample Cohen's $d$ (`one_sample_t`), with exact bracketed root solving and degenerate handling.
-  - Fisher-z asymptotic normal confidence interval for Pearson correlation ($r$), with bounds $[-1, 1]$ and explicit unavailable status for $n \le 3$.
-  - Estimator-matched asymptotic log-Wald confidence interval for Fisher's exact sample odds ratio ($ad/bc$), with explicit unavailable status for zero-cell tables and strict refusal of silent continuity corrections.
-  - Deterministic participant/pair-level percentile bootstrap confidence intervals for matched-pairs rank-biserial correlation (`wilcoxon_signed_rank`) and Friedman Wilcoxon-Holm contrasts.
-  - Participant-block percentile bootstrap confidence interval for Friedman Kendall's $W$.
-  - Exact noncentral-F inversion confidence interval for repeated-measures ANOVA partial eta-squared ($\eta_p^2$) based on uncorrected observed F and uncorrected condition/error degrees of freedom, preserving SS-based point effect.
-  - Exact noncentral-t pairwise Cohen's $d_z$ confidence intervals on all repeated-measures pairwise paired-t contrasts, with explicit pointwise (`multiplicity_adjusted=False`) accounting.
-  - Independent within-group percentile bootstrap confidence intervals for Kruskal-Wallis post-hoc Dunn pairwise rank-biserial correlations, with explicit pointwise (`multiplicity_adjusted=False`) accounting.
-  - Case-resampling percentile bootstrap confidence interval for OLS in-sample $R^2$, preserving design matrix structure and categorical factor coding.
-- Added dedicated `src/pyautostat/uncertainty.py` module providing reusable, numerically validated root-finding and bootstrap helpers without raising package dependency floors.
-- Added machine-checkable authoritative method contract architecture (`MethodContract` dataclass and `METHOD_CONTRACTS` registry) covering all 22 executable statistical methods with 26 explicit scientific fields: estimand, hypotheses, primary estimate, effect size, uncertainty status, required assumptions, diagnostics, missing-data policy, degenerate-data behavior, multiplicity policy, numerical provenance, interpretation limitations, audit invariants, and independent validation sources.
-- Added comprehensive documentation deliverables:
-  - `docs/STATISTICAL_METHOD_CONTRACTS.md`: authoritative scientific contract specification for every shipped inferential method.
-  - `docs/EFFECT_SIZE_CI_GAPS.md`: uncertainty gap classification, candidate defensible confidence interval methods, and milestone priorities.
-- Added audit invariant hardening and extensive corruption test coverage (`tests/test_audit_hardening.py`, `tests/test_effect_size_confidence_intervals.py`, and `tests/test_uncertainty_hardening.py`):
-  - Verification of finite p-values in [0, 1] across all results.
-  - Verification of confidence interval bound ordering (`lower <= upper`) and analytical Student-t point estimate inclusion.
-  - Verification of mathematical bounds on bounded effect sizes (rank-biserial, Pearson r, Spearman rho, Kendall tau-b, Cramér's V, Kendall's W, eta-squared, partial eta-squared, rank epsilon-squared, in-sample R-squared).
-  - Two-group sample size and contrast order accounting.
-  - Degrees of freedom invariants for Student-t ($df = n - 2$), one-sample t ($df = n - 1$), and paired t ($df = n_{\text{pairs}} - 1$).
-  - Repeated-measures ANOVA sum-of-squares partition and partial eta-squared algebraic consistency.
-  - Greenhouse-Geisser corrected degrees of freedom and p-value consistency.
-  - Friedman Kendall's W consistency with Friedman Q.
-  - Logistic regression odds ratio consistency with beta ($\text{OR} = \exp(\beta)$) and exponentiated Wald CI consistency.
-  - Pairwise multiplicity count matching and Holm step-down invariant ($adjusted\_p \ge raw\_p$).
+No changes recorded yet.
+
+## \[0.5.0\] - 2026-10-01
+
+This release completes PyAutoStat's scientific-depth hardening and
+expands the package with effect-size uncertainty, independent two-way
+factorial ANOVA, and a design-aware Intraclass Correlation Coefficient
+(ICC) reliability framework. It also completes the associated scientific
+closure work across method contracts, validation, audit,
+reproducibility, documentation, packaging, and compatibility. PyAutoStat
+remains an alpha package; publishing or tagging a release remains a
+separate owner decision.
+
+### Added
+
+-   Added Intraclass Correlation Coefficient (ICC) for quantitative
+    rater reliability and agreement:
+
+    -   Supports the six canonical Shrout & Fleiss / McGraw & Wong
+        forms: `ICC(1,1)`, `ICC(1,k)`, `ICC(2,1)`, `ICC(2,k)`,
+        `ICC(3,1)`, and `ICC(3,k)`, together with implemented
+        McGraw-Wong aliases/configurations.
+    -   Makes the rater model, absolute-agreement versus consistency
+        definition, and single- versus average-measure estimand explicit
+        instead of reporting an unlabeled generic ICC.
+    -   Validates fully crossed target-by-rater designs with at least
+        two targets and two raters, rejects duplicate target-rater
+        cells, and applies transparent complete-target panel filtering
+        for incomplete panels.
+    -   Computes one-way and two-way ANOVA mean-square decompositions
+        and method-of-moments target, rater, and residual variance
+        components.
+    -   Preserves negative sample ICC estimates and unconstrained
+        method-of-moments variance-component estimates rather than
+        silently clamping them to zero.
+    -   Provides analytical F-inversion confidence intervals, including
+        the dedicated Satterthwaite effective-degrees-of-freedom
+        treatment for two-way random absolute-agreement ICCs.
+    -   Provides applicable F tests, sample accounting, diagnostics,
+        deterministic interpretation, reporting, semantic audit,
+        serialization, and reproducibility replay.
+    -   Added `docs/ICC_GUIDE.md` covering model selection, notation
+        mapping, formulas, agreement versus consistency, single versus
+        average measures, negative ICC behavior, missingness policy, and
+        limitations.
+    -   Added dedicated ICC reporting for summaries, ANOVA components,
+        variance components, and variant results.
+
+-   Added independent two-way factorial ANOVA using the full
+    `A + B + A×B` model:
+
+    -   Supports balanced and unbalanced fully crossed independent
+        designs.
+    -   Supports explicit Type II and Type III sums-of-squares policies.
+    -   Uses sum-to-zero/deviation contrast coding for Type III
+        inference.
+    -   Reports factor A, factor B, and A×B interaction effects
+        separately.
+    -   Reports partial eta-squared for factorial terms with
+        noncentral-F confidence intervals.
+    -   Adds cell summaries and unweighted estimated marginal means.
+    -   Adds planned simple effects, marginal comparisons, and 2×2
+        difference-of-differences interaction contrasts with Holm
+        multiplicity adjustment.
+    -   Adds residual diagnostics and explicit empty-cell/design
+        validation.
+    -   Integrates factorial ANOVA with guided and direct APIs,
+        deterministic interpretation, reporting, semantic audit,
+        serialization, and reproducibility replay.
+
+-   Added effect-size confidence intervals and uncertainty hardening
+    across existing methods:
+
+    -   Exact noncentral-t inversion confidence intervals for one-sample
+        Cohen's d and paired Cohen's dz.
+    -   Fisher-z asymptotic confidence intervals for Pearson
+        correlation.
+    -   Estimator-matched log-Wald confidence intervals for Fisher exact
+        sample odds ratios.
+    -   Deterministic participant/pair-level percentile-bootstrap
+        confidence intervals for matched-pairs rank-biserial effects and
+        Friedman follow-up effects.
+    -   Participant-block bootstrap confidence intervals for Friedman
+        Kendall's W.
+    -   Exact noncentral-F confidence intervals for repeated-measures
+        ANOVA partial eta-squared.
+    -   Exact noncentral-t confidence intervals for repeated-measures
+        paired Cohen's dz contrasts.
+    -   Within-group bootstrap confidence intervals for
+        Kruskal-Wallis/Dunn pairwise rank-biserial effects.
+    -   Case-resampling bootstrap confidence intervals for OLS in-sample
+        R-squared.
+    -   Uses structured unavailable statuses when an interval is not
+        scientifically or numerically defensible rather than
+        manufacturing a value.
+
+-   Added `src/pyautostat/uncertainty.py` with reusable deterministic
+    root-finding and bootstrap helpers without increasing the declared
+    numerical dependency floors.
+
+-   Added a machine-checkable scientific method-contract architecture
+    using `MethodContract` and `METHOD_CONTRACTS`, recording explicit
+    estimands, hypotheses, estimates, effect quantities, uncertainty
+    status, assumptions, diagnostics, missing-data policy,
+    degenerate-data behavior, multiplicity policy, numerical provenance,
+    interpretation limitations, audit invariants, and validation
+    sources.
+
+-   Added scientific-contract and uncertainty documentation:
+
+    -   `docs/STATISTICAL_METHOD_CONTRACTS.md`
+    -   `docs/EFFECT_SIZE_CI_GAPS.md`
+
+-   Added final scientific-closure regression coverage spanning
+    representative workflow families, including method execution,
+    uncertainty, semantic audit, JSON-safe serialization, reporting, and
+    reproducibility replay.
+
+-   Extended installed-wheel and minimum-numerical-stack smoke coverage
+    for the expanded statistical capability set.
 
 ### Changed
 
-- Hardened scientific narration and metadata across result interpretation:
-  - Corrected Friedman non-rejection phrasing to avoid universal equality-of-medians claims.
-  - Clarified that Kendall's W represents within-unit rank concordance rather than percentage of variance explained.
-  - Canonicalized Mauchly sphericity status checks to strictly `"not_rejected"`.
-  - Distinguished Fisher's exact inferential null hypothesis (`odds ratio = 1.0`) from the sample cross-product effect estimate.
-- Documented intentional non-support of observed/post-hoc power by scientific policy in `docs/SCIENTIFIC_LIMITATIONS.md` and `ROADMAP.md` (Hoenig & Heisey, 2001).
-- Clarified that logistic regression uses analytical Wald z-intervals for coefficients and exponentiated Wald intervals for odds ratios, not bootstrap intervals.
+-   Hardened scientific narration and result metadata:
+    -   Corrected Friedman non-rejection wording to avoid universal
+        equality-of-medians claims.
+    -   Clarified that Kendall's W represents within-unit rank
+        concordance rather than percentage of variance explained.
+    -   Canonicalized Mauchly sphericity status handling.
+    -   Distinguished Fisher exact's inferential null hypothesis
+        (`odds ratio = 1`) from the sample cross-product odds-ratio
+        effect estimate.
+    -   Clarified that logistic regression uses analytical Wald z
+        intervals for coefficients and exponentiated Wald intervals for
+        odds ratios rather than bootstrap intervals.
+    -   Retained the scientific policy of not reporting
+        observed/post-hoc power; prospective study planning remains
+        supported.
+-   Expanded semantic audit invariants and corruption-test coverage
+    across existing and newly added methods, including:
+    -   p-value bounds;
+    -   confidence-interval ordering;
+    -   mathematical bounds for bounded effect quantities;
+    -   sample-size and contrast-order accounting;
+    -   degrees-of-freedom identities;
+    -   repeated-measures ANOVA identities;
+    -   multiplicity consistency;
+    -   logistic-regression coefficient/odds-ratio consistency;
+    -   factorial-ANOVA identities;
+    -   ICC model, notation, formula, ANOVA-component, and interval
+        consistency.
+-   Reconciled the roadmap with implemented capabilities:
+    -   Two-way factorial ANOVA and ICC are described as current
+        capabilities rather than future candidate work.
+    -   Future statistical methods remain intentionally unscheduled and
+        subject to complete scientific contracts and independent
+        numerical validation.
+    -   No additional statistical method was introduced solely to extend
+        the roadmap.
+-   Strengthened scientific-closure and release-readiness checks around
+    scientific consistency, serialization, reproducibility, installed
+    artifacts, minimum dependency compatibility, and end-to-end workflow
+    execution.
 
-## [0.4.0] - 2026-09-30
+### Fixed
+
+-   Corrected `docs/ICC_GUIDE.md` to match the implementation's
+    unconstrained method-of-moments variance-component calculations.
+    Negative finite-sample target/rater component estimates are no
+    longer documented as if they were truncated using `max(0, ...)`.
+
+-   Added regression coverage confirming that negative ICC
+    variance-component estimates are preserved rather than silently
+    clamped.
+
+-   Reconciled scientific documentation, method contracts, roadmap
+    language, and implementation behavior identified during the Phase
+    8-11 scientific-closure audits.
+
+### Validation and packaging
+
+-   Maintains automated testing across Python 3.10, 3.11, 3.12, and 3.13
+    on Ubuntu and Windows.
+-   Maintains Ruff linting and formatting checks and mypy type checking.
+-   Builds source and wheel distributions and validates distribution
+    metadata.
+-   Exercises an isolated installed-wheel smoke path rather than relying
+    only on source-tree imports.
+-   Exercises a minimum-supported numerical-stack compatibility path.
+-   Keeps statistical execution local and deterministic where the method
+    itself is deterministic.
+-   Preserves PyAutoStat's bounded scientific scope: no mixed models,
+    GEE, survival analysis, causal-inference framework, arbitrary
+    incomplete-panel longitudinal modeling, or automatic
+    statistical-model selection was added in this release.
+
+## \[0.4.0\] - 2026-09-30
 
 This release expands PyAutoStat with new descriptive, inferential,
 multi-group, regression, reliability, binary/association, and
@@ -78,170 +214,56 @@ release.
 
 ### Added
 
-- Added complete repeated-measures analysis for 3+ conditions on the
-  same observational units: one-way repeated-measures ANOVA for
-  continuous mean outcomes with full ANOVA tables, Mauchly’s sphericity
-  test, Greenhouse-Geisser epsilon and corrected degrees of freedom /
-  p-values when sphericity is violated, partial eta-squared
-  repeated-measures effect sizes, and complete pairwise paired t-test
-  follow-up with per-contrast analytical confidence intervals and Holm
-  multiplicity adjustment; and the Friedman rank-sum test for repeated
-  rank/distribution targets with Kendall’s W effect size and complete
-  pairwise Wilcoxon signed-rank follow-up with matched-pairs
-  rank-biserial correlations and Holm multiplicity adjustment. Both
-  workflows require explicit unit identity, long-form panels, and 3+
-  ordered condition labels, enforce complete-case panels while auditing
-  and reporting missing and excluded unit accounting, block duplicate
-  unit-condition records, preserve deterministic contrast orientations,
-  and integrate with explainable narration, canonical
-  HTML/Markdown/JSON/CSV reports, reporting completeness, result
-  auditing, replay reproducibility, analysis plans, session snapshots,
-  examples, and installed-wheel smoke testing. Two-condition paired
-  workflows remain completely unchanged. No mixed-effects models, GEE,
-  mixed ANOVA, factorial repeated measures, or automatic imputation were
-  added.
+-   Added complete repeated-measures analysis for 3+ conditions on the
+    same observational units: one-way repeated-measures ANOVA for
+    continuous mean outcomes with full ANOVA tables, Mauchly's
+    sphericity test, Greenhouse-Geisser epsilon and corrected degrees of
+    freedom / p-values when sphericity is violated, partial eta-squared
+    repeated-measures effect sizes, and complete pairwise paired t-test
+    follow-up with per-contrast analytical confidence intervals and Holm
+    multiplicity adjustment; and the Friedman rank-sum test for repeated
+    rank/distribution targets with Kendall's W effect size and complete
+    pairwise Wilcoxon signed-rank follow-up with matched-pairs
+    rank-biserial correlations and Holm multiplicity adjustment.
 
-- Added five complete binary-outcome and extended-association workflows:
-  binary logistic regression, exact unit-ID McNemar inference,
-  point-biserial correlation, explicit inferential Kendall tau-b, and
-  partial Pearson correlation for declared quantitative controls. The
-  methods preserve event/positive-level and condition orientation, use
-  paired-unit or complete-row bootstrap uncertainty where appropriate,
-  integrate with deterministic interpretation, canonical reports and
-  tables, semantic audit, analysis plans, replay, session snapshots, and
-  a synthetic example, and explicitly block separation, duplicate pairs,
-  rank-deficient adjustment, and ambiguous binary coding. No
-  classification metrics, automatic thresholds, causal claims, control
-  selection, or additional generalized models were added.
+-   Added five complete binary-outcome and extended-association
+    workflows: binary logistic regression, exact unit-ID McNemar
+    inference, point-biserial correlation, explicit inferential Kendall
+    tau-b, and partial Pearson correlation for declared quantitative
+    controls.
 
-- Added a complete researcher-declared survey and scale reliability
-  workflow centered on Cronbach’s alpha, with complete-case and per-item
-  missingness accounting, deterministic respondent-row bootstrap
-  intervals, corrected item-total correlations, alpha-if-deleted,
-  inter-item diagnostics, optional explicit bounded reverse scoring,
-  qualified non-inferential interpretation, dedicated report tables,
-  audit, replay, sessions, examples, and installed-wheel coverage. The
-  workflow never discovers scales, deletes items, reverse-scores
-  automatically, creates composite columns, or treats alpha as validity
-  or a universal pass/fail threshold.
+-   Added a complete researcher-declared survey and scale reliability
+    workflow centered on Cronbach's alpha, with complete-case and
+    per-item missingness accounting, deterministic respondent-row
+    bootstrap intervals, corrected item-total correlations,
+    alpha-if-deleted, inter-item diagnostics, optional explicit bounded
+    reverse scoring, qualified non-inferential interpretation, dedicated
+    report tables, audit, replay, sessions, examples, and
+    installed-wheel coverage.
 
-- Added complete simple and multiple ordinary least-squares
-  conditional-mean regression for continuous outcomes, with ordered
-  predictor lists, explicit treatment coding and reference levels for
-  Boolean/nominal/ordinal predictors, complete-case accounting, rank
-  validation, classical or explicit HC3 covariance inference,
-  coefficient and model-fit records, continuous standardized betas, VIF,
-  variance/residual/influence diagnostics, deterministic qualified
-  interpretation, canonical report tables, audit, replay, sessions,
-  examples, and installed-wheel coverage. Regression does not perform
-  variable selection, row deletion, causal inference, or out-of-sample
-  prediction validation.
+-   Added complete simple and multiple ordinary least-squares
+    conditional-mean regression for continuous outcomes, including
+    classical or explicit HC3 covariance inference, diagnostics,
+    deterministic interpretation, canonical reports, audit, and replay.
 
-- Added guided Welch one-way ANOVA with complete Games-Howell
-  simultaneous comparisons, explicit classical ANOVA with Tukey-Kramer
-  comparisons, and Kruskal-Wallis with complete Dunn-Holm comparisons.
-  Pairwise families are calculated regardless of the omnibus decision
-  and retain orientation, estimates, uncertainty where supported,
-  raw/adjusted p-values, multiplicity metadata, sample sizes, standard
-  errors, degrees of freedom, and decisions.
+-   Added guided Welch one-way ANOVA with Games-Howell comparisons,
+    classical ANOVA with Tukey-Kramer comparisons, and Kruskal-Wallis
+    with Dunn-Holm comparisons.
 
-- Integrated multi-group summaries and pairwise records through
-  deterministic narration, reports and safe exports, audit,
-  completeness, sensitivity identity, replay, examples, installed-wheel
-  smoke coverage, and a Python 3.10 minimum-supported numerical-stack CI
-  route.
-
-- Added complete one-sample t inference against a finite
-  researcher-declared reference, preserving observed-minus-reference
-  orientation, analytical raw-difference intervals, and one-sample
-  Cohen’s d when defined.
-
-- Added explicit unit-ID paired Wilcoxon signed-rank inference with
-  recorded condition order, `wilcox` zero handling, matched-pairs
-  rank-biserial effect, and complete/incomplete-pair accounting.
-
-- Added inferential Spearman correlation for declared monotonic targets,
-  including rho, p-value, ties metadata, and a deterministic
-  paired-observation percentile bootstrap interval.
-
-- Added two-sided Fisher exact inference for sparse 2x2 categorical
-  tables using the shared contingency builder, ordered observed counts,
-  and SciPy’s sample odds ratio; adequate tables continue to use Pearson
-  chi-square.
-
-- Integrated all four methods with deterministic explanation, canonical
-  reports, completeness, semantic audit checks, analysis planning,
-  sensitivity identity, practical-significance boundaries,
-  reproducibility/replay, session capabilities, examples, and
-  installed-wheel tests.
-
-- Added default and custom linear-interpolation percentile profiles,
-  with P50 tied to the existing median calculation and deterministic
-  percentile narration.
-
-- Added JSON-safe categorical frequency tables and descriptive
-  cross-tabs with explicit valid, missing, and excluded row accounting;
-  separate valid/total, row, column, and total percentages; meaningful
-  ordinal ordering; bounded narration; and shared contingency
-  construction for the existing chi-square workflow.
-
-- Added safeguarded coefficient-of-variation metadata and narration
-  using sample SD divided by the absolute mean, with zero/near-zero and
-  measurement-scale caveats.
-
-- Integrated the new descriptions into profiles, story mode, insights,
-  legacy/canonical reports, a synthetic example, and installed-wheel
-  smoke coverage.
+-   Added one-sample t inference, explicit unit-ID paired Wilcoxon
+    signed-rank inference, inferential Spearman correlation, two-sided
+    Fisher exact inference, percentile profiles, categorical frequency
+    tables/cross-tabs, and safeguarded coefficient-of-variation
+    metadata.
 
 ### Fixed
 
-- Corrected Mauchly sphericity p-value using the higher-order
-  Box/Anderson asymptotic chi-square approximation, matching published
-  SPSS and reference results.
+-   Corrected Mauchly sphericity p-value using the higher-order
+    Box/Anderson asymptotic chi-square approximation.
+-   Strengthened repeated-measures audit and validation checks.
+-   Reconciled repeated-measures documentation and edge-case behavior.
 
-- Replaced mislabeled repeated-measures reference fixture with genuine
-  external reference data from Andy Field’s Bushtucker example,
-  validating exact arithmetic and published rounded SPSS values.
-
-- Strengthened Greenhouse-Geisser and repeated-measures audit checks to
-  use actual emitted schema keys, enforcing corrected degrees-of-freedom
-  identities, corrected p-value identities, primary inference
-  consistency, and sphericity branch consistency with corruption
-  detection tests.
-
-- Reconciled repeated-measures documentation across README and docs to
-  accurately describe supported one-way 3+ condition designs,
-  complete-case matching, and explicit boundaries (including that
-  Friedman requires ordered numeric outcomes and does not auto-encode
-  textual labels).
-
-- Formatted multiplicity assertions in installed-wheel smoke test within
-  maximum line length constraints.
-
-- Repeated-measures pairwise inference now reports mathematically
-  unavailable zero-variance contrasts explicitly with descriptive mean
-  differences and degenerate intervals instead of producing
-  contradictory statistics.
-
-- Repeated Friedman pairwise follow-up no longer converts signed-rank
-  backend failures or all-zero differences into p=1, reusing the
-  established paired-Wilcoxon contract.
-
-- Repeated pairwise decisions and sphericity narration now consistently
-  use the package-wide strict p-value decision convention.
-
-- Repeated-measures validation now includes independent RM-ANOVA
-  verification against statsmodels `AnovaRM`, sum-of-squares partition
-  and partial eta-squared checks, and fixed external Mauchly and
-  Greenhouse-Geisser reference checks.
-
-- Tightened repeated-measures sphericity interpretation and structured
-  metadata to state that no degrees-of-freedom correction was applied
-  under the configured sphericity policy rather than implying that
-  failing to reject Mauchly’s test proves sphericity or makes correction
-  universally unrequired.
-
-## [0.3.0] - 2026-09-27
+## \[0.3.0\] - 2026-09-27
 
 This release adds a deterministic, researcher-readable narration layer
 across profiling, recommendation, interpretation, practical-significance
@@ -252,233 +274,66 @@ services.
 
 ### Added
 
-- Added deterministic effect-size narratives for supported measures,
-  including conventional magnitude labels, direction, sample context,
-  and confidence-interval precision commentary.
-
-- Added four-quadrant hypothesis explanations that combine the recorded
-  `p < alpha` decision with effect magnitude without treating
-  non-significance as equivalence or practical irrelevance.
-
-- Added graded assumption messages for recorded normality, variance,
-  independence, pairing, and other diagnostic states without changing
-  method selection or the stated estimand.
-
-- Added practical-significance verdicts for researcher-declared
-  thresholds and sensitivity verdicts that preserve same-estimand,
-  different-estimand, unavailable, and incompatible states.
-
-- Added opt-in dataset story mode, descriptive column stories, connected
-  InsightEngine narratives, and deterministic prioritized actions while
-  retaining the existing structured outputs.
-
-- Added recommendation explanations with why-this, relevant why-not, and
-  researcher-verification sections, plus a complete
-  `ResearchWorkflowResult.explain()` view with recorded group order,
-  sample accounting, findings, assumptions, limitations, and warnings.
-
-- Added escaped executive summaries to canonical and legacy HTML reports
-  using only stored dataset, analysis, interpretation, diagnostic,
-  practical-significance, and sensitivity records.
-
-- Added a synthetic explainability example and public end-to-end,
-  determinism, boundary, HTML safety, serialization, example-execution,
-  and installed-wheel validation coverage.
+-   Added deterministic effect-size narratives, four-quadrant hypothesis
+    explanations, graded assumption messages, practical-significance
+    verdicts, dataset story mode, recommendation explanations, workflow
+    explanations, and escaped executive summaries.
+-   Added public end-to-end, determinism, boundary, HTML safety,
+    serialization, example-execution, and installed-wheel validation
+    coverage.
 
 ### Changed
 
-- Expanded researcher-facing profile, interpretation, insight,
-  recommendation, and report prose while preserving numerical results,
-  stable identifiers, structured decision traces, and schemas.
-
-- Improved beginner-facing method labels, missing-information guidance,
-  normality verdicts, printable report styling, and plain-text findings.
-
-- Added advisory profiling resource metadata based on deep DataFrame
-  memory use and analytical width without sampling, truncating, or
-  changing computations.
-
-- Reworked examples and documentation around permanent
-  capability-oriented workflows and clarified the boundary between
-  statistical evidence and human-readable narration.
+-   Expanded researcher-facing prose while preserving numerical results
+    and structured records.
+-   Improved beginner-facing labels, warnings, report styling, examples,
+    and documentation.
 
 ### Fixed
 
-- Preserved zero-percent completeness and unavailable values instead of
-  displaying misleading defaults, duplicate punctuation, or duplicated
-  confidence-interval labels.
-
-- Restricted sensitivity decision summaries to completed comparable
-  scenarios using the declared alpha; mixed estimands are no longer
-  presented as directly numerically comparable.
-
-- Required directional paired practical-significance thresholds to match
-  the recorded contrast and strengthened paired sensitivity identity
-  checks for unit, condition, design, and orientation.
-
-- Blocked pairing when declared missing codes remain in the unit
-  identifier until the caller explicitly normalizes the source data.
-
-- Preserved valid raw mean differences when standardized effects are
-  unavailable and accepted valid percentile-bootstrap intervals that do
-  not contain the original point estimate.
-
-- Retained finite D’Agostino-Pearson results under the recognized
-  small-sample advisory and omitted Anderson-Darling results when SciPy
-  supplies an invalid critical-value grid.
-
-- Made workflow serialization JSON-safe when an included profile
-  contains pandas dtype objects, without changing the in-memory profile
-  contract.
-
-- Ensured recommendation, explanation, report, and narration rendering
-  remains deterministic and non-mutating across missing, nonfinite,
-  minimal, and user-controlled inputs.
+-   Hardened completeness, sensitivity, practical-significance,
+    diagnostics, serialization, recommendation, report, and narration
+    edge cases.
 
 ### Security
 
-- Continued escaping untrusted HTML and LaTeX text, protecting
-  formula-like CSV cells, omitting raw DataFrames and participant
-  identifiers from reports, and keeping the narration layer offline.
+-   Continued escaping untrusted HTML and LaTeX text, protecting
+    formula-like CSV cells, omitting raw DataFrames and participant
+    identifiers from reports, and keeping narration offline.
 
-## [0.2.0] - 2026-09-25
+## \[0.2.0\] - 2026-09-25
 
 This release expands PyAutoStat from its initial analysis utilities into
-an explainable and reproducible research-analysis assistant. It adds
-guided research workflows, study planning, sensitivity and
-practical-significance analysis, paired-data support, reproducibility
-tooling, richer reporting, and stronger statistical safeguards.
+an explainable and reproducible research-analysis assistant.
 
 ### Added
 
-- Added `ResearchAssistant` guided workflows from research-question
-  intake through method recommendation, analysis, interpretation,
-  reporting, audit, and reproducibility metadata.
-
-- Added structured research-question preparation with
-  `prepare_question()` and `update_question()`, including explicit
-  clarification when essential design information is missing.
-
-- Added deterministic method recommendation with explicit study-design,
-  estimand, variable-type, and data-feasibility checks.
-
-- Added structured `AnalysisResult` and deterministic interpretation
-  with effect estimates, confidence intervals, sample accounting,
-  diagnostics, warnings, and limitations.
-
-- Added canonical research reports with HTML, Markdown, JSON, CSV, and
-  safe LaTeX output.
-
-- Added General, APA-oriented, and IEEE-oriented report presentation
-  styles.
-
-- Added reporting-completeness assessment without converting reporting
-  completeness into a study-quality score.
-
-- Added explicit paired two-condition mean analysis using a
-  researcher-supplied unit identifier, paired t-test, paired mean
-  difference, confidence interval, and Cohen’s (d_z).
-
-- Added prospective study planning for independent and paired means,
-  including power and confidence-interval precision planning.
-
-- Added serializable statistical analysis plans and plan-adherence
-  comparison.
-
-- Added researcher-declared sensitivity analysis with estimand-aware
-  comparison and retention of every attempted scenario.
-
-- Added researcher-defined practical-significance thresholds with
-  separate point-estimate and confidence-interval interpretation.
-
-- Added optional decision-ledger tracking, dataset/content fingerprints,
-  result auditing, reproducibility records, metadata-only
-  reproducibility packages, and explicit supplied-data replay.
-
-- Added richer dataset profiling with variable intelligence, categorical
-  summaries, missingness patterns, duplicate information, pairwise
-  correlation sample sizes, data-quality findings, and optional data
-  dictionaries.
-
-- Added advisory DataFrame resource metadata using deep pandas memory
-  estimates, including large-memory and wide-correlation warnings
-  without sampling or modifying source data.
-
-- Added a JSON-safe session snapshot suitable for future notebook, CLI,
-  or GUI integrations.
-
-- Added explicit capability, architecture, statistical-validation,
-  scientific-limitations, provenance, robustness, planning, and
-  report-schema documentation.
+-   Added `ResearchAssistant` guided workflows, structured research
+    questions, deterministic method recommendation, structured results,
+    canonical reports, paired analysis, prospective planning, analysis
+    plans, sensitivity analysis, practical-significance thresholds,
+    audit/reproducibility, richer profiling, resource metadata, and
+    session snapshots.
 
 ### Fixed
 
-- Prevented automatic switching from a mean estimand to a
-  rank/distribution estimand based on diagnostic tests.
-
-- Made Welch’s t-test the default supported two-group independent mean
-  comparison.
-
-- Standardized first-versus-second group and paired-condition contrast
-  direction across estimates and effects.
-
-- Improved handling of undefined, nonfinite, extreme-scale, and
-  numerically unreliable statistical results.
-
-- Improved normality and variance diagnostic states so rejected, not
-  rejected, and unknown remain distinct.
-
-- Corrected percentile-bootstrap interpretation so valid intervals are
-  not required to contain the observed point estimate.
-
-- Preserved valid raw mean differences when standardized effects are
-  unavailable.
-
-- Added paired-design safeguards for unit identifiers, incomplete pairs,
-  duplicate unit-condition observations, contrast orientation, and
-  declared missing-value codes.
-
-- Added paired sensitivity safeguards so analyses using different
-  pairing definitions are not treated as directly comparable.
-
-- Added directional practical-significance safeguards for reversed
-  paired contrasts.
-
-- Extended plan-adherence checks to planned sensitivity analyses and
-  meaningful-effect thresholds.
-
-- Strengthened report security with HTML escaping, strict JSON
-  serialization, CSV formula protection, safe LaTeX escaping, and
-  explicit file-write behavior.
+-   Hardened estimand preservation, Welch defaults, contrast
+    orientation, numerical edge cases, diagnostics, bootstrap
+    interpretation, paired-design safeguards, sensitivity identity,
+    practical-significance directionality, and report security.
 
 ### Changed
 
-- Organized documentation around current capabilities rather than
-  historical development stages.
-
-- Established `ROADMAP.md` as the single forward-looking development
-  roadmap.
-
-- Renamed examples and tests with permanent capability-oriented names.
-
-- Consolidated detailed scientific and technical documentation under
-  `docs/`.
-
-- Required Python 3.10 or newer.
+-   Organized documentation around current capabilities, established
+    `ROADMAP.md` as the forward-looking roadmap, required Python 3.10+,
+    and strengthened quality/packaging automation.
 
 ### Quality and packaging
 
-- Added Ruff formatting and linting, mypy type checking, coverage
-  enforcement, package build validation, and Twine checks.
+-   Added Ruff, mypy, coverage enforcement, build/Twine checks, GitHub
+    Actions across Python 3.10-3.13 on Linux and Windows, isolated
+    installed-wheel smoke testing, and a minimum-stack route.
 
-- Added GitHub Actions testing across Python 3.10-3.13 on Linux and
-  Windows.
+## \[0.1.0\] - 2026-09-21
 
-- Added isolated installed-wheel smoke testing.
-
-- Expanded the automated test suite beyond 500 tests with greater than
-  90% code coverage.
-
-## [0.1.0] - 2026-09-21
-
-- Initial statistical analysis, insight, and report-export package.
+-   Initial statistical analysis, insight, and report-export package.
