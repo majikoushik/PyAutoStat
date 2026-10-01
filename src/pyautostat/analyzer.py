@@ -60,6 +60,7 @@ from .repeated_measures import (
 from .repeated_measures import (
     repeated_measures_anova as _repeated_measures_anova,
 )
+from .two_way_anova import two_way_anova as _two_way_anova
 
 _VALID_TEST_TYPES = ("auto", "ttest", "mannwhitney", "anova", "kruskal")
 _DEFAULT_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
@@ -1076,6 +1077,30 @@ class StatisticalAnalyzer:
             cond,
             val,
             condition_order=order,
+            alpha=alpha,
+            confidence_level=confidence_level,
+        )
+
+    def two_way_anova(
+        self,
+        outcome: str,
+        factor_a: str,
+        factor_b: str,
+        *,
+        sum_of_squares: str = "type2",
+        alpha: float = 0.05,
+        confidence_level: float = 0.95,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Run two-way factorial ANOVA for independent observations with main effects
+        and interaction.
+        """
+        return _two_way_anova(
+            self.df,
+            outcome,
+            factor_a,
+            factor_b,
+            sum_of_squares=sum_of_squares,
             alpha=alpha,
             confidence_level=confidence_level,
         )

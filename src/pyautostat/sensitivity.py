@@ -57,6 +57,7 @@ _QUANTITIES = {
     "point_biserial_correlation": "point_biserial_r",
     "kendall_tau_b": "kendall_tau_b",
     "partial_pearson_correlation": "partial_pearson_r",
+    "two_way_anova": "partial_eta_squared",
 }
 
 

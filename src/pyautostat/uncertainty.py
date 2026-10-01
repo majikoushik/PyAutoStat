@@ -454,6 +454,91 @@ def repeated_measures_partial_eta_squared_ci(
         )
 
 
+def two_way_anova_partial_eta_squared_ci(
+    f_stat: float, df_term: float, df_error: float, confidence_level: float = 0.95
+) -> dict[str, Any]:
+    """Exact noncentral-F pivot confidence interval for two-way factorial ANOVA partial eta-squared.
+
+    Inverts the noncentral-F distribution into noncentrality limits lambda_L and lambda_U,
+    which are transformed via lambda / (lambda + df_error) to partial eta-squared bounds.
+    """
+    method = "noncentral-F inversion"
+    quantity = "partial eta-squared"
+
+    if (
+        not math.isfinite(f_stat)
+        or f_stat < 0.0
+        or not math.isfinite(df_term)
+        or df_term <= 0.0
+        or not math.isfinite(df_error)
+        or df_error <= 0.0
+    ):
+        return _confidence_interval_record(
+            None,
+            None,
+            confidence_level,
+            method,
+            quantity,
+            status="uncomputable",
+            reason="F-statistic or degrees of freedom are nonpositive or nonfinite.",
+            sidedness="two-sided",
+        )
+
+    alpha = 1.0 - confidence_level
+    target_low = 1.0 - alpha / 2.0
+    target_high = alpha / 2.0
+
+    try:
+        # Lower lambda bound
+        if stats.f.cdf(f_stat, df_term, df_error) <= target_low:
+            lambda_l = 0.0
+        else:
+
+            def f_l(lam: float) -> float:
+                return float(stats.ncf.cdf(f_stat, df_term, df_error, lam)) - target_low
+
+            lam_r = max(10.0, f_stat * df_term)
+            while f_l(lam_r) > 0:
+                lam_r *= 2.0
+            lambda_l = float(optimize.brentq(f_l, 0.0, lam_r))
+
+        # Upper lambda bound
+        def f_u(lam: float) -> float:
+            return float(stats.ncf.cdf(f_stat, df_term, df_error, lam)) - target_high
+
+        lam_r = max(10.0, f_stat * df_term * 2.0)
+        while f_u(lam_r) > 0:
+            lam_r *= 2.0
+        lambda_u = float(optimize.brentq(f_u, 0.0, lam_r))
+
+        lower = lambda_l / (lambda_l + df_error)
+        upper = lambda_u / (lambda_u + df_error)
+
+        lower = max(0.0, min(1.0, lower))
+        upper = max(0.0, min(1.0, upper))
+
+        return _confidence_interval_record(
+            lower,
+            upper,
+            confidence_level,
+            method,
+            quantity,
+            status="available",
+            sidedness="two-sided",
+        )
+    except Exception as exc:
+        return _confidence_interval_record(
+            None,
+            None,
+            confidence_level,
+            method,
+            quantity,
+            status="uncomputable",
+            reason=f"Noncentral-F root finding failed: {exc}",
+            sidedness="two-sided",
+        )
+
+
 def matched_pairs_rank_biserial_bootstrap_ci(
     differences: np.ndarray | list[float],
     confidence_level: float = 0.95,

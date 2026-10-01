@@ -90,6 +90,7 @@ def assess_reporting_completeness(
         "partial_pearson_correlation",
         "repeated_measures_anova",
         "friedman_test",
+        "two_way_anova",
     }
 
     def item(
@@ -208,6 +209,7 @@ def assess_reporting_completeness(
                 "logistic_regression",
                 "repeated_measures_anova",
                 "friedman_test",
+                "two_way_anova",
             },
         ),
         item(
@@ -233,6 +235,7 @@ def assess_reporting_completeness(
                 "logistic_regression",
                 "repeated_measures_anova",
                 "friedman_test",
+                "two_way_anova",
             },
             unavailable=(
                 (
@@ -250,7 +253,9 @@ def assess_reporting_completeness(
             "GROUP_SUMMARIES_REPORTED",
             "results",
             "Per-group descriptive summaries",
-            results.get("group_summaries") or results.get("condition_summaries"),
+            results.get("group_summaries")
+            or results.get("condition_summaries")
+            or results.get("cell_summaries"),
             "sections.results.group_summaries",
             applicable=inference
             and method
@@ -260,13 +265,14 @@ def assess_reporting_completeness(
                 "kruskal_wallis",
                 "repeated_measures_anova",
                 "friedman_test",
+                "two_way_anova",
             },
         ),
         item(
             "PAIRWISE_COMPARISONS_REPORTED",
             "results",
             "Complete multiplicity-controlled pairwise family",
-            results.get("pairwise_comparisons"),
+            results.get("pairwise_comparisons") or results.get("followups"),
             "sections.results.pairwise_comparisons",
             applicable=inference
             and method
@@ -276,6 +282,7 @@ def assess_reporting_completeness(
                 "kruskal_wallis",
                 "repeated_measures_anova",
                 "friedman_test",
+                "two_way_anova",
             },
         ),
         item(
@@ -552,6 +559,23 @@ def assess_reporting_completeness(
                 "Greenhouse-Geisser correction and epsilon",
                 results.get("greenhouse_geisser"),
                 "sections.results.greenhouse_geisser",
+            ),
+        )
+    if method == "two_way_anova":
+        items += (
+            item(
+                "ANOVA_TABLE_REPORTED",
+                "results",
+                "Omnibus ANOVA table with main effects and interaction",
+                results.get("anova_table") or results.get("terms"),
+                "sections.results.anova_table",
+            ),
+            item(
+                "CELL_SUMMARIES_REPORTED",
+                "results",
+                "Factor cell summaries (counts, means, SDs)",
+                results.get("cell_summaries"),
+                "sections.results.cell_summaries",
             ),
         )
     required_statuses = [entry.status for entry in items if entry.applicable and entry.required]

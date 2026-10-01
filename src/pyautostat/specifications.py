@@ -90,11 +90,22 @@ class ResearchQuestion:
     controls: tuple[str, ...] | None = None
     event_level: Any | None = None
     association_measure: str | None = None
+    factor_a: str | None = None
+    factor_b: str | None = None
+    factors: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.objective is not None:
             object.__setattr__(self, "objective", _enum(self.objective, Objective, "objective"))
-        for name in ("outcome", "predictor", "estimand", "description", "association_measure"):
+        for name in (
+            "outcome",
+            "predictor",
+            "estimand",
+            "description",
+            "association_measure",
+            "factor_a",
+            "factor_b",
+        ):
             _name(getattr(self, name), name)
         if self.predictors is not None:
             if isinstance(self.predictors, (str, bytes)) or not isinstance(
@@ -109,6 +120,36 @@ class ResearchQuestion:
             if len(set(checked)) != len(checked):
                 raise InvalidDataError("predictors must not contain duplicates.")
             object.__setattr__(self, "predictors", checked)
+        if self.factor_a is not None and self.factor_b is not None:
+            if self.factor_a == self.factor_b:
+                raise InvalidDataError("factor_a and factor_b must name different variables.")
+            expected = (self.factor_a, self.factor_b)
+            if self.factors is not None and self.factors != expected:
+                raise InvalidDataError(
+                    "factor_a/factor_b and factors cannot specify conflicting values."
+                )
+            object.__setattr__(self, "factors", expected)
+        elif self.factors is not None:
+            if isinstance(self.factors, (str, bytes)) or not isinstance(
+                self.factors, (list, tuple)
+            ):
+                raise InvalidDataError("factors must be a nonempty sequence of column names.")
+            checked_factors = tuple(self.factors)
+            if not checked_factors or any(
+                not isinstance(item, str) or not item.strip() for item in checked_factors
+            ):
+                raise InvalidDataError("factors must contain nonempty column names.")
+            if len(set(checked_factors)) != len(checked_factors):
+                raise InvalidDataError("factors must not contain duplicates.")
+            object.__setattr__(self, "factors", checked_factors)
+            if len(checked_factors) == 2:
+                object.__setattr__(self, "factor_a", checked_factors[0])
+                object.__setattr__(self, "factor_b", checked_factors[1])
+        if self.factors is not None:
+            if self.outcome is not None and self.outcome in self.factors:
+                raise InvalidDataError("outcome cannot be one of the factor columns.")
+            if self.predictor is not None:
+                raise InvalidDataError("Cannot specify both predictor and factors.")
         if self.items is not None:
             if isinstance(self.items, (str, bytes)) or not isinstance(self.items, (list, tuple)):
                 raise InvalidDataError("items must be a sequence of at least two column names.")
@@ -169,6 +210,12 @@ class ResearchQuestion:
         }
         if self.predictors is not None:
             payload["predictors"] = list(self.predictors)
+        if self.factor_a is not None:
+            payload["factor_a"] = self.factor_a
+        if self.factor_b is not None:
+            payload["factor_b"] = self.factor_b
+        if self.factors is not None:
+            payload["factors"] = list(self.factors)
         if self.items is not None:
             payload["items"] = list(self.items)
         if self.controls is not None:
@@ -181,7 +228,10 @@ class ResearchQuestion:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResearchQuestion:
-        return cls(**data)
+        cleaned = dict(data)
+        if "factors" in cleaned and cleaned["factors"] is not None:
+            cleaned["factors"] = tuple(cleaned["factors"])
+        return cls(**cleaned)
 
 
 @dataclass(frozen=True)
@@ -195,6 +245,7 @@ class AnalysisOptions:
     reference_levels: dict[str, Any] | None = None
     bootstrap_samples: int = 499
     reverse_scoring: dict[str, tuple[float, float]] | None = None
+    sum_of_squares: str = "type2"
 
     def __post_init__(self) -> None:
         _probability(self.alpha, "alpha")
@@ -205,6 +256,8 @@ class AnalysisOptions:
             raise InvalidDataError("random_seed must be an integer or None.")
         if self.covariance_type not in {"classical", "HC3"}:
             raise InvalidDataError("covariance_type must be 'classical' or 'HC3'.")
+        if self.sum_of_squares not in {"type2", "type3"}:
+            raise InvalidDataError("sum_of_squares must be 'type2' or 'type3'.")
         if self.reference_levels is not None:
             if not isinstance(self.reference_levels, dict) or any(
                 not isinstance(key, str) or not key.strip() for key in self.reference_levels
@@ -258,6 +311,8 @@ class AnalysisOptions:
         if self.bootstrap_samples != 499 or self.reverse_scoring is not None:
             payload["bootstrap_samples"] = self.bootstrap_samples
             payload["reverse_scoring"] = _json_value(self.reverse_scoring)
+        if self.sum_of_squares != "type2":
+            payload["sum_of_squares"] = self.sum_of_squares
         return payload
 
     @classmethod

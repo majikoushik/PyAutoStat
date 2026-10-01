@@ -29,6 +29,18 @@ It is not a substitute for scientific design review or subject-matter judgment.
   test equality of medians unless condition distributions have identical shapes and spreads. Complete-case
   panels are required; missingness is not modeled. Pairwise follow-up uses paired Wilcoxon signed-rank
   tests with Holm adjustment. Omnibus significance does not imply that every pairwise contrast differs.
+- Two-way factorial ANOVA evaluates main effects and the interaction between exactly two categorical factors
+  for independent observations and a continuous quantitative outcome. In unbalanced designs, sums of squares
+  depend on the chosen convention: Type II evaluates each main effect conditional on the other main effect
+  without interaction; Type III evaluates each effect conditional on all other model terms using sum-to-zero
+  contrasts. When an interaction is statistically or practically meaningful, omnibus main effects do not
+  describe homogeneous effects across all subgroups and must be qualified. Simple effects (effects of one
+  factor within levels of the other), unweighted estimated marginal means, and (for 2x2 designs) the
+  difference-of-differences interaction contrast are reported with Holm step-down multiplicity adjustment.
+  Pointwise Student-t intervals for contrasts are not simultaneous confidence bands. Residual normality
+  and homoscedasticity diagnostics are advisory and do not silently transform data or alter model
+  specifications. Factorial ANOVA does not establish causality; repeated-measures factorial ANOVA, mixed ANOVA,
+  ANCOVA, random effects, and nested factors are unsupported.
 - OLS regression targets an additive conditional mean for independent observational units. It
   uses one complete-case sample and an intercept; it does not impute, transform, select, or delete
   predictors or observations. Treatment-coded nominal, Boolean, and ordinal terms are relative to

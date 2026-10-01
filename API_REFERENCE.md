@@ -355,6 +355,36 @@ The expert methods `StatisticalAnalyzer.repeated_measures_anova(...)` and
 return the same validated schemas. Two-condition paired designs continue to route through
 `paired_t` or `wilcoxon_signed_rank`.
 
+### Two-way factorial ANOVA
+
+For two categorical factors on a continuous outcome under independent sampling:
+
+```python
+workflow = ResearchAssistant(df).run(
+    objective="compare_groups",
+    outcome="score",
+    factor_a="treatment",
+    factor_b="dosage",
+    estimand="mean",
+    design="independent",
+    sum_of_squares="type2",  # or "type3"
+)
+# or via direct assistant helper:
+workflow = ResearchAssistant(df).two_way_anova("score", "treatment", "dosage", sum_of_squares="type2")
+```
+
+The model fits the full factorial specification with interaction:
+$$Y = \mu + A + B + A \times B + \epsilon$$
+
+- **Sums of squares policy**: Supports Type II (`type2` / `type_2`) hierarchical sums of squares testing each main effect conditional on other main effects while ignoring higher-order interactions, and Type III (`type3` / `type_3`) fully conditional sums of squares using sum-to-zero / deviation contrast coding ($C(k-1)$ with $-1$ on the final level) tested against the full model. Both balanced and unbalanced independent designs are supported; missing or empty cells raise `InvalidDataError`.
+- **ANOVA table and terms**: Reports term SS, df, MS, $F$-statistic, $p$-value, and partial eta-squared ($\eta_p^2 = \text{SS}_{\text{term}} / (\text{SS}_{\text{term}} + \text{SS}_{\text{error}})$) for $A$, $B$, and $A \times B$, plus residual SS, df, and MSE.
+- **Effect sizes and uncertainty**: Each ANOVA term includes partial eta-squared accompanied by an exact noncentral-$F$ inversion confidence interval (`confidence_interval` with `quantity`, `method`, `level`, `lower`, `upper`, `status`).
+- **Cell summaries and marginal means**: Provides cell $N$, mean, sample SD, and standard error for every observed cell $(a_j, b_k)$, as well as unweighted least-squares estimated marginal means (EMMs) and analytical standard errors for factor $A$ and factor $B$.
+- **Planned follow-up contrasts**: Computes planned simple main effects (effects of $A$ within each level of $B$, effects of $B$ within each level of $A$), marginal comparisons, and $2 \times 2$ difference-of-differences interaction contrasts using the full-model residual mean square error ($\text{MSE}_{\text{resid}}$) and residual degrees of freedom ($\text{df}_{\text{resid}}$), with Holm step-down multiplicity adjustment.
+- **Diagnostics**: Includes model residual sample size, df, MSE, RMSE, Shapiro-Wilk or D'Agostino-Pearson normality tests on residuals, and cell-level Levene homoscedasticity across all factor-level combinations.
+
+The expert method `StatisticalAnalyzer.two_way_anova(outcome, factor_a, factor_b, *, sum_of_squares="type2", alpha=0.05, confidence_level=0.95)` accepts raw column names and returns the validated result dictionary.
+
 ### Continue after `needs_input`
 
 When an essential scientific fact is absent, `run()` returns a structured request and does not
@@ -595,6 +625,7 @@ print(result.metadata["sample"], result.metadata["group_order"])
 | `point_biserial_correlation` | `scipy.stats.pointbiserialr` | Explicit 0/1 coding, r_pb/p, group counts/means and paired-observation bootstrap CI |
 | `kendall_tau_b` | `scipy.stats.kendalltau(variant="b")` | Tau-b/p, tie metadata and paired-observation bootstrap CI |
 | `partial_pearson_correlation` | two statsmodels OLS residual models + Pearson r | Ordered controls, effective df, partial r/p and complete-row model-refitting bootstrap CI |
+| `two_way_anova` | `two_way_anova()` / ordinary least squares | Full model with Type II or Type III SS, term F/df/p, partial eta-squared with exact noncentral-F CI, cell summaries, unweighted EMMs, planned follow-up contrasts with Holm adjustment, and residual diagnostics |
 
 The registry also describes Student's pooled t-test and standard one-way ANOVA as runnable
 **legacy explicit calculations**, but the guided recommender does not select them automatically.
@@ -771,7 +802,8 @@ Direct basic-inference methods are:
 - `one_sample_t_test(value_col, reference_value, *, confidence_level=.95)`;
 - `paired_wilcoxon(unit_id, condition_col, value_col, *, condition_order=None)`;
 - `spearman_correlation(first, second, *, confidence_level=.95, bootstrap_samples=499,
-  random_state=0)`; and
+  random_state=0)`;
+- `two_way_anova(outcome, factor_a, factor_b, *, sum_of_squares="type2", alpha=0.05, confidence_level=0.95)`; and
 - `fisher_exact(row_variable, column_variable)` for 2x2 tables only.
 
 All exclude missing rows transparently and never mutate the input. Paired Wilcoxon constructs

@@ -149,6 +149,7 @@ _METHODS = {
     "partial_pearson_correlation": ("Partial Pearson correlation", "partial Pearson r"),
     "repeated_measures_anova": ("One-way repeated-measures ANOVA", "partial eta-squared"),
     "friedman_test": ("Friedman rank-sum test", "Kendall's W"),
+    "two_way_anova": ("Two-way factorial ANOVA", "partial eta-squared"),
 }
 _SIGNED_GROUP = {
     "welch_t",
@@ -164,7 +165,7 @@ _GROUP = _SIGNED_GROUP | {
     "kruskal_wallis",
     "pearson_chi_square",
 }
-_NONNEGATIVE = {"one_way_anova", "kruskal_wallis", "pearson_chi_square"}
+_NONNEGATIVE = {"one_way_anova", "kruskal_wallis", "pearson_chi_square", "two_way_anova"}
 _CORRELATIONS = {
     "pearson_correlation",
     "spearman_correlation",
@@ -867,6 +868,222 @@ def _friedman_interpretation(result: AnalysisResult) -> InterpretationResult:
     )
 
 
+def _two_way_anova_interpretation(result: AnalysisResult) -> InterpretationResult:
+    if result.specification is None or result.sample_size is None:
+        return _unavailable(
+            result, "The two-way factorial ANOVA specification or sample accounting is missing."
+        )
+    values = result.values
+    outcome = result.specification.question.outcome or "outcome"
+    fa = values.get("factor_a") or "factor_a"
+    fb = values.get("factor_b") or "factor_b"
+    ss_type = str(values.get("sum_of_squares_type", "type2")).upper()
+    terms = values.get("terms") or []
+    if len(terms) < 4:
+        return _unavailable(result, "The two-way factorial ANOVA result terms are incomplete.")
+
+    term_a: dict[str, Any] = next(
+        (t for t in terms if isinstance(t, dict) and t.get("term") == fa), {}
+    )
+    term_b: dict[str, Any] = next(
+        (t for t in terms if isinstance(t, dict) and t.get("term") == fb), {}
+    )
+    term_ab: dict[str, Any] = next(
+        (t for t in terms if isinstance(t, dict) and t.get("term_type") == "interaction"), {}
+    )
+    term_res: dict[str, Any] = next(
+        (t for t in terms if isinstance(t, dict) and t.get("term_type") == "residual"), {}
+    )
+
+    alpha = result.specification.options.alpha
+    findings: list[InterpretationFinding] = []
+
+    f_a = _finite(term_a.get("f_statistic"))
+    p_a = _finite(term_a.get("p_value"))
+    df_a = _finite(term_a.get("df"))
+    df_res = _finite(term_res.get("df"))
+    eff_a = _finite((term_a.get("effect_size") or {}).get("value"))
+
+    f_b = _finite(term_b.get("f_statistic"))
+    p_b = _finite(term_b.get("p_value"))
+    df_b = _finite(term_b.get("df"))
+    eff_b = _finite((term_b.get("effect_size") or {}).get("value"))
+
+    f_ab = _finite(term_ab.get("f_statistic"))
+    p_ab = _finite(term_ab.get("p_value"))
+    df_ab = _finite(term_ab.get("df"))
+    eff_ab = _finite((term_ab.get("effect_size") or {}).get("value"))
+
+    if (
+        f_a is None
+        or p_a is None
+        or df_a is None
+        or eff_a is None
+        or f_b is None
+        or p_b is None
+        or df_b is None
+        or eff_b is None
+        or f_ab is None
+        or p_ab is None
+        or df_ab is None
+        or eff_ab is None
+        or df_res is None
+    ):
+        return _unavailable(
+            result, "Two-way ANOVA statistics or degrees of freedom are incomplete."
+        )
+
+    df_ab_str = f"{df_ab:.0f}"
+    df_res_str = f"{df_res:.0f}"
+    df_a_str = f"{df_a:.0f}"
+    df_b_str = f"{df_b:.0f}"
+
+    summary = (
+        f"Two-way factorial ANOVA evaluated {outcome!r} across {fa!r} and {fb!r} "
+        f"({ss_type} sums of squares, N = {result.sample_size}). "
+        f"Interaction {fa}:{fb}: F({df_ab_str}, {df_res_str}) = {_fmt(f_ab)}, {_p_display(p_ab)}."
+    )
+    _finding(findings, "two_way_anova_summary", summary, "values.terms")
+
+    if p_ab is not None and p_ab < alpha:
+        inter_text = (
+            f"The interaction test provides evidence that the differences across levels of {fa!r} "
+            f"depend on the level of {fb!r} (F({df_ab_str}, {df_res_str}) = {_fmt(f_ab)}, "
+            f"{_p_display(p_ab)} < alpha = {alpha}, partial eta-squared = {_fmt(eff_ab)}). "
+            "Because an interaction is present, main effects should not be interpreted as uniform "
+            "across the levels of the other factor; examine simple-effect contrasts."
+        )
+    else:
+        inter_text = (
+            f"The interaction test does not provide sufficient evidence that the pattern of mean "
+            f"differences for {fa!r} varies across levels of {fb!r} "
+            f"(F({df_ab_str}, {df_res_str}) = {_fmt(f_ab)}, "
+            f"{_p_display(p_ab)} >= alpha = {alpha}). "
+            "Failing to reject the interaction null hypothesis does not prove that the factors act "
+            "completely independently."
+        )
+    _finding(findings, "two_way_anova_interaction", inter_text, "values.terms")
+
+    if p_a is not None and p_a < alpha:
+        ma_text = (
+            f"The main effect of {fa!r} provides evidence of differences in model-defined marginal "
+            f"means (F({df_a_str}, {df_res_str}) = {_fmt(f_a)}, "
+            f"{_p_display(p_a)} < alpha = {alpha}, "
+            f"partial eta-squared = {_fmt(eff_a)})."
+        )
+    else:
+        ma_text = (
+            f"The main effect of {fa!r} does not provide sufficient evidence of marginal mean "
+            f"differences (F({df_a_str}, {df_res_str}) = {_fmt(f_a)}, "
+            f"{_p_display(p_a)} >= alpha = {alpha})."
+        )
+    _finding(findings, "two_way_anova_main_a", ma_text, "values.terms")
+
+    if p_b is not None and p_b < alpha:
+        mb_text = (
+            f"The main effect of {fb!r} provides evidence of differences in model-defined marginal "
+            f"means (F({df_b_str}, {df_res_str}) = {_fmt(f_b)}, "
+            f"{_p_display(p_b)} < alpha = {alpha}, "
+            f"partial eta-squared = {_fmt(eff_b)})."
+        )
+    else:
+        mb_text = (
+            f"The main effect of {fb!r} does not provide sufficient evidence of marginal mean "
+            f"differences (F({df_b_str}, {df_res_str}) = {_fmt(f_b)}, "
+            f"{_p_display(p_b)} >= alpha = {alpha})."
+        )
+    _finding(findings, "two_way_anova_main_b", mb_text, "values.terms")
+
+    followups = values.get("followups") or []
+    if followups:
+        sig_followups = sum(
+            1 for f in followups if isinstance(f, dict) and f.get("decision") == "reject"
+        )
+        fup_summary = (
+            f"Follow-up analysis evaluated {len(followups)} contrast(s) using Holm step-down "
+            f"multiplicity adjustment within families; {sig_followups} contrast(s) show evidence "
+            "of difference after adjustment."
+        )
+        _finding(findings, "two_way_anova_followup_summary", fup_summary, "values.followups")
+
+    dod = values.get("diff_of_diff")
+    if isinstance(dod, dict):
+        dod_est = _finite(dod.get("estimate"))
+        dod_p = _finite(dod.get("raw_p_value"))
+        dod_ci = dod.get("confidence_interval") or {}
+        dod_l = _finite(dod_ci.get("lower"))
+        dod_u = _finite(dod_ci.get("upper"))
+        if dod_est is not None and dod_p is not None:
+            ci_str = (
+                f", 95% CI [{_fmt(dod_l)}, {_fmt(dod_u)}]"
+                if dod_l is not None and dod_u is not None
+                else ""
+            )
+            dod_text = (
+                f"The 2x2 interaction difference-of-differences contrast ({dod.get('contrast')}) "
+                f"was {_fmt(dod_est)}{ci_str}, p = {_fmt(dod_p)}."
+            )
+            _finding(findings, "two_way_anova_diff_of_diff", dod_text, "values.diff_of_diff")
+
+    diag = values.get("diagnostics") or {}
+    norm_diag = diag.get("normality") or {}
+    levene_diag = diag.get("homoscedasticity") or {}
+    norm_warn = any(v.get("verdict") == "reject" for v in norm_diag.values() if isinstance(v, dict))
+    levene_warn = any(
+        v.get("verdict") == "reject" for v in levene_diag.values() if isinstance(v, dict)
+    )
+
+    assumption_notes = [
+        "Independent observational units across all cells under researcher declaration.",
+        "Fully crossed fixed-effects linear model with main effects and interaction.",
+        f"Sums of squares evaluated under {ss_type} convention.",
+    ]
+    if norm_warn:
+        assumption_notes.append("Residual diagnostic indicates potential departure from normality.")
+    if levene_warn:
+        assumption_notes.append(
+            "Levene test indicates potential departure from equal cell variances."
+        )
+
+    limitations = [
+        "Two-way factorial ANOVA evaluates model-defined marginal and cell mean differences; "
+        "it does not establish causality.",
+        "Partial eta-squared represents variance accounted for relative to term plus residual "
+        "variance, not total variance.",
+        "A nonsignificant interaction does not prove absence of interaction across unobserved "
+        "conditions.",
+        "Follow-up pairwise confidence intervals are pointwise Student-t intervals, not "
+        "simultaneous intervals.",
+        "Complete-case analysis excludes rows with missing values in the outcome or either factor.",
+    ]
+
+    return InterpretationResult(
+        status=InterpretationStatus.AVAILABLE,
+        method_id="two_way_anova",
+        execution_status=result.status,
+        summary=summary,
+        method_explanation=(
+            f"Two-way factorial ANOVA fits a fixed-effects model with main effects of {fa!r} "
+            f"and {fb!r} and their interaction ({fa}:{fb}) using {ss_type} sums of squares."
+        ),
+        hypothesis_interpretation=inter_text,
+        effect_interpretation=(
+            f"Partial eta-squared effect sizes: {fa} = {_fmt(eff_a)}, {fb} = {_fmt(eff_b)}, "
+            f"{fa}:{fb} = {_fmt(eff_ab)}."
+        ),
+        uncertainty_interpretation=(
+            "Confidence intervals for partial eta-squared are derived from exact noncentral-F "
+            "inversion. Follow-up contrast intervals are pointwise Student-t intervals."
+        ),
+        assumption_notes=tuple(assumption_notes),
+        limitations=tuple(limitations),
+        conclusion=inter_text,
+        findings=tuple(findings),
+        warnings=result.warnings,
+        metadata={"terms": terms, "sum_of_squares_type": ss_type},
+    )
+
+
 def _context(result: AnalysisResult) -> tuple[str, str | None]:
     """Return the method description and the verified group contrast, if any."""
     method = result.method_id
@@ -1281,6 +1498,8 @@ class InterpretationEngine:
             return _repeated_measures_anova_interpretation(result)
         if result.method_id == "friedman_test":
             return _friedman_interpretation(result)
+        if result.method_id == "two_way_anova":
+            return _two_way_anova_interpretation(result)
         if result.method_id not in _METHODS:
             return _unavailable(result, f"Method {result.method_id!r} is not supported.")
         if result.method_id == "dataset_profile":

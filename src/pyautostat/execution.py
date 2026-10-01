@@ -54,6 +54,7 @@ _EFFECT_DEFINITIONS = {
         "squares (partial eta-squared)."
     ),
     "friedman_test": "Friedman Q divided by n*(k - 1) (Kendall's W rank concordance).",
+    "two_way_anova": "Partial eta-squared for each model term: SS_term / (SS_term + SS_error).",
 }
 
 _NULL_HYPOTHESES = {
@@ -85,6 +86,7 @@ _NULL_HYPOTHESES = {
     # Phase 7
     "repeated_measures_anova": "All repeated-condition population means are equal.",
     "friedman_test": "The repeated-condition within-unit rank distributions are equal.",
+    "two_way_anova": "Factor A, Factor B, and their interaction have zero effect on the outcome.",
 }
 
 
@@ -115,7 +117,7 @@ def _label(value: Any) -> str | int | float | bool:
 def _degrees(value: Any, method_id: str) -> float | int | list[float | int] | None:
     if method_id == "mann_whitney_u":
         return None
-    if method_id in ("one_way_anova", "welch_anova", "repeated_measures_anova"):
+    if method_id in ("one_way_anova", "welch_anova", "repeated_measures_anova", "two_way_anova"):
         if not isinstance(value, (list, tuple)) or len(value) != 2:
             raise InsufficientDataError("The backend returned invalid ANOVA degrees of freedom.")
         checked = [_number(item, "ANOVA degrees of freedom") for item in value]
@@ -1799,6 +1801,111 @@ def _friedman_result(
     )
 
 
+def _two_way_anova_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    question = specification.question
+    outcome = question.outcome
+    factor_a = question.factor_a
+    factor_b = question.factor_b
+    if factor_a is None or factor_b is None:
+        if question.factors and len(question.factors) == 2:
+            factor_a, factor_b = question.factors[0], question.factors[1]
+    assert outcome is not None and factor_a is not None and factor_b is not None
+
+    raw = analyzer.two_way_anova(
+        outcome,
+        factor_a,
+        factor_b,
+        sum_of_squares=specification.options.sum_of_squares,
+        alpha=specification.options.alpha,
+        confidence_level=specification.options.confidence_level,
+    )
+    terms = raw["terms"]
+    term_ab = next(t for t in terms if t["term_type"] == "interaction")
+    term_resid = next(t for t in terms if t["term_type"] == "residual")
+
+    sample_info = raw.get("sample", {})
+    analyzed_rows = int(sample_info.get("analyzed_rows", len(analyzer.df)))
+    excluded_rows = int(sample_info.get("excluded_rows", 0))
+
+    f_ab = _number(term_ab.get("f_statistic"), "interaction F statistic")
+    p_ab = _number(term_ab.get("p_value"), "interaction p-value", probability=True)
+    df_list = [term_ab.get("df"), term_resid.get("df")]
+    degrees_of_freedom = _degrees(df_list, "two_way_anova")
+
+    eta_ab = term_ab["effect_size"]["value"]
+    ci_ab = term_ab["effect_size"]["confidence_interval"]
+
+    effect_size_record = {
+        "name": "partial_eta_squared",
+        "value": eta_ab,
+        "definition": _EFFECT_DEFINITIONS["two_way_anova"],
+        "confidence_interval": ci_ab,
+        "status": "available",
+        "reason": None,
+    }
+
+    values: dict[str, Any] = {
+        "statistic": f_ab,
+        "test_statistic": f_ab,
+        "degrees_of_freedom": degrees_of_freedom,
+        "p_value": p_ab,
+        "primary_estimate": eta_ab,
+        "estimate_name": "partial eta-squared",
+        "estimate_unit": None,
+        "effect_size": effect_size_record,
+        "confidence_interval": ci_ab,
+        "outcome": outcome,
+        "factor_a": factor_a,
+        "factor_b": factor_b,
+        "factor_a_levels": raw["factor_a_levels"],
+        "factor_b_levels": raw["factor_b_levels"],
+        "sum_of_squares_type": raw["sum_of_squares_type"],
+        "terms": terms,
+        "anova_table": terms,
+        "cell_summaries": raw["cell_summaries"],
+        "estimated_marginal_means": raw["estimated_marginal_means"],
+        "followups": raw["followups"],
+        "diff_of_diff": raw.get("diff_of_diff"),
+        "diagnostics": raw["diagnostics"],
+    }
+
+    return AnalysisResult(
+        method_id="two_way_anova",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed_rows,
+        excluded_rows=excluded_rows,
+        values=_json_safe(values),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", ())),
+        metadata={
+            "method_name": recommendation.method_name or "Two-way factorial ANOVA",
+            "backend_test": "two_way_anova",
+            "numerical_source": "pyautostat.two_way_anova.two_way_anova",
+            "sample": sample_info,
+            "factor_a": factor_a,
+            "factor_b": factor_b,
+            "levels_a": raw["factor_a_levels"],
+            "levels_b": raw["factor_b_levels"],
+            "sum_of_squares_type": raw["sum_of_squares_type"],
+            "contrast_coding": "sum_to_zero",
+            "null_hypothesis": _NULL_HYPOTHESES["two_way_anova"],
+            "null_value": 0.0,
+            "null_quantity": "main effects and interaction",
+            "alternative_hypothesis": "at least one factor or interaction effect is nonzero",
+            "pairwise_method": "independent_t",
+            "multiplicity_control": "holm",
+            "terms": _json_safe(terms),
+            "diagnostics": _json_safe(raw["diagnostics"]),
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
 def execute_specification(
     analyzer: StatisticalAnalyzer, specification: AnalysisSpecification
 ) -> AnalysisResult:
@@ -1891,6 +1998,8 @@ def execute_specification(
             return _repeated_measures_anova_result(analyzer, specification, recommendation)
         if method_id == "friedman_test":
             return _friedman_result(analyzer, specification, recommendation)
+        if method_id == "two_way_anova":
+            return _two_way_anova_result(analyzer, specification, recommendation)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, recommendation, str(exc))
@@ -1993,6 +2102,8 @@ def execute_selected_method(
             return _repeated_measures_anova_result(analyzer, specification, explicit)
         if method_id == "friedman_test":
             return _friedman_result(analyzer, specification, explicit)
+        if method_id == "two_way_anova":
+            return _two_way_anova_result(analyzer, specification, explicit)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, explicit, str(exc))

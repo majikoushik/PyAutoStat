@@ -1544,4 +1544,99 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "cross-check; verified in tests/test_repeated_measures.py."
         ),
     ),
+    "two_way_anova": MethodContract(
+        method_id="two_way_anova",
+        name="Two-way factorial ANOVA",
+        scientific_question=(
+            "Do the marginal means of a continuous outcome differ across levels of Factor A "
+            "or Factor B, or does the effect of Factor A depend on the level of Factor B "
+            "(interaction)?"
+        ),
+        study_design=(
+            "Independent observations across exactly two categorical factors "
+            "(fully crossed factorial design)"
+        ),
+        outcome_type="Continuous quantitative",
+        predictor_type="Two categorical factors (at least 2 levels each)",
+        estimand="Factorial mean model parameters, marginal means, and contrast differences",
+        primary_estimate="Model marginal means, cell means, and partial eta-squared",
+        null_hypothesis=(
+            "Factor A, Factor B, and their interaction have zero effect on the outcome."
+        ),
+        alternative_hypothesis="At least one factor main effect or interaction effect is nonzero.",
+        null_value=0.0,
+        null_quantity="main effects and interaction",
+        test_statistic="F-statistic for Factor A, Factor B, and Factor A x Factor B interaction",
+        degrees_of_freedom=(
+            "Numerator df for each term: (I-1), (J-1), (I-1)(J-1); Denominator df: N - I*J"
+        ),
+        effect_size_quantity="partial_eta_squared",
+        effect_size_definition="SS_term / (SS_term + SS_error) for each model term",
+        effect_size_ci_status="available",
+        primary_estimate_ci_status="available",
+        ci_method="Exact inversion of cumulative noncentral F distribution via SciPy",
+        assumptions=(
+            "Independent observations across all units.",
+            "Exactly two declared categorical grouping factors.",
+            "Continuous quantitative outcome measurement.",
+            "Fully crossed design with all factor combination cells populated (no empty cells).",
+            "Approximately normal model errors / residuals.",
+            "Homoscedastic residual variance across factor cells.",
+        ),
+        diagnostics=(
+            "Residual sample size, degrees of freedom, MSE, and RMSE",
+            "Shapiro-Wilk and D'Agostino-Pearson residual normality tests",
+            "Levene / Brown-Forsythe median-centered test for equal cell variances",
+            "Cell counts and empty cell detection",
+            "Design matrix rank",
+        ),
+        missing_data_policy=(
+            "Complete-case analysis across outcome, factor_a, and factor_b; "
+            "rows with missing values in any of these three variables are excluded and recorded."
+        ),
+        degenerate_data_behavior=(
+            "Fewer than 2 levels in either factor, empty cells, nonpositive residual degrees of "
+            "freedom, constant outcome, or nonfinite values returns unsupported/blocked status."
+        ),
+        multiplicity_policy=(
+            "Simple effects of A within B, simple effects of B within A, and marginal mean "
+            "pairwise contrasts are adjusted within their respective families using Holm "
+            "step-down procedure. Pointwise Student-t confidence intervals have "
+            "multiplicity_adjusted=False."
+        ),
+        numerical_provenance=(
+            "Sum-to-zero contrast coding with ordinary least squares via statsmodels.api.OLS "
+            "and scipy.stats F-distribution."
+        ),
+        interpretation_limitations=(
+            "Factorial ANOVA evaluates mean differences and interaction under the declared model; "
+            "it does NOT establish causality.",
+            "Partial eta-squared measures variance accounted for relative to term plus residual "
+            "variance, NOT total variance explained.",
+            "A nonsignificant interaction does NOT prove that effects are identical across levels.",
+            "Significant main effects cannot be assumed uniform across the other factor when "
+            "interaction is present.",
+            "Follow-up confidence intervals are pointwise, not simultaneous.",
+        ),
+        audit_invariants=(
+            "terms include factor_a, factor_b, interaction, and residual",
+            "df are positive and coherent: df_A == I - 1, df_B == J - 1, "
+            "df_AB == (I - 1) * (J - 1), df_error == N - I * J",
+            "SS values are finite and non-negative",
+            "MS == SS / df",
+            "F == MS_term / MS_error",
+            "p-values in [0, 1]",
+            "partial_eta_squared == SS_term / (SS_term + SS_error)",
+            "partial_eta_squared in [0, 1]",
+            "partial_eta_squared CI in [0, 1] with lower <= upper",
+            "cell_summaries present for all I * J cells",
+            "followup adjusted p_values >= raw p_values",
+            "pointwise followup CI multiplicity_adjusted is False",
+        ),
+        validation_source=(
+            "Validated against statsmodels OLS, car::Anova Type II / Type III in R, "
+            "manual linear algebra, and SciPy noncentral-F distribution in "
+            "tests/test_two_way_anova_validation.py."
+        ),
+    ),
 }

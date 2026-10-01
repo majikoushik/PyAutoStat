@@ -21,7 +21,7 @@ SIGNED_QUANTITIES = {
     "spearman_rho",
     "rank_biserial",
 }
-NONNEGATIVE_QUANTITIES = {"cramers_v", "eta_squared", "epsilon_squared"}
+NONNEGATIVE_QUANTITIES = {"cramers_v", "eta_squared", "epsilon_squared", "partial_eta_squared"}
 SUPPORTED_QUANTITIES = SIGNED_QUANTITIES | NONNEGATIVE_QUANTITIES
 _DIRECTIONS = {"two_sided", "positive", "negative", "nonnegative"}
 _FORMAL_REQUESTS = {"equivalence", "noninferiority"}

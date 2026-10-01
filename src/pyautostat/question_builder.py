@@ -152,6 +152,10 @@ def prepare_question(
     reference_levels: dict[str, Any] | None = None,
     event_level: Any | None = None,
     association_measure: str | None = None,
+    factor_a: str | None = None,
+    factor_b: str | None = None,
+    factors: tuple[str, ...] | list[str] | None = None,
+    sum_of_squares: str | None = None,
 ) -> QuestionDraft:
     """Build or revalidate a question against the assistant's copied DataFrame."""
     if specification is not None and not isinstance(specification, AnalysisSpecification):
@@ -161,7 +165,18 @@ def prepare_question(
     selected_objective = cast(
         Objective | None, objective if objective is not None else prior.objective
     )
-    selected_predictor = predictor if predictor is not None else prior.predictor
+    selected_factor_a = factor_a if factor_a is not None else prior.factor_a
+    selected_factor_b = factor_b if factor_b is not None else prior.factor_b
+    selected_factors = factors if factors is not None else prior.factors
+    has_new_factors = factor_a is not None or factor_b is not None or factors is not None
+    selected_predictor = (
+        predictor if predictor is not None else (None if has_new_factors else prior.predictor)
+    )
+    has_new_predictor = predictor is not None
+    if has_new_predictor:
+        selected_factor_a = factor_a
+        selected_factor_b = factor_b
+        selected_factors = factors
     selected_predictors = predictors if predictors is not None else prior.predictors
     selected_items = items if items is not None else prior.items
     selected_controls = controls if controls is not None else prior.controls
@@ -173,6 +188,9 @@ def prepare_question(
         outcome=outcome if outcome is not None else prior.outcome,
         predictor=selected_predictor,
         predictors=tuple(selected_predictors) if selected_predictors is not None else None,
+        factor_a=selected_factor_a,
+        factor_b=selected_factor_b,
+        factors=tuple(selected_factors) if selected_factors is not None else None,
         estimand=estimand if estimand is not None else prior.estimand,
         description=description if description is not None else prior.description,
         reference_value=(reference_value if reference_value is not None else prior.reference_value),
@@ -185,7 +203,7 @@ def prepare_question(
     )
     selected_design = cast(StudyDesign, design if design is not None else base.design)
     selected_options = options if options is not None else base.options
-    if covariance_type is not None or reference_levels is not None:
+    if covariance_type is not None or reference_levels is not None or sum_of_squares is not None:
         selected_options = AnalysisOptions(
             alpha=selected_options.alpha,
             confidence_level=selected_options.confidence_level,
@@ -200,6 +218,9 @@ def prepare_question(
             ),
             bootstrap_samples=selected_options.bootstrap_samples,
             reverse_scoring=selected_options.reverse_scoring,
+            sum_of_squares=(
+                sum_of_squares if sum_of_squares is not None else selected_options.sum_of_squares
+            ),
         )
     selected_unit_id = unit_id if unit_id is not None else base.unit_id
     selected_condition_order = (
@@ -289,6 +310,8 @@ def prepare_question(
     selected_fields: tuple[tuple[str, str | None], ...] = (
         ("outcome", question.outcome),
         ("predictor", question.predictor),
+        ("factor_a", question.factor_a),
+        ("factor_b", question.factor_b),
         ("unit_id", selected_unit_id),
     )
     for field_name, selected_column in selected_fields:
@@ -301,6 +324,12 @@ def prepare_question(
         if selected_column not in frame.columns:
             raise ColumnNotFoundError(
                 f"predictor column {selected_column!r} does not exist. "
+                f"Available columns: {list(frame.columns)!r}."
+            )
+    for selected_column in question.factors or ():
+        if selected_column not in frame.columns:
+            raise ColumnNotFoundError(
+                f"factor column {selected_column!r} does not exist. "
                 f"Available columns: {list(frame.columns)!r}."
             )
     for selected_column in question.items or ():
@@ -323,6 +352,13 @@ def prepare_question(
         raise InvalidDataError(
             "outcome and predictor must be different columns for this objective."
         )
+    if (
+        question.objective == Objective.COMPARE_GROUPS
+        and question.outcome is not None
+        and question.factors is not None
+        and question.outcome in question.factors
+    ):
+        raise InvalidDataError("outcome cannot be one of the factor columns.")
     if (
         question.objective == Objective.REGRESSION
         and question.outcome is not None
@@ -347,6 +383,7 @@ def prepare_question(
                 question.outcome,
                 question.predictor,
                 *(question.predictors or ()),
+                *(question.factors or ()),
                 *(question.controls or ()),
             )
             if column is not None
@@ -467,7 +504,7 @@ def prepare_question(
                 "column",
                 column_options,
             )
-        if question.predictor is None:
+        if question.predictor is None and question.factors is None:
             wording = (
                 "Which column identifies the groups or conditions?"
                 if question.objective == Objective.COMPARE_GROUPS
@@ -727,6 +764,13 @@ def prepare_question(
             blockers.append(
                 f"Grouping column {question.predictor!r} has fewer than two observed categories."
             )
+    if question.objective == Objective.COMPARE_GROUPS and question.factors is not None:
+        for factor_col in question.factors:
+            groups = frame[factor_col].dropna().nunique()
+            if groups < 2:
+                blockers.append(
+                    f"Factor column {factor_col!r} has fewer than two observed categories."
+                )
     if availability is not None and availability["available_rows"] == 0:
         blockers.append("No rows have complete observed values for the selected variables.")
     missing = tuple(MissingInformation(item.field, item.question) for item in questions)

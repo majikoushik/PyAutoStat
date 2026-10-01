@@ -383,6 +383,60 @@ json.loads(friedman_smoke.to_json())
 fr_mult = friedman_smoke.analysis.values["multiplicity"]
 assert fr_mult["decision_basis"] == "Holm-adjusted p-value < alpha"
 
+two_way_smoke_df = pd.DataFrame(
+    {
+        "y": [10.0, 11.0, 12.0, 14.0, 15.0, 16.0, 13.0, 12.0, 18.0, 19.0, 20.0, 21.0, 22.0, 25.0],
+        "A": [
+            "A1",
+            "A1",
+            "A1",
+            "A2",
+            "A2",
+            "A2",
+            "A2",
+            "A3",
+            "A3",
+            "A3",
+            "A3",
+            "A3",
+            "A3",
+            "A3",
+        ],
+        "B": [
+            "B1",
+            "B1",
+            "B2",
+            "B1",
+            "B1",
+            "B2",
+            "B2",
+            "B1",
+            "B1",
+            "B1",
+            "B2",
+            "B2",
+            "B2",
+            "B2",
+        ],
+    }
+)
+two_way_smoke = ResearchAssistant(two_way_smoke_df).run(
+    objective="compare_groups",
+    outcome="y",
+    factor_a="A",
+    factor_b="B",
+    design="independent",
+    estimand="mean",
+    variable_types={"y": "continuous", "A": "nominal", "B": "nominal"},
+)
+assert two_way_smoke.status.value == "completed"
+assert two_way_smoke.analysis.method_id == "two_way_anova"
+assert "Two-way factorial ANOVA" in two_way_smoke.explain()
+assert "two_way_anova_table" in two_way_smoke.report.to_csv_tables()
+assert two_way_smoke.audit.status == "passed"
+json.dumps(two_way_smoke.to_dict(), allow_nan=False)
+json.loads(two_way_smoke.to_json())
+
 html = guided.report.to_html(style="apa")
 assert isinstance(html, str) and "<!doctype html>" in html
 assert '<section class="executive-summary">' in html

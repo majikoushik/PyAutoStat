@@ -1615,6 +1615,235 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                             w,
                             findings,
                         )
+    if method == "two_way_anova":
+        fa = values.get("factor_a") or source.metadata.get("factor_a")
+        fb = values.get("factor_b") or source.metadata.get("factor_b")
+        levels_a = values.get("factor_a_levels") or source.metadata.get("levels_a")
+        levels_b = values.get("factor_b_levels") or source.metadata.get("levels_b")
+        anova_terms = values.get("terms")
+        cell_summaries = values.get("cell_summaries")
+        followups = values.get("followups")
+
+        if not (isinstance(levels_a, list) and len(levels_a) >= 2):
+            _mismatch(
+                "analysis.values.factor_a_levels",
+                "at least two levels for factor_a",
+                levels_a,
+                findings,
+            )
+        if not (isinstance(levels_b, list) and len(levels_b) >= 2):
+            _mismatch(
+                "analysis.values.factor_b_levels",
+                "at least two levels for factor_b",
+                levels_b,
+                findings,
+            )
+
+        if isinstance(levels_a, list) and isinstance(levels_b, list):
+            expected_cell_count = len(levels_a) * len(levels_b)
+            if not isinstance(cell_summaries, list) or len(cell_summaries) != expected_cell_count:
+                _mismatch(
+                    "analysis.values.cell_summaries",
+                    f"complete set of {expected_cell_count} cells",
+                    len(cell_summaries) if isinstance(cell_summaries, list) else None,
+                    findings,
+                )
+
+        if not isinstance(anova_terms, list) or len(anova_terms) != 4:
+            _mismatch(
+                "analysis.values.terms",
+                "four ANOVA terms (A, B, A:B, Residual)",
+                anova_terms,
+                findings,
+            )
+        else:
+            expected_term_names = [str(fa), str(fb), f"{fa}:{fb}", "Residual"]
+            observed_term_names = [
+                str(t.get("term")) if isinstance(t, dict) else "" for t in anova_terms
+            ]
+            if observed_term_names != expected_term_names:
+                _mismatch(
+                    "analysis.values.terms.names",
+                    expected_term_names,
+                    observed_term_names,
+                    findings,
+                )
+
+            term_dict = {t.get("term"): t for t in anova_terms if isinstance(t, dict)}
+            resid = term_dict.get("Residual")
+            if not isinstance(resid, dict):
+                _mismatch("analysis.values.terms.residual", "Residual term present", None, findings)
+            else:
+                df_res = resid.get("df")
+                ss_res = resid.get("sum_squares")
+                ms_res = resid.get("mean_square")
+                if not (isinstance(df_res, (int, float)) and float(df_res) > 0):
+                    _mismatch(
+                        "analysis.values.terms.Residual.df",
+                        "positive degrees of freedom",
+                        df_res,
+                        findings,
+                    )
+                if not (isinstance(ss_res, (int, float)) and float(ss_res) >= 0):
+                    _mismatch(
+                        "analysis.values.terms.Residual.sum_squares",
+                        "non-negative sum of squares",
+                        ss_res,
+                        findings,
+                    )
+                if (
+                    isinstance(df_res, (int, float))
+                    and isinstance(ss_res, (int, float))
+                    and isinstance(ms_res, (int, float))
+                    and float(df_res) > 0
+                ):
+                    exp_ms_res = float(ss_res) / float(df_res)
+                    if not math.isclose(exp_ms_res, float(ms_res), rel_tol=1e-4, abs_tol=1e-6):
+                        _mismatch(
+                            "analysis.values.terms.Residual.mean_square",
+                            exp_ms_res,
+                            ms_res,
+                            findings,
+                        )
+
+                for t_name in expected_term_names[:3]:
+                    t_item = term_dict.get(t_name)
+                    if not isinstance(t_item, dict):
+                        continue
+                    df_t = t_item.get("df")
+                    ss_t = t_item.get("sum_squares")
+                    ms_t = t_item.get("mean_square")
+                    f_t = t_item.get("f_statistic")
+                    p_t = t_item.get("p_value")
+                    eff_t = t_item.get("effect_size")
+
+                    if not (isinstance(df_t, (int, float)) and float(df_t) > 0):
+                        _mismatch(
+                            f"analysis.values.terms.{t_name}.df",
+                            "positive degrees of freedom",
+                            df_t,
+                            findings,
+                        )
+                    if not (isinstance(ss_t, (int, float)) and float(ss_t) >= -1e-6):
+                        _mismatch(
+                            f"analysis.values.terms.{t_name}.sum_squares",
+                            "non-negative sum of squares",
+                            ss_t,
+                            findings,
+                        )
+
+                    if (
+                        isinstance(df_t, (int, float))
+                        and isinstance(ss_t, (int, float))
+                        and isinstance(ms_t, (int, float))
+                        and float(df_t) > 0
+                    ):
+                        exp_ms = float(ss_t) / float(df_t)
+                        if not math.isclose(exp_ms, float(ms_t), rel_tol=1e-4, abs_tol=1e-6):
+                            _mismatch(
+                                f"analysis.values.terms.{t_name}.mean_square",
+                                exp_ms,
+                                ms_t,
+                                findings,
+                            )
+
+                    if (
+                        isinstance(ms_t, (int, float))
+                        and isinstance(ms_res, (int, float))
+                        and isinstance(f_t, (int, float))
+                        and float(ms_res) > 0
+                    ):
+                        exp_f = float(ms_t) / float(ms_res)
+                        if not math.isclose(exp_f, float(f_t), rel_tol=1e-4, abs_tol=1e-6):
+                            _mismatch(
+                                f"analysis.values.terms.{t_name}.f_statistic",
+                                exp_f,
+                                f_t,
+                                findings,
+                            )
+
+                    if not (
+                        isinstance(p_t, (int, float))
+                        and not isinstance(p_t, bool)
+                        and 0.0 <= float(p_t) <= 1.0
+                    ):
+                        _mismatch(
+                            f"analysis.values.terms.{t_name}.p_value",
+                            "probability in [0, 1]",
+                            p_t,
+                            findings,
+                        )
+
+                    if isinstance(eff_t, dict):
+                        eta = eff_t.get("value")
+                        if not (isinstance(eta, (int, float)) and 0.0 <= float(eta) <= 1.0):
+                            _mismatch(
+                                f"analysis.values.terms.{t_name}.effect_size.value",
+                                "value in [0, 1]",
+                                eta,
+                                findings,
+                            )
+                        if isinstance(ss_t, (int, float)) and isinstance(ss_res, (int, float)):
+                            denom = float(ss_t) + float(ss_res)
+                            if denom > 0 and isinstance(eta, (int, float)):
+                                exp_eta = float(ss_t) / denom
+                                if not math.isclose(
+                                    exp_eta, float(eta), rel_tol=1e-4, abs_tol=1e-6
+                                ):
+                                    _mismatch(
+                                        f"analysis.values.terms.{t_name}.effect_size.value",
+                                        exp_eta,
+                                        eta,
+                                        findings,
+                                    )
+                        ci_t = eff_t.get("confidence_interval")
+                        if isinstance(ci_t, dict):
+                            l_b = ci_t.get("lower")
+                            u_b = ci_t.get("upper")
+                            if isinstance(l_b, (int, float)) and isinstance(u_b, (int, float)):
+                                if not (0.0 <= float(l_b) <= float(u_b) <= 1.0):
+                                    _mismatch(
+                                        f"analysis.values.terms.{t_name}.effect_size.confidence_interval",
+                                        "ordered bounds in [0, 1]",
+                                        (l_b, u_b),
+                                        findings,
+                                    )
+
+        if isinstance(followups, list):
+            for idx, fup in enumerate(followups):
+                if not isinstance(fup, dict):
+                    continue
+                path = f"analysis.values.followups[{idx}]"
+                r_p = fup.get("raw_p_value")
+                a_p = fup.get("adjusted_p_value")
+                if isinstance(r_p, (int, float)) and isinstance(a_p, (int, float)):
+                    if float(a_p) < float(r_p) - 1e-9:
+                        _mismatch(
+                            f"{path}.adjusted_p_value", f">= raw_p_value ({r_p})", a_p, findings
+                        )
+                    if not (0.0 <= float(a_p) <= 1.0):
+                        _mismatch(
+                            f"{path}.adjusted_p_value", "probability in [0, 1]", a_p, findings
+                        )
+                f_ci = fup.get("confidence_interval")
+                if isinstance(f_ci, dict):
+                    fl = f_ci.get("lower")
+                    fu = f_ci.get("upper")
+                    if isinstance(fl, (int, float)) and isinstance(fu, (int, float)):
+                        if float(fl) > float(fu):
+                            _mismatch(
+                                f"{path}.confidence_interval",
+                                "ordered bounds (lower <= upper)",
+                                (fl, fu),
+                                findings,
+                            )
+                    if f_ci.get("multiplicity_adjusted") is not False:
+                        _mismatch(
+                            f"{path}.confidence_interval.multiplicity_adjusted",
+                            False,
+                            f_ci.get("multiplicity_adjusted"),
+                            findings,
+                        )
     return tuple(findings)
 
 

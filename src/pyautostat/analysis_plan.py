@@ -431,7 +431,7 @@ def planned_quantity(method_id: str | None) -> str | None:
         return "coefficient_vector"
     if method_id == "cronbach_alpha":
         return "cronbach_alpha"
-    if method_id == "repeated_measures_anova":
+    if method_id in {"repeated_measures_anova", "two_way_anova"}:
         return "partial_eta_squared"
     if method_id == "friedman_test":
         return "kendalls_w"
@@ -455,6 +455,8 @@ def planned_interval_quantity(method_id: str | None) -> str | None:
         return "coefficient_vector"
     if method_id == "cronbach_alpha":
         return "cronbach_alpha"
+    if method_id == "two_way_anova":
+        return "partial_eta_squared"
     return None
 
 
@@ -477,6 +479,8 @@ def _alternative_hypothesis(method_id: str | None) -> str | None:
         return "at least one group differs"
     if method_id in {"repeated_measures_anova", "friedman_test"}:
         return "at least one condition differs"
+    if method_id == "two_way_anova":
+        return "at least one factor or interaction effect is nonzero"
     if method_id in {"pearson_chi_square", "fisher_exact"}:
         return "variables are associated"
     if method_id in {"linear_regression", "logistic_regression"}:

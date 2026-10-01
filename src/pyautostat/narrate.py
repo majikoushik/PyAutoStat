@@ -94,10 +94,9 @@ _RULES = {
         signed=True,
     ),
     "odds_ratio": _EffectRule("Sample odds ratio", "2x2 odds association", None),
-    # Phase 7: Repeated-Measures
     "partial_eta_squared": _EffectRule(
         "Partial eta-squared",
-        "within-subject variance association for repeated-measures ANOVA",
+        "term variance association relative to term plus residual variation",
         _ETA_SQUARED_BANDS,
         nonnegative=True,
     ),
@@ -1805,6 +1804,20 @@ def _why_this_recommendation(
             "evaluated via Mauchly's test, Greenhouse-Geisser correction applied when indicated, "
             "and complete Holm-adjusted paired-t follow-up comparisons."
         )
+    if method_id == "two_way_anova":
+        factor_a = context.get("factor_a")
+        factor_b = context.get("factor_b")
+        factors_text = (
+            f"two categorical factors ({factor_a!r} and {factor_b!r})"
+            if factor_a and factor_b
+            else "two categorical factors"
+        )
+        return (
+            f"The specification declares one continuous outcome ({selected}) and {factors_text} "
+            "for independent observations. Two-way factorial ANOVA evaluates main effects and "
+            "their interaction under a full factorial fixed-effects model with explicit "
+            "sums-of-squares accounting and follow-up contrasts."
+        )
     if method_id == "friedman_test":
         conditions = context.get("condition_order")
         cond_count = (
@@ -1952,6 +1965,19 @@ def _why_not_recommendation(method_id: str, recommendation: Any) -> tuple[tuple[
                 "WELCH ANOVA",
                 "Independent-groups ANOVA ignores within-subject dependence across the "
                 "repeated observations.",
+            ),
+        )
+    if method_id == "two_way_anova":
+        return (
+            (
+                "ONE-WAY ANOVA",
+                "Collapses or ignores one of the declared factors, discarding the factorial "
+                "structure and interaction.",
+            ),
+            (
+                "REPEATED-MEASURES ANOVA",
+                "Assumes repeated measurements on the same units rather than independent "
+                "observations across the factorial cells.",
             ),
         )
     if method_id == "friedman_test":
@@ -2143,6 +2169,15 @@ def _verification_notes(method_id: str, recommendation: Any) -> tuple[str, ...]:
                 "Confirm that the declared condition order reflects the intended structure.",
                 "Verify that complete-case analysis across all conditions is acceptable.",
                 "Check that observational units are independent across subjects.",
+            ]
+        )
+    elif method_id == "two_way_anova":
+        notes.extend(
+            [
+                "Verify that observational units are genuinely independent across all cells.",
+                "Confirm that all factor combinations are represented with sufficient data.",
+                "Review the selected sums-of-squares convention for unbalanced data.",
+                "Check residual normality and homoscedasticity diagnostics.",
             ]
         )
     elif method_id == "friedman_test":

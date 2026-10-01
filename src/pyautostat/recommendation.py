@@ -499,6 +499,32 @@ METHOD_CAPABILITIES: dict[str, MethodCapability] = {
             ),
             "pyautostat.repeated_measures.friedman_test",
         ),
+        # Factorial ANOVA -----------------------------------------------------------
+        MethodCapability(
+            "two_way_anova",
+            "Two-way factorial ANOVA",
+            "compare_groups",
+            "mean",
+            ("quantitative", "factor_a", "factor_b"),
+            ("independent",),
+            "at least 2 levels in factor A and at least 2 levels in factor B",
+            "At least 2 levels per factor, non-empty cells, and positive residual variance",
+            (
+                "Independent observations",
+                "Two declared categorical factors",
+                "Continuous outcome",
+                "All A x B cells populated (fully crossed design)",
+                "Equal within-cell residual variance across cells",
+                "Approximately normal model errors",
+            ),
+            True,
+            "runnable",
+            (
+                "Two-way factorial ANOVA evaluates main effects and interaction for independent "
+                "observations with simple effects follow-up."
+            ),
+            "pyautostat.two_way_anova.two_way_anova",
+        ),
     )
 }
 
@@ -551,6 +577,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 question.outcome,
                 question.predictor,
                 *(question.predictors or ()),
+                *(question.factors or ()),
                 *(question.items or ()),
                 *(question.controls or ()),
             )
@@ -913,8 +940,20 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 "coding; no variable selection or causal interpretation is performed."
             ),
         )
-    assert question.outcome is not None and question.predictor is not None
-    required_columns = [question.outcome, question.predictor, *(question.controls or ())]
+    has_factors = question.factors is not None or (
+        question.factor_a is not None and question.factor_b is not None
+    )
+    if has_factors:
+        factors = (
+            (question.factor_a, question.factor_b)
+            if question.factor_a is not None and question.factor_b is not None
+            else question.factors
+        )
+        assert question.outcome is not None and factors is not None
+        required_columns = [question.outcome, *factors, *(question.controls or ())]
+    else:
+        assert question.outcome is not None and question.predictor is not None
+        required_columns = [question.outcome, question.predictor, *(question.controls or ())]
     if spec.design in (StudyDesign.PAIRED, StudyDesign.REPEATED) and spec.unit_id is not None:
         required_columns.append(spec.unit_id)
     usable = frame[required_columns].dropna()
@@ -936,6 +975,14 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 )
 
     if spec.design == StudyDesign.PAIRED:
+        if has_factors:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "Two-way factorial ANOVA currently supports independent observations only.",
+                ),
+                rationale="Paired factorial designs are not supported.",
+            )
         if objective != Objective.COMPARE_GROUPS or question.estimand not in {
             "mean",
             "distribution",
@@ -950,6 +997,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 rationale="The declared paired target has no supported method.",
             )
         assert spec.unit_id is not None
+        assert question.predictor is not None
         return _paired_compare(
             frame,
             question.outcome,
@@ -964,6 +1012,14 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         )
 
     if spec.design == StudyDesign.REPEATED:
+        if has_factors:
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    "Two-way factorial ANOVA currently supports independent observations only.",
+                ),
+                rationale="Repeated-measures factorial designs are not supported.",
+            )
         if objective != Objective.COMPARE_GROUPS or question.estimand not in {
             "mean",
             "distribution",
@@ -977,6 +1033,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 rationale="The declared repeated target has no supported method.",
             )
         assert spec.unit_id is not None
+        assert question.predictor is not None
         return _repeated_compare(
             frame,
             question.outcome,
@@ -1027,6 +1084,60 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         )
 
     if objective == Objective.COMPARE_GROUPS:
+        factors = (
+            (question.factor_a, question.factor_b)
+            if question.factor_a is not None and question.factor_b is not None
+            else question.factors
+            if question.factors is not None
+            else question.predictors
+            if question.predictors is not None and len(question.predictors) > 1
+            else None
+        )
+        if factors is not None:
+            if len(factors) > 2:
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(
+                        "Factorial ANOVA currently supports designs with exactly two "
+                        "categorical factors.",
+                    ),
+                    rationale="Designs with three or more factors are not supported.",
+                )
+            if len(factors) == 2:
+                return _compare_two_way(
+                    usable,
+                    question.outcome,
+                    factors[0],
+                    factors[1],
+                    types,
+                    question.estimand,
+                    spec,
+                    context,
+                    record,
+                    finish,
+                    warnings,
+                )
+        if question.factor_a is not None and question.factor_b is None:
+            return finish(
+                RecommendationStatus.NEEDS_INPUT,
+                missing=(
+                    MissingInformation(
+                        "factor_b", "Supply the second categorical factor for two-way ANOVA."
+                    ),
+                ),
+                rationale="Two-way factorial ANOVA requires two declared factors.",
+            )
+        if question.factor_b is not None and question.factor_a is None:
+            return finish(
+                RecommendationStatus.NEEDS_INPUT,
+                missing=(
+                    MissingInformation(
+                        "factor_a", "Supply the first categorical factor for two-way ANOVA."
+                    ),
+                ),
+                rationale="Two-way factorial ANOVA requires two declared factors.",
+            )
+        assert question.predictor is not None
         return _compare(
             usable,
             question.outcome,
@@ -1038,6 +1149,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             finish,
             warnings,
         )
+    assert question.predictor is not None
     return _association(
         usable,
         question.outcome,
@@ -1685,6 +1797,141 @@ def _compare(
             _alternative("welch_anova", "Targets population means rather than distributions."),
             _alternative("one_way_anova", "Targets means and requires equal-variance assumptions."),
         ),
+    )
+
+
+def _compare_two_way(
+    usable: pd.DataFrame,
+    outcome: str | None,
+    factor_a: str,
+    factor_b: str,
+    types: dict[str, str],
+    target: str | None,
+    specification: Any,
+    context: dict[str, Any],
+    record: Any,
+    finish: Any,
+    warnings: list[str],
+) -> Recommendation:
+    if specification.design != StudyDesign.INDEPENDENT:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("Two-way factorial ANOVA requires independent observational units.",),
+            rationale=(
+                "Paired, repeated, clustered, or unknown designs are not supported for this method."
+            ),
+        )
+    if target not in ("mean", None):
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                f"Comparison target {target!r} is not supported for two-way factorial ANOVA.",
+            ),
+            rationale="Two-way factorial ANOVA targets population means and mean differences.",
+        )
+    if outcome is None:
+        return finish(
+            RecommendationStatus.NEEDS_INPUT,
+            missing=(
+                MissingInformation("outcome", "Declare a continuous quantitative outcome column."),
+            ),
+            rationale="Two-way factorial ANOVA requires a declared outcome.",
+        )
+    outcome_type = types.get(outcome)
+    numeric = _numeric(usable[outcome].dropna())
+    if outcome_type not in _QUANTITATIVE or numeric is None:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                "Two-way factorial ANOVA requires a genuinely quantitative numeric outcome.",
+            ),
+            rationale="An ordinal, nominal, or nonnumeric outcome is not a continuous measurement.",
+        )
+    for f_name, f_col in (("Factor A", factor_a), ("Factor B", factor_b)):
+        if types.get(f_col) == "datetime":
+            return finish(
+                RecommendationStatus.UNSUPPORTED,
+                blockers=(
+                    f"{f_name} column {f_col!r} is a datetime column and cannot be used as a "
+                    "category.",
+                ),
+                rationale="Factorial ANOVA requires categorical or discrete grouping factors.",
+            )
+    complete = usable[[outcome, factor_a, factor_b]].dropna()
+    levels_a = list(pd.unique(complete[factor_a]))
+    levels_b = list(pd.unique(complete[factor_b]))
+    if len(levels_a) < 2:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(f"Factor A {factor_a!r} has fewer than two observed levels in usable data.",),
+            rationale="Factorial ANOVA requires at least two levels in each factor.",
+        )
+    if len(levels_b) < 2:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(f"Factor B {factor_b!r} has fewer than two observed levels in usable data.",),
+            rationale="Factorial ANOVA requires at least two levels in each factor.",
+        )
+    for la in levels_a:
+        for lb in levels_b:
+            if not ((complete[factor_a] == la) & (complete[factor_b] == lb)).any():
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(
+                        f"Empty cell ({la!r}, {lb!r}) detected in factorial design. "
+                        "Fully crossed factorial ANOVA requires all factor combinations to contain "
+                        "observations.",
+                    ),
+                    rationale=(
+                        "Empty cells violate the supported fully crossed factorial design contract."
+                    ),
+                )
+    num_cells = len(levels_a) * len(levels_b)
+    if len(complete) <= num_cells:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=(
+                f"Residual degrees of freedom must be positive. Complete rows ({len(complete)}) "
+                f"must exceed the number of factor cells ({num_cells}).",
+            ),
+            rationale=(
+                "A fully saturated model with zero residual df cannot compute error variance or "
+                "F-tests."
+            ),
+        )
+    if float(np.ptp(complete[outcome].to_numpy(dtype=float))) == 0.0:
+        return finish(
+            RecommendationStatus.UNSUPPORTED,
+            blockers=("The outcome has zero representable variation in the complete sample.",),
+            rationale="Mean inference is undefined on a constant outcome.",
+        )
+    context["factor_a"] = factor_a
+    context["factor_b"] = factor_b
+    context["levels_a"] = levels_a
+    context["levels_b"] = levels_b
+    context["sum_of_squares"] = getattr(specification.options, "sum_of_squares", "type2")
+    context["assumption_checks"].append(
+        {
+            "assumption": "independent_observations",
+            "category": "researcher_design_fact",
+            "status": "confirmed",
+        }
+    )
+    record(
+        "method", "two_way_anova", "Two independent categorical factors and a continuous outcome."
+    )
+    record("factor_a", factor_a, "First factorial factor.")
+    record("factor_b", factor_b, "Second factorial factor.")
+    record("sum_of_squares", context["sum_of_squares"], "Selected sums-of-squares convention.")
+    return finish(
+        RecommendationStatus.READY,
+        method_id="two_way_anova",
+        rationale=(
+            f"Two-way factorial ANOVA evaluates the main effects of {factor_a!r} and {factor_b!r} "
+            f"and their interaction on {outcome!r} for independent observations using "
+            f"{context['sum_of_squares'].upper()} sums of squares."
+        ),
+        alternatives=(),
     )
 
 

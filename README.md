@@ -244,6 +244,25 @@ print(repeated.explain())
 
 For continuous mean targets, PyAutoStat executes one-way repeated-measures ANOVA, evaluates sphericity via Mauchly's test, computes Greenhouse-Geisser epsilon and corrected degrees of freedom / p-values when sphericity is violated, reports partial eta-squared, and computes complete pairwise paired t-tests with Holm multiplicity control. For repeated rank/distribution targets, it executes the Friedman test with Kendall's W concordance and complete pairwise Wilcoxon signed-rank tests with Holm adjustment. Complete-case panels across all declared conditions are audited and reported; two-condition paired designs continue to route through the paired t-test or paired Wilcoxon. See [`examples/repeated_measures_analysis.py`](examples/repeated_measures_analysis.py).
 
+### Two-way factorial ANOVA (independent groups)
+
+For two categorical factors on a continuous outcome under independent sampling, declare `factor_a` and `factor_b`:
+
+```python
+factorial = ResearchAssistant(df).run(
+    objective="compare_groups",
+    outcome="exam_score",
+    factor_a="teaching_method",
+    factor_b="class_size",
+    estimand="mean",
+    design="independent",
+    sum_of_squares="type2",  # or "type3"
+)
+print(factorial.explain())
+```
+
+PyAutoStat fits the full factorial model ($Y = \mu + A + B + A \times B + \epsilon$), evaluates Type II or Type III sums of squares, reports partial eta-squared with exact noncentral-$F$ inversion confidence intervals, and computes planned follow-up contrasts (simple main effects, marginal comparisons, and interaction contrasts) with Holm multiplicity adjustment.
+
 ## When information is missing
 
 Omit an essential design fact and the workflow returns a structured request without running a
@@ -303,6 +322,10 @@ remain distinct from a completed workflow.
   Holm-adjusted pairwise paired t-tests.
 - Friedman rank-sum test for 3+ repeated conditions, including Kendall's W concordance and
   complete Holm-adjusted pairwise Wilcoxon signed-rank tests.
+- Two-way factorial ANOVA for two independent categorical factors, evaluating full models (main
+  effects and interaction) with Type II and Type III sums of squares, partial eta-squared effect
+  sizes with exact noncentral-F inversion confidence intervals, unweighted estimated marginal
+  means, residual diagnostics, and planned follow-ups with Holm multiplicity adjustment.
 - Effect estimates, supported confidence intervals, sample accounting, assumptions, and warnings.
 - Deterministic interpretation and canonical research reports.
 - Static HTML, Markdown, JSON, CSV tables, safe LaTeX, and optional interactive Plotly HTML.

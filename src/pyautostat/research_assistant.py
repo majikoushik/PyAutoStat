@@ -314,6 +314,40 @@ class ResearchAssistant:
             fingerprint=fingerprint,
         )
 
+    def two_way_anova(
+        self,
+        outcome: str,
+        factor_a: str,
+        factor_b: str,
+        *,
+        sum_of_squares: str = "type2",
+        alpha: float = 0.05,
+        confidence_level: float = 0.95,
+        title: str | None = None,
+        audit: bool = True,
+        fingerprint: bool = True,
+    ) -> ResearchWorkflowResult:
+        """Run two-way factorial ANOVA for independent observations with main effects
+        and interaction.
+        """
+        return self.run(
+            objective=Objective.COMPARE_GROUPS,
+            outcome=outcome,
+            factor_a=factor_a,
+            factor_b=factor_b,
+            design=StudyDesign.INDEPENDENT,
+            estimand="mean",
+            sum_of_squares=sum_of_squares,
+            options=AnalysisOptions(
+                alpha=alpha,
+                confidence_level=confidence_level,
+                sum_of_squares=sum_of_squares,
+            ),
+            title=title,
+            audit=audit,
+            fingerprint=fingerprint,
+        )
+
     def study_planner(self) -> StudyPlanner:
         """Return a prospective planner that does not inspect this assistant's data."""
 
@@ -355,6 +389,10 @@ class ResearchAssistant:
         reference_levels: dict[str, Any] | None = None,
         event_level: Any | None = None,
         association_measure: str | None = None,
+        factor_a: str | None = None,
+        factor_b: str | None = None,
+        factors: list[str] | tuple[str, ...] | None = None,
+        sum_of_squares: str | None = None,
         draft: QuestionDraft | None = None,
         specification: AnalysisSpecification | None = None,
         include_profile: bool = False,
@@ -442,6 +480,10 @@ class ResearchAssistant:
             reference_levels,
             event_level,
             association_measure,
+            factor_a,
+            factor_b,
+            factors,
+            sum_of_squares,
         )
         if (draft is not None or specification is not None) and any(
             value is not None for value in raw_values
@@ -477,6 +519,10 @@ class ResearchAssistant:
                 reference_levels=reference_levels,
                 event_level=event_level,
                 association_measure=association_measure,
+                factor_a=factor_a,
+                factor_b=factor_b,
+                factors=factors,
+                sum_of_squares=sum_of_squares,
             )
 
         profile = None
@@ -638,6 +684,10 @@ class ResearchAssistant:
         reference_levels: dict[str, Any] | None = None,
         event_level: Any | None = None,
         association_measure: str | None = None,
+        factor_a: str | None = None,
+        factor_b: str | None = None,
+        factors: list[str] | tuple[str, ...] | None = None,
+        sum_of_squares: str | None = None,
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
@@ -668,6 +718,10 @@ class ResearchAssistant:
             reference_levels=reference_levels,
             event_level=event_level,
             association_measure=association_measure,
+            factor_a=factor_a,
+            factor_b=factor_b,
+            factors=factors,
+            sum_of_squares=sum_of_squares,
             specification=specification,
         )
         if self._ledger is not None:

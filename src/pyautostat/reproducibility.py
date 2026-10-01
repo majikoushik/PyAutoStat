@@ -83,6 +83,16 @@ _VALUES = (
     "greenhouse_geisser",
     "anova_table",
     "condition_summaries",
+    "terms",
+    "cell_summaries",
+    "estimated_marginal_means",
+    "followups",
+    "diff_of_diff",
+    "sum_of_squares_type",
+    "factor_a",
+    "factor_b",
+    "factor_a_levels",
+    "factor_b_levels",
 )
 
 

@@ -1325,6 +1325,168 @@ def build_research_report(
                     ],
                 )
             )
+
+    if analysis["method_id"] == "two_way_anova" and status != "unavailable":
+        terms = visible.get("terms")
+        if isinstance(terms, list) and terms:
+            tables.append(
+                _table(
+                    "two_way_anova_table",
+                    "Two-way factorial ANOVA table",
+                    [
+                        "Term",
+                        "Sum of squares",
+                        "df",
+                        "Mean square",
+                        "F statistic",
+                        "p-value",
+                        "Partial eta-squared",
+                        "CI lower",
+                        "CI upper",
+                    ],
+                    [
+                        [
+                            _cell(item.get("term"), f"analysis.values.terms[{i}].term"),
+                            _cell(
+                                item.get("sum_squares"), f"analysis.values.terms[{i}].sum_squares"
+                            ),
+                            _cell(item.get("df"), f"analysis.values.terms[{i}].df"),
+                            _cell(
+                                item.get("mean_square"), f"analysis.values.terms[{i}].mean_square"
+                            ),
+                            _cell(
+                                item.get("f_statistic"), f"analysis.values.terms[{i}].f_statistic"
+                            ),
+                            _cell(item.get("p_value"), f"analysis.values.terms[{i}].p_value"),
+                            _cell(
+                                (item.get("effect_size") or {}).get("value"),
+                                f"analysis.values.terms[{i}].effect_size.value",
+                            ),
+                            _cell(
+                                (
+                                    (item.get("effect_size") or {}).get("confidence_interval") or {}
+                                ).get("lower"),
+                                f"analysis.values.terms[{i}].effect_size.confidence_interval.lower",
+                            ),
+                            _cell(
+                                (
+                                    (item.get("effect_size") or {}).get("confidence_interval") or {}
+                                ).get("upper"),
+                                f"analysis.values.terms[{i}].effect_size.confidence_interval.upper",
+                            ),
+                        ]
+                        for i, item in enumerate(terms)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
+        cell_sums = visible.get("cell_summaries")
+        if isinstance(cell_sums, list) and cell_sums:
+            factor_a = visible.get("factor_a") or "Factor A"
+            factor_b = visible.get("factor_b") or "Factor B"
+            tables.append(
+                _table(
+                    "two_way_cell_summaries",
+                    "Factorial cell summaries",
+                    [str(factor_a), str(factor_b), "N", "Mean", "SD", "SE"],
+                    [
+                        [
+                            _cell(
+                                item.get("factor_a_level"),
+                                f"analysis.values.cell_summaries[{i}].factor_a_level",
+                            ),
+                            _cell(
+                                item.get("factor_b_level"),
+                                f"analysis.values.cell_summaries[{i}].factor_b_level",
+                            ),
+                            _cell(item.get("n"), f"analysis.values.cell_summaries[{i}].n"),
+                            _cell(item.get("mean"), f"analysis.values.cell_summaries[{i}].mean"),
+                            _cell(
+                                item.get("standard_deviation"),
+                                f"analysis.values.cell_summaries[{i}].standard_deviation",
+                            ),
+                            _cell(
+                                item.get("standard_error"),
+                                f"analysis.values.cell_summaries[{i}].standard_error",
+                            ),
+                        ]
+                        for i, item in enumerate(cell_sums)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
+        followups = visible.get("followups") or visible.get("pairwise_comparisons")
+        if isinstance(followups, list) and followups:
+            tables.append(
+                _table(
+                    "two_way_followups",
+                    "Follow-up contrasts (Holm-adjusted)",
+                    [
+                        "Contrast",
+                        "Family",
+                        "Estimate",
+                        "SE",
+                        "t statistic",
+                        "df",
+                        "Raw p",
+                        "Holm p",
+                        "CI lower",
+                        "CI upper",
+                        "Decision",
+                    ],
+                    [
+                        [
+                            _cell(
+                                item.get("contrast_id"),
+                                f"analysis.values.followups[{i}].contrast_id",
+                            ),
+                            _cell(
+                                item.get("family"),
+                                f"analysis.values.followups[{i}].family",
+                            ),
+                            _cell(
+                                item.get("estimate"),
+                                f"analysis.values.followups[{i}].estimate",
+                            ),
+                            _cell(
+                                item.get("standard_error"),
+                                f"analysis.values.followups[{i}].standard_error",
+                            ),
+                            _cell(
+                                item.get("statistic"),
+                                f"analysis.values.followups[{i}].statistic",
+                            ),
+                            _cell(
+                                item.get("degrees_of_freedom"),
+                                f"analysis.values.followups[{i}].degrees_of_freedom",
+                            ),
+                            _cell(
+                                item.get("raw_p_value"),
+                                f"analysis.values.followups[{i}].raw_p_value",
+                            ),
+                            _cell(
+                                item.get("adjusted_p_value"),
+                                f"analysis.values.followups[{i}].adjusted_p_value",
+                            ),
+                            _cell(
+                                (item.get("confidence_interval") or {}).get("lower"),
+                                f"analysis.values.followups[{i}].confidence_interval.lower",
+                            ),
+                            _cell(
+                                (item.get("confidence_interval") or {}).get("upper"),
+                                f"analysis.values.followups[{i}].confidence_interval.upper",
+                            ),
+                            _cell(
+                                item.get("decision"),
+                                f"analysis.values.followups[{i}].decision",
+                            ),
+                        ]
+                        for i, item in enumerate(followups)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
+
     coefficients = visible.get("coefficients")
     if (
         analysis["method_id"] == "logistic_regression"

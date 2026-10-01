@@ -7,6 +7,17 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- Added independent two-way factorial ANOVA with main effects and interaction ($Y = \mu + A + B + A \times B + \epsilon$):
+  - Deterministic evaluation of full factorial models without term dropping or automatic model simplification.
+  - Explicit sums of squares policies: Type II (hierarchical) sums of squares conditioning on the alternative main effect while ignoring higher-order interactions, and Type III (fully conditional) sums of squares using sum-to-zero / deviation contrast coding ($C(k-1)$ with $-1$ on the final level) tested against the full model.
+  - Partial eta-squared ($\eta_p^2 = \text{SS}_{\text{term}} / (\text{SS}_{\text{term}} + \text{SS}_{\text{error}})$) for all terms with exact noncentral-$F$ inversion confidence intervals (`confidence_interval` dict with `quantity`, `method`, `level`, `lower`, `upper`, `status`).
+  - Cell summaries with cell count ($N$), mean, sample standard deviation, and standard error for every observed factor-level combination $(a_j, b_k)$.
+  - Least-squares unweighted estimated marginal means (EMMs) with analytical standard errors for factor $A$ and factor $B$.
+  - Planned follow-up contrasts: simple main effects of factor $A$ within each level of factor $B$, simple main effects of factor $B$ within each level of factor $A$, marginal mean comparisons, and $2 \times 2$ difference-of-differences interaction contrasts using the full-model residual mean square error ($\text{MSE}_{\text{resid}}$) and residual degrees of freedom ($\text{df}_{\text{resid}}$), with Holm step-down multiplicity adjustment.
+  - Full residual diagnostics: residual degrees of freedom, MSE, RMSE, Shapiro-Wilk and D'Agostino-Pearson normality tests, and cell-level Levene homoscedasticity test across all factor-level cells.
+  - Empty cell / missing combination detection and complete validation safeguards.
+  - Semantic audit invariants: non-negative sums of squares, factor degrees of freedom accounting, error degrees of freedom ($N - J$), $F$-statistic and p-value consistency, partial eta-squared algebraic consistency, exact noncentral-$F$ CI validity, follow-up contrast consistency, and cell summary accounting.
+  - Public API integration across `ResearchAssistant(df).run(...)`, `ResearchAssistant(df).two_way_anova(...)`, `StatisticalAnalyzer(df).two_way_anova(...)`, `InsightEngine`, `ReportGenerator`, `AuditResult`, and export formats.
 - Added effect-size confidence intervals for existing shipped effect quantities across the package:
   - Exact noncentral-t inversion confidence intervals for paired Cohen's $d_z$ (`paired_t`) and one-sample Cohen's $d$ (`one_sample_t`), with exact bracketed root solving and degenerate handling.
   - Fisher-z asymptotic normal confidence interval for Pearson correlation ($r$), with bounds $[-1, 1]$ and explicit unavailable status for $n \le 3$.
