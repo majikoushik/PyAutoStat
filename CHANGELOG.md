@@ -5,11 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a
 Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## \[Unreleased\]
+## [Unreleased]
 
 No changes recorded yet.
 
-## \[0.5.0\] - 2026-10-01
+## [0.5.0] - 2026-10-01
 
 This release completes PyAutoStat's scientific-depth hardening and
 expands the package with effect-size uncertainty, independent two-way
@@ -203,7 +203,7 @@ separate owner decision.
     incomplete-panel longitudinal modeling, or automatic
     statistical-model selection was added in this release.
 
-## \[0.4.0\] - 2026-09-30
+## [0.4.0] - 2026-09-30
 
 This release expands PyAutoStat with new descriptive, inferential,
 multi-group, regression, reliability, binary/association, and
@@ -263,7 +263,7 @@ release.
 -   Strengthened repeated-measures audit and validation checks.
 -   Reconciled repeated-measures documentation and edge-case behavior.
 
-## \[0.3.0\] - 2026-09-27
+## [0.3.0] - 2026-09-27
 
 This release adds a deterministic, researcher-readable narration layer
 across profiling, recommendation, interpretation, practical-significance
@@ -301,7 +301,7 @@ services.
     formula-like CSV cells, omitting raw DataFrames and participant
     identifiers from reports, and keeping narration offline.
 
-## \[0.2.0\] - 2026-09-25
+## [0.2.0] - 2026-09-25
 
 This release expands PyAutoStat from its initial analysis utilities into
 an explainable and reproducible research-analysis assistant.
@@ -334,6 +334,6 @@ an explainable and reproducible research-analysis assistant.
     Actions across Python 3.10-3.13 on Linux and Windows, isolated
     installed-wheel smoke testing, and a minimum-stack route.
 
-## \[0.1.0\] - 2026-09-21
+## [0.1.0] - 2026-09-21
 
 -   Initial statistical analysis, insight, and report-export package.
