@@ -58,6 +58,7 @@ _QUANTITIES = {
     "kendall_tau_b": "kendall_tau_b",
     "partial_pearson_correlation": "partial_pearson_r",
     "two_way_anova": "partial_eta_squared",
+    "intraclass_correlation": "intraclass_correlation",
 }
 
 

@@ -93,6 +93,21 @@ _VALUES = (
     "factor_b",
     "factor_a_levels",
     "factor_b_levels",
+    "variant",
+    "notation",
+    "mcgraw_wong_notation",
+    "model",
+    "definition",
+    "unit",
+    "intraclass_correlation",
+    "icc",
+    "n_targets",
+    "n_raters",
+    "average_k",
+    "variance_components",
+    "f_test",
+    "rater_test",
+    "all_variants",
 )
 
 

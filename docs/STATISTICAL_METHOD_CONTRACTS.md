@@ -48,6 +48,7 @@ audit invariants, and independent reference validation sources.
 | `repeated_measures_anova` | One-way repeated-measures ANOVA with Greenhouse-Geisser correction | Repeated measures with explicit unit ID, 3+ conditions, and long-format panel | Repeated-condition population mean equality; pairwise condition mean differences | Condition sample means; partial eta-squared (η_p²); pairwise mean differences | Partial eta-squared (η_p²) | `available` | `available` |
 | `friedman_test` | Friedman rank-sum test with Wilcoxon-Holm follow-up | Repeated measures with explicit unit ID, 3+ conditions, and long-format panel | Within-unit rank distribution differences across conditions; Kendall's W rank concordance | Kendall's W; condition rank medians; pairwise rank-biserial correlations | Kendall's W | `available` | `available` |
 | `two_way_anova` | Two-way factorial ANOVA | Independent observations across exactly two categorical factors (fully crossed factorial design) | Factorial mean model parameters, marginal means, and contrast differences | Model marginal means, cell means, and partial eta-squared | partial_eta_squared | `available` | `available` |
+| `intraclass_correlation` | Intraclass correlation coefficient (ICC) | Fully crossed target-by-rater quantitative rating design (n >= 2, k >= 2) | Intraclass correlation coefficient (proportion of variance due to targets) | Sample intraclass correlation coefficient (ICC) | Intraclass correlation coefficient | `available` | `available` |
 
 ---
 
@@ -1068,6 +1069,59 @@ audit invariants, and independent reference validation sources.
   - followup adjusted p_values >= raw p_values
   - pointwise followup CI multiplicity_adjusted is False
 - **Independent Validation Source**: Validated against statsmodels OLS, car::Anova Type II / Type III in R, manual linear algebra, and SciPy noncentral-F distribution in tests/test_two_way_anova_validation.py.
+
+### `intraclass_correlation` — Intraclass correlation coefficient (ICC)
+
+- **Scientific Question**: What is the reliability or agreement of quantitative ratings across targets and raters?
+- **Study Design**: Fully crossed target-by-rater quantitative rating design (n >= 2, k >= 2)
+- **Outcome Type**: Quantitative continuous or discrete rating/score
+- **Predictor / Factor Type**: Target/subject and rater/judge categorical factors
+- **Estimand**: Intraclass correlation coefficient (proportion of variance due to targets)
+- **Primary Estimate**: Sample intraclass correlation coefficient (ICC)
+- **Null Hypothesis (H₀)**: The true population intraclass correlation is zero (target variance is zero).
+- **Alternative Hypothesis (H₁)**: The true population intraclass correlation is greater than zero.
+- **Null Value**: `0.0` (intraclass_correlation)
+- **Test Statistic**: ANOVA F statistic (MS_between / MS_within or MS_targets / MS_error)
+- **Degrees of Freedom**: Numerator df1 and denominator df2 (exact or Satterthwaite effective df)
+- **Effect Size Quantity**: Intraclass correlation coefficient
+- **Effect Size Definition**: Variance ratio defined by Shrout & Fleiss (1979) and McGraw & Wong (1996) for the declared model, definition, and unit.
+- **Effect Size CI Status**: `available`
+- **Primary Estimate CI Status**: `available`
+- **Confidence Interval Method**: Exact F-inversion or Satterthwaite approximation
+- **Required Assumptions**:
+  - Targets/subjects are independent random samples from the target population.
+  - Explicit rater sampling model (one-way random, two-way random, or two-way mixed).
+  - Explicit reliability definition (absolute agreement vs consistency).
+  - Explicit measurement unit (single rating vs average of k ratings).
+  - Complete fully crossed panel with quantitative ratings and normal errors.
+- **Diagnostics**:
+  - Target and rater counts and sample completeness
+  - ANOVA mean squares (MS_targets, MS_raters, MS_error, MS_between, MS_within)
+  - Systematic rater difference F test
+  - Method-of-moments variance component estimates
+  - Comparison across all canonical ICC variants
+- **Missing Data Policy**: Complete-target panel filtering: targets with any missing rater cells are excluded; retained panel is fully crossed with exactly one rating per target-rater cell.
+- **Degenerate Data Behavior**: Fewer than 2 targets, fewer than 2 raters, zero variance, duplicate cells, or nonfinite ratings returns unavailable or unsupported status.
+- **Multiplicity Policy**: Not applicable.
+- **Numerical Provenance**: Exact ANOVA mean squares and F-distribution quantile inversion in pyautostat.icc.
+- **Interpretation Limitations**:
+  - ICC evaluates relative reliability (ratio of variances); it depends heavily on sample target heterogeneity.
+  - High consistency ICC does not imply absolute agreement; systematic additive rater differences are ignored by consistency.
+  - Average-measure ICC reflects the reliability of the mean of k ratings, not individual single ratings.
+  - A statistically significant F test does NOT prove acceptable or practically adequate reliability.
+  - Negative sample estimates are preserved; they indicate within-target noise exceeds between-target variance.
+- **Audit Invariants**:
+  - n_targets >= 2 and n_raters >= 2
+  - complete retained panel with cell count == n_targets * n_raters
+  - df_targets == n_targets - 1, df_raters == n_raters - 1, df_error == (n_targets - 1) * (n_raters - 1)
+  - mean squares equal sum of squares divided by degrees of freedom
+  - recomputed ICC equals stored estimate
+  - variant, notation, model, definition, and unit match canonical taxonomy
+  - average_k matches retained rater count
+  - CI bounds are ordered (lower <= upper) with valid confidence level
+  - target F test statistic and p-value are mathematically consistent with mean squares
+  - negative ICC estimates are preserved and not clamped to zero
+- **Independent Validation Source**: Validated against Shrout & Fleiss (1979) Table 4, McGraw & Wong (1996), R psych::ICC, R irr::icc, and pingouin.intraclass_corr in tests/test_icc_validation.py.
 
 ## Cross-References
 

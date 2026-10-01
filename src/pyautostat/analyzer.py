@@ -37,6 +37,7 @@ from .exceptions import (
     InvalidDataError,
     InvalidTestError,
 )
+from .icc import intraclass_correlation as _intraclass_correlation
 from .inference import (
     fisher_exact_test as _fisher_exact_test,
 )
@@ -1103,6 +1104,76 @@ class StatisticalAnalyzer:
             sum_of_squares=sum_of_squares,
             alpha=alpha,
             confidence_level=confidence_level,
+        )
+
+    def intraclass_correlation(
+        self,
+        target: str,
+        rater: str,
+        value: str,
+        *,
+        model: str = "two_way_random",
+        definition: str = "absolute_agreement",
+        unit: str = "single",
+        confidence_level: float = 0.95,
+        alpha: float = 0.05,
+    ) -> dict[str, Any]:
+        """Run Intraclass Correlation Coefficient (ICC) reliability analysis.
+
+        Parameters
+        ----------
+        target : str
+            Column identifying the rated targets or subjects.
+        rater : str
+            Column identifying the raters, judges, or measurement occasions.
+        value : str
+            Column containing quantitative ratings or scores.
+        model : {"one_way_random", "two_way_random", "two_way_mixed"}, default "two_way_random"
+            Experimental model for rater effects.
+        definition : {"absolute_agreement", "consistency"}, default "absolute_agreement"
+            Reliability concept. Consistency ignores additive rater bias;
+            absolute agreement penalizes systematic rater level offsets.
+        unit : {"single", "average"}, default "single"
+            Single rating or mean of k ratings.
+        confidence_level : float, default 0.95
+            Confidence interval coverage level.
+        alpha : float, default 0.05
+            Significance level for F tests.
+        """
+        return _intraclass_correlation(
+            self.df,
+            target=target,
+            rater=rater,
+            value=value,
+            model=model,
+            definition=definition,
+            unit=unit,
+            confidence_level=confidence_level,
+            alpha=alpha,
+        )
+
+    def icc(
+        self,
+        target: str,
+        rater: str,
+        value: str,
+        *,
+        model: str = "two_way_random",
+        definition: str = "absolute_agreement",
+        unit: str = "single",
+        confidence_level: float = 0.95,
+        alpha: float = 0.05,
+    ) -> dict[str, Any]:
+        """Convenience alias for intraclass_correlation."""
+        return self.intraclass_correlation(
+            target=target,
+            rater=rater,
+            value=value,
+            model=model,
+            definition=definition,
+            unit=unit,
+            confidence_level=confidence_level,
+            alpha=alpha,
         )
 
     def spearman_correlation(

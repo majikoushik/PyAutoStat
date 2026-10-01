@@ -437,6 +437,29 @@ assert two_way_smoke.audit.status == "passed"
 json.dumps(two_way_smoke.to_dict(), allow_nan=False)
 json.loads(two_way_smoke.to_json())
 
+icc_smoke_df = pd.DataFrame(
+    {
+        "target": ["T1", "T1", "T2", "T2", "T3", "T3"],
+        "rater": ["R1", "R2", "R1", "R2", "R1", "R2"],
+        "score": [9.0, 2.0, 6.0, 1.0, 8.0, 4.0],
+    }
+)
+icc_smoke = ResearchAssistant(icc_smoke_df).intraclass_correlation(
+    target="target",
+    rater="rater",
+    value="score",
+    model="two_way_random",
+    definition="absolute_agreement",
+    unit="single",
+)
+assert icc_smoke.status.value == "completed"
+assert icc_smoke.analysis.method_id == "intraclass_correlation"
+assert "ICC(2,1)" in icc_smoke.explain()
+assert "icc_summary" in icc_smoke.report.to_csv_tables()
+assert icc_smoke.audit.status == "passed"
+json.dumps(icc_smoke.to_dict(), allow_nan=False)
+json.loads(icc_smoke.to_json())
+
 html = guided.report.to_html(style="apa")
 assert isinstance(html, str) and "<!doctype html>" in html
 assert '<section class="executive-summary">' in html

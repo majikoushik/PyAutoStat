@@ -7,6 +7,18 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- Added Intraclass Correlation Coefficient (ICC) for quantitative rater reliability and agreement:
+  - Supported all 6 canonical Shrout & Fleiss (1979) and McGraw & Wong (1996) variants: ICC(1,1), ICC(1,k), ICC(2,1), ICC(2,k), ICC(3,1), ICC(3,k) as well as McGraw-Wong C(2) and A(3) aliases.
+  - Fully crossed target-by-rater design validation ($n \ge 2, k \ge 2$) with complete-target panel filtering (excluding incomplete targets while retaining full target ratings and transparent sample accounting).
+  - ANOVA mean squares decomposition: Between-targets ($BMS$), Between-judges/raters ($JMS$), Residual/Error ($EMS$), and Within-targets ($WMS$).
+  - Method-of-moments variance component estimates: target variance $\sigma_T^2$, rater variance $\sigma_R^2$, and residual variance $\sigma_e^2$.
+  - Analytical F-inversion confidence intervals: exact central F-inversion for one-way random and two-way mixed consistency variants, and Satterthwaite effective degrees of freedom approximation for two-way random absolute agreement variants.
+  - Scientific non-clamping safeguard: negative sample ICC estimates are preserved without clamping to zero to diagnose when within-target noise exceeds between-target variance.
+  - Hypothesis testing: F-test of $H_0: \text{ICC} = 0$, plus systematic rater effect F-test ($F = JMS / EMS$).
+  - Full research pipeline integration: dataset profiling -> question formulation -> method recommendation -> execution -> interpretation -> reporting -> semantic audit -> reproducibility replay.
+  - Added comprehensive `docs/ICC_GUIDE.md` detailing models, definitions, units, mathematical formulas, and reporting standards.
+  - Added dedicated report tables: `icc_summary`, `icc_anova_table`, `icc_variance_components`, and `icc_all_variants`.
+  - Added reporting completeness evaluation checks for ICC estimate, interval, ANOVA table, variance components, and F-test.
 - Added independent two-way factorial ANOVA with main effects and interaction ($Y = \mu + A + B + A \times B + \epsilon$):
   - Deterministic evaluation of full factorial models without term dropping or automatic model simplification.
   - Explicit sums of squares policies: Type II (hierarchical) sums of squares conditioning on the alternative main effect while ignoring higher-order interactions, and Type III (fully conditional) sums of squares using sum-to-zero / deviation contrast coding ($C(k-1)$ with $-1$ on the final level) tested against the full model.

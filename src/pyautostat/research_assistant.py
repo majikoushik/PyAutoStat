@@ -348,6 +348,73 @@ class ResearchAssistant:
             fingerprint=fingerprint,
         )
 
+    def intraclass_correlation(
+        self,
+        target: str,
+        rater: str,
+        value: str,
+        *,
+        model: str | None = None,
+        definition: str | None = None,
+        unit: str | None = None,
+        alpha: float = 0.05,
+        confidence_level: float = 0.95,
+        title: str | None = None,
+        audit: bool = True,
+        fingerprint: bool = True,
+    ) -> ResearchWorkflowResult:
+        """Estimate Intraclass Correlation Coefficient (ICC) for reliability/agreement."""
+        return self.run(
+            objective=Objective.RELIABILITY,
+            target=target,
+            rater=rater,
+            outcome=value,
+            estimand="intraclass_correlation",
+            model=model,
+            definition=definition,
+            unit=unit,
+            options=AnalysisOptions(
+                alpha=alpha,
+                confidence_level=confidence_level,
+                model=model,
+                definition=definition,
+                unit=unit,
+            ),
+            title=title,
+            audit=audit,
+            fingerprint=fingerprint,
+        )
+
+    def icc(
+        self,
+        target: str,
+        rater: str,
+        value: str,
+        *,
+        model: str | None = None,
+        definition: str | None = None,
+        unit: str | None = None,
+        alpha: float = 0.05,
+        confidence_level: float = 0.95,
+        title: str | None = None,
+        audit: bool = True,
+        fingerprint: bool = True,
+    ) -> ResearchWorkflowResult:
+        """Convenience alias for intraclass_correlation."""
+        return self.intraclass_correlation(
+            target=target,
+            rater=rater,
+            value=value,
+            model=model,
+            definition=definition,
+            unit=unit,
+            alpha=alpha,
+            confidence_level=confidence_level,
+            title=title,
+            audit=audit,
+            fingerprint=fingerprint,
+        )
+
     def study_planner(self) -> StudyPlanner:
         """Return a prospective planner that does not inspect this assistant's data."""
 
@@ -393,6 +460,12 @@ class ResearchAssistant:
         factor_b: str | None = None,
         factors: list[str] | tuple[str, ...] | None = None,
         sum_of_squares: str | None = None,
+        target: str | None = None,
+        rater: str | None = None,
+        value: str | None = None,
+        model: str | None = None,
+        definition: str | None = None,
+        unit: str | None = None,
         draft: QuestionDraft | None = None,
         specification: AnalysisSpecification | None = None,
         include_profile: bool = False,
@@ -450,16 +523,18 @@ class ResearchAssistant:
             the requested fields or update ``result.draft`` with ``update_question()`` and
             pass the revised draft back to ``run(draft=...)``.
         """
-        for name, value in (
+        for name, value_check in (
             ("include_profile", include_profile),
             ("audit", audit),
             ("fingerprint", fingerprint),
             ("include_figures", include_figures),
         ):
-            if not isinstance(value, bool):
+            if not isinstance(value_check, bool):
                 raise InvalidDataError(f"{name} must be a Boolean.")
         if draft is not None and specification is not None:
             raise InvalidDataError("Provide either draft or specification, not both.")
+        if value is not None and outcome is None:
+            outcome = value
         raw_values = (
             objective,
             outcome,
@@ -484,9 +559,15 @@ class ResearchAssistant:
             factor_b,
             factors,
             sum_of_squares,
+            target,
+            rater,
+            value,
+            model,
+            definition,
+            unit,
         )
         if (draft is not None or specification is not None) and any(
-            value is not None for value in raw_values
+            v is not None for v in raw_values
         ):
             raise InvalidDataError(
                 "A supplied draft or specification cannot be combined with raw question "
@@ -523,6 +604,11 @@ class ResearchAssistant:
                 factor_b=factor_b,
                 factors=factors,
                 sum_of_squares=sum_of_squares,
+                target=target,
+                rater=rater,
+                model=model,
+                definition=definition,
+                unit=unit,
             )
 
         profile = None
@@ -688,6 +774,11 @@ class ResearchAssistant:
         factor_b: str | None = None,
         factors: list[str] | tuple[str, ...] | None = None,
         sum_of_squares: str | None = None,
+        target: str | None = None,
+        rater: str | None = None,
+        model: str | None = None,
+        definition: str | None = None,
+        unit: str | None = None,
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
@@ -722,6 +813,11 @@ class ResearchAssistant:
             factor_b=factor_b,
             factors=factors,
             sum_of_squares=sum_of_squares,
+            target=target,
+            rater=rater,
+            model=model,
+            definition=definition,
+            unit=unit,
             specification=specification,
         )
         if self._ledger is not None:

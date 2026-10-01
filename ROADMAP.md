@@ -26,6 +26,11 @@ pairwise follow-up. It supports independent two-way factorial ANOVA with balance
 designs, Type II and Type III sums of squares, partial eta-squared effect sizes with exact noncentral-F
 inversion confidence intervals, unweighted estimated marginal means, cell summaries, residual
 diagnostics, and planned follow-ups with Holm multiplicity adjustment.
+It supports rater reliability and agreement via Intraclass Correlation Coefficients (ICC) across all 6
+canonical Shrout & Fleiss (1979) and McGraw & Wong (1996) variants (ICC(1,1), ICC(1,k), ICC(2,1),
+ICC(2,k), ICC(3,1), ICC(3,k)) with ANOVA mean squares decomposition, method-of-moments variance
+components, exact and Satterthwaite F-inversion confidence intervals, complete-target panel filtering,
+and non-clamping of negative estimates.
 The established analysis, planning, and reporting capabilities are checked into `main`, and their
 GitHub CI matrix passed. A release remains a separate owner decision.
 
@@ -62,9 +67,11 @@ target, not a scheduled next release.
 
 ## Candidate statistical capabilities
 
-Future milestones for statistical depth and expansion follow an explicit sequence:
-1. **Intraclass correlation coefficient (ICC)**: Explicit Shrout & Fleiss / McGraw & Wong models,
-   types (consistency vs absolute agreement), unit levels (single vs average), and analytical CIs.
+Future milestones for statistical depth and expansion follow an explicit sequence of priorities:
+1. **Intraclass correlation coefficient (ICC)**: Complete support for all 6 Shrout & Fleiss / McGraw &
+   Wong variants, analytical CIs, ANOVA components, and complete-target filtering is implemented.
+2. Subsequent candidate methods will be evaluated based on user demand, statistical validity,
+   and independent numerical verification.
 
 A method or uncertainty algorithm should be added only when the complete contract can be supported:
 

@@ -216,6 +216,36 @@ class ResearchWorkflowResult:
                 f"   Mean={values.get('mean_inter_item_correlation')}; negative pairs="
                 f"{values.get('negative_inter_item_correlations', {}).get('count')}."
             )
+        if self.analysis is not None and self.analysis.method_id == "intraclass_correlation":
+            values = self.analysis.values
+            interval = values.get("confidence_interval", {})
+            f_test = values.get("f_test", {})
+            lines.append(thin)
+            lines.append(" RELIABILITY ESTIMATE")
+            lines.append(
+                f"   {values.get('variant')} ({values.get('notation')}): "
+                f"ICC={values.get('intraclass_correlation'):.4g} "
+                f"[{values.get('model')}, {values.get('definition')}, {values.get('unit')}]."
+            )
+            if isinstance(interval, dict) and interval.get("status") == "available":
+                conf = int(interval.get("confidence_level", 0.95) * 100)
+                lines.append(
+                    f"   Analytical CI [{interval.get('lower'):.4g}, {interval.get('upper'):.4g}] "
+                    f"({conf}%)."
+                )
+            if isinstance(f_test, dict) and f_test.get("p_value") is not None:
+                lines.append(
+                    f"   F({f_test.get('df1')}, {f_test.get('df2')})="
+                    f"{f_test.get('statistic'):.4g}, "
+                    f"p={f_test.get('p_value'):.4g} (H0: ICC = {f_test.get('null_value', 0)})."
+                )
+            lines.append(thin)
+            lines.append(" PANEL DESIGN")
+            n_obs = int(values.get("n_targets", 0) or 0) * int(values.get("n_raters", 0) or 0)
+            lines.append(
+                f"   Targets={values.get('n_targets')}, Raters={values.get('n_raters')}, "
+                f"Observations={n_obs}."
+            )
         if self.analysis is not None and self.analysis.method_id == "linear_regression":
             fit = self.analysis.values.get("model_fit", {})
             coefficients = self.analysis.values.get("coefficients", [])
@@ -637,7 +667,8 @@ class ResearchWorkflowResult:
                 lines.append(thin)
                 lines.append(
                     " DIAGNOSTIC AND MISSINGNESS NOTES"
-                    if self.analysis is not None and self.analysis.method_id == "cronbach_alpha"
+                    if self.analysis is not None
+                    and self.analysis.method_id in {"cronbach_alpha", "intraclass_correlation"}
                     else " ASSUMPTIONS"
                 )
                 for note in interp.assumption_notes:

@@ -1476,6 +1476,153 @@ def _reliability_interpretation(result: AnalysisResult) -> InterpretationResult:
     )
 
 
+def _icc_interpretation(result: AnalysisResult) -> InterpretationResult:
+    values = result.values
+    variant = str(values.get("variant", "icc_2_1"))
+    notation = str(values.get("notation", "ICC(2,1)"))
+    model = str(values.get("model", "two_way_random"))
+    definition = str(values.get("definition", "absolute_agreement"))
+    unit = str(values.get("unit", "single"))
+    description = str(values.get("description", "Intraclass Correlation"))
+    estimate = _finite(values.get("estimate"))
+    ci = values.get("confidence_interval") or {}
+    f_test = values.get("f_test") or {}
+    sample_info = values.get("sample") or result.metadata.get("sample") or {}
+    n_targets = values.get("n_targets")
+    n_raters = values.get("n_raters")
+
+    est_str = f"{estimate:.4f}" if estimate is not None else "unavailable"
+    ci_lower = _finite(ci.get("lower"))
+    ci_upper = _finite(ci.get("upper"))
+    ci_level = float(ci.get("level", 0.95))
+    pct_level = f"{int(ci_level * 100)}%"
+
+    if ci_lower is not None and ci_upper is not None:
+        ci_str = f"{pct_level} CI [{ci_lower:.4f}, {ci_upper:.4f}]"
+    else:
+        ci_str = "CI unavailable"
+
+    f_stat = _finite(f_test.get("statistic"))
+    df1 = f_test.get("df1")
+    df2 = f_test.get("df2")
+    p_val = _finite(f_test.get("p_value"))
+
+    df2_str = f"{df2:.1f}" if isinstance(df2, float) and not df2.is_integer() else str(df2)
+    f_str = (
+        f"F({df1}, {df2_str}) = {f_stat:.3f}, p = {p_val:.4g}"
+        if f_stat is not None and p_val is not None
+        else "F test unavailable"
+    )
+
+    summary = (
+        f"{description}: {notation} = {est_str} ({ci_str}). "
+        f"Evaluated across {n_targets} targets and {n_raters} raters ({f_str})."
+    )
+
+    hypothesis_text = (
+        f"The target differentiation test evaluates H0: true ICC = 0 (target variance is zero) "
+        f"against H1: true ICC > 0. The observed target differentiation test yielded {f_str}. "
+        "A statistically significant F test demonstrates that target ratings differ beyond chance, "
+        "but does not certify practically adequate reliability."
+    )
+
+    effect_text = (
+        f"The sample {notation} estimate is {est_str}. "
+        f"This index reflects {definition.replace('_', ' ')} under a "
+        f"{model.replace('_', ' ')} model for {unit} measurement. "
+    )
+    if estimate is not None and estimate < 0:
+        effect_text += (
+            "The observed sample estimate is negative; this occurs when within-target "
+            "variance/noise exceeds between-target variation. In accordance with scientific "
+            "principles, the estimate is preserved and not clamped to zero."
+        )
+    elif definition == "consistency":
+        effect_text += (
+            "Consistency evaluates relative target ranking/pattern across raters and ignores "
+            "systematic additive rater bias (rater level offsets)."
+        )
+    else:
+        effect_text += (
+            "Absolute agreement treats systematic differences between rater means as disagreement."
+        )
+
+    ci_method = ci.get("method", "analytical F-distribution inversion")
+    uncertainty_text = (
+        f"The {ci_str} was computed using {ci_method}. "
+        f"Coverage represents {pct_level} confidence under additive normal ANOVA assumptions."
+    )
+
+    assumption_notes = [
+        "Targets/subjects are independent random samples from the target population.",
+        f"Rater sampling model: {model.replace('_', ' ')}.",
+        f"Reliability definition: {definition.replace('_', ' ')}.",
+        f"Unit of measurement: {unit} rating.",
+        f"Complete-case analysis retained {n_targets} complete targets and excluded "
+        f"{sample_info.get('excluded_targets', 0)} incomplete targets with missing rater values.",
+    ]
+
+    limitations = [
+        "ICC evaluates relative reliability (ratio of variances); "
+        "it depends heavily on sample target heterogeneity.",
+        "High consistency ICC does not imply absolute agreement; systematic additive rater "
+        "differences are ignored by consistency.",
+        "Average-measure ICC reflects the reliability of the mean of k ratings, "
+        "not individual single ratings.",
+        "A statistically significant F test does NOT prove acceptable or practically adequate "
+        "reliability.",
+        "No universal adequacy thresholds (such as 'poor', 'good', or 'excellent') are applied "
+        "automatically; adequacy depends on domain requirements.",
+    ]
+
+    findings = [
+        InterpretationFinding(
+            "icc_estimate",
+            summary,
+            ("values.estimate", "values.confidence_interval"),
+        ),
+        InterpretationFinding(
+            "f_test",
+            hypothesis_text,
+            ("values.f_test",),
+        ),
+        InterpretationFinding(
+            "model_and_definition",
+            effect_text,
+            ("values.model", "values.definition", "values.unit"),
+        ),
+    ]
+
+    return InterpretationResult(
+        status=InterpretationStatus.AVAILABLE,
+        method_id="intraclass_correlation",
+        execution_status=result.status,
+        summary=summary,
+        method_explanation=(
+            f"Intraclass Correlation Coefficient ({notation}) partitions variance into target, "
+            f"rater, and residual error components using classical ANOVA mean squares."
+        ),
+        hypothesis_interpretation=hypothesis_text,
+        effect_interpretation=effect_text,
+        uncertainty_interpretation=uncertainty_text,
+        assumption_notes=tuple(assumption_notes),
+        limitations=tuple(limitations),
+        conclusion=summary,
+        findings=tuple(findings),
+        warnings=result.warnings,
+        metadata={
+            "variant": variant,
+            "notation": notation,
+            "estimate": estimate,
+            "primary_estimate": estimate,
+            "test_statistic": f_test.get("statistic") if isinstance(f_test, dict) else None,
+            "p_value": f_test.get("p_value") if isinstance(f_test, dict) else None,
+            "confidence_interval": ci,
+            "f_test": f_test,
+        },
+    )
+
+
 class InterpretationEngine:
     """Apply method-specific, deterministic rules to an analysis result."""
 
@@ -1500,6 +1647,8 @@ class InterpretationEngine:
             return _friedman_interpretation(result)
         if result.method_id == "two_way_anova":
             return _two_way_anova_interpretation(result)
+        if result.method_id == "intraclass_correlation":
+            return _icc_interpretation(result)
         if result.method_id not in _METHODS:
             return _unavailable(result, f"Method {result.method_id!r} is not supported.")
         if result.method_id == "dataset_profile":

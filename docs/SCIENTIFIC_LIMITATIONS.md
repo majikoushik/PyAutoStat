@@ -78,6 +78,14 @@ It is not a substitute for scientific design review or subject-matter judgment.
   PyAutoStat applies no universal `.70` pass/fail rule, does not discover scales, and never deletes
   or reverse-scores items automatically. Numeric Likert-style scores use ordinary variances and
   correlations; ordinal/polychoric alpha, omega, factor analysis, and PCA are unsupported.
+- Intraclass Correlation Coefficients (ICC) evaluate relative variance proportions across targets
+  and raters on quantitative measurements. They require a fully crossed, balanced panel of at least
+  2 targets and 2 raters; missingness is handled via complete-target filtering without imputation.
+  Negative sample ICC values are mathematically possible in finite samples and are intentionally
+  preserved without clamping to zero, as they diagnose violations of the additive variance model.
+  High consistency ICC does not demonstrate absolute agreement because systematic rater differences
+  are partitioned out. Statistical significance of the hypothesis F-test does not establish acceptable
+  or practically adequate measurement agreement.
 - Fisher's exact test is limited to ordered 2x2 tables. Its primary effect is SciPy's
   unconditional sample odds ratio. When all cells are positive, an asymptotic log-Wald confidence
   interval matching the sample odds-ratio estimator is reported. When any cell is zero, the

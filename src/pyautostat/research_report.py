@@ -106,10 +106,13 @@ def _build_executive_summary(
         method_name = methods.get("method_name") or methods.get("method_id")
         variables = []
         if isinstance(question, dict):
-            variables = [question.get("outcome"), question.get("predictor")]
-            predictors = question.get("predictors")
-            if isinstance(predictors, list):
-                variables.extend(predictors)
+            if methods.get("method_id") == "intraclass_correlation":
+                variables = [question.get("outcome"), question.get("target"), question.get("rater")]
+            else:
+                variables = [question.get("outcome"), question.get("predictor")]
+                predictors = question.get("predictors")
+                if isinstance(predictors, list):
+                    variables.extend(predictors)
         selected = [
             repr(item) for item in dict.fromkeys(item for item in variables if item is not None)
         ]
@@ -779,6 +782,22 @@ def build_research_report(
         "missingness": visible.get("missingness"),
         "scoring": visible.get("scoring"),
         "formula": visible.get("formula"),
+        "variant": visible.get("variant"),
+        "notation": visible.get("notation"),
+        "mcgraw_wong_notation": visible.get("mcgraw_wong_notation"),
+        "model": visible.get("model"),
+        "definition": visible.get("definition"),
+        "unit": visible.get("unit"),
+        "intraclass_correlation": visible.get("intraclass_correlation"),
+        "icc": visible.get("icc"),
+        "n_targets": visible.get("n_targets"),
+        "n_raters": visible.get("n_raters"),
+        "average_k": visible.get("average_k"),
+        "anova_table": visible.get("anova_table"),
+        "variance_components": visible.get("variance_components"),
+        "f_test": visible.get("f_test"),
+        "rater_test": visible.get("rater_test"),
+        "all_variants": visible.get("all_variants"),
     }
     interpretation_section = {
         "status": interpreted["status"],
@@ -946,6 +965,237 @@ def build_research_report(
                         ],
                     )
                 )
+    if analysis["method_id"] == "intraclass_correlation" and status != "unavailable":
+        interval = visible.get("confidence_interval") or {}
+        f_test = visible.get("f_test") or {}
+        rater_test = visible.get("rater_test") or {}
+        tables.append(
+            _table(
+                "icc_summary",
+                "Intraclass correlation summary",
+                [
+                    "Variant",
+                    "Notation",
+                    "Model",
+                    "Definition",
+                    "Unit",
+                    "Targets (n)",
+                    "Raters (k)",
+                    "ICC estimate",
+                    "CI lower",
+                    "CI upper",
+                    "F statistic",
+                    "df1",
+                    "df2",
+                    "p-value",
+                ],
+                [
+                    [
+                        _cell(visible.get("variant"), "analysis.values.variant"),
+                        _cell(visible.get("notation"), "analysis.values.notation"),
+                        _cell(visible.get("model"), "analysis.values.model"),
+                        _cell(visible.get("definition"), "analysis.values.definition"),
+                        _cell(visible.get("unit"), "analysis.values.unit"),
+                        _cell(visible.get("n_targets"), "analysis.values.n_targets"),
+                        _cell(visible.get("n_raters"), "analysis.values.n_raters"),
+                        _cell(
+                            visible.get("intraclass_correlation"),
+                            "analysis.values.intraclass_correlation",
+                        ),
+                        _cell(interval.get("lower"), "analysis.values.confidence_interval.lower"),
+                        _cell(interval.get("upper"), "analysis.values.confidence_interval.upper"),
+                        _cell(f_test.get("statistic"), "analysis.values.f_test.statistic"),
+                        _cell(f_test.get("df1"), "analysis.values.f_test.df1"),
+                        _cell(f_test.get("df2"), "analysis.values.f_test.df2"),
+                        _cell(f_test.get("p_value"), "analysis.values.f_test.p_value"),
+                    ]
+                ],
+            )
+        )
+        anova = visible.get("anova_table")
+        if isinstance(anova, dict):
+            tables.append(
+                _table(
+                    "icc_anova_table",
+                    "ANOVA mean squares table",
+                    ["Source", "SS", "df", "MS", "F", "p-value"],
+                    [
+                        [
+                            _cell(
+                                "Targets (between subjects)",
+                                "analysis.values.anova_table.source[0]",
+                            ),
+                            _cell(
+                                anova.get("ss_targets"), "analysis.values.anova_table.ss_targets"
+                            ),
+                            _cell(
+                                anova.get("df_targets"), "analysis.values.anova_table.df_targets"
+                            ),
+                            _cell(
+                                anova.get("ms_targets"), "analysis.values.anova_table.ms_targets"
+                            ),
+                            _cell(f_test.get("statistic"), "analysis.values.f_test.statistic"),
+                            _cell(f_test.get("p_value"), "analysis.values.f_test.p_value"),
+                        ],
+                        [
+                            _cell(
+                                "Raters (between raters)", "analysis.values.anova_table.source[1]"
+                            ),
+                            _cell(anova.get("ss_raters"), "analysis.values.anova_table.ss_raters"),
+                            _cell(anova.get("df_raters"), "analysis.values.anova_table.df_raters"),
+                            _cell(anova.get("ms_raters"), "analysis.values.anova_table.ms_raters"),
+                            _cell(
+                                rater_test.get("statistic"), "analysis.values.rater_test.statistic"
+                            ),
+                            _cell(rater_test.get("p_value"), "analysis.values.rater_test.p_value"),
+                        ],
+                        [
+                            _cell("Residual (error)", "analysis.values.anova_table.source[2]"),
+                            _cell(anova.get("ss_error"), "analysis.values.anova_table.ss_error"),
+                            _cell(anova.get("df_error"), "analysis.values.anova_table.df_error"),
+                            _cell(anova.get("ms_error"), "analysis.values.anova_table.ms_error"),
+                            _cell(None, "analysis.values.anova_table.f_error"),
+                            _cell(None, "analysis.values.anova_table.p_error"),
+                        ],
+                        [
+                            _cell("Total", "analysis.values.anova_table.source[3]"),
+                            _cell(anova.get("ss_total"), "analysis.values.anova_table.ss_total"),
+                            _cell(anova.get("df_total"), "analysis.values.anova_table.df_total"),
+                            _cell(None, "analysis.values.anova_table.ms_total"),
+                            _cell(None, "analysis.values.anova_table.f_total"),
+                            _cell(None, "analysis.values.anova_table.p_total"),
+                        ],
+                    ],
+                )
+            )
+        vc = visible.get("variance_components")
+        if isinstance(vc, dict):
+            tables.append(
+                _table(
+                    "icc_variance_components",
+                    "Method-of-moments variance components",
+                    ["Component", "Variance estimate"],
+                    [
+                        [
+                            _cell(
+                                "Target variance (sigma_s^2)",
+                                "analysis.values.variance_components.target_variance_label",
+                            ),
+                            _cell(
+                                vc.get("target_variance"),
+                                "analysis.values.variance_components.target_variance",
+                            ),
+                        ],
+                        [
+                            _cell(
+                                "Rater variance (sigma_r^2)",
+                                "analysis.values.variance_components.rater_variance_label",
+                            ),
+                            _cell(
+                                vc.get("rater_variance"),
+                                "analysis.values.variance_components.rater_variance",
+                            ),
+                        ],
+                        [
+                            _cell(
+                                "Residual variance (sigma_e^2)",
+                                "analysis.values.variance_components.residual_variance_label",
+                            ),
+                            _cell(
+                                vc.get("residual_variance"),
+                                "analysis.values.variance_components.residual_variance",
+                            ),
+                        ],
+                        [
+                            _cell(
+                                "Total variance (agreement)",
+                                "analysis.values.variance_components.total_variance_agreement_label",
+                            ),
+                            _cell(
+                                vc.get("total_variance_agreement"),
+                                "analysis.values.variance_components.total_variance_agreement",
+                            ),
+                        ],
+                        [
+                            _cell(
+                                "Total variance (consistency)",
+                                "analysis.values.variance_components.total_variance_consistency_label",
+                            ),
+                            _cell(
+                                vc.get("total_variance_consistency"),
+                                "analysis.values.variance_components.total_variance_consistency",
+                            ),
+                        ],
+                    ],
+                )
+            )
+        all_v = visible.get("all_variants")
+        if isinstance(all_v, list) and all_v:
+            tables.append(
+                _table(
+                    "icc_all_variants",
+                    "All canonical ICC variants",
+                    [
+                        "Variant",
+                        "Notation",
+                        "Model",
+                        "Definition",
+                        "Unit",
+                        "Estimate",
+                        "CI lower",
+                        "CI upper",
+                        "F",
+                        "df1",
+                        "df2",
+                        "p-value",
+                    ],
+                    [
+                        [
+                            _cell(
+                                item.get("variant"), f"analysis.values.all_variants[{i}].variant"
+                            ),
+                            _cell(
+                                item.get("notation"), f"analysis.values.all_variants[{i}].notation"
+                            ),
+                            _cell(item.get("model"), f"analysis.values.all_variants[{i}].model"),
+                            _cell(
+                                item.get("definition"),
+                                f"analysis.values.all_variants[{i}].definition",
+                            ),
+                            _cell(item.get("unit"), f"analysis.values.all_variants[{i}].unit"),
+                            _cell(
+                                item.get("estimate"), f"analysis.values.all_variants[{i}].estimate"
+                            ),
+                            _cell(
+                                item.get("confidence_interval", {}).get("lower"),
+                                f"analysis.values.all_variants[{i}].confidence_interval.lower",
+                            ),
+                            _cell(
+                                item.get("confidence_interval", {}).get("upper"),
+                                f"analysis.values.all_variants[{i}].confidence_interval.upper",
+                            ),
+                            _cell(
+                                item.get("f_test", {}).get("statistic"),
+                                f"analysis.values.all_variants[{i}].f_test.statistic",
+                            ),
+                            _cell(
+                                item.get("f_test", {}).get("df1"),
+                                f"analysis.values.all_variants[{i}].f_test.df1",
+                            ),
+                            _cell(
+                                item.get("f_test", {}).get("df2"),
+                                f"analysis.values.all_variants[{i}].f_test.df2",
+                            ),
+                            _cell(
+                                item.get("f_test", {}).get("p_value"),
+                                f"analysis.values.all_variants[{i}].f_test.p_value",
+                            ),
+                        ]
+                        for i, item in enumerate(all_v)
+                        if isinstance(item, dict)
+                    ],
+                )
+            )
     groups = dataset["group_sizes"]
     if isinstance(groups, list) and groups and status != "unavailable":
         tables.append(

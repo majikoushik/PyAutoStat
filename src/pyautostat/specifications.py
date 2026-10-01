@@ -93,6 +93,8 @@ class ResearchQuestion:
     factor_a: str | None = None
     factor_b: str | None = None
     factors: tuple[str, ...] | None = None
+    target: str | None = None
+    rater: str | None = None
 
     def __post_init__(self) -> None:
         if self.objective is not None:
@@ -105,6 +107,8 @@ class ResearchQuestion:
             "association_measure",
             "factor_a",
             "factor_b",
+            "target",
+            "rater",
         ):
             _name(getattr(self, name), name)
         if self.predictors is not None:
@@ -198,6 +202,14 @@ class ResearchQuestion:
                 raise InvalidDataError(
                     "controls must differ from both the outcome and predictor variables."
                 )
+        if self.target is not None and self.rater is not None:
+            if self.target == self.rater:
+                raise InvalidDataError("target and rater must name different variables.")
+        if self.outcome is not None:
+            if self.target is not None and self.outcome == self.target:
+                raise InvalidDataError("outcome and target must name different variables.")
+            if self.rater is not None and self.outcome == self.rater:
+                raise InvalidDataError("outcome and rater must name different variables.")
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -224,6 +236,10 @@ class ResearchQuestion:
             payload["event_level"] = _json_value(self.event_level)
         if self.association_measure is not None:
             payload["association_measure"] = self.association_measure
+        if self.target is not None:
+            payload["target"] = self.target
+        if self.rater is not None:
+            payload["rater"] = self.rater
         return payload
 
     @classmethod
@@ -246,6 +262,9 @@ class AnalysisOptions:
     bootstrap_samples: int = 499
     reverse_scoring: dict[str, tuple[float, float]] | None = None
     sum_of_squares: str = "type2"
+    model: str | None = None
+    definition: str | None = None
+    unit: str | None = None
 
     def __post_init__(self) -> None:
         _probability(self.alpha, "alpha")
@@ -258,6 +277,17 @@ class AnalysisOptions:
             raise InvalidDataError("covariance_type must be 'classical' or 'HC3'.")
         if self.sum_of_squares not in {"type2", "type3"}:
             raise InvalidDataError("sum_of_squares must be 'type2' or 'type3'.")
+        if self.model is not None:
+            if self.model not in {"one_way_random", "two_way_random", "two_way_mixed"}:
+                raise InvalidDataError(
+                    "model must be 'one_way_random', 'two_way_random', or 'two_way_mixed'."
+                )
+        if self.definition is not None:
+            if self.definition not in {"absolute_agreement", "consistency"}:
+                raise InvalidDataError("definition must be 'absolute_agreement' or 'consistency'.")
+        if self.unit is not None:
+            if self.unit not in {"single", "average"}:
+                raise InvalidDataError("unit must be 'single' or 'average'.")
         if self.reference_levels is not None:
             if not isinstance(self.reference_levels, dict) or any(
                 not isinstance(key, str) or not key.strip() for key in self.reference_levels
@@ -313,11 +343,24 @@ class AnalysisOptions:
             payload["reverse_scoring"] = _json_value(self.reverse_scoring)
         if self.sum_of_squares != "type2":
             payload["sum_of_squares"] = self.sum_of_squares
+        if self.model is not None:
+            payload["model"] = self.model
+        if self.definition is not None:
+            payload["definition"] = self.definition
+        if self.unit is not None:
+            payload["unit"] = self.unit
         return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AnalysisOptions:
-        return cls(**data)
+        cleaned = dict(data)
+        if "icc_model" in cleaned and "model" not in cleaned:
+            cleaned["model"] = cleaned.pop("icc_model")
+        if "icc_definition" in cleaned and "definition" not in cleaned:
+            cleaned["definition"] = cleaned.pop("icc_definition")
+        if "icc_unit" in cleaned and "unit" not in cleaned:
+            cleaned["unit"] = cleaned.pop("icc_unit")
+        return cls(**cleaned)
 
 
 @dataclass(frozen=True)

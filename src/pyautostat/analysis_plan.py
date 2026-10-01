@@ -431,6 +431,8 @@ def planned_quantity(method_id: str | None) -> str | None:
         return "coefficient_vector"
     if method_id == "cronbach_alpha":
         return "cronbach_alpha"
+    if method_id == "intraclass_correlation":
+        return "intraclass_correlation"
     if method_id in {"repeated_measures_anova", "two_way_anova"}:
         return "partial_eta_squared"
     if method_id == "friedman_test":
@@ -457,6 +459,8 @@ def planned_interval_quantity(method_id: str | None) -> str | None:
         return "cronbach_alpha"
     if method_id == "two_way_anova":
         return "partial_eta_squared"
+    if method_id == "intraclass_correlation":
+        return "intraclass_correlation"
     return None
 
 
@@ -485,4 +489,6 @@ def _alternative_hypothesis(method_id: str | None) -> str | None:
         return "variables are associated"
     if method_id in {"linear_regression", "logistic_regression"}:
         return "at least one non-intercept slope differs from zero"
+    if method_id == "intraclass_correlation":
+        return "true ICC exceeds zero"
     return None

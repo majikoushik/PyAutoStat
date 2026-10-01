@@ -105,6 +105,7 @@ def build_session_snapshot(
             "cronbach_alpha",
             "repeated_measures_anova",
             "friedman_test",
+            "intraclass_correlation",
         }:
             actions.extend(["run_sensitivity", "assess_practical_significance"])
         actions.extend(

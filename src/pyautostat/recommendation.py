@@ -11,6 +11,7 @@ import pandas as pd
 
 from .categorical import contingency_counts
 from .exceptions import InsufficientDataError, InvalidDataError
+from .icc import intraclass_correlation
 from .logistic_regression import build_logistic_design_matrix
 from .question_builder import QuestionDraft, QuestionStatus
 from .regression import build_design_matrix
@@ -43,6 +44,30 @@ class MethodCapability:
 METHOD_CAPABILITIES: dict[str, MethodCapability] = {
     item.identifier: item
     for item in (
+        MethodCapability(
+            "intraclass_correlation",
+            "Intraclass correlation coefficient (ICC)",
+            "reliability",
+            "intraclass_correlation",
+            ("quantitative_ratings",),
+            ("independent", "unknown", "repeated"),
+            "not_applicable",
+            "At least two targets, at least two raters, and fully crossed observations",
+            (
+                "Targets/subjects are independent random samples from the target population",
+                "Explicit rater sampling model (one-way random, two-way random, or two-way mixed)",
+                "Explicit reliability definition (absolute agreement vs consistency)",
+                "Explicit measurement unit (single rating vs average of k ratings)",
+                "Complete target-by-rater crossed panel with quantitative ratings",
+            ),
+            True,
+            "runnable",
+            (
+                "ICC evaluates relative reliability and depends on target variance; "
+                "negative estimates reflect within-target noise exceeding between-target variation."
+            ),
+            "pyautostat.icc.intraclass_correlation",
+        ),
         MethodCapability(
             "cronbach_alpha",
             "Scale reliability (Cronbach's alpha)",
@@ -689,6 +714,124 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         )
 
     if objective == Objective.RELIABILITY:
+        is_icc = (
+            question.target is not None
+            or question.rater is not None
+            or question.estimand
+            in {
+                "icc",
+                "intraclass_correlation",
+                "inter_rater_reliability",
+                "agreement",
+            }
+            or (
+                not question.items
+                and (
+                    question.outcome is not None
+                    or spec.options.model is not None
+                    or spec.options.definition is not None
+                    or spec.options.unit is not None
+                )
+            )
+        )
+        if is_icc:
+            target_col = question.target
+            rater_col = question.rater
+            value_col = question.outcome
+            model = spec.options.model
+            definition = spec.options.definition
+            unit = spec.options.unit
+
+            if target_col is None or rater_col is None or value_col is None:
+                return finish(
+                    RecommendationStatus.NEEDS_INPUT,
+                    blockers=(
+                        "Target, rater, and quantitative outcome columns must all be specified "
+                        "for ICC.",
+                    ),
+                    rationale=(
+                        "ICC requires explicit target, rater, and outcome variable assignments."
+                    ),
+                )
+            if model is None or unit is None or (model != "one_way_random" and definition is None):
+                return finish(
+                    RecommendationStatus.NEEDS_INPUT,
+                    blockers=("ICC model, definition, and unit must be explicitly declared.",),
+                    rationale=(
+                        "Rater model (random vs fixed), agreement definition, and single vs "
+                        "average unit cannot be guessed."
+                    ),
+                )
+            if model == "one_way_random" and definition is None:
+                definition = "absolute_agreement"
+
+            val_type = types.get(value_col)
+            if val_type not in {
+                "continuous_numerical",
+                "discrete_numerical",
+                "continuous",
+                "discrete",
+            }:
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(
+                        f"ICC requires a quantitative numeric rating column; "
+                        f"{value_col!r} is {val_type!r}.",
+                    ),
+                    rationale=(
+                        "Categorical or non-numeric variables cannot support "
+                        "intraclass correlation."
+                    ),
+                )
+
+            try:
+                preview = intraclass_correlation(
+                    frame,
+                    target=target_col,
+                    rater=rater_col,
+                    value=value_col,
+                    model=model,
+                    definition=definition,
+                    unit=unit,
+                    confidence_level=spec.options.confidence_level,
+                    alpha=spec.options.alpha,
+                )
+            except (InsufficientDataError, InvalidDataError) as exc:
+                return finish(
+                    RecommendationStatus.UNSUPPORTED,
+                    blockers=(str(exc),),
+                    rationale="The supplied ratings panel cannot support valid ICC computation.",
+                )
+
+            context.update(
+                {
+                    "target": target_col,
+                    "rater": rater_col,
+                    "outcome": value_col,
+                    "model": model,
+                    "definition": definition,
+                    "unit": unit,
+                    "variant": preview["variant"],
+                    "notation": preview["notation"],
+                    "available_observations": preview["sample"]["analyzed_rows"],
+                    "excluded_rows": preview["sample"]["excluded_rows"],
+                }
+            )
+            record(
+                "method",
+                "intraclass_correlation",
+                f"Researcher-declared {preview['notation']} reliability target.",
+            )
+            return finish(
+                RecommendationStatus.READY,
+                method_id="intraclass_correlation",
+                rationale=(
+                    f"You supplied a target-by-rater rating design evaluated under "
+                    f"{preview['description']}. Intraclass correlation estimates "
+                    "reliability/agreement under the declared model."
+                ),
+            )
+
         items = question.items or ()
         context.update(
             {

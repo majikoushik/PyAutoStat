@@ -91,6 +91,7 @@ def assess_reporting_completeness(
         "repeated_measures_anova",
         "friedman_test",
         "two_way_anova",
+        "intraclass_correlation",
     }
 
     def item(
@@ -137,6 +138,8 @@ def assess_reporting_completeness(
                 if method == "dataset_profile"
                 else question.get("items")
                 if method == "cronbach_alpha"
+                else [question.get("target"), question.get("rater"), question.get("outcome")]
+                if method == "intraclass_correlation"
                 else [question["outcome"]]
                 if method == "one_sample_t" and question.get("outcome") is not None
                 else [question["outcome"], *question.get("predictors", [])]
@@ -542,6 +545,48 @@ def assess_reporting_completeness(
                 "Per-item and complete-case missingness",
                 results.get("missingness"),
                 "sections.results.missingness",
+            ),
+        )
+    if method == "intraclass_correlation":
+        interval = results.get("confidence_interval")
+        items += (
+            item(
+                "ICC_ESTIMATE_REPORTED",
+                "results",
+                "Intraclass correlation coefficient estimate",
+                results.get("intraclass_correlation") or results.get("primary_estimate"),
+                "sections.results.intraclass_correlation",
+            ),
+            item(
+                "ICC_INTERVAL_REPORTED",
+                "results",
+                "Intraclass correlation confidence interval",
+                interval
+                if isinstance(interval, dict) and interval.get("status") == "available"
+                else None,
+                "sections.results.confidence_interval",
+                unavailable=isinstance(interval, dict) and interval.get("status") == "unavailable",
+            ),
+            item(
+                "ICC_ANOVA_TABLE_REPORTED",
+                "results",
+                "ANOVA source table and mean squares",
+                results.get("anova_table"),
+                "sections.results.anova_table",
+            ),
+            item(
+                "ICC_VARIANCE_COMPONENTS_REPORTED",
+                "results",
+                "Method-of-moments variance components",
+                results.get("variance_components"),
+                "sections.results.variance_components",
+            ),
+            item(
+                "ICC_F_TEST_REPORTED",
+                "results",
+                "Null hypothesis F-test",
+                results.get("f_test"),
+                "sections.results.f_test",
             ),
         )
     if method == "repeated_measures_anova":

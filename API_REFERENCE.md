@@ -312,6 +312,46 @@ diagnostics are unavailable, and `data_limited` for observed mathematical blocke
 Canonical reports add `reliability_summary`, `reliability_items`, and
 `inter_item_correlations` tables and use the same stored values for audit and explicit replay.
 
+### Intraclass correlation coefficient (ICC) workflow
+
+`ResearchAssistant.intraclass_correlation(target, rater, outcome=None, *, value=None, model="two_way_random", definition="absolute_agreement", unit="single", confidence_level=0.95, alpha=0.05, include_all_variants=True, data_dictionary=None, title=None, audit=True, fingerprint=True)` (with alias `.icc(...)`) is the dedicated entry point for inter-rater and test-retest reliability and agreement.
+
+The equivalent integrated request uses:
+```python
+workflow = ResearchAssistant(df).run(
+    objective="reliability",
+    estimand="intraclass_correlation",
+    target="subject_id",
+    rater="judge_id",
+    outcome="score",
+    model="two_way_random",
+    definition="absolute_agreement",
+    unit="single",
+)
+```
+
+The workflow supports all six canonical Shrout & Fleiss (1979) / McGraw & Wong (1996) variants:
+- **`icc_1_1` / ICC(1,1)**: One-way random, single rater.
+- **`icc_1_k` / ICC(1,k)**: One-way random, average of $k$ raters.
+- **`icc_2_1` / ICC(2,1)**: Two-way random, absolute agreement, single rater.
+- **`icc_2_k` / ICC(2,k)**: Two-way random, absolute agreement, average of $k$ raters.
+- **`icc_3_1` / ICC(3,1)**: Two-way mixed, consistency, single rater.
+- **`icc_3_k` / ICC(3,k)**: Two-way mixed, consistency, average of $k$ raters.
+- McGraw-Wong aliases $C(2)$ and $A(3)$ are also supported with identical mathematical formulas and documented inferential scopes.
+
+**Design and numerical policy**:
+- Requires a quantitative outcome on a fully crossed target-by-rater design ($n \ge 2$, $k \ge 2$).
+- Complete-target filtering excludes targets missing any ratings and retains complete targets.
+- ANOVA mean squares table reports $BMS$, $JMS$, $EMS$, and $WMS$.
+- Method-of-moments variance components report target, rater, and residual variances.
+- Analytical confidence intervals use exact central F-inversion for one-way and two-way mixed consistency variants, and Satterthwaite effective degrees of freedom approximation for two-way random absolute agreement variants.
+- Negative sample estimates are preserved without clamping to zero, providing critical diagnostic feedback when within-target noise exceeds between-target variance.
+- Hypothesis F-test evaluates $H_0: \text{ICC} = 0$, and systematic rater effect F-test evaluates $H_0: JMS = EMS$.
+- Canonical report tables include `icc_summary`, `icc_anova_table`, `icc_variance_components`, and `icc_all_variants`.
+- See the comprehensive [ICC Guide](docs/ICC_GUIDE.md) for full formulas, variance components, and reporting recommendations.
+
+Expert method `StatisticalAnalyzer.intraclass_correlation(target, rater, value, *, model="two_way_random", definition="absolute_agreement", unit="single", confidence_level=0.95, alpha=0.05, include_all_variants=True)` (with alias `.icc(...)`) returns the validated numerical dictionary.
+
 ### Repeated-measures analysis (3+ conditions)
 
 Repeated-measures workflows evaluate three or more conditions or time points on the same units:

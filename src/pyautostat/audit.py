@@ -1844,6 +1844,183 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                             f_ci.get("multiplicity_adjusted"),
                             findings,
                         )
+    if method == "intraclass_correlation":
+        n_targets = values.get("n_targets")
+        n_raters = values.get("n_raters")
+        average_k = values.get("average_k")
+        variant = values.get("variant")
+        notation = values.get("notation")
+        model = values.get("model")
+        definition = values.get("definition")
+        unit = values.get("unit")
+        estimate = values.get("estimate")
+        anova = values.get("anova_table")
+        f_test = values.get("f_test")
+        sample_info = source.metadata.get("sample") or values.get("sample") or {}
+
+        # 1. n_targets >= 2 and n_raters >= 2
+        if not (isinstance(n_targets, int) and n_targets >= 2):
+            _mismatch("analysis.values.n_targets", "integer >= 2", n_targets, findings)
+        if not (isinstance(n_raters, int) and n_raters >= 2):
+            _mismatch("analysis.values.n_raters", "integer >= 2", n_raters, findings)
+        if average_k != n_raters:
+            _mismatch("analysis.values.average_k", n_raters, average_k, findings)
+
+        # 2. Retained cell count == n_targets * n_raters
+        if isinstance(n_targets, int) and isinstance(n_raters, int):
+            expected_cells = n_targets * n_raters
+            analyzed_rows = sample_info.get("analyzed_rows")
+            if analyzed_rows != expected_cells:
+                _mismatch(
+                    "analysis.metadata.sample.analyzed_rows",
+                    expected_cells,
+                    analyzed_rows,
+                    findings,
+                )
+
+        # 3. Canonical taxonomy consistency
+        from .icc import ICC_VARIANTS, compute_icc_estimate
+
+        if variant not in ICC_VARIANTS:
+            _mismatch(
+                "analysis.values.variant",
+                "recognized ICC variant identifier",
+                variant,
+                findings,
+            )
+        else:
+            canon = ICC_VARIANTS[str(variant)]
+            if notation != canon["notation"]:
+                _mismatch("analysis.values.notation", canon["notation"], notation, findings)
+            if model != canon["model"]:
+                _mismatch("analysis.values.model", canon["model"], model, findings)
+            if definition != canon["definition"]:
+                _mismatch(
+                    "analysis.values.definition",
+                    canon["definition"],
+                    definition,
+                    findings,
+                )
+            if unit != canon["unit"]:
+                _mismatch("analysis.values.unit", canon["unit"], unit, findings)
+
+        # 4. ANOVA table invariants
+        if isinstance(anova, dict) and isinstance(n_targets, int) and isinstance(n_raters, int):
+            if anova.get("df_targets") != n_targets - 1:
+                _mismatch(
+                    "analysis.values.anova_table.df_targets",
+                    n_targets - 1,
+                    anova.get("df_targets"),
+                    findings,
+                )
+            if anova.get("df_raters") != n_raters - 1:
+                _mismatch(
+                    "analysis.values.anova_table.df_raters",
+                    n_raters - 1,
+                    anova.get("df_raters"),
+                    findings,
+                )
+            expected_df_err = (n_targets - 1) * (n_raters - 1)
+            if anova.get("df_error") != expected_df_err:
+                _mismatch(
+                    "analysis.values.anova_table.df_error",
+                    expected_df_err,
+                    anova.get("df_error"),
+                    findings,
+                )
+
+            for comp, df_key in (
+                ("targets", "df_targets"),
+                ("raters", "df_raters"),
+                ("error", "df_error"),
+            ):
+                ss_val = anova.get(f"ss_{comp}")
+                ms_val = anova.get(f"ms_{comp}")
+                df_val = anova.get(df_key)
+                if isinstance(ss_val, (int, float)) and not isinstance(ss_val, bool):
+                    if ss_val < -1e-6:
+                        _mismatch(
+                            f"analysis.values.anova_table.ss_{comp}",
+                            "nonnegative SS",
+                            ss_val,
+                            findings,
+                        )
+                    if (
+                        isinstance(ms_val, (int, float))
+                        and not isinstance(ms_val, bool)
+                        and isinstance(df_val, (int, float))
+                        and df_val > 0
+                    ):
+                        exp_ms = float(ss_val) / float(df_val)
+                        if not math.isclose(exp_ms, float(ms_val), rel_tol=1e-5, abs_tol=1e-8):
+                            _mismatch(
+                                f"analysis.values.anova_table.ms_{comp}",
+                                exp_ms,
+                                ms_val,
+                                findings,
+                            )
+
+            # 5. Recomputed estimate matches stored estimate
+            if (
+                variant in ICC_VARIANTS
+                and isinstance(estimate, (int, float))
+                and not isinstance(estimate, bool)
+                and math.isfinite(float(estimate))
+            ):
+                try:
+                    recomputed = compute_icc_estimate(str(variant), n_targets, n_raters, anova)
+                    if not math.isclose(
+                        float(recomputed), float(estimate), rel_tol=1e-5, abs_tol=1e-8
+                    ):
+                        _mismatch("analysis.values.estimate", recomputed, estimate, findings)
+                except Exception as exc:
+                    _mismatch("analysis.values.estimate", "computable estimate", str(exc), findings)
+
+        # 6. F test consistency
+        if isinstance(f_test, dict):
+            f_stat = f_test.get("statistic")
+            p_val = f_test.get("p_value")
+            df1 = f_test.get("df1")
+            df2 = f_test.get("df2")
+            if (
+                isinstance(f_stat, (int, float))
+                and not isinstance(f_stat, bool)
+                and isinstance(p_val, (int, float))
+                and not isinstance(p_val, bool)
+                and isinstance(df1, (int, float))
+                and isinstance(df2, (int, float))
+                and float(df1) > 0
+                and float(df2) > 0
+            ):
+                if not (0.0 <= float(p_val) <= 1.0):
+                    _mismatch(
+                        "analysis.values.f_test.p_value",
+                        "probability in [0, 1]",
+                        p_val,
+                        findings,
+                    )
+                expected_p = float(stats.f.sf(float(f_stat), float(df1), float(df2)))
+                if not math.isclose(expected_p, float(p_val), rel_tol=1e-4, abs_tol=1e-6):
+                    _mismatch("analysis.values.f_test.p_value", expected_p, p_val, findings)
+
+        # 7. CI bounds ordered lower <= upper
+        interval = values.get("confidence_interval")
+        if isinstance(interval, dict):
+            lower = interval.get("lower")
+            upper = interval.get("upper")
+            if (
+                isinstance(lower, (int, float))
+                and isinstance(upper, (int, float))
+                and not isinstance(lower, bool)
+                and not isinstance(upper, bool)
+            ):
+                if float(lower) > float(upper):
+                    _mismatch(
+                        "analysis.values.confidence_interval",
+                        "ordered bounds (lower <= upper)",
+                        (lower, upper),
+                        findings,
+                    )
     return tuple(findings)
 
 

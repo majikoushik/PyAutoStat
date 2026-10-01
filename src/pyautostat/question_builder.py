@@ -156,6 +156,11 @@ def prepare_question(
     factor_b: str | None = None,
     factors: tuple[str, ...] | list[str] | None = None,
     sum_of_squares: str | None = None,
+    target: str | None = None,
+    rater: str | None = None,
+    model: str | None = None,
+    definition: str | None = None,
+    unit: str | None = None,
 ) -> QuestionDraft:
     """Build or revalidate a question against the assistant's copied DataFrame."""
     if specification is not None and not isinstance(specification, AnalysisSpecification):
@@ -180,9 +185,18 @@ def prepare_question(
     selected_predictors = predictors if predictors is not None else prior.predictors
     selected_items = items if items is not None else prior.items
     selected_controls = controls if controls is not None else prior.controls
+    selected_target = target if target is not None else prior.target
+    selected_rater = rater if rater is not None else prior.rater
     if selected_objective == Objective.REGRESSION and selected_predictors is None:
         if selected_predictor is not None:
             selected_predictors = (selected_predictor,)
+    selected_estimand = estimand if estimand is not None else prior.estimand
+    if (
+        selected_objective == Objective.RELIABILITY
+        and (selected_target is not None or selected_rater is not None or model is not None)
+        and selected_estimand is None
+    ):
+        selected_estimand = "intraclass_correlation"
     question = ResearchQuestion(
         objective=selected_objective,
         outcome=outcome if outcome is not None else prior.outcome,
@@ -191,7 +205,9 @@ def prepare_question(
         factor_a=selected_factor_a,
         factor_b=selected_factor_b,
         factors=tuple(selected_factors) if selected_factors is not None else None,
-        estimand=estimand if estimand is not None else prior.estimand,
+        target=selected_target,
+        rater=selected_rater,
+        estimand=selected_estimand,
         description=description if description is not None else prior.description,
         reference_value=(reference_value if reference_value is not None else prior.reference_value),
         items=tuple(selected_items) if selected_items is not None else None,
@@ -203,7 +219,14 @@ def prepare_question(
     )
     selected_design = cast(StudyDesign, design if design is not None else base.design)
     selected_options = options if options is not None else base.options
-    if covariance_type is not None or reference_levels is not None or sum_of_squares is not None:
+    if (
+        covariance_type is not None
+        or reference_levels is not None
+        or sum_of_squares is not None
+        or model is not None
+        or definition is not None
+        or unit is not None
+    ):
         selected_options = AnalysisOptions(
             alpha=selected_options.alpha,
             confidence_level=selected_options.confidence_level,
@@ -221,6 +244,9 @@ def prepare_question(
             sum_of_squares=(
                 sum_of_squares if sum_of_squares is not None else selected_options.sum_of_squares
             ),
+            model=model if model is not None else selected_options.model,
+            definition=definition if definition is not None else selected_options.definition,
+            unit=unit if unit is not None else selected_options.unit,
         )
     selected_unit_id = unit_id if unit_id is not None else base.unit_id
     selected_condition_order = (
@@ -249,11 +275,33 @@ def prepare_question(
         raise InvalidDataError("predictors is supported only for objective='regression'.")
     if question.objective != Objective.RELIABILITY and question.items is not None:
         raise InvalidDataError("items is supported only for objective='reliability'.")
-    if question.objective == Objective.RELIABILITY and any(
-        value is not None for value in (question.outcome, question.predictor, question.predictors)
+    if question.objective != Objective.RELIABILITY and (
+        question.target is not None or question.rater is not None
+    ):
+        raise InvalidDataError("target and rater are supported only for objective='reliability'.")
+    if question.objective == Objective.RELIABILITY:
+        if question.items is not None and any(
+            value is not None
+            for value in (
+                question.outcome,
+                question.predictor,
+                question.predictors,
+                question.target,
+                question.rater,
+            )
+        ):
+            raise InvalidDataError(
+                "Multi-item scale reliability uses an explicit items list, "
+                "not outcome, predictor, target, or rater roles."
+            )
+        if question.predictor is not None or question.predictors is not None:
+            raise InvalidDataError("Reliability does not use predictor roles.")
+    if question.objective != Objective.RELIABILITY and any(
+        opt is not None
+        for opt in (selected_options.model, selected_options.definition, selected_options.unit)
     ):
         raise InvalidDataError(
-            "Reliability uses an explicit items list, not outcome or predictor roles."
+            "model, definition, and unit options are supported only for objective='reliability'."
         )
     if question.objective != Objective.ASSOCIATION and question.controls is not None:
         raise InvalidDataError("controls is supported only for objective='association'.")
@@ -313,6 +361,8 @@ def prepare_question(
         ("factor_a", question.factor_a),
         ("factor_b", question.factor_b),
         ("unit_id", selected_unit_id),
+        ("target", question.target),
+        ("rater", question.rater),
     )
     for field_name, selected_column in selected_fields:
         if selected_column is not None and selected_column not in frame.columns:
@@ -385,6 +435,8 @@ def prepare_question(
                 *(question.predictors or ()),
                 *(question.factors or ()),
                 *(question.controls or ()),
+                question.target,
+                question.rater,
             )
             if column is not None
         )
@@ -625,22 +677,139 @@ def prepare_question(
             )
     elif question.objective == Objective.RELIABILITY:
         column_options = tuple((column, column) for column in frame.columns)
-        if not question.items:
-            ask(
-                "items",
-                "Which two or more scored items form the proposed scale?",
-                "Scale membership is declared by the researcher and is never inferred.",
-                "columns",
-                column_options,
+        is_icc = (
+            question.target is not None
+            or question.rater is not None
+            or question.estimand
+            in {
+                "icc",
+                "intraclass_correlation",
+                "inter_rater_reliability",
+                "agreement",
+            }
+            or (
+                not question.items
+                and (
+                    question.outcome is not None
+                    or spec.options.model is not None
+                    or spec.options.definition is not None
+                    or spec.options.unit is not None
+                )
             )
-        if question.estimand is None:
-            ask(
-                "estimand",
-                "What scale property should be summarized?",
-                "This workflow estimates internal consistency with Cronbach's alpha.",
-                "select",
-                (("internal_consistency", "Internal consistency"),),
-            )
+        )
+        if is_icc:
+            if question.target is None:
+                ask(
+                    "target",
+                    "Which column identifies the rated targets or subjects?",
+                    "Target identity is a scientific design role; "
+                    "it is never guessed from column names.",
+                    "column",
+                    column_options,
+                )
+            if question.rater is None:
+                ask(
+                    "rater",
+                    "Which column identifies the raters, judges, or measurement occasions?",
+                    "Rater identity is a scientific design role; "
+                    "it is never guessed from column names.",
+                    "column",
+                    column_options,
+                )
+            if question.outcome is None:
+                ask(
+                    "outcome",
+                    "Which continuous column contains the quantitative ratings or scores?",
+                    "Choose the quantitative measurement column.",
+                    "column",
+                    column_options,
+                )
+            if question.estimand is None:
+                ask(
+                    "estimand",
+                    "What reliability estimand should be evaluated?",
+                    "Intraclass correlation estimates quantitative inter-rater or "
+                    "test-retest reliability/agreement.",
+                    "select",
+                    (("intraclass_correlation", "Intraclass correlation coefficient (ICC)"),),
+                )
+            if spec.options.model is None:
+                ask(
+                    "model",
+                    "How were raters sampled or assigned across targets?",
+                    "Rater sampling determines whether results generalize to a broader "
+                    "rater population or apply only to these specific raters.",
+                    "select",
+                    (
+                        (
+                            "two_way_random",
+                            "Two-way random: Each target rated by the same random sample of "
+                            "raters from a broader population",
+                        ),
+                        (
+                            "two_way_mixed",
+                            "Two-way mixed: These specific raters are the only raters of "
+                            "interest (fixed raters)",
+                        ),
+                        (
+                            "one_way_random",
+                            "One-way random: Each target rated by a different set of "
+                            "randomly selected raters",
+                        ),
+                    ),
+                )
+            if spec.options.model != "one_way_random" and spec.options.definition is None:
+                ask(
+                    "definition",
+                    "Is exact numerical agreement required, or relative consistency?",
+                    "Absolute agreement penalizes systematic rater level offsets; "
+                    "consistency ignores systematic additive rater differences.",
+                    "select",
+                    (
+                        (
+                            "absolute_agreement",
+                            "Absolute agreement: Systematic differences between raters count "
+                            "as disagreement",
+                        ),
+                        (
+                            "consistency",
+                            "Consistency: Evaluates relative ordering/pattern across targets; "
+                            "ignores systematic rater bias",
+                        ),
+                    ),
+                )
+            if spec.options.unit is None:
+                ask(
+                    "unit",
+                    "Will decisions be based on a single rating or the average of all raters?",
+                    "Single-measure ICC estimates reliability of one typical rating; "
+                    "average-measure ICC estimates reliability of the mean of k ratings.",
+                    "select",
+                    (
+                        ("single", "Single rating: Application relies on an individual rating"),
+                        (
+                            "average",
+                            "Average rating: Application averages ratings across all raters",
+                        ),
+                    ),
+                )
+        else:
+            if not question.items:
+                ask(
+                    "items",
+                    "Which two or more scored items form the proposed scale?",
+                    "Scale membership is declared by the researcher and is never inferred.",
+                    "columns",
+                    column_options,
+                )
+            if question.estimand is None:
+                ask(
+                    "estimand",
+                    "What scale property should be summarized?",
+                    "This workflow estimates internal consistency with Cronbach's alpha.",
+                    "select",
+                    (("internal_consistency", "Internal consistency"),),
+                )
 
     def default_event_for(column: str | None) -> Any | None:
         if column is None:

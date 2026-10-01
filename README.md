@@ -224,6 +224,24 @@ for example `reverse_scoring={"q4": (1, 5)}`, and operates on an internal copy. 
 internal-consistency estimate, not a hypothesis test, universal pass/fail grade, proof of
 unidimensionality, or evidence of construct validity. See [`examples/scale_reliability.py`](examples/scale_reliability.py).
 
+### Rater reliability and agreement (ICC)
+
+Assess inter-rater or test-retest reliability across targets and raters with the Intraclass Correlation Coefficient (ICC):
+
+```python
+icc_workflow = ResearchAssistant(df).intraclass_correlation(
+    target="subject_id",
+    rater="rater_id",
+    value="score",
+    model="two_way_random",
+    definition="absolute_agreement",
+    unit="single",
+)
+print(icc_workflow.explain())
+```
+
+Supports all 6 canonical Shrout & Fleiss (1979) and McGraw & Wong (1996) variants: ICC(1,1), ICC(1,k), ICC(2,1), ICC(2,k), ICC(3,1), ICC(3,k) as well as McGraw-Wong C(2) and A(3) aliases. The workflow decomposes variance into ANOVA mean squares ($BMS, JMS, EMS, WMS$), provides method-of-moments variance components, analytical F-inversion confidence intervals (exact or Satterthwaite effective df approximation), hypothesis testing against zero, and complete-target filtering without clamping negative sample estimates. See the [ICC Guide](docs/ICC_GUIDE.md).
+
 ### Repeated-measures analysis (3+ conditions)
 
 For 3 or more repeated conditions or measurement occasions on the same units, declare `design="repeated"`, `unit_id`, and `condition_order`:

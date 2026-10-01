@@ -63,8 +63,8 @@ jobs:
         run: |
           pip install numpy==1.23.5 pandas==1.5.3 scipy==1.8.0 statsmodels==0.15.0 pytest
           pip install -e . --no-deps
-      - name: Verify minimum-stack multi-group, regression, extended association, repeated measures, two-way anova, and uncertainty paths
-        run: pytest -q tests/test_multigroup_analysis.py tests/test_regression_workflow.py tests/test_binary_extended_association.py tests/test_repeated_measures.py tests/test_effect_size_confidence_intervals.py tests/test_uncertainty_hardening.py tests/test_two_way_anova.py tests/test_two_way_anova_followups.py tests/test_two_way_anova_validation.py tests/test_two_way_anova_audit.py
+      - name: Verify minimum-stack multi-group, regression, extended association, repeated measures, two-way anova, icc, and uncertainty paths
+        run: pytest -q tests/test_multigroup_analysis.py tests/test_regression_workflow.py tests/test_binary_extended_association.py tests/test_repeated_measures.py tests/test_effect_size_confidence_intervals.py tests/test_uncertainty_hardening.py tests/test_two_way_anova.py tests/test_two_way_anova_followups.py tests/test_two_way_anova_validation.py tests/test_two_way_anova_audit.py tests/test_icc.py tests/test_icc_confidence_intervals.py tests/test_icc_validation.py tests/test_icc_audit.py tests/test_icc_workflow.py
 
   build:
     name: Build distribution

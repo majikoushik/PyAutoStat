@@ -55,6 +55,9 @@ _EFFECT_DEFINITIONS = {
     ),
     "friedman_test": "Friedman Q divided by n*(k - 1) (Kendall's W rank concordance).",
     "two_way_anova": "Partial eta-squared for each model term: SS_term / (SS_term + SS_error).",
+    "intraclass_correlation": (
+        "Proportion of total rating variance attributable to target/subject differences."
+    ),
 }
 
 _NULL_HYPOTHESES = {
@@ -87,6 +90,9 @@ _NULL_HYPOTHESES = {
     "repeated_measures_anova": "All repeated-condition population means are equal.",
     "friedman_test": "The repeated-condition within-unit rank distributions are equal.",
     "two_way_anova": "Factor A, Factor B, and their interaction have zero effect on the outcome.",
+    "intraclass_correlation": (
+        "The true population intraclass correlation is zero (target variance is zero)."
+    ),
 }
 
 
@@ -117,7 +123,13 @@ def _label(value: Any) -> str | int | float | bool:
 def _degrees(value: Any, method_id: str) -> float | int | list[float | int] | None:
     if method_id == "mann_whitney_u":
         return None
-    if method_id in ("one_way_anova", "welch_anova", "repeated_measures_anova", "two_way_anova"):
+    if method_id in (
+        "one_way_anova",
+        "welch_anova",
+        "repeated_measures_anova",
+        "two_way_anova",
+        "intraclass_correlation",
+    ):
         if not isinstance(value, (list, tuple)) or len(value) != 2:
             raise InsufficientDataError("The backend returned invalid ANOVA degrees of freedom.")
         checked = [_number(item, "ANOVA degrees of freedom") for item in value]
@@ -1906,6 +1918,127 @@ def _two_way_anova_result(
     )
 
 
+def _icc_result(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    target = specification.question.target
+    rater = specification.question.rater
+    value = specification.question.outcome
+    if target is None or rater is None or value is None:
+        raise InvalidTestError(
+            "intraclass_correlation requires target, rater, and outcome columns."
+        )
+    model = specification.options.model or "two_way_random"
+    definition = specification.options.definition or (
+        "absolute_agreement" if model != "two_way_mixed" else "consistency"
+    )
+    unit = specification.options.unit or "single"
+    alpha = specification.options.alpha
+    confidence_level = specification.options.confidence_level
+
+    raw = analyzer.intraclass_correlation(
+        target=target,
+        rater=rater,
+        value=value,
+        model=model,
+        definition=definition,
+        unit=unit,
+        confidence_level=confidence_level,
+        alpha=alpha,
+    )
+    sample_info = raw.get("sample", {})
+    analyzed_rows = int(sample_info.get("analyzed_rows", len(analyzer.df)))
+    excluded_rows = int(sample_info.get("excluded_rows", 0))
+
+    estimate = _number(raw["estimate"], "ICC estimate")
+    ci = raw["confidence_interval"]
+    f_test = raw["f_test"]
+    f_stat = (
+        _number(f_test["statistic"], "F statistic") if f_test["statistic"] != float("inf") else 0.0
+    )
+    p_val = _number(f_test["p_value"], "p-value", probability=True)
+    dfs = _degrees([f_test["df1"], f_test["df2"]], "intraclass_correlation")
+
+    effect_size_record = {
+        "name": "intraclass_correlation",
+        "value": estimate,
+        "definition": _EFFECT_DEFINITIONS["intraclass_correlation"],
+        "confidence_interval": ci,
+        "status": "available",
+        "reason": None,
+    }
+
+    values: dict[str, Any] = {
+        "statistic": f_stat,
+        "test_statistic": f_stat,
+        "degrees_of_freedom": dfs,
+        "p_value": p_val,
+        "primary_estimate": estimate,
+        "estimate": estimate,
+        "intraclass_correlation": estimate,
+        "icc": estimate,
+        "estimate_name": "intraclass_correlation",
+        "estimate_unit": None,
+        "effect_size": effect_size_record,
+        "confidence_interval": ci,
+        "target": target,
+        "rater": rater,
+        "outcome": value,
+        "variant": raw["variant"],
+        "notation": raw["notation"],
+        "mcgraw_wong_notation": raw["mcgraw_wong_notation"],
+        "model": raw["model"],
+        "definition": raw["definition"],
+        "unit": raw["unit"],
+        "description": raw["description"],
+        "n_targets": raw["n_targets"],
+        "n_raters": raw["n_raters"],
+        "average_k": raw["average_k"],
+        "anova_table": raw["anova_table"],
+        "variance_components": raw["variance_components"],
+        "f_test": f_test,
+        "rater_test": raw["rater_test"],
+        "all_variants": raw["all_variants"],
+        "sample": sample_info,
+    }
+
+    return AnalysisResult(
+        method_id="intraclass_correlation",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=analyzed_rows,
+        excluded_rows=excluded_rows,
+        values=_json_safe(values),
+        assumptions=recommendation.required_assumptions,
+        warnings=_warnings(recommendation, raw.get("warnings", ())),
+        metadata={
+            "method_name": recommendation.method_name
+            or f"Intraclass Correlation {raw['notation']}",
+            "backend_test": "intraclass_correlation",
+            "numerical_source": "pyautostat.icc.intraclass_correlation",
+            "sample": sample_info,
+            "target": target,
+            "rater": rater,
+            "outcome": value,
+            "variant": raw["variant"],
+            "notation": raw["notation"],
+            "model": raw["model"],
+            "definition": raw["definition"],
+            "unit": raw["unit"],
+            "null_hypothesis": _NULL_HYPOTHESES["intraclass_correlation"],
+            "null_value": 0.0,
+            "null_quantity": "intraclass correlation",
+            "alternative_hypothesis": "true intraclass correlation is greater than zero",
+            "hypothesis_test": True,
+            "inference": True,
+            "raw_data_included": False,
+        },
+        specification=specification,
+        recommendation=recommendation,
+    )
+
+
 def execute_specification(
     analyzer: StatisticalAnalyzer, specification: AnalysisSpecification
 ) -> AnalysisResult:
@@ -2000,6 +2133,8 @@ def execute_specification(
             return _friedman_result(analyzer, specification, recommendation)
         if method_id == "two_way_anova":
             return _two_way_anova_result(analyzer, specification, recommendation)
+        if method_id == "intraclass_correlation":
+            return _icc_result(analyzer, specification, recommendation)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, recommendation, str(exc))
@@ -2104,6 +2239,8 @@ def execute_selected_method(
             return _friedman_result(analyzer, specification, explicit)
         if method_id == "two_way_anova":
             return _two_way_anova_result(analyzer, specification, explicit)
+        if method_id == "intraclass_correlation":
+            return _icc_result(analyzer, specification, explicit)
         raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, explicit, str(exc))

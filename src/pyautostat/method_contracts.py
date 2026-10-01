@@ -1639,4 +1639,91 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "tests/test_two_way_anova_validation.py."
         ),
     ),
+    "intraclass_correlation": MethodContract(
+        method_id="intraclass_correlation",
+        name="Intraclass correlation coefficient (ICC)",
+        scientific_question=(
+            "What is the reliability or agreement of quantitative ratings "
+            "across targets and raters?"
+        ),
+        study_design="Fully crossed target-by-rater quantitative rating design (n >= 2, k >= 2)",
+        outcome_type="Quantitative continuous or discrete rating/score",
+        predictor_type="Target/subject and rater/judge categorical factors",
+        estimand="Intraclass correlation coefficient (proportion of variance due to targets)",
+        primary_estimate="Sample intraclass correlation coefficient (ICC)",
+        null_hypothesis=(
+            "The true population intraclass correlation is zero (target variance is zero)."
+        ),
+        alternative_hypothesis="The true population intraclass correlation is greater than zero.",
+        null_value=0.0,
+        null_quantity="intraclass_correlation",
+        test_statistic="ANOVA F statistic (MS_between / MS_within or MS_targets / MS_error)",
+        degrees_of_freedom=(
+            "Numerator df1 and denominator df2 (exact or Satterthwaite effective df)"
+        ),
+        effect_size_quantity="Intraclass correlation coefficient",
+        effect_size_definition=(
+            "Variance ratio defined by Shrout & Fleiss (1979) and McGraw & Wong (1996) "
+            "for the declared model, definition, and unit."
+        ),
+        effect_size_ci_status="available",
+        primary_estimate_ci_status="available",
+        ci_method="Exact F-inversion or Satterthwaite approximation",
+        assumptions=(
+            "Targets/subjects are independent random samples from the target population.",
+            "Explicit rater sampling model (one-way random, two-way random, or two-way mixed).",
+            "Explicit reliability definition (absolute agreement vs consistency).",
+            "Explicit measurement unit (single rating vs average of k ratings).",
+            "Complete fully crossed panel with quantitative ratings and normal errors.",
+        ),
+        diagnostics=(
+            "Target and rater counts and sample completeness",
+            "ANOVA mean squares (MS_targets, MS_raters, MS_error, MS_between, MS_within)",
+            "Systematic rater difference F test",
+            "Method-of-moments variance component estimates",
+            "Comparison across all canonical ICC variants",
+        ),
+        missing_data_policy=(
+            "Complete-target panel filtering: targets with any missing rater cells are excluded; "
+            "retained panel is fully crossed with exactly one rating per target-rater cell."
+        ),
+        degenerate_data_behavior=(
+            "Fewer than 2 targets, fewer than 2 raters, zero variance, duplicate cells, "
+            "or nonfinite ratings returns unavailable or unsupported status."
+        ),
+        multiplicity_policy="Not applicable.",
+        numerical_provenance=(
+            "Exact ANOVA mean squares and F-distribution quantile inversion in pyautostat.icc."
+        ),
+        interpretation_limitations=(
+            "ICC evaluates relative reliability (ratio of variances); "
+            "it depends heavily on sample target heterogeneity.",
+            "High consistency ICC does not imply absolute agreement; systematic additive rater "
+            "differences are ignored by consistency.",
+            "Average-measure ICC reflects the reliability of the mean of k ratings, "
+            "not individual single ratings.",
+            "A statistically significant F test does NOT prove acceptable or practically adequate "
+            "reliability.",
+            "Negative sample estimates are preserved; they indicate within-target noise exceeds "
+            "between-target variance.",
+        ),
+        audit_invariants=(
+            "n_targets >= 2 and n_raters >= 2",
+            "complete retained panel with cell count == n_targets * n_raters",
+            "df_targets == n_targets - 1, df_raters == n_raters - 1, "
+            "df_error == (n_targets - 1) * (n_raters - 1)",
+            "mean squares equal sum of squares divided by degrees of freedom",
+            "recomputed ICC equals stored estimate",
+            "variant, notation, model, definition, and unit match canonical taxonomy",
+            "average_k matches retained rater count",
+            "CI bounds are ordered (lower <= upper) with valid confidence level",
+            "target F test statistic and p-value are mathematically consistent with mean squares",
+            "negative ICC estimates are preserved and not clamped to zero",
+        ),
+        validation_source=(
+            "Validated against Shrout & Fleiss (1979) Table 4, McGraw & Wong (1996), "
+            "R psych::ICC, R irr::icc, and pingouin.intraclass_corr in "
+            "tests/test_icc_validation.py."
+        ),
+    ),
 }
