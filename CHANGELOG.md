@@ -183,8 +183,8 @@ separate owner decision.
     clamped.
 
 -   Reconciled scientific documentation, method contracts, roadmap
-    language, and implementation behavior identified during the Phase
-    8-11 scientific-closure audits.
+    language, and implementation behavior identified during the
+    scientific-closure audits.
 
 ### Validation and packaging
 
