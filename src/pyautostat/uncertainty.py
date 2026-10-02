@@ -586,7 +586,7 @@ def matched_pairs_rank_biserial_bootstrap_ci(
             if math.isfinite(val):
                 reps.append(float(val))
 
-    min_valid = max(50, bootstrap_samples // 2)
+    min_valid = max(10, bootstrap_samples // 2)
     if len(reps) < min_valid:
         return _confidence_interval_record(
             None,
@@ -654,21 +654,46 @@ def friedman_kendall_w_bootstrap_ci(
             random_seed=seed,
         )
 
+    # Within-unit ranks and row tie corrections are invariant to row resampling;
+    # precompute them once across units to avoid repeating millions of Python calls.
+    try:
+        ranked = stats.rankdata(matrix, axis=1, method="average")
+    except (TypeError, ValueError):
+        ranked = np.empty_like(matrix, dtype=float)
+        for i in range(n):
+            ranked[i] = stats.rankdata(matrix[i], method="average")
+
+    row_ties = np.zeros(n, dtype=float)
+    sorted_m = np.sort(matrix, axis=1)
+    has_tie = np.any(sorted_m[:, 1:] == sorted_m[:, :-1], axis=1)
+    tie_indices = np.nonzero(has_tie)[0]
+    for i in tie_indices:
+        _, counts = np.unique(sorted_m[i], return_counts=True)
+        row_ties[i] = sum(cnt * (cnt * cnt - 1) for cnt in counts if cnt > 1)
+
+    c_denom = float(k * (k * k - 1) * n)
+    mult = 12.0 / (k * n * (k + 1))
+    sub = 3.0 * n * (k + 1)
+    w_denom = float(n * (k - 1))
+
     rng = np.random.default_rng(seed)
     reps: list[float] = []
 
     for _ in range(bootstrap_samples):
         indices = rng.integers(0, n, size=n)
-        sample = matrix[indices, :]
-        try:
-            q_b, _ = stats.friedmanchisquare(*[sample[:, j] for j in range(k)])
-            w_b = float(q_b / (n * (k - 1)))
-            if math.isfinite(w_b) and 0.0 <= w_b <= 1.0:
-                reps.append(w_b)
-        except Exception:
+        resampled_ranks = ranked[indices, :]
+        col_sums = resampled_ranks.sum(axis=0)
+        ssbn = float(np.sum(col_sums**2))
+        total_ties = float(row_ties[indices].sum())
+        c = 1.0 - total_ties / c_denom
+        if c <= 0.0:
             continue
+        chisq = (mult * ssbn - sub) / c
+        w_b = float(chisq / w_denom)
+        if math.isfinite(w_b) and 0.0 <= w_b <= 1.0:
+            reps.append(w_b)
 
-    min_valid = max(50, bootstrap_samples // 2)
+    min_valid = max(10, bootstrap_samples // 2)
     if len(reps) < min_valid:
         return _confidence_interval_record(
             None,

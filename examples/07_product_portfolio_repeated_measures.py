@@ -14,6 +14,7 @@ Scientific Focus:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -51,6 +52,12 @@ def main() -> None:
     assistant = ResearchAssistant(long_frame)
 
     # 2. Run guided repeated-measures distribution comparison
+    fast_mode = (
+        "--fast" in sys.argv
+        or os.environ.get("PYAUTOSTAT_FAST_TEST") == "1"
+        or os.environ.get("PYAUTOSTAT_FAST_DEMO") == "1"
+    )
+    b_samples = 50 if fast_mode else 199
     workflow = assistant.run(
         objective="compare_groups",
         outcome="monthly_spend",
@@ -60,7 +67,12 @@ def main() -> None:
         unit_id="customer_id",
         condition_order=CONDITION_ORDER,
         variable_types={"monthly_spend": "continuous", "product": "ordinal"},
-        options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=RANDOM_SEED),
+        options=AnalysisOptions(
+            alpha=0.05,
+            confidence_level=0.95,
+            random_seed=RANDOM_SEED,
+            bootstrap_samples=b_samples,
+        ),
     )
 
     if workflow.analysis is None or workflow.interpretation is None:

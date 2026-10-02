@@ -254,11 +254,12 @@ def friedman_test(
                 method_parameter = (
                     "method" if "method" in inspect.signature(stats.wilcoxon).parameters else "mode"
                 )
+                method_value = "approx" if len(nonzero) > 50 else "auto"
                 options: dict[str, Any] = {
                     "zero_method": "wilcox",
                     "correction": False,
                     "alternative": "two-sided",
-                    method_parameter: "auto",
+                    method_parameter: method_value,
                 }
                 w_res = stats.wilcoxon(diff, **options)
                 raw_stat = _scipy_result_value(w_res, "statistic", index=0)

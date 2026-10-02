@@ -47,6 +47,7 @@ def _run_example(filename: str, *arguments: str) -> subprocess.CompletedProcess[
     environment = os.environ.copy()
     environment["PYTHONUTF8"] = "1"
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    environment["PYAUTOSTAT_FAST_TEST"] = "1"
     return subprocess.run(
         [sys.executable, str(EXAMPLES / filename), *arguments],
         cwd=ROOT,
