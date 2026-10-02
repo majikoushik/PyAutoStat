@@ -291,3 +291,69 @@ def format_number(value: Any, digits: int = 4) -> str:
             return f"{value:.{digits}e}"
         return f"{value:.{digits}g}"
     return "unavailable"
+
+
+def format_currency(value: Any, digits: int = 2) -> str:
+    """Format signed currency safely (e.g. -$47.70 or $184.52)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        sign = "-" if value < 0 else ""
+        return f"{sign}${abs(value):.{digits}f}"
+    return "unavailable"
+
+
+def format_ci(ci: dict[str, Any] | None, digits: int = 2, is_currency: bool = False) -> str:
+    """Format a confidence interval dictionary cleanly."""
+    if not isinstance(ci, dict):
+        return "unavailable"
+    lower = ci.get("lower")
+    upper = ci.get("upper")
+    if lower is None or upper is None:
+        return "unavailable"
+    if is_currency:
+        return f"[{format_currency(lower, digits)}, {format_currency(upper, digits)}]"
+    return f"[{format_number(lower, digits)}, {format_number(upper, digits)}]"
+
+
+def is_fast_mode() -> bool:
+    """Determine whether the current process requested fast demonstration / CI mode."""
+    import os
+    import sys
+
+    return (
+        "--fast" in sys.argv
+        or os.environ.get("PYAUTOSTAT_FAST_TEST") == "1"
+        or os.environ.get("PYAUTOSTAT_FAST_DEMO") == "1"
+    )
+
+
+def resolve_bootstrap_samples(default: int = 499, fast_count: int = 50) -> int:
+    """Return appropriate bootstrap sample count depending on active mode."""
+    return fast_count if is_fast_mode() else default
+
+
+def announce_fast_mode_if_active() -> None:
+    """Print an explicit disclaimer when running under fast demo / CI settings."""
+    if is_fast_mode():
+        print(
+            "\n[NOTE] FAST DEMO/CI MODE: bootstrap intervals use reduced resamples "
+            "and are not intended as stable production estimates."
+        )
+
+
+# Direct spend components that must never be used to predict total monthly spend
+SPEND_COMPONENT_COLUMNS: tuple[str, ...] = (
+    "monthly_spend_product_a",
+    "monthly_spend_product_b",
+    "monthly_spend_product_c",
+    "cumulative_spend_product_a",
+    "cumulative_spend_product_b",
+    "cumulative_spend_product_c",
+    "total_avg_monthly_spend",
+)
+
+# Structurally circular predictors that must never be used to predict high_value_customer
+HIGH_VALUE_FORBIDDEN_PREDICTORS: tuple[str, ...] = (
+    *SPEND_COMPONENT_COLUMNS,
+    "streaming_services",
+    "wireless_internet",
+)

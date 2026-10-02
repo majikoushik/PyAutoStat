@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _customer_data import (
     DATA_DICTIONARY,
+    format_currency,
     format_number,
     load_customer_data,
     section,
@@ -76,10 +77,10 @@ def main() -> None:
     effect_ci = effect.get("confidence_interval") or {}
     p_val = values.get("p_value")
 
-    print(f"Primary Estimate (Mean Diff) : ${format_number(est)} / month")
+    print(f"Primary Estimate (Mean Diff) : {format_currency(est)} / month")
     print(
-        f"95% Confidence Interval      : [${format_number(ci.get('lower'))}, "
-        f"${format_number(ci.get('upper'))}]"
+        f"95% Confidence Interval      : [{format_currency(ci.get('lower'))}, "
+        f"{format_currency(ci.get('upper'))}]"
     )
     eff_name = effect.get("name", "Cohen d")
     eff_interp = effect.get("interpretation", "small")
@@ -96,15 +97,26 @@ def main() -> None:
     section("INTERPRETATION")
     print(workflow.explain())
 
+    grp_means = frame.groupby("news_subscriber")["total_avg_monthly_spend"].mean()
+    mean_no = grp_means.get("No", 0.0)
+    mean_yes = grp_means.get("Yes", 0.0)
+
     section("WHAT THIS MEANS")
     print(
-        "- In this dataset, news subscribers averaged approximately $184.52/month versus "
-        "$136.81/month for non-subscribers."
+        f"- In this dataset, non-subscribers averaged {format_currency(mean_no)}/month versus "
+        f"{format_currency(mean_yes)}/month for news subscribers."
     )
     print(
-        f"- The observed mean difference is ${abs(est):.2f}/month (95% CI "
-        f"[${abs(ci.get('upper', 0)):.2f}, ${abs(ci.get('lower', 0)):.2f}])."
+        f"- The observed mean difference ('No' minus 'Yes') is {format_currency(est)}/month "
+        f"(95% CI [{format_currency(ci.get('lower'))}, {format_currency(ci.get('upper'))}])."
     )
+    if isinstance(est, (int, float)):
+        diff_mag = format_currency(-est if est < 0.0 else est)
+        direction_word = "less" if est < 0.0 else "more"
+        print(
+            f"- Non-subscribers spent approximately {diff_mag} {direction_word} "
+            "per month than subscribers."
+        )
     print(
         "- Welch's t-test was selected because it preserves the declared mean estimand without "
         "assuming equal population variances."
@@ -112,14 +124,16 @@ def main() -> None:
 
     section("WHAT THIS DOES NOT MEAN")
     print(
-        "- This observational difference does NOT prove news subscription causes higher spending."
+        "- This observational difference does NOT establish that news subscription "
+        "causes higher spending."
     )
     print(
-        "- Highly statistically significant p-values (p < 1e-20) result partly from the large "
-        "sample (N = 5,000);"
+        "- Highly statistically significant p-values result partly from the large sample "
+        "(N = 5,000);"
     )
+    eff_val = format_number(effect.get("value"))
     print(
-        "  the effect size (Cohen's d ~ -0.29) is small-to-moderate and requires practical "
+        f"  the effect size (Cohen's d = {eff_val}) is small-to-moderate and requires practical "
         "evaluation."
     )
     print(

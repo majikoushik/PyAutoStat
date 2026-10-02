@@ -7,7 +7,24 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-No changes recorded yet.
+### Changed
+
+-   Optimized participant-block bootstrap for Kendall's W rank concordance (`friedman_kendall_w_bootstrap_ci`) by precomputing within-unit ranks and unit tie penalties once across units, yielding mathematically identical replicate distributions in $O(B \times k)$ time.
+-   Standardized paired Wilcoxon signed-rank asymptotic approximation policy (`paired_wilcoxon` and `friedman_test` pairwise follow-ups), selecting asymptotic approximation when non-zero paired differences exceed 50 to maintain consistent large-sample behavior and performance across SciPy versions.
+-   Refined the minimum valid resample threshold for paired rank-biserial and Kendall's W bootstrap confidence intervals to `max(10, bootstrap_samples // 2)`, supporting low-resample fast test/CI runs ($B < 20$) with an empirical floor of 10 while maintaining the 50% validity requirement for standard runs ($B \ge 20$).
+
+### Examples & Documentation
+
+-   Remediated the public CustomerDataset.csv analytics showcase (examples 01 through 09):
+    -   Preserved signed contrast orientation in Example 02 (`No` minus `Yes` = -$47.70, 95% CI [-$56.86, -$38.55]) without using `abs()` inversion.
+    -   Replaced hard-coded inferential results throughout examples with dynamic extraction from structured PyAutoStat result records and verified cleaned data.
+    -   Softened two-way ANOVA interaction interpretation in Example 08 to distinguish absence of statistically detectable interaction from proof of additivity.
+    -   Clarified HC3 robust covariance claims in Example 05, emphasizing reduced reliance on equal-variance assumptions rather than universal validity, and noted "spend drivers" is business shorthand rather than causal.
+    -   Refined target-leakage documentation in Example 06 to describe observed perfect separation by spend rather than unverified historical generation provenance.
+    -   Added executable test enforcement of model predictor exclusions (leakage invariants) for linear and logistic regression examples.
+    -   Dynamically calculated Product B and Product C zero-inflation percentages in Example 07.
+    -   Standardized fast execution mode (`--fast`) with visible console disclosures and automated integration test coverage in `examples/run_all.py`.
+    -   Isolated example artifact generation so that test execution does not dirty the working directory or write to untracked report locations.
 
 ## [0.5.0] - 2026-10-01
 

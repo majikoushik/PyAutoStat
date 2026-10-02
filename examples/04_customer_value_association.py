@@ -113,24 +113,27 @@ def main() -> None:
     print(workflow.explain())
 
     section("WHAT THIS MEANS")
+    if observed and len(observed) >= 2 and len(observed[0]) >= 2:
+        tot_0 = sum(observed[0])
+        tot_1 = sum(observed[1])
+        rate_0 = (observed[0][0] / tot_0 * 100.0) if tot_0 > 0 else 0.0
+        rate_1 = (observed[1][0] / tot_1 * 100.0) if tot_1 > 0 else 0.0
+        print(
+            f"- {row_labels[0]} customers are slightly more likely to belong to the "
+            f"{col_labels[0]} segment ({rate_0:.1f}%) than "
+            f"{row_labels[1]} customers ({rate_1:.1f}%)."
+        )
     print(
-        "- Homeowners are slightly more likely to belong to the high-value segment (22.0%) "
-        "than non-owners (16.7%)."
+        f"- The association is statistically detectable (p = {format_number(p_val)}), but the "
+        f"magnitude is negligible (Cramer's V = {format_number(effect.get('value'))})."
     )
     print(
-        "- The association is statistically detectable (p = 6.07e-06), but the magnitude "
-        "is negligible (Cramer's V ~ 0.064)."
-    )
-    print(
-        "- With N = 5,000, Pearson's chi-square test has high power to reject independence "
-        "even when the real-world association is slight."
+        f"- With N = {analysis.sample_size:,}, Pearson's chi-square test has high power to reject "
+        "independence even when the real-world association is slight."
     )
 
     section("WHAT THIS DOES NOT MEAN")
-    print(
-        "- Home ownership is NOT a causal driver of customer value; both are shaped by "
-        "income and wealth."
-    )
+    print("- Home ownership does NOT cause customer value; both are shaped by income and wealth.")
     print(
         "- Statistical significance does NOT imply home ownership is a strong customer "
         "targeting filter."

@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _customer_data import (
     DATA_DICTIONARY,
+    format_currency,
     format_number,
     load_customer_data,
     section,
@@ -123,10 +124,24 @@ def main() -> None:
         "- Pairwise Games-Howell adjustments protect the familywise error rate across all 15 "
         "contrasts."
     )
-    print(
-        "- Sales employees show the lowest observed average spend ($145.41/month), which differs "
-        "reliably from Professional ($165.83) and Labor ($171.70)."
-    )
+    summaries = values.get("group_summaries", [])
+    if summaries:
+        sorted_groups = sorted(summaries, key=lambda g: g.get("mean", 0.0))
+        lowest = sorted_groups[0]
+        highest = sorted_groups[-1]
+        low_grp = lowest["group"]
+        low_m = format_currency(lowest["mean"])
+        hi_grp = highest["group"]
+        hi_m = format_currency(highest["mean"])
+        print(
+            f"- Across the {len(summaries)} categories, {low_grp} employees show the lowest "
+            f"observed average spend ({low_m}/month), whereas {hi_grp} shows "
+            f"the highest ({hi_m}/month)."
+        )
+        print(
+            "- Simultaneous Games-Howell adjustments identify which specific category pairs differ "
+            "reliably after familywise error control."
+        )
 
     section("WHAT THIS DOES NOT MEAN")
     print("- Job category is an observational classification, not an experimental assignment.")

@@ -545,7 +545,14 @@ def matched_pairs_rank_biserial_bootstrap_ci(
     bootstrap_samples: int = 499,
     random_state: int | None = 0,
 ) -> dict[str, Any]:
-    """Deterministic pair-level percentile bootstrap for matched-pairs rank-biserial correlation."""
+    """Deterministic pair-level percentile bootstrap for matched-pairs rank-biserial correlation.
+
+    Valid resample policy:
+        Requires at least `max(10, bootstrap_samples // 2)` valid resamples to declare
+        the confidence interval available. For standard runs (B >= 20), this requires at
+        least 50% successful resamples; for small exploratory/CI runs (B < 20), it enforces
+        an absolute floor of 10 valid resamples for empirical percentile bounds.
+    """
     method = "paired-observation percentile bootstrap"
     quantity = "matched-pairs rank-biserial correlation"
     seed = 0 if random_state is None else random_state
@@ -596,8 +603,8 @@ def matched_pairs_rank_biserial_bootstrap_ci(
             quantity,
             status="unavailable",
             reason=(
-                f"Fewer than half of requested bootstrap resamples were valid "
-                f"({len(reps)} / {bootstrap_samples}; minimum {min_valid})."
+                f"Insufficient valid bootstrap resamples "
+                f"({len(reps)} / {bootstrap_samples}; minimum {min_valid} required)."
             ),
             requested_resamples=bootstrap_samples,
             valid_resamples=len(reps),
@@ -630,7 +637,20 @@ def friedman_kendall_w_bootstrap_ci(
     bootstrap_samples: int = 499,
     random_state: int | None = 0,
 ) -> dict[str, Any]:
-    """Deterministic participant/unit block bootstrap for Kendall's W rank concordance."""
+    """Deterministic participant/unit block bootstrap for Kendall's W rank concordance.
+
+    Optimization & valid resample policy:
+        Because within-unit ranks and unit tie penalties depend only on observations within
+        each row, ranks and tie counts are precomputed across units once. Resampled matrices
+        are evaluated by summing precomputed ranks and tie corrections across selected rows,
+        yielding mathematically equivalent replicate values in O(B * k) operations rather than
+        re-ranking O(B * n * k) elements.
+
+        Requires at least `max(10, bootstrap_samples // 2)` valid resamples to declare
+        the confidence interval available. For standard runs (B >= 20), this requires at
+        least 50% successful resamples; for small exploratory/CI runs (B < 20), it enforces
+        an absolute floor of 10 valid resamples for empirical percentile bounds.
+    """
     method = "participant-block percentile bootstrap"
     quantity = "Kendall's W"
     seed = 0 if random_state is None else random_state
@@ -703,8 +723,8 @@ def friedman_kendall_w_bootstrap_ci(
             quantity,
             status="unavailable",
             reason=(
-                f"Fewer than half of requested bootstrap resamples were valid "
-                f"({len(reps)} / {bootstrap_samples}; minimum {min_valid})."
+                f"Insufficient valid bootstrap resamples "
+                f"({len(reps)} / {bootstrap_samples}; minimum {min_valid} required)."
             ),
             requested_resamples=bootstrap_samples,
             valid_resamples=len(reps),

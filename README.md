@@ -703,6 +703,8 @@ Run the entire suite in one command:
 
 ```bash
 python examples/run_all.py
+# Or run in fast CI mode:
+python examples/run_all.py --fast
 ```
 
 Explore the full gallery and business scenarios in the [Examples Guide](examples/README.md).

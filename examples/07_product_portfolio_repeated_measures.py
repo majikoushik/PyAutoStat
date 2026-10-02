@@ -14,7 +14,6 @@ Scientific Focus:
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -22,8 +21,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _customer_data import (
+    announce_fast_mode_if_active,
+    format_currency,
     format_number,
     load_product_spend_long,
+    resolve_bootstrap_samples,
     section,
     subsection,
 )
@@ -35,6 +37,7 @@ CONDITION_ORDER = ("Product A", "Product B", "Product C")
 
 
 def main() -> None:
+    announce_fast_mode_if_active()
     section("BUSINESS QUESTION")
     print(
         "Question : How do monthly spending distributions differ across Product A, Product B, "
@@ -52,12 +55,7 @@ def main() -> None:
     assistant = ResearchAssistant(long_frame)
 
     # 2. Run guided repeated-measures distribution comparison
-    fast_mode = (
-        "--fast" in sys.argv
-        or os.environ.get("PYAUTOSTAT_FAST_TEST") == "1"
-        or os.environ.get("PYAUTOSTAT_FAST_DEMO") == "1"
-    )
-    b_samples = 50 if fast_mode else 199
+    b_samples = resolve_bootstrap_samples(default=499, fast_count=50)
     workflow = assistant.run(
         objective="compare_groups",
         outcome="monthly_spend",
@@ -118,13 +116,9 @@ def main() -> None:
         med = c_info["median"]
         iqr = c_info["iqr"]
         mean_val = c_info["mean"]
-        zero_pct = 0.0
-        if c_name == "Product A":
-            zero_pct = 0.0
-        elif c_name == "Product B":
-            zero_pct = 65.9
-        elif c_name == "Product C":
-            zero_pct = 73.1
+        zero_pct = float(
+            (long_frame.loc[long_frame["product"] == c_name, "monthly_spend"] == 0).mean() * 100.0
+        )
         print(
             f"  {c_name:<14} | {med:>12.2f} | {iqr:>12.2f} | {mean_val:>12.2f} | {zero_pct:>13.1f}%"
         )
@@ -148,19 +142,27 @@ def main() -> None:
     section("INTERPRETATION")
     print(workflow.explain())
 
+    cond_map = {c["condition"]: c for c in values.get("condition_summaries", [])}
+    med_a = cond_map.get("Product A", {}).get("median", 0.0)
+    med_b = cond_map.get("Product B", {}).get("median", 0.0)
+    med_c = cond_map.get("Product C", {}).get("median", 0.0)
+
     section("WHAT THIS MEANS")
+    m_a = format_currency(med_a)
+    m_b = format_currency(med_b)
+    m_c = format_currency(med_c)
     print(
-        "- Product A is purchased by 100% of customers (median $38.20), whereas Products B "
-        "and C have median $0.00"
+        f"- Product A is purchased by 100% of customers (median {m_a}), "
+        f"whereas Products B and C have median {m_b} and {m_c}"
     )
     print("  due to non-subscription (zero-inflated distributions).")
     print(
-        "- The Friedman rank-sum test correctly accounts for within-customer pairing across "
-        "all 5,000 units."
+        f"- The Friedman rank-sum test accounts for within-customer pairing across "
+        f"all {len(long_frame['customer_id'].unique()):,} complete customer panels."
     )
     print(
-        "- Pairwise Wilcoxon tests confirm significant rank shifts across all product pairs "
-        "after Holm adjustment."
+        "- Pairwise Wilcoxon tests evaluate condition rank shifts after Holm "
+        "multiplicity adjustment."
     )
 
     section("WHAT THIS DOES NOT MEAN")

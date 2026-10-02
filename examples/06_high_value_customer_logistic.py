@@ -6,10 +6,12 @@ Business Question:
 
 Scientific Focus:
     Demonstrates inferential binary logistic regression without structural leakage.
-    Because 'high_value_customer' is deterministically derived from total monthly spend
-    (cutoff ~ $275), all spend variables and direct structural flags (Streaming, Wireless)
-    are intentionally excluded. Evaluates odds ratios, Wald confidence intervals,
-    and McFadden's pseudo-R2 strictly as inferential associations, not predictive AutoML.
+    High-value status is perfectly separated by total monthly spend in this demonstration
+    dataset (cutoff ~ $275). Using spend variables as predictors would therefore create
+    severe target leakage/circularity. Spend variables and direct structural flags
+    (Streaming, Wireless) are intentionally excluded. Evaluates odds ratios, Wald
+    confidence intervals, and McFadden's pseudo-R2 strictly as inferential associations,
+    not predictive AutoML.
 """
 
 from __future__ import annotations
@@ -68,10 +70,14 @@ def main() -> None:
         f"High-value min spend = ${hvc_min:.2f}."
     )
     print(
-        f"Separation: High-value status is deterministically separated at spend ~ $275 "
-        f"(separation holds: {separation})."
+        "Separation: High-value status is perfectly separated by total monthly spend in this "
+        f"demonstration dataset (separation holds: {separation})."
     )
-    print("Safeguard : Therefore, all spend fields (Total Spend, Product A/B/C spends) and")
+    print(
+        "Safeguard : Using spend variables as predictors would therefore create "
+        "severe target leakage/circularity."
+    )
+    print("            Therefore, all spend fields (Total Spend, Product A/B/C spends) and")
     print("            structurally tied flags (Streaming, Wireless) are INTENTIONALLY EXCLUDED.")
     print(
         "            Using them would create 100% circular tautology rather than genuine insight."
@@ -149,20 +155,39 @@ def main() -> None:
     section("INTERPRETATION")
     print(workflow.explain())
 
+    coef_map = {c.get("term", ""): c for c in values.get("coefficients", [])}
+    edu_c = coef_map.get("education_years", {})
+    edu_or = edu_c.get("odds_ratio")
+    edu_ci = edu_c.get("odds_ratio_ci") or {}
+    edu_p = format_number(edu_c.get("p_value"))
+
+    tenure_c = coef_map.get("brand_tenure_months", {})
+    tenure_or = tenure_c.get("odds_ratio")
+    tenure_ci = tenure_c.get("odds_ratio_ci") or {}
+    tenure_p = format_number(tenure_c.get("p_value"))
+
     section("WHAT THIS MEANS")
     print(
         "- Even after rigorously excluding spend leakage, education years and brand tenure are "
         "strongly associated"
     )
     print("  with high-value segment membership.")
-    print(
-        "- Each additional year of education multiplies the odds of being a high-value customer "
-        "by approx 1.34 (OR ~ 1.34, 95% CI [1.30, 1.38], p < 1e-70)."
-    )
-    print(
-        "- Each additional month of brand tenure increases the odds by approx 2.1% "
-        "(OR ~ 1.021, 95% CI [1.016, 1.026], p < 1e-14)."
-    )
+    if edu_or is not None and edu_ci:
+        edu_lo = edu_ci.get("lower", 0)
+        edu_hi = edu_ci.get("upper", 0)
+        print(
+            f"- Each additional year of education multiplies the odds of high-value status "
+            f"by an estimated {edu_or:.2f} (95% Wald CI [{edu_lo:.2f}, {edu_hi:.2f}], p = {edu_p})."
+        )
+    if tenure_or is not None and tenure_ci:
+        pct_increase = (tenure_or - 1.0) * 100.0
+        ten_lo = tenure_ci.get("lower", 0)
+        ten_hi = tenure_ci.get("upper", 0)
+        print(
+            f"- Each additional month of brand tenure is associated with an estimated "
+            f"{pct_increase:.1f}% increase in odds (OR = {tenure_or:.3f}, "
+            f"95% Wald CI [{ten_lo:.3f}, {ten_hi:.3f}], p = {tenure_p})."
+        )
 
     section("WHAT THIS DOES NOT MEAN")
     print("- An Odds Ratio is NOT a constant difference in probability.")
@@ -170,8 +195,9 @@ def main() -> None:
         "- This model establishes conditional epidemiological associations, "
         "NOT causal interventions."
     )
+    mcf_pct = mcfadden * 100.0 if isinstance(mcfadden, (int, float)) else 0.0
     print(
-        "- McFadden pseudo-R2 (14.6%) indicates meaningful explanatory signal, "
+        f"- McFadden pseudo-R2 ({mcf_pct:.1f}%) indicates meaningful explanatory signal, "
         "but is NOT comparable to OLS R2."
     )
     print(

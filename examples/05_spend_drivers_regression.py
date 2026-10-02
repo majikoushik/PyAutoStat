@@ -1,4 +1,4 @@
-"""Example 05: What is Associated with Customer Spend? (Multiple OLS with HC3).
+"""Example 05: Customer Characteristics Associated with Monthly Spend (Multiple OLS with HC3).
 
 Business Question:
     "Which non-product customer characteristics are conditionally associated with total monthly
@@ -7,9 +7,12 @@ Business Question:
 Scientific Focus:
     Demonstrates multiple linear regression without structural data leakage. Spend components
     (Product A/B/C) and direct structural flags (Streaming, Wireless) are excluded.
-    HC3 heteroscedasticity-consistent standard errors protect inference without altering
-    point estimates. Model diagnostics (VIF, Breusch-Pagan) inform interpretation without
-    triggering post-hoc variable selection or row deletion.
+    HC3 heteroscedasticity-consistent covariance estimates reduce reliance on the equal-variance
+    assumption without altering point estimates. Model diagnostics (VIF, Breusch-Pagan) inform
+    interpretation without triggering post-hoc variable selection or row deletion.
+
+    Note: "Spend drivers" is business shorthand only; the fitted OLS model estimates
+    conditional associations, not causal drivers.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _customer_data import (
     DATA_DICTIONARY,
+    format_currency,
     format_number,
     load_customer_data,
     section,
@@ -52,6 +56,10 @@ def main() -> None:
     print(
         "Design   : Cross-sectional multiple OLS regression with HC3 robust covariance "
         "(5,000 customers)"
+    )
+    print(
+        "Note     : 'Spend drivers' is business shorthand; the fitted OLS model estimates "
+        "conditional associations, not causal effects."
     )
 
     # 1. Load cleaned customer data (customer IDs excluded)
@@ -135,7 +143,7 @@ def main() -> None:
         f"Breusch-Pagan Heteroscedasticity Test: LM = {format_number(bp.get('lm_statistic'))}, "
         f"p = {format_number(bp.get('lm_p_value'))}"
     )
-    print("  -> Heteroscedasticity rejected equal residual variance; validates HC3 covariance use.")
+    print("  -> The heteroscedasticity diagnostic supports reporting HC3 robust covariance.")
 
     vif_info = diag.get("vif", {})
     print(
@@ -147,26 +155,37 @@ def main() -> None:
     section("INTERPRETATION")
     print(workflow.explain())
 
+    coef_map = {c.get("term", ""): c for c in values.get("coefficients", [])}
+    edu_c = coef_map.get("education_years", {})
+    edu_b = edu_c.get("estimate")
+    edu_std = edu_c.get("standardized_beta")
+    tenure_c = coef_map.get("brand_tenure_months", {})
+    tenure_std = tenure_c.get("standardized_beta")
+
     section("WHAT THIS MEANS")
+    if edu_b is not None:
+        print(
+            f"- Holding other demographic predictors constant, education years "
+            f"(standardized beta = {format_number(edu_std)}) and"
+        )
+        print(
+            f"  brand tenure (standardized beta = {format_number(tenure_std)}) "
+            f"exhibit the strongest conditional associations with customer monthly spend."
+        )
+        print(
+            f"- Each additional year of education is associated with an estimated "
+            f"{format_currency(edu_b)} higher monthly spend."
+        )
     print(
-        "- Holding other demographic predictors constant, education years (beta ~ 0.35) and "
-        "brand tenure (beta ~ 0.17)"
-    )
-    print("  exhibit the strongest conditional associations with customer monthly spend.")
-    print(
-        "- Each additional year of education is associated with approximately $19.61 higher "
-        "monthly spend."
-    )
-    print(
-        "- HC3 robust covariance ensures that standard errors and confidence intervals "
-        "remain valid even when residual variance is heteroscedastic."
+        "- HC3 provides heteroskedasticity-consistent covariance estimates and reduces reliance "
+        "on the equal-variance assumption."
     )
 
     section("WHAT THIS DOES NOT MEAN")
     print("- These coefficients are CONDITIONAL associations, not causal effects.")
-    print(
-        "- R-squared (23.4%) reflects in-sample fit; it is not out-of-sample predictive accuracy."
-    )
+    r2_val = fit.get("r_squared")
+    r2_str = f"R-squared ({r2_val * 100:.1f}%)" if isinstance(r2_val, (int, float)) else "R-squared"
+    print(f"- {r2_str} reflects in-sample fit; it is not out-of-sample predictive accuracy.")
     print("- No automated stepwise variable selection or p-hacking was performed.")
     print(
         "- Outliers or influential points were NOT automatically pruned to artificially inflate R2."

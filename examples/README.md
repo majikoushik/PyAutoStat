@@ -68,16 +68,16 @@ examples/CustomerDataset.csv
 
 ## Example gallery
 
-| # | Business question | PyAutoStat capability | What the example proves | Command |
+| # | Business question | PyAutoStat capability | What the example demonstrates | Command |
 |---|---|---|---|---|
 | **01** | *"What does this customer base look like, and what should we investigate first?"* | Data understanding & profiling | One call turns raw data into percentiles, skewness cues, and prioritized screening insights. Outliers are review cues, not deletion orders. | `python examples/01_customer_360_profile.py` |
 | **02** | *"Do news subscribers and non-subscribers differ in average total monthly spend?"* | Two independent groups (Welch t) | Preserves the declared mean estimand without assuming equal variances. Reports Cohen's d with bootstrap CI alongside the p-value. | `python examples/02_compare_customer_segments.py` |
 | **03** | *"Does average monthly spending differ across customer job categories?"* | Multi-group ANOVA (Welch + Games-Howell) | Handles omnibus mean testing across 6 groups and delivers all 15 multiplicity-controlled pairwise follow-up contrasts with simultaneous CIs. | `python examples/03_multigroup_customer_spending.py` |
 | **04** | *"Is home-ownership status associated with high-value-customer segment membership?"* | Categorical association (Chi-Square & Cramer's V) | 2x2 categorical independence without spend leakage. Checks expected cell counts, reports Cramer's V effect size, and verifies Fisher fallback status. | `python examples/04_customer_value_association.py` |
 | **05** | *"Which non-product customer characteristics are conditionally associated with total spend?"* | Multiple OLS regression (HC3 covariance) | Excludes spend components to prevent circularity. Uses HC3 robust covariance for heteroscedastic residuals; reports standardized betas and VIF. | `python examples/05_spend_drivers_regression.py` |
-| **06** | *"Which non-spend customer characteristics are associated with the high-value segment?"* | Binary logistic regression | Programmatically verifies that high-value status is derived from spend, excluding spend fields to prevent circularity. Reports odds ratios and McFadden pseudo-R2. | `python examples/06_high_value_customer_logistic.py` |
+| **06** | *"Which non-spend customer characteristics are associated with the high-value segment?"* | Binary logistic regression | Programmatically verifies that high-value status is separated by spend, excluding spend fields to prevent circularity. Reports odds ratios and McFadden pseudo-R2. | `python examples/06_high_value_customer_logistic.py` |
 | **07** | *"How do monthly spending distributions differ across Products A, B, and C within customers?"* | Repeated-measures distribution (Friedman & Wilcoxon) | Reshapes within-unit product spending into long format. Handles heavy zero-inflation cleanly using rank distributions, Kendall's W, and Holm-adjusted Wilcoxon pairs. | `python examples/07_product_portfolio_repeated_measures.py` |
-| **08** | *"How are two customer-segmentation factors jointly associated with average monthly spend?"* | Two-way factorial ANOVA (Type II SS) | Evaluates home ownership and news subscription main effects and interaction. Exact partial eta-squared CIs and unweighted EMMs demonstrate additive structure. | `python examples/08_factorial_customer_segments.py` |
+| **08** | *"How are two customer-segmentation factors jointly associated with average monthly spend?"* | Two-way factorial ANOVA (Type II SS) | Evaluates home ownership and news subscription main effects and interaction. Exact partial eta-squared CIs and unweighted EMMs illustrate an approximately additive observed pattern. | `python examples/08_factorial_customer_segments.py` |
 | **09** | *"End-to-end customer spending research lifecycle and scientific governance"* | Full research assistant lifecycle | The flagship hero workflow: structured clarification (`needs_input`), analysis planning, sensitivity scenarios, practical thresholds, reports, audit, and replay. | `python examples/09_complete_research_workflow.py` |
 
 ---
@@ -121,6 +121,8 @@ For fast CI execution:
 python examples/run_all.py --fast
 ```
 
+> **Note on `--fast` mode**: Fast demonstration / CI mode uses reduced bootstrap resamples (e.g., 50 replicates) to enable rapid automated regression testing. Resampled confidence intervals generated under `--fast` are intended solely for runtime verification and must not be reported as production-quality uncertainty estimates.
+
 ---
 
 ## What the examples deliberately do not claim
@@ -128,7 +130,7 @@ python examples/run_all.py --fast
 - **Representativeness**: The customer dataset is demonstration data; it does not claim to represent any national or commercial population.
 - **Causation**: Every association (such as news subscription or home ownership with spending) is strictly observational and conditional; no causal intervention is established.
 - **Automatic scientific truth**: Diagnostic tests and method recommendations assist analysis; they do not replace study-design validity or substantive expertise.
-- **Out-of-sample prediction**: Regression R-squared (23.4%) and McFadden pseudo-R2 (14.6%) summarize in-sample fit; they are not machine learning benchmark scores.
+- **Out-of-sample prediction**: Regression reports in-sample R-squared and logistic regression reports McFadden pseudo-R2; they are not machine learning benchmark scores.
 - **Universal practical thresholds**: The $25/month threshold demonstrated in Example 09 is an illustrative tutorial input declared by the researcher, not a discovered economic constant.
 
 ---

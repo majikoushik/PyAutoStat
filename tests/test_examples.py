@@ -281,3 +281,124 @@ def test_bundled_workbook_matches_documented_shape_and_has_unique_pairing_ids() 
         "MonthlySpend_ProductA",
         "MonthlySpend_ProductB",
     } <= set(frame)
+
+
+def test_example_02_signed_contrast_orientation() -> None:
+    """Example 02 must preserve signed contrast orientation without abs() inversion."""
+    result = _run_example("02_compare_customer_segments.py")
+    assert result.returncode == 0, f"Example 02 failed:\n{result.stderr}"
+
+    # Output must state negative difference: Non-subscribers spend less
+    assert "-$47.70" in result.stdout or "-47.70" in result.stdout
+    assert "[-$56.86, -$38.55]" in result.stdout or "[-56.86, -38.55]" in result.stdout
+    assert "spent approximately $47.70 less per month than subscribers" in result.stdout
+
+    # Verify no abs() inversion or reversed bound order
+    assert "abs(" not in (EXAMPLES / "02_compare_customer_segments.py").read_text(encoding="utf-8")
+
+
+def test_example_05_predictor_leakage_invariants() -> None:
+    """Example 05 must not include direct spend components or total spend as predictors."""
+    sys.path.insert(0, str(EXAMPLES))
+    import importlib
+
+    e05 = importlib.import_module("05_spend_drivers_regression")
+    cdata = importlib.import_module("_customer_data")
+
+    predictors = set(e05.PREDICTORS)
+    spend_components = set(cdata.SPEND_COMPONENT_COLUMNS)
+
+    # 1. Disjoint from direct spend components
+    assert predictors.isdisjoint(spend_components), (
+        f"Example 05 predictors contain spend components: {predictors & spend_components}"
+    )
+
+    # 2. Total spend must not predict itself
+    assert "total_avg_monthly_spend" not in predictors
+
+    # 3. Structural spend proxies (streaming / wireless) must be excluded
+    assert "streaming_services" not in predictors
+    assert "wireless_internet" not in predictors
+
+
+def test_example_06_predictor_leakage_invariants() -> None:
+    """Example 06 must not include spend variables predicting high-value status."""
+    sys.path.insert(0, str(EXAMPLES))
+    import importlib
+
+    e06 = importlib.import_module("06_high_value_customer_logistic")
+    cdata = importlib.import_module("_customer_data")
+
+    predictors = set(e06.PREDICTORS)
+    forbidden = set(cdata.HIGH_VALUE_FORBIDDEN_PREDICTORS)
+
+    # 1. Disjoint from forbidden predictors
+    assert predictors.isdisjoint(forbidden), (
+        f"Example 06 predictors contain forbidden leakage variables: {predictors & forbidden}"
+    )
+
+    # 2. Target must not predict itself
+    assert "high_value_customer" not in predictors
+
+
+def test_run_all_fast_mode(tmp_path: Path) -> None:
+    """run_all.py --fast must succeed in isolated subprocess, report pass, and not leak IDs."""
+    test_out = tmp_path / "fast_reports"
+    cmd = [
+        sys.executable,
+        str(EXAMPLES / "run_all.py"),
+        "--fast",
+        "--output-dir",
+        str(test_out),
+    ]
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+
+    proc = subprocess.run(
+        cmd,
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+
+    assert proc.returncode == 0, f"run_all.py --fast failed with stderr:\n{proc.stderr}"
+    assert "RESULT: ALL 9 EXAMPLES PASSED." in proc.stdout
+    assert "Traceback" not in proc.stdout
+    assert "Traceback" not in proc.stderr
+
+    for sample_id in SAMPLE_CUSTOMER_IDS:
+        assert sample_id not in proc.stdout
+
+    # Reports directory in examples/ must not have been created or modified
+    assert not (EXAMPLES / "reports").exists(), "run_all.py must not write to examples/reports/"
+
+
+def test_fast_mode_disclosure() -> None:
+    """When fast mode is active, an explicit disclaimer must be printed."""
+    result = _run_example("07_product_portfolio_repeated_measures.py", "--fast")
+    assert result.returncode == 0
+    assert "FAST DEMO/CI MODE: bootstrap intervals use reduced resamples" in result.stdout
+
+
+def test_expanded_scientific_guardrails() -> None:
+    """Ensure public example copy avoids unjustified causal and certainty claims."""
+    text = "\n".join(
+        (EXAMPLES / name).read_text(encoding="utf-8")
+        for name in (*PUBLIC_SCRIPTS, "_customer_data.py", "run_all.py", "README.md")
+    )
+
+    for forbidden in (
+        "purely additive",
+        "pure additive",
+        "proves additive",
+        "interaction is zero",
+        "guarantees that standard errors",
+        "ensures that standard errors",
+        "validates hc3",
+    ):
+        assert forbidden not in text.lower(), (
+            f"Forbidden phrase '{forbidden}' found in example text"
+        )

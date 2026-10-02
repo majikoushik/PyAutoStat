@@ -8,7 +8,8 @@ Scientific Focus:
     and news subscription) and their interaction on total monthly spend.
     Uses Type II sums of squares (hierarchical testing) and non-central F inversion for exact
     partial eta-squared confidence intervals. Unweighted estimated marginal means (EMMs)
-    and simple cell summaries illustrate that the effects are purely additive.
+    and simple cell summaries illustrate an approximately additive observed pattern without
+    detectable interaction.
 """
 
 from __future__ import annotations
@@ -123,35 +124,42 @@ def main() -> None:
     section("INTERPRETATION")
     print(workflow.explain())
 
+    terms_by_name = {t.get("term", ""): t for t in values.get("terms", [])}
+    fa_term = terms_by_name.get("home_owner", {})
+    fb_term = terms_by_name.get("news_subscriber", {})
+    int_term = terms_by_name.get("home_owner:news_subscriber", {})
+
     section("WHAT THIS MEANS")
+    fa_f = format_number(fa_term.get("f_statistic"))
+    fa_p = format_number(fa_term.get("p_value"))
+    fb_f = format_number(fb_term.get("f_statistic"))
+    fb_p = format_number(fb_term.get("p_value"))
+    int_f = format_number(int_term.get("f_statistic"))
+    int_p = format_number(int_term.get("p_value"))
+
     print(
-        "- Both main effects are statistically significant: Homeowners spend more than "
-        "non-owners (F = 30.99, p < 1e-7),"
+        f"- Both main effects are statistically significant: Homeowners spend more "
+        f"than non-owners (F = {fa_f}, p = {fa_p}), and news subscribers spend more "
+        f"than non-subscribers (F = {fb_f}, p = {fb_p})."
     )
-    print("  and news subscribers spend more than non-subscribers (F = 99.79, p < 1e-22).")
     print(
-        "- The interaction term (home_owner:news_subscriber) is NOT statistically significant "
-        "(F = 0.001, p = 0.975)."
+        f"- The interaction term (home_owner:news_subscriber) is not statistically detectable "
+        f"(F = {int_f}, p = {int_p})."
     )
     print(
-        "- This absence of interaction indicates an ADDITIVE relationship: the spending premium "
-        "associated with"
-    )
-    print(
-        "  news subscription is virtually identical for homeowners (+$46.11/mo) and non-homeowners "
-        "(+$46.42/mo)."
+        "- No statistically detectable interaction was found in this dataset, and the observed "
+        "cell means are close to an additive pattern across customer subgroups."
     )
 
     section("WHAT THIS DOES NOT MEAN")
     print("- Neither factor was experimentally manipulated; these are observational associations.")
     print(
-        "- Non-significance of the interaction does NOT prove the true interaction is zero, "
-        "only that the observed"
+        "- Non-significance of the interaction does NOT prove that a population interaction "
+        "is absent; absence of evidence is not evidence of exact additivity."
     )
-    print("  data are fully consistent with additive main effects.")
     print(
         "- Residual non-normality was noted in diagnostics, but given N = 5,000, F-tests for main "
-        "effects remain robust."
+        "effects have well-controlled asymptotic error rates."
     )
     print(
         "\nNext step: Run 'python examples/09_complete_research_workflow.py' for the end-to-end "

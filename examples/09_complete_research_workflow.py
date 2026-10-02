@@ -30,7 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pandas as pd
 from _customer_data import (
     DATA_DICTIONARY,
+    announce_fast_mode_if_active,
+    is_fast_mode,
     load_customer_data,
+    resolve_bootstrap_samples,
     section,
 )
 
@@ -64,11 +67,15 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
+def run_independent_workflow(
+    frame: pd.DataFrame, output_dir: Path, fast_mode: bool = False
+) -> None:
     section("1. STRUCTURED CLARIFICATION: UNKNOWN DESIGN STAYS UNKNOWN")
     assistant = ResearchAssistant(frame)
     assistant.enable_tracking()
     assistant.declare_planning("planned", reason="Declared before the numerical analysis.")
+
+    b_samples = resolve_bootstrap_samples(default=499, fast_count=50) if fast_mode else 499
 
     # Incomplete specification: design omitted intentionally
     incomplete = assistant.run(
@@ -76,7 +83,12 @@ def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
         outcome="total_avg_monthly_spend",
         predictor="news_subscriber",
         estimand="mean",
-        options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=RANDOM_SEED),
+        options=AnalysisOptions(
+            alpha=0.05,
+            confidence_level=0.95,
+            random_seed=RANDOM_SEED,
+            bootstrap_samples=b_samples,
+        ),
         data_dictionary=DATA_DICTIONARY,
     )
     print("Initial workflow status:", incomplete.status.value)
@@ -235,7 +247,7 @@ def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
     print("CSV tables:", len(csv_paths))
 
 
-def run_paired_workflow(full_data: pd.DataFrame) -> None:
+def run_paired_workflow(full_data: pd.DataFrame, fast_mode: bool = False) -> None:
     section("7. EXPLICIT PAIRED ANALYSIS AND PROSPECTIVE PAIRED PLANNING")
     # Reshape within-customer product spend for Product A and Product B
     paired_frame = full_data[
@@ -252,6 +264,8 @@ def run_paired_workflow(full_data: pd.DataFrame) -> None:
         }
     )
 
+    b_samples = resolve_bootstrap_samples(default=499, fast_count=50) if fast_mode else 499
+
     paired = ResearchAssistant(paired_frame).run(
         objective="compare_groups",
         outcome="monthly_spend",
@@ -260,7 +274,7 @@ def run_paired_workflow(full_data: pd.DataFrame) -> None:
         estimand="mean",
         unit_id="customer_id",
         condition_order=("Product A", "Product B"),
-        options=AnalysisOptions(random_seed=RANDOM_SEED),
+        options=AnalysisOptions(random_seed=RANDOM_SEED, bootstrap_samples=b_samples),
         data_dictionary={"monthly_spend": {"type": "continuous", "unit": "USD/month"}},
     )
     if paired.analysis is None:
@@ -287,6 +301,9 @@ def run_paired_workflow(full_data: pd.DataFrame) -> None:
 
 def main() -> None:
     arguments = parse_arguments()
+    announce_fast_mode_if_active()
+    fast_mode = arguments.fast or is_fast_mode()
+
     # 1. Load data without customer_id for main independent workflow
     analysis_frame = load_customer_data(include_customer_id=False)
     # 2. Load data with customer_id for explicit unit-matched paired analysis
@@ -297,8 +314,8 @@ def main() -> None:
         f"{len(analysis_frame.columns)} analysis columns."
     )
     out_dir = arguments.output_dir.resolve()
-    run_independent_workflow(analysis_frame, out_dir)
-    run_paired_workflow(full_data)
+    run_independent_workflow(analysis_frame, out_dir, fast_mode=fast_mode)
+    run_paired_workflow(full_data, fast_mode=fast_mode)
 
     section("SUMMARY OF GENERATED ARTIFACTS")
     print(f"Artifact directory: {out_dir}")
