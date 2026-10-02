@@ -1,9 +1,10 @@
-"""The published examples should run and preserve the package's scientific contract."""
+"""The published customer analytics examples should run and preserve the scientific contract."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,16 +14,32 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
-SCRIPTS = (
-    "01_quick_start.py",
-    "02_hypothesis_testing.py",
-    "03_advanced_workflow.py",
-    "data_understanding.py",
-    "basic_inference.py",
-    "explainable_recommendation_and_report.py",
-    "multigroup_analysis.py",
-    "linear_regression.py",
-    "binary_and_extended_association.py",
+
+# All public example scripts must use CustomerDataset.csv
+PUBLIC_SCRIPTS = (
+    "01_customer_360_profile.py",
+    "02_compare_customer_segments.py",
+    "03_multigroup_customer_spending.py",
+    "04_customer_value_association.py",
+    "05_spend_drivers_regression.py",
+    "06_high_value_customer_logistic.py",
+    "07_product_portfolio_repeated_measures.py",
+    "08_factorial_customer_segments.py",
+    "09_complete_research_workflow.py",
+)
+
+ALL_EXAMPLE_FILES = (
+    *PUBLIC_SCRIPTS,
+    "_customer_data.py",
+    "run_all.py",
+)
+
+SAMPLE_CUSTOMER_IDS = (
+    "0002-GTOKLU-YVY",
+    "0003-RLTRGE-IW2",
+    "0003-UTGKPR-PRU",
+    "0008-ZIQQOT-SGB",
+    "0012-CIVYLF-839",
 )
 
 
@@ -41,51 +58,158 @@ def _run_example(filename: str, *arguments: str) -> subprocess.CompletedProcess[
     )
 
 
+def test_customer_data_loader_contract():
+    """Verify CustomerDataset.csv loading, shape, types, and verified structural invariants."""
+    sys.path.insert(0, str(EXAMPLES))
+    from _customer_data import load_customer_data, load_product_spend_long
+
+    # 1. Anonymized view
+    df_clean = load_customer_data(include_customer_id=False)
+    assert df_clean.shape == (5000, 39)
+    assert "customer_id" not in df_clean.columns
+
+    # 2. View with customer_id for matching
+    df_full = load_customer_data(include_customer_id=True)
+    assert df_full.shape == (5000, 40)
+    assert "customer_id" in df_full.columns
+    assert df_full["customer_id"].is_unique
+    assert df_full["customer_id"].notna().all()
+
+    # 3. Numeric currency conversions
+    for col in (
+        "monthly_spend_product_a",
+        "monthly_spend_product_b",
+        "monthly_spend_product_c",
+        "total_avg_monthly_spend",
+        "cumulative_spend_product_a",
+        "cumulative_spend_product_b",
+        "cumulative_spend_product_c",
+    ):
+        assert pd.api.types.is_numeric_dtype(df_full[col]), f"{col} must be numeric"
+
+    # 4. Total Avg Monthly Spend is exact sum of Product A, B, and C
+    spend_diff = (
+        df_full["total_avg_monthly_spend"]
+        - (
+            df_full["monthly_spend_product_a"]
+            + df_full["monthly_spend_product_b"]
+            + df_full["monthly_spend_product_c"]
+        )
+    ).abs()
+    assert (spend_diff < 1e-5).all(), "Total spend must equal sum of product spends"
+
+    # 5. Zero-inflation structural relationships
+    assert (
+        (df_full["monthly_spend_product_b"] > 0) == (df_full["streaming_services"] == "Yes")
+    ).all(), "Product B spend exists iff customer has streaming services"
+    assert (
+        (df_full["monthly_spend_product_c"] > 0) == (df_full["wireless_internet"] == "Yes")
+    ).all(), "Product C spend exists iff customer has wireless internet"
+
+    # 6. High-value customer deterministic separation threshold (~$275)
+    max_standard = df_full.loc[df_full["high_value_customer"] == 0, "total_avg_monthly_spend"].max()
+    min_high_val = df_full.loc[df_full["high_value_customer"] == 1, "total_avg_monthly_spend"].min()
+    assert max_standard < min_high_val, "High-value customer must separate cleanly by spend"
+    assert 274.0 < max_standard < 275.1
+    assert 275.1 < min_high_val < 276.0
+
+    # 7. Long-form product spend repeated panel
+    long_panel = load_product_spend_long()
+    assert long_panel.shape == (15000, 3)
+    assert set(long_panel.columns) == {"customer_id", "product", "monthly_spend"}
+    assert set(long_panel["product"].unique()) == {"Product A", "Product B", "Product C"}
+    assert long_panel["customer_id"].nunique() == 5000
+    assert long_panel["monthly_spend"].notna().all()
+
+
 @pytest.mark.parametrize(
-    ("filename", "expected"),
+    ("filename", "expected_content"),
     (
-        ("01_quick_start.py", "PRIORITIZED INSIGHTS"),
-        ("02_hypothesis_testing.py", "TRACEABLE SUMMARY"),
-        ("explainable_recommendation_and_report.py", "ANALYSIS RESULT"),
-        ("data_understanding.py", "DESCRIPTIVE CROSS-TAB"),
-        ("basic_inference.py", "FISHER EXACT 2x2 INFERENCE"),
-        ("multigroup_analysis.py", "GUIDED WELCH ANOVA AND GAMES-HOWELL"),
-        ("linear_regression.py", "MODEL FIT"),
-        ("binary_and_extended_association.py", "PARTIAL ASSOCIATION"),
+        (
+            "01_customer_360_profile.py",
+            [
+                "BUSINESS QUESTION",
+                "PYAUTOSTAT DECISION & PROFILE SUMMARY",
+                "WHAT THIS DOES NOT MEAN",
+            ],
+        ),
+        (
+            "02_compare_customer_segments.py",
+            ["BUSINESS QUESTION", "Welch independent-samples t-test", "INTERPRETATION"],
+        ),
+        (
+            "03_multigroup_customer_spending.py",
+            ["BUSINESS QUESTION", "Welch one-way ANOVA", "Games-Howell"],
+        ),
+        (
+            "04_customer_value_association.py",
+            ["BUSINESS QUESTION", "Pearson chi-square test of independence", "Cramer's V"],
+        ),
+        (
+            "05_spend_drivers_regression.py",
+            ["BUSINESS QUESTION", "Ordinary least-squares linear regression", "HC3"],
+        ),
+        (
+            "06_high_value_customer_logistic.py",
+            ["BUSINESS QUESTION", "STRUCTURAL LEAKAGE SAFEGUARD", "Binary logistic regression"],
+        ),
+        (
+            "07_product_portfolio_repeated_measures.py",
+            ["BUSINESS QUESTION", "Friedman rank-sum test", "Kendall's W"],
+        ),
+        (
+            "08_factorial_customer_segments.py",
+            ["BUSINESS QUESTION", "Two-way factorial ANOVA", "Cell Sample Sizes and Means"],
+        ),
     ),
 )
-def test_introductory_examples_run_from_repository_root(filename, expected):
+def test_introductory_examples_run_from_repository_root(
+    filename: str, expected_content: list[str]
+) -> None:
     result = _run_example(filename)
 
-    assert result.returncode == 0, result.stderr
-    assert expected in result.stdout
-    assert "0002-GTOKLU-YVY" not in result.stdout
+    assert result.returncode == 0, f"Script {filename} failed with stderr:\n{result.stderr}"
+    for expected in expected_content:
+        assert expected in result.stdout, f"Expected '{expected}' missing from {filename}"
+    for sample_id in SAMPLE_CUSTOMER_IDS:
+        assert sample_id not in result.stdout, f"Customer ID {sample_id} leaked in {filename}"
+    assert not re.search(r"\b\d{4}-[A-Z0-9]{6}-[A-Z0-9]{3}\b", result.stdout)
 
 
-def test_advanced_example_runs_full_lifecycle_and_writes_canonical_exports(tmp_path):
-    output_dir = tmp_path / "advanced"
-    result = _run_example("03_advanced_workflow.py", "--output-dir", str(output_dir))
+def test_complete_research_workflow_runs_and_writes_canonical_exports(tmp_path: Path) -> None:
+    output_dir = tmp_path / "customer_reports"
+    result = _run_example(
+        "09_complete_research_workflow.py", "--output-dir", str(output_dir), "--fast"
+    )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, f"Example 09 failed with stderr:\n{result.stderr}"
+
     for heading in (
-        "STRUCTURED CLARIFICATION",
-        "PLAN THE ESTIMAND",
-        "COMPARE DECLARED SENSITIVITY",
-        "PRACTICAL IMPORTANCE",
-        "REPORT, AUDIT, REPLAY",
-        "EXPLICIT PAIRED ANALYSIS",
+        "1. STRUCTURED CLARIFICATION: UNKNOWN DESIGN STAYS UNKNOWN",
+        "2. PLAN THE ESTIMAND, SENSITIVITY SCENARIOS, AND MEANINGFUL EFFECT",
+        "3. EXECUTE ONCE AND INTERPRET RECORDED VALUES",
+        "4. COMPARE DECLARED SENSITIVITY SCENARIOS",
+        "5. KEEP PRACTICAL IMPORTANCE SEPARATE FROM THE P-VALUE",
+        "6. REPORT, AUDIT, REPLAY, AND SERIALIZE THE SESSION",
+        "7. EXPLICIT PAIRED ANALYSIS AND PROSPECTIVE PAIRED PLANNING",
+        "SUMMARY OF GENERATED ARTIFACTS",
     ):
         assert heading in result.stdout
+
     for evidence in (
         "Initial workflow status: needs_input",
         "Plan created after analysis: False",
         "comparability: same_estimand",
         "comparability: different_estimand",
+        "Plan adherence: matched",
+        "Audit: passed",
         "Same-data replay: reproduced",
         "Identifier values are used for matching",
     ):
         assert evidence in result.stdout
-    assert "0002-GTOKLU-YVY" not in result.stdout
+
+    for sample_id in SAMPLE_CUSTOMER_IDS:
+        assert sample_id not in result.stdout
 
     expected_files = {
         "customer_analysis.html",
@@ -97,16 +221,55 @@ def test_advanced_example_runs_full_lifecycle_and_writes_canonical_exports(tmp_p
     assert expected_files <= {path.name for path in output_dir.iterdir()}
     assert (output_dir / "customer_analysis_tables").is_dir()
 
-    report = json.loads((output_dir / "customer_analysis.json").read_text(encoding="utf-8"))
-    assert report["schema_version"] == 2
-    assert "CustomerID" not in (output_dir / "customer_analysis.html").read_text(encoding="utf-8")
-    snapshot = json.loads((output_dir / "session_snapshot.json").read_text(encoding="utf-8"))
-    assert snapshot["schema_version"] == 1
+    report_json = json.loads((output_dir / "customer_analysis.json").read_text(encoding="utf-8"))
+    assert report_json["schema_version"] == 2
+    assert report_json["status"] == "complete"
+
+    snapshot_json = json.loads((output_dir / "session_snapshot.json").read_text(encoding="utf-8"))
+    assert snapshot_json["schema_version"] == 1
+
+    ledger_json = json.loads((output_dir / "decision_ledger.json").read_text(encoding="utf-8"))
+    assert "events" in ledger_json
+    assert len(ledger_json["events"]) > 0
+
+    html_content = (output_dir / "customer_analysis.html").read_text(encoding="utf-8")
+    for sample_id in SAMPLE_CUSTOMER_IDS:
+        assert sample_id not in html_content
+    assert not re.search(r"\b\d{4}-[A-Z0-9]{6}-[A-Z0-9]{3}\b", html_content)
 
 
-def test_bundled_workbook_matches_documented_shape_and_has_unique_pairing_ids():
+def test_public_examples_use_only_csv_dataset() -> None:
+    """Ensure no public example script or examples README references CustomerDataset.xlsx."""
+    for script_name in ALL_EXAMPLE_FILES:
+        content = (EXAMPLES / script_name).read_text(encoding="utf-8")
+        assert "CustomerDataset.xlsx" not in content, (
+            f"{script_name} must not reference CustomerDataset.xlsx"
+        )
+
+    readme_content = (EXAMPLES / "README.md").read_text(encoding="utf-8")
+    assert "CustomerDataset.xlsx" not in readme_content
+
+
+def test_scientific_copy_guardrails() -> None:
+    """Assert example narrative adheres to scientific guardrails and avoids misleading claims."""
+    text = "\n".join(
+        (EXAMPLES / name).read_text(encoding="utf-8")
+        for name in (*PUBLIC_SCRIPTS, "_customer_data.py", "run_all.py", "README.md")
+    ).lower()
+
+    assert "picks the appropriate test based on your data" not in text
+    assert "based on normality and sample size" not in text
+    assert "if both methods agree the conclusion is more robust" not in text
+    assert "bootstrap confidence intervals — for effect sizes, always" not in text
+
+
+def test_bundled_workbook_matches_documented_shape_and_has_unique_pairing_ids() -> None:
+    """Legacy check verifying the optional workbook artifact preserves structure if present."""
     pytest.importorskip("openpyxl")
-    frame = pd.read_excel(EXAMPLES / "CustomerDataset.xlsx")
+    workbook_path = EXAMPLES / "CustomerDataset.xlsx"
+    if not workbook_path.exists():
+        pytest.skip("CustomerDataset.xlsx not present")
+    frame = pd.read_excel(workbook_path)
 
     assert frame.shape == (5000, 40)
     assert frame["CustomerID"].notna().all()
@@ -117,14 +280,3 @@ def test_bundled_workbook_matches_documented_shape_and_has_unique_pairing_ids():
         "MonthlySpend_ProductA",
         "MonthlySpend_ProductB",
     } <= set(frame)
-
-
-def test_example_copy_does_not_claim_diagnostics_change_the_estimand():
-    text = "\n".join(
-        (EXAMPLES / name).read_text(encoding="utf-8") for name in (*SCRIPTS, "README.md")
-    ).lower()
-
-    assert "picks the appropriate test based on your data" not in text
-    assert "based on normality and sample size" not in text
-    assert "if both methods agree the conclusion is more robust" not in text
-    assert "bootstrap confidence intervals — for effect sizes, always" not in text

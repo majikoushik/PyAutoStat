@@ -1,19 +1,38 @@
-"""Run a traceable research workflow from clarification through replay.
+"""Example 09: Complete Research Lifecycle & Scientific Governance Showcase.
 
-This example demonstrates the modern ResearchAssistant API: unresolved design
-facts, a prospective analysis plan, estimand-aware sensitivity scenarios,
-researcher-defined practical significance, canonical reports, audit,
-reproducibility, prospective planning, a paired analysis, and a serializable
-session snapshot.
+Business Question:
+    "Do news subscribers and non-subscribers differ in average total monthly spend?"
+
+Scientific Focus:
+    The flagship demonstration of PyAutoStat's end-to-end research workflow:
+    1. Structured clarification: unknown study design returns needs_input rather than guessing.
+    2. Statistical analysis planning recorded BEFORE numerical execution.
+    3. Method recommendation preserving the stated population-mean estimand.
+    4. Declared sensitivity scenarios distinguishing same-estimand from different-estimand checks.
+    5. Researcher-defined practical significance threshold evaluated separately from p-values.
+    6. Plan adherence tracking without conduct judgment.
+    7. Canonical multi-format report generation (HTML, Markdown, JSON, CSV tables).
+    8. Consistency audit, reproducibility ledger, and supplied-data replay.
+    9. Prospective power planning from researcher assumptions (never observed post-hoc power).
+    10. Explicit within-unit paired analysis and UI-independent session snapshot serialization.
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from dataclasses import replace
 from pathlib import Path
 
+# Allow running directly from repository root or examples directory
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import pandas as pd
+from _customer_data import (
+    DATA_DICTIONARY,
+    load_customer_data,
+    section,
+)
 
 from pyautostat import (
     AnalysisOptions,
@@ -24,60 +43,50 @@ from pyautostat import (
     reproduce,
 )
 
-DATA_FILE = Path(__file__).with_name("CustomerDataset.xlsx")
 RANDOM_SEED = 42
 
 
-def load_customer_data() -> pd.DataFrame:
-    try:
-        return pd.read_excel(DATA_FILE)
-    except ImportError as exc:
-        raise SystemExit(
-            'Reading the example workbook requires: python -m pip install -e ".[examples]"'
-        ) from exc
-
-
-def section(title: str) -> None:
-    print("\n" + "=" * 76)
-    print(title)
-    print("=" * 76)
-
-
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the complete PyAutoStat workflow example.")
+    parser = argparse.ArgumentParser(
+        description="Run the complete PyAutoStat research workflow example."
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(__file__).with_name("reports"),
+        default=Path(__file__).resolve().parent / "reports",
         help="Directory for canonical report exports.",
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Run in fast mode with reduced bootstrap iterations for test/CI.",
     )
     return parser.parse_args()
 
 
 def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
     section("1. STRUCTURED CLARIFICATION: UNKNOWN DESIGN STAYS UNKNOWN")
-    analysis_frame = frame.drop(columns=["CustomerID"])
-    assistant = ResearchAssistant(analysis_frame)
+    assistant = ResearchAssistant(frame)
     assistant.enable_tracking()
     assistant.declare_planning("planned", reason="Declared before the numerical analysis.")
 
+    # Incomplete specification: design omitted intentionally
     incomplete = assistant.run(
         objective="compare_groups",
-        outcome="TotalAvgMonthlySpend",
-        predictor="Gender",
+        outcome="total_avg_monthly_spend",
+        predictor="news_subscriber",
         estimand="mean",
         options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=RANDOM_SEED),
-        data_dictionary={
-            "TotalAvgMonthlySpend": {"type": "continuous", "unit": "currency/month"},
-            "Gender": {"type": "nominal"},
-        },
+        data_dictionary=DATA_DICTIONARY,
     )
     print("Initial workflow status:", incomplete.status.value)
     print("Requested information:", [item.field for item in incomplete.missing_information])
+
+    # Caller explicitly declares the design
     draft = assistant.update_question(
         incomplete.draft,
         design="independent",
-        reason="Each row represents a different customer.",
+        reason="Each row represents a distinct customer; observational units are independent.",
     )
 
     section("2. PLAN THE ESTIMAND, SENSITIVITY SCENARIOS, AND MEANINGFUL EFFECT")
@@ -105,10 +114,13 @@ def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
     )
     threshold = MeaningfulEffectThreshold(
         quantity="mean_difference",
-        minimum_magnitude=20.0,
+        minimum_magnitude=25.0,
         direction="two_sided",
-        unit="currency/month",
-        rationale="A smaller monthly difference would not change the proposed business action",
+        unit="USD/month",
+        rationale=(
+            "Tutorial assumption: An illustrative $25/month minimum practical threshold "
+            "to justify marketing intervention."
+        ),
         planning_status="planned",
     )
     plan = assistant.analysis_plan(
@@ -150,6 +162,7 @@ def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
     print("Assessment status:", practical.status)
     print("Statistical significance:", practical.statistical_significance)
     print("Point estimate relation:", practical.point_estimate_relation)
+
     adherence = assistant.plan_adherence(
         plan,
         result,
@@ -181,7 +194,7 @@ def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
         sensitivity=sensitivity,
         practical_significance=practical,
     )
-    replay = reproduce(record, data=analysis_frame)
+    replay = reproduce(record, data=frame)
     completeness = assistant.reporting_completeness(report, style="apa")
     planning = StudyPlanner().independent_mean_power(
         target_difference=20.0,
@@ -218,36 +231,41 @@ def run_independent_workflow(frame: pd.DataFrame, output_dir: Path) -> None:
     print("Decision events:", len(assistant.decision_ledger.events))
     print("Snapshot schema:", snapshot.to_dict()["schema_version"])
     print("In-memory APA HTML characters:", len(report.to_html(style="apa")))
-    print("Exports:", html_path, markdown_path, json_path)
+    print("Exports:", html_path.name, markdown_path.name, json_path.name)
     print("CSV tables:", len(csv_paths))
 
 
-def run_paired_workflow(frame: pd.DataFrame) -> None:
+def run_paired_workflow(full_data: pd.DataFrame) -> None:
     section("7. EXPLICIT PAIRED ANALYSIS AND PROSPECTIVE PAIRED PLANNING")
-    paired_frame = frame[["CustomerID", "MonthlySpend_ProductA", "MonthlySpend_ProductB"]].melt(
-        id_vars="CustomerID",
-        var_name="Product",
-        value_name="MonthlySpend",
+    # Reshape within-customer product spend for Product A and Product B
+    paired_frame = full_data[
+        ["customer_id", "monthly_spend_product_a", "monthly_spend_product_b"]
+    ].melt(
+        id_vars="customer_id",
+        var_name="product",
+        value_name="monthly_spend",
     )
-    paired_frame["Product"] = paired_frame["Product"].map(
+    paired_frame["product"] = paired_frame["product"].map(
         {
-            "MonthlySpend_ProductA": "Product A",
-            "MonthlySpend_ProductB": "Product B",
+            "monthly_spend_product_a": "Product A",
+            "monthly_spend_product_b": "Product B",
         }
     )
+
     paired = ResearchAssistant(paired_frame).run(
         objective="compare_groups",
-        outcome="MonthlySpend",
-        predictor="Product",
+        outcome="monthly_spend",
+        predictor="product",
         design="paired",
         estimand="mean",
-        unit_id="CustomerID",
+        unit_id="customer_id",
         condition_order=("Product A", "Product B"),
         options=AnalysisOptions(random_seed=RANDOM_SEED),
-        data_dictionary={"MonthlySpend": {"type": "continuous", "unit": "currency/month"}},
+        data_dictionary={"monthly_spend": {"type": "continuous", "unit": "USD/month"}},
     )
     if paired.analysis is None:
         raise RuntimeError(f"Paired analysis unavailable: {paired.blockers}")
+
     sample = paired.analysis.metadata["sample"]
     print("Method:", paired.analysis.method_label)
     print("Contrast order:", paired.analysis.specification.condition_order)
@@ -261,15 +279,36 @@ def run_paired_workflow(frame: pd.DataFrame) -> None:
         alpha=0.05,
         target_power=0.80,
     )
-    print("Prospective complete pairs from supplied assumptions:", paired_planning.required_pairs)
+    print(
+        "Prospective complete pairs from supplied assumptions:",
+        paired_planning.required_pairs,
+    )
 
 
 def main() -> None:
     arguments = parse_arguments()
-    frame = load_customer_data()
-    print(f"Loaded bundled dataset: {len(frame):,} rows and {len(frame.columns)} columns.")
-    run_independent_workflow(frame, arguments.output_dir.resolve())
-    run_paired_workflow(frame)
+    # 1. Load data without customer_id for main independent workflow
+    analysis_frame = load_customer_data(include_customer_id=False)
+    # 2. Load data with customer_id for explicit unit-matched paired analysis
+    full_data = load_customer_data(include_customer_id=True)
+
+    print(
+        f"Loaded CustomerDataset.csv: {len(analysis_frame):,} rows and "
+        f"{len(analysis_frame.columns)} analysis columns."
+    )
+    out_dir = arguments.output_dir.resolve()
+    run_independent_workflow(analysis_frame, out_dir)
+    run_paired_workflow(full_data)
+
+    section("SUMMARY OF GENERATED ARTIFACTS")
+    print(f"Artifact directory: {out_dir}")
+    print("  - customer_analysis.html    : Canonical APA-style self-contained HTML report")
+    print("  - customer_analysis.md      : Markdown report for documentation/PRs")
+    print("  - customer_analysis.json    : Schema-versioned JSON report object")
+    print("  - customer_analysis_tables/ : Directory of standalone CSV tables")
+    print("  - decision_ledger.json      : Audit trail of decisions observed by assistant")
+    print("  - session_snapshot.json     : Fully serializable session state for replay")
+    print("\nComplete research workflow finished successfully.")
 
 
 if __name__ == "__main__":

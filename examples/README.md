@@ -1,192 +1,181 @@
-# PyAutoStat examples
+# PyAutoStat Customer Analytics Examples
 
-These tutorials progress from dataset profiling to a traceable research
-workflow. They use the bundled **CustomerDataset.xlsx** workbook (5,000 rows
-and 40 columns). The workbook is demonstration data; this repository does not
-establish that it represents a sampled population or supports causal claims.
+> **One dataset. Multiple research questions. One traceable statistical workflow.**
 
-The examples never print customer identifiers. The advanced paired example
-uses **CustomerID** only to match within-customer measurements.
+These tutorials demonstrate how PyAutoStat guides a complete customer-analytics
+investigation using only the bundled `CustomerDataset.csv` (5,000 customers and
+40 variables). Rather than presenting isolated mathematical functions over toy synthetic
+arrays, this gallery addresses real business questions while adhering strictly to scientific
+guardrails.
 
-For a small synthetic example with no workbook dependency, run:
+Individual customer identifiers (`customer_id`) are never printed or disclosed.
 
-~~~bash
-python examples/explainable_recommendation_and_report.py
-python examples/data_understanding.py
-python examples/basic_inference.py
-python examples/multigroup_analysis.py
-python examples/linear_regression.py
-python examples/scale_reliability.py
-python examples/binary_and_extended_association.py
-python examples/repeated_measures_analysis.py
-~~~
+---
 
-It prints the dataset story, deterministic recommendation rationale (why this
-method, why not relevant alternatives, and facts to verify), and the complete
-researcher-facing workflow explanation, then verifies that the generated HTML
-contains its executive summary. No file is written and no generative service
-is used.
+## Start here
 
-`data_understanding.py` demonstrates default percentiles, a safeguarded CV, categorical frequency
-tables, ordered cumulative percentages, a descriptive cross-tab with four explicit table views,
-and their deterministic narratives using synthetic data only.
+Install PyAutoStat:
 
-`basic_inference.py` demonstrates the complete one-sample t, paired Wilcoxon signed-rank,
-inferential Spearman, and sparse 2x2 Fisher paths. It prints researcher-readable workflow
-explanations and requires no external files. Wilcoxon and Fisher explicitly disclose that their
-primary-effect confidence intervals are unavailable.
+```bash
+python -m pip install -e .
+```
 
-`multigroup_analysis.py` demonstrates guided Welch ANOVA with Games-Howell, guided
-Kruskal-Wallis with Dunn-Holm, and explicit classical ANOVA with Tukey-Kramer. Every structured
-pair is retained even when the printed explanation is bounded.
+Run the introductory profiling and hero research workflow:
 
-`linear_regression.py` demonstrates simple and multiple OLS regression with a continuous
-predictor, categorical and Boolean treatment coding, explicit reference levels, HC3 covariance,
-coefficient interpretation, stored diagnostics, `workflow.explain()`, report CSV tables, and
-audit. It uses synthetic data and writes no files.
+```bash
+python examples/01_customer_360_profile.py
+python examples/09_complete_research_workflow.py --output-dir reports
+```
 
-`scale_reliability.py` demonstrates the beginner Cronbach-alpha workflow with an explicit item
-set, declared reverse scoring, complete-case accounting, item diagnostics, deterministic
-bootstrap uncertainty, audit, and replay. It uses synthetic data and writes no files.
+Or execute the complete suite in one command:
 
-`binary_and_extended_association.py` demonstrates binary logistic regression, exact long-format
-McNemar inference, point-biserial correlation, explicit Kendall tau-b inference, and partial
-Pearson correlation. Every binary direction, pair identity, condition order, and control variable
-is declared; the example uses synthetic data and writes no files.
+```bash
+python examples/run_all.py
+```
 
-`repeated_measures_analysis.py` demonstrates one-way repeated-measures ANOVA with Mauchly's sphericity
-test, Greenhouse-Geisser correction, partial eta-squared, and complete Holm-adjusted pairwise paired
-t-tests, alongside the Friedman rank-sum test with Kendall's W concordance and complete Holm-adjusted
-pairwise Wilcoxon signed-rank tests. It uses synthetic data and writes no files.
+---
 
-## Install
+## What you will learn
 
-~~~bash
-python -m pip install -e ".[examples]"
-~~~
+- **Data understanding first**: Turn a raw DataFrame into structured distribution summaries, percentile views, and data-quality diagnostics before hypothesis testing.
+- **Ask rather than guess**: When study design, pairing, or estimands are missing, PyAutoStat pauses with structured clarification requests instead of guessing from values.
+- **Keep estimands stable**: Normality and variance diagnostics are reported openly, but a diagnostic p-value never silently changes a mean question into a rank test.
+- **Effect sizes and uncertainty**: Every inferential result provides effect estimates (Cohen's d, Cramer's V, partial eta-squared, odds ratios, rank-biserial correlations) and confidence intervals.
+- **Prevent circular leakage**: Structurally derived targets (such as high-value flags based on spend) are protected against circular predictor inclusion.
+- **End-to-end scientific governance**: Statistical analysis planning, same-estimand vs different-estimand sensitivity scenarios, researcher-defined practical thresholds, report generation, consistency audits, and supplied-data replay.
 
-The **examples** extra installs openpyxl, which pandas needs to read the
-workbook. Core PyAutoStat does not require Excel support.
+---
 
-## 1. Profile and understand a dataset
+## The demonstration dataset
 
-~~~bash
-python examples/01_quick_start.py
-~~~
+All public examples use the bundled:
 
-[01_quick_start.py](01_quick_start.py) demonstrates:
+```text
+examples/CustomerDataset.csv
+```
 
-- **ResearchAssistant.summarize()** for a compact beginner view;
-- opt-in **ResearchAssistant.summarize(mode="story")** for a connected profile narrative;
-- declared data meaning for numeric category codes;
-- the structured **ResearchAssistant.profile()** result;
-- normality and IQR diagnostics without automatic deletion or method switching;
-- **InsightEngine** findings and recommendations; and
-- safe handling of the unique identifier.
+- **Scope**: 5,000 customer records across 40 demographic, behavioral, and spending variables.
+- **Authoritative shared loader**: [`_customer_data.py`](_customer_data.py) standardizes snake_case names and currency strings without modifying the raw CSV.
+- **Demonstration data disclaimer**: This dataset is provided solely for demonstration. The repository does not establish population representativeness, random sampling, or causal identification.
+- **Privacy preservation**: Individual `customer_id` strings are used internally only for within-unit paired matching and are never exposed in console output or generated reports.
 
-The profile also contains descriptive statistics, missingness, data quality,
-histograms, distribution shape, column intelligence, and Pearson, Spearman,
-and Kendall correlation summaries.
+### Key dataset structural facts
+- **Spend balance**: `total_avg_monthly_spend` is exactly equal to `monthly_spend_product_a + monthly_spend_product_b + monthly_spend_product_c`.
+- **Zero inflation**: Product B monthly spend is nonzero exactly for customers with `streaming_services == "Yes"` (65.9% zero spend); Product C monthly spend is nonzero exactly for customers with `wireless_internet == "Yes"` (73.1% zero spend).
+- **Segment separation**: `high_value_customer` is deterministically separated around a total monthly spend of approximately $275 (max standard customer: $274.95; min high-value customer: $275.20).
 
-## 2. Run estimand-aware hypothesis tests
+---
 
-~~~bash
-python examples/02_hypothesis_testing.py
-~~~
+## Example gallery
 
-[02_hypothesis_testing.py](02_hypothesis_testing.py) uses the compatibility
-**StatisticalAnalyzer** API to expose the numerical result dictionaries:
+| # | Business question | PyAutoStat capability | What the example proves | Command |
+|---|---|---|---|---|
+| **01** | *"What does this customer base look like, and what should we investigate first?"* | Data understanding & profiling | One call turns raw data into percentiles, skewness cues, and prioritized screening insights. Outliers are review cues, not deletion orders. | `python examples/01_customer_360_profile.py` |
+| **02** | *"Do news subscribers and non-subscribers differ in average total monthly spend?"* | Two independent groups (Welch t) | Preserves the declared mean estimand without assuming equal variances. Reports Cohen's d with bootstrap CI alongside the p-value. | `python examples/02_compare_customer_segments.py` |
+| **03** | *"Does average monthly spending differ across customer job categories?"* | Multi-group ANOVA (Welch + Games-Howell) | Handles omnibus mean testing across 6 groups and delivers all 15 multiplicity-controlled pairwise follow-up contrasts with simultaneous CIs. | `python examples/03_multigroup_customer_spending.py` |
+| **04** | *"Is home-ownership status associated with high-value-customer segment membership?"* | Categorical association (Chi-Square & Cramer's V) | 2x2 categorical independence without spend leakage. Checks expected cell counts, reports Cramer's V effect size, and verifies Fisher fallback status. | `python examples/04_customer_value_association.py` |
+| **05** | *"Which non-product customer characteristics are conditionally associated with total spend?"* | Multiple OLS regression (HC3 covariance) | Excludes spend components to prevent circularity. Uses HC3 robust covariance for heteroscedastic residuals; reports standardized betas and VIF. | `python examples/05_spend_drivers_regression.py` |
+| **06** | *"Which non-spend customer characteristics are associated with the high-value segment?"* | Binary logistic regression | Programmatically verifies that high-value status is derived from spend, excluding spend fields to prevent circularity. Reports odds ratios and McFadden pseudo-R2. | `python examples/06_high_value_customer_logistic.py` |
+| **07** | *"How do monthly spending distributions differ across Products A, B, and C within customers?"* | Repeated-measures distribution (Friedman & Wilcoxon) | Reshapes within-unit product spending into long format. Handles heavy zero-inflation cleanly using rank distributions, Kendall's W, and Holm-adjusted Wilcoxon pairs. | `python examples/07_product_portfolio_repeated_measures.py` |
+| **08** | *"How are two customer-segmentation factors jointly associated with average monthly spend?"* | Two-way factorial ANOVA (Type II SS) | Evaluates home ownership and news subscription main effects and interaction. Exact partial eta-squared CIs and unweighted EMMs demonstrate additive structure. | `python examples/08_factorial_customer_segments.py` |
+| **09** | *"End-to-end customer spending research lifecycle and scientific governance"* | Full research assistant lifecycle | The flagship hero workflow: structured clarification (`needs_input`), analysis planning, sensitivity scenarios, practical thresholds, reports, audit, and replay. | `python examples/09_complete_research_workflow.py` |
 
-| Research target | Declared estimand | Method shown |
-|---|---|---|
-| Spending difference by gender | population mean difference | Welch independent t test |
-| Product A spending across job categories | rank distributions | Kruskal-Wallis |
-| Home ownership and value category | categorical association | Pearson chi-square |
-| Age by active-lifestyle category | rank distributions | Mann-Whitney U |
+---
 
-The output includes analyzed and excluded rows, assumption diagnostics,
-selection rationale, statistics, p-values, effect estimates, supported
-confidence intervals, warnings, and deterministic interpretation.
+## Recommended learning paths
 
-The automatic mean comparison preserves the declared mean estimand.
-Normality and variance diagnostics remain visible, but a diagnostic p-value
-does not silently change the scientific question. Bootstrap intervals are
-reported only when the requested interval can be computed from enough valid
-resamples.
+- **New to PyAutoStat**:
+  [`01_customer_360_profile.py`](01_customer_360_profile.py) &rarr;
+  [`02_compare_customer_segments.py`](02_compare_customer_segments.py) &rarr;
+  [`09_complete_research_workflow.py`](09_complete_research_workflow.py)
+- **Business / Marketing Analyst**:
+  [`01_customer_360_profile.py`](01_customer_360_profile.py) &rarr;
+  [`03_multigroup_customer_spending.py`](03_multigroup_customer_spending.py) &rarr;
+  [`05_spend_drivers_regression.py`](05_spend_drivers_regression.py) &rarr;
+  [`06_high_value_customer_logistic.py`](06_high_value_customer_logistic.py) &rarr;
+  [`09_complete_research_workflow.py`](09_complete_research_workflow.py)
+- **Statistical Researcher**:
+  [`02_compare_customer_segments.py`](02_compare_customer_segments.py) &rarr;
+  [`03_multigroup_customer_spending.py`](03_multigroup_customer_spending.py) &rarr;
+  [`07_product_portfolio_repeated_measures.py`](07_product_portfolio_repeated_measures.py) &rarr;
+  [`08_factorial_customer_segments.py`](08_factorial_customer_segments.py) &rarr;
+  [`09_complete_research_workflow.py`](09_complete_research_workflow.py)
+- **Developer / Platform Integrator**:
+  [`01_customer_360_profile.py`](01_customer_360_profile.py) &rarr;
+  [`05_spend_drivers_regression.py`](05_spend_drivers_regression.py) &rarr;
+  [`09_complete_research_workflow.py`](09_complete_research_workflow.py)
 
-## 3. Follow the complete research lifecycle
+---
 
-~~~bash
-python examples/03_advanced_workflow.py --output-dir reports
-~~~
+## One-command run
 
-[03_advanced_workflow.py](03_advanced_workflow.py) demonstrates the modern
-**ResearchAssistant** workflow:
+Run all public examples in order through isolated subprocesses:
 
-1. An omitted independence declaration returns structured **needs_input**.
-2. The caller supplies the missing design fact explicitly.
-3. A local statistical analysis plan is recorded before numerical execution.
-4. The selected method preserves the design and mean-difference estimand.
-5. Sensitivity scenarios distinguish:
-   - a same-estimand pooled-variance comparison; and
-   - a different-estimand Mann-Whitney comparison.
-6. A researcher-defined meaningful-effect threshold is assessed separately
-   from null-hypothesis significance.
-7. Plan adherence compares the planned and performed analysis without making
-   conduct judgments.
-8. A canonical **ResearchReport** is rendered to APA-oriented HTML, Markdown,
-   JSON, and CSV tables from the same validated values.
-9. The report is audited, a reproducibility record is replayed against the
-   same data, and a serializable session snapshot is created.
-10. Prospective power planning uses researcher-supplied assumptions and does
-    not consume the observed effect.
-11. A second workflow performs explicit two-condition paired analysis using a
-    unit identifier and ordered contrast.
-12. A decision ledger records the actions observed by that assistant instance.
+```bash
+python examples/run_all.py
+```
 
-Generated files:
+For fast CI execution:
 
-| Path | Contents |
-|---|---|
-| **customer_analysis.html** | Canonical styled research report |
-| **customer_analysis.md** | Markdown report |
-| **customer_analysis.json** | JSON-safe report record |
-| **customer_analysis_tables/** | Stable CSV tables |
-| **session_snapshot.json** | UI-independent workflow snapshot |
-| **decision_ledger.json** | Locally observed decision events |
+```bash
+python examples/run_all.py --fast
+```
 
-The example overwrites only these named tutorial outputs so it can be rerun.
-The report omits the complete input DataFrame and customer identifier values.
-Small aggregate cells can still disclose information and need contextual
-review before sharing.
+---
 
-## What the examples establish
+## What the examples deliberately do not claim
 
-The examples show how the public interfaces work and verify that the bundled
-data can exercise them. They do not establish:
+- **Representativeness**: The customer dataset is demonstration data; it does not claim to represent any national or commercial population.
+- **Causation**: Every association (such as news subscription or home ownership with spending) is strictly observational and conditional; no causal intervention is established.
+- **Automatic scientific truth**: Diagnostic tests and method recommendations assist analysis; they do not replace study-design validity or substantive expertise.
+- **Out-of-sample prediction**: Regression R-squared (23.4%) and McFadden pseudo-R2 (14.6%) summarize in-sample fit; they are not machine learning benchmark scores.
+- **Universal practical thresholds**: The $25/month threshold demonstrated in Example 09 is an illustrative tutorial input declared by the researcher, not a discovered economic constant.
 
-- that the workbook is representative of a target population;
-- independence, randomization, causal identification, or collection intent;
-- that a statistically detectable result is practically important;
-- that a different-estimand sensitivity result confirms the primary estimand;
-- equivalence from a failure to reject a superiority null; or
-- external preregistration from a local plan or decision ledger.
+---
+
+## Why some PyAutoStat methods are not forced into this dataset
+
+PyAutoStat includes extensive support for psychometric scale reliability (Cronbach's alpha with bootstrap CIs and item diagnostics) and rater reliability (Intraclass Correlation Coefficients ICC(1,1) through ICC(3,k)).
+
+These methods are **intentionally not demonstrated with CustomerDataset.csv**:
+
+1. **Cronbach's alpha** requires a researcher-declared set of items constructed to measure a shared reflective psychological construct. Converting arbitrary lifestyle or social media checkboxes into a pseudo-scale would encourage poor psychometric practice.
+2. **ICC** requires a genuine target-by-rater measurement panel under a specified random or mixed rater model. Product spend streams are distinct revenue lines, not exchangeable raters evaluating a subject.
+
+Rather than compromising scientific integrity for artificial feature coverage, PyAutoStat demonstrates reliability methods using dedicated test suites and documentation:
+- See [`docs/ICC_GUIDE.md`](../docs/ICC_GUIDE.md) for rater reliability workflows.
+- See the [API reference](../API_REFERENCE.md) and [`docs/CAPABILITIES.md`](../docs/CAPABILITIES.md) for `ResearchAssistant.reliability()` contracts.
+
+---
 
 ## Use your own DataFrame
 
-Replace the workbook loader with any pandas DataFrame and update the declared
-column names and meanings:
+The same workflow applies to any pandas DataFrame:
 
-~~~python
+```python
 import pandas as pd
 from pyautostat import ResearchAssistant
 
-frame = pd.read_csv("your_data.csv")
-assistant = ResearchAssistant(frame)
-print(assistant.summarize())
-print(assistant.summarize(mode="story"))
-~~~
+df = pd.read_csv("your_data.csv")
+assistant = ResearchAssistant(df)
 
-For detailed signatures and supported method families, see the
-[API reference](../API_REFERENCE.md) and
-[capability matrix](../docs/CAPABILITIES.md).
+# 1. Profile and inspect data quality
+print(assistant.summarize())
+
+# 2. Run a design-aware research workflow
+workflow = assistant.run(
+    objective="compare_groups",
+    outcome="revenue",
+    predictor="campaign_tier",
+    estimand="mean",
+    design="independent",
+    variable_types={"revenue": "continuous", "campaign_tier": "nominal"},
+)
+
+# 3. Print deterministic explanation and export canonical report
+print(workflow.explain())
+report = assistant.report(workflow.analysis)
+report.save_html("research_report.html", style="apa")
+```
+
+For complete API signatures and configuration options, see the [API reference](../API_REFERENCE.md).

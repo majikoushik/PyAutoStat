@@ -136,7 +136,7 @@ python -m pip install -e .
 
 ---
 
-## 60-second quick start
+## Quick start: profile a DataFrame
 
 ```python
 import pandas as pd
@@ -150,9 +150,14 @@ df = pd.DataFrame(
 )
 
 assistant = ResearchAssistant(df)
-
 profile = assistant.profile()
+```
 
+---
+
+## Guided analysis
+
+```python
 result = assistant.run(
     objective="compare_groups",
     outcome="score",
@@ -176,7 +181,7 @@ result for internal consistency.
 
 ---
 
-## When PyAutoStat needs more information, it asks
+## When information is missing
 
 A DataFrame cannot tell you whether observations are truly independent, which measurements belong
 to the same participant, what your scientific estimand is, or which category should represent an
@@ -266,7 +271,11 @@ number.
 
 ---
 
-## Two-way factorial ANOVA
+## Advanced workflows
+
+PyAutoStat supports advanced study designs, regression modeling, scale reliability, and complete research governance.
+
+### Two-way factorial ANOVA
 
 For independent observations with two categorical factors and a continuous outcome:
 
@@ -661,7 +670,7 @@ Core numerical dependencies include pandas, NumPy, SciPy and statsmodels. See
 | Resource | Purpose |
 | --- | --- |
 | [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) | Exact supported analysis families and boundaries |
-| [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | Public API reference |
+| [`API_REFERENCE.md`](API_REFERENCE.md) | Public API reference |
 | [`docs/STATISTICAL_METHOD_CONTRACTS.md`](docs/STATISTICAL_METHOD_CONTRACTS.md) | Scientific contracts |
 | [`docs/STATISTICAL_VALIDATION.md`](docs/STATISTICAL_VALIDATION.md) | Numerical/statistical validation policy |
 | [`docs/SCIENTIFIC_LIMITATIONS.md`](docs/SCIENTIFIC_LIMITATIONS.md) | Scientific boundaries |
@@ -671,19 +680,32 @@ Core numerical dependencies include pandas, NumPy, SciPy and statsmodels. See
 
 ---
 
-## Examples
+## See PyAutoStat on a realistic customer dataset
 
-The repository includes executable examples for major workflows:
+The repository ships a realistic 5,000-row customer demonstration dataset ([`examples/CustomerDataset.csv`](examples/CustomerDataset.csv)) and a complete customer-analytics example gallery.
+
+Every public example uses this same bundled dataset — no external downloads or network calls are required. Customer IDs are never displayed, and observational associations are never presented as causal claims.
+
+Try three representative workflows:
 
 ```bash
-python examples/basic_inference.py
-python examples/linear_regression.py
-python examples/binary_and_extended_association.py
-python examples/scale_reliability.py
-python examples/repeated_measures_analysis.py
+# 1. Customer 360 profiling and data understanding
+python examples/01_customer_360_profile.py
+
+# 2. Within-customer repeated-measures product portfolio analysis
+python examples/07_product_portfolio_repeated_measures.py
+
+# 3. Complete research lifecycle: clarification, planning, sensitivity, reporting, audit, and replay
+python examples/09_complete_research_workflow.py --output-dir reports
 ```
 
-Browse [`examples/`](examples/) for the current set.
+Run the entire suite in one command:
+
+```bash
+python examples/run_all.py
+```
+
+Explore the full gallery and business scenarios in the [Examples Guide](examples/README.md).
 
 ---
 

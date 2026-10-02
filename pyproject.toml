@@ -41,7 +41,6 @@ dependencies = [
 
 [project.optional-dependencies]
 report = ["plotly>=5"]
-examples = ["openpyxl>=3"]
 dev = [
     "pytest>=7",
     "pytest-cov",
