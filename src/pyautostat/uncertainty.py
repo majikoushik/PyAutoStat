@@ -660,16 +660,16 @@ def friedman_kendall_w_bootstrap_ci(
         ranked = stats.rankdata(matrix, axis=1, method="average")
     except (TypeError, ValueError):
         ranked = np.empty_like(matrix, dtype=float)
-        for i in range(n):
-            ranked[i] = stats.rankdata(matrix[i], method="average")
+        for unit_idx in range(n):
+            ranked[unit_idx] = stats.rankdata(matrix[unit_idx], method="average")
 
     row_ties = np.zeros(n, dtype=float)
     sorted_m = np.sort(matrix, axis=1)
     has_tie = np.any(sorted_m[:, 1:] == sorted_m[:, :-1], axis=1)
-    tie_indices = np.nonzero(has_tie)[0]
-    for i in tie_indices:
-        _, counts = np.unique(sorted_m[i], return_counts=True)
-        row_ties[i] = sum(cnt * (cnt * cnt - 1) for cnt in counts if cnt > 1)
+    tie_indices = [int(idx) for idx in np.flatnonzero(has_tie)]
+    for row_idx in tie_indices:
+        _, counts = np.unique(sorted_m[row_idx], return_counts=True)
+        row_ties[row_idx] = float(sum(cnt * (cnt * cnt - 1) for cnt in counts if cnt > 1))
 
     c_denom = float(k * (k * k - 1) * n)
     mult = 12.0 / (k * n * (k + 1))
