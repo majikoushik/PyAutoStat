@@ -23,6 +23,7 @@ from pyautostat import (
     ResearchWorkflowResult,
     SensitivitySpecification,
     StudyPlanner,
+    UnsupportedPresentationError,
     WorkflowStatus,
     reproduce,
     show,
@@ -1261,3 +1262,21 @@ def test_zero_recalculation_during_show(
                 _capture(welch_t_workflow, detail="full")
                 _capture(linear_regression_workflow, detail="full")
                 _capture(pearson_workflow, detail="full")
+
+
+# ── Missing Rich Graceful Handling ──────────────────────────────────────────
+
+
+def test_missing_rich_graceful_handling(welch_t_workflow):
+    """Verify show() raises UnsupportedPresentationError when Rich is not available."""
+    with patch.dict("sys.modules", {"rich.console": None}):
+        with pytest.raises(UnsupportedPresentationError, match="requires the 'rich' package"):
+            show(welch_t_workflow)
+
+
+def test_theme_graceful_fallback_without_rich():
+    """Verify get_theme() returns None when Rich is not available."""
+    from pyautostat.presentation.theme import get_theme
+
+    with patch.dict("sys.modules", {"rich.theme": None}):
+        assert get_theme() is None

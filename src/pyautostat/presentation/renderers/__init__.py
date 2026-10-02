@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from rich.console import Console
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rich.console import Console
 
 from ..models import TerminalView
 from .association import AssociationRenderer

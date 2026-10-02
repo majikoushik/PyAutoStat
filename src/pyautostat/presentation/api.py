@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from rich.console import Console
+if TYPE_CHECKING:
+    from rich.console import Console
 
 from .adapters import UnsupportedPresentationError, adapt
-from .renderers import get_renderer
-from .theme import PYAUTOSTAT_THEME
 
 
 def show(
@@ -35,19 +34,32 @@ def show(
             f"Invalid detail mode '{detail}'. Expected 'compact', 'standard', or 'full'."
         )
 
+    try:
+        from rich.console import Console as RichConsole
+    except ImportError as exc:
+        raise UnsupportedPresentationError(
+            "Terminal presentation requires the 'rich' package. Install it with: pip install rich"
+        ) from exc
+
+    from .renderers import get_renderer
+    from .theme import get_theme
+
     view = adapt(target, detail=detail)
+    theme = get_theme()
 
     if console is None:
-        active_console = Console(theme=PYAUTOSTAT_THEME)
+        active_console = RichConsole(theme=theme)
         renderer = get_renderer(view, active_console, detail=detail)
         renderer.render()
     else:
-        console.push_theme(PYAUTOSTAT_THEME)
+        if theme is not None:
+            console.push_theme(theme)
         try:
             renderer = get_renderer(view, console, detail=detail)
             renderer.render()
         finally:
-            console.pop_theme()
+            if theme is not None:
+                console.pop_theme()
 
 
 __all__ = ["UnsupportedPresentationError", "show"]
