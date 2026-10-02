@@ -181,6 +181,27 @@ result for internal consistency.
 
 ---
 
+## Beautiful terminal results
+
+PyAutoStat includes a Rich-powered terminal presentation layer for inspecting dataset profiles and analysis workflows directly in your console:
+
+```python
+from pyautostat import ResearchAssistant, show
+
+assistant = ResearchAssistant(df)
+show(assistant.profile())
+
+workflow = assistant.run(...)
+show(workflow)
+```
+
+- **Clean visual hierarchy:** Panels, formatted metrics, and diagnostic tables without raw dictionary dumps.
+- **Three detail levels:** `detail="compact"` (one-line summaries), `detail="standard"` (default), and `detail="full"` (complete diagnostics and metadata).
+- **Presentation-only:** Consumes existing structured results without altering or recalculating any statistical values.
+- **Terminal-aware:** Adapts to narrow/wide terminal widths and respects non-interactive environments and the `NO_COLOR` standard.
+
+---
+
 ## When information is missing
 
 A DataFrame cannot tell you whether observations are truly independent, which measurements belong

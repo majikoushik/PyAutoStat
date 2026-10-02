@@ -7,6 +7,17 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+-   Added a new Rich-based terminal presentation layer (`pyautostat.show` / `pyautostat.presentation`):
+    -   Added `rich>=15,<16` as a core dependency for polished terminal reporting.
+    -   Implemented a decoupled presentation architecture with normalized display view models (`DisplayMetric`, `DisplayRow`, `DisplayTable`, `DisplayDiagnostic`, `TerminalView`) and domain adapters.
+    -   Added a centralized semantic theme (`PYAUTOSTAT_THEME`) avoiding color-coded statistical significance in favor of clear structural, role, and operational hierarchy.
+    -   Implemented pilot renderers for dataset profiling (`ResearchAssistant(df).profile()`), Welch independent-samples t-test (`welch_t`), Pearson correlation (`pearson_correlation`), and workflow non-completion statuses (`needs_input`, `data_limited`, `unsupported`, `failed`).
+    -   Added three detail levels: `compact` (single-line or concise summary), `standard` (default full-context terminal card), and `full` (complete diagnostics, warnings, and metadata).
+    -   Added terminal width adaptation (responsive to <80, 80-109, and >=110 column consoles) with graceful `NO_COLOR` and non-TTY execution support.
+    -   Added documentation in `docs/TERMINAL_PRESENTATION.md` including the architectural blueprint for future method families, and demonstration script `examples/10_rich_terminal_presentation.py`.
+
 ### Changed
 
 -   Optimized participant-block bootstrap for Kendall's W rank concordance (`friedman_kendall_w_bootstrap_ci`) by precomputing within-unit ranks and unit tie penalties once across units, yielding mathematically identical replicate distributions in $O(B \times k)$ time.
