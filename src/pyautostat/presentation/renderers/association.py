@@ -15,6 +15,11 @@ class AssociationRenderer(BaseRenderer):
         lbl_w = 20 if not self.is_narrow else None
         self.render_metrics_grid(self.view.design_metrics, label_width=lbl_w)
 
+        if self.view.tables:
+            for table_model in self.view.tables:
+                self.render_section_heading(table_model.title or "BREAKDOWN")
+                self.render_data_table(table_model)
+
         self.render_section_heading("KEY RESULT")
         self.render_key_results_table(self.view.key_metrics)
 

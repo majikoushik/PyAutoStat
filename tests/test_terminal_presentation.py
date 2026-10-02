@@ -383,9 +383,24 @@ def test_unsupported_object_type_raises_type_error():
         show("string_argument")
 
 
-def test_unsupported_method_raises_presentation_error(sample_numeric_df):
-    """Verify non-pilot statistical methods raise clear UnsupportedPresentationError."""
-    # Mann-Whitney is not in the pilot (only welch_t and pearson_correlation)
+def test_unsupported_method_raises_presentation_error():
+    """Verify genuinely unsupported statistical methods raise clear UnsupportedPresentationError."""
+    from pyautostat.results import AnalysisResult, AnalysisStatus
+
+    unsupported_analysis = AnalysisResult(
+        method_id="nonexistent_future_method",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=10,
+    )
+    with pytest.raises(
+        UnsupportedPresentationError,
+        match="not supported by the presentation layer",
+    ):
+        show(unsupported_analysis)
+
+
+def test_mann_whitney_u_renders_correctly(sample_numeric_df):
+    """Verify Mann-Whitney U renders through show()."""
     wf_mann = ResearchAssistant(sample_numeric_df).run(
         objective="compare_groups",
         outcome="score",
@@ -396,8 +411,8 @@ def test_unsupported_method_raises_presentation_error(sample_numeric_df):
     )
     assert wf_mann.analysis.method_id == "mann_whitney_u"
 
-    with pytest.raises(
-        UnsupportedPresentationError,
-        match="not supported in the initial presentation layer pilot",
-    ):
-        show(wf_mann)
+    output = _capture_show(wf_mann)
+    assert "Mann-Whitney U" in output
+    assert "Rank-biserial r" in output
+    assert "not universally a test of" in output
+    assert "medians" in output

@@ -183,7 +183,7 @@ result for internal consistency.
 
 ## Beautiful terminal results
 
-PyAutoStat includes a Rich-powered terminal presentation layer for inspecting dataset profiles and analysis workflows directly in your console:
+PyAutoStat includes a Rich-powered terminal presentation layer for inspecting dataset profiles, statistical workflows, and governance records directly in your console:
 
 ```python
 from pyautostat import ResearchAssistant, show
@@ -191,10 +191,16 @@ from pyautostat import ResearchAssistant, show
 assistant = ResearchAssistant(df)
 show(assistant.profile())
 
+# All supported analysis families are Rich-renderable
 workflow = assistant.run(...)
 show(workflow)
+
+# Standalone results, descriptives, and planning
+show(assistant.frequency_table("category"))
+show(assistant.audit(workflow.report, result=workflow.analysis))
 ```
 
+- **Universal coverage:** Renders dataset profiles, all 24 statistical method families (mean comparisons, ANOVA, associations, categorical tables, regression, reliability, repeated measures, and ICC), descriptive tables, and governance/planning results.
 - **Clean visual hierarchy:** Panels, formatted metrics, and diagnostic tables without raw dictionary dumps.
 - **Three detail levels:** `detail="compact"` (one-line summaries), `detail="standard"` (default), and `detail="full"` (complete diagnostics and metadata).
 - **Presentation-only:** Consumes existing structured results without altering or recalculating any statistical values.

@@ -144,3 +144,94 @@ def format_memory_bytes(
 def format_status(status: str) -> str:
     """Format a status identifier into a readable uppercase token."""
     return status.upper().replace("_", " ")
+
+
+def format_df(df: Any, default: str = "Unavailable") -> str:
+    """Format degrees of freedom as an integer, float, or tuple string."""
+    if df is None or isinstance(df, bool):
+        return default
+    if isinstance(df, (int, float)):
+        if not math.isfinite(df):
+            return default
+        return str(int(df)) if df == int(df) else f"{df:.2f}"
+    if isinstance(df, (list, tuple)):
+        clean_parts = [format_df(part, default="") for part in df]
+        if any(not p for p in clean_parts):
+            return default
+        return f"({', '.join(clean_parts)})"
+    return str(df)
+
+
+def format_statistic(
+    name: str,
+    val: Any,
+    df: Any = None,
+    decimals: int = 3,
+    default: str = "Unavailable",
+) -> str:
+    """Format a test statistic with optional degrees of freedom."""
+    num_str = format_number(val, decimals=decimals, default=default)
+    if num_str == default:
+        return default
+    if df is not None:
+        df_str = format_df(df, default="")
+        if df_str:
+            return f"{name}{df_str} = {num_str}"
+    return f"{name} = {num_str}"
+
+
+def format_odds_ratio(
+    val: Any,
+    decimals: int = 3,
+    default: str = "Unavailable",
+) -> str:
+    """Format an odds ratio value, explicitly handling infinite values."""
+    if val is None or isinstance(val, bool):
+        return default
+    if isinstance(val, (int, float)):
+        if math.isinf(val):
+            return "Infinite" if val > 0 else "-Infinite"
+        if not math.isfinite(val):
+            return default
+        return f"{val:.{decimals}f}"
+    return str(val)
+
+
+def format_ratio(
+    val: Any,
+    decimals: int = 2,
+    default: str = "Unavailable",
+) -> str:
+    """Format a ratio value."""
+    if val is None or isinstance(val, bool):
+        return default
+    if isinstance(val, (int, float)) and math.isfinite(val):
+        return f"{val:.{decimals}f}"
+    return str(val)
+
+
+def format_probability(
+    val: Any,
+    decimals: int = 3,
+    default: str = "Unavailable",
+) -> str:
+    """Format a probability or rate value strictly bounded in [0, 1]."""
+    if val is None or isinstance(val, bool):
+        return default
+    if isinstance(val, (int, float)) and math.isfinite(val):
+        return f"{val:.{decimals}f}"
+    return str(val)
+
+
+def format_boolean_status(
+    val: Any,
+    true_label: str = "Yes",
+    false_label: str = "No",
+    default: str = "Unavailable",
+) -> str:
+    """Format a boolean flag into human-readable text."""
+    if val is True:
+        return true_label
+    if val is False:
+        return false_label
+    return default

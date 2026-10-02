@@ -9,14 +9,14 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
--   Added a new Rich-based terminal presentation layer (`pyautostat.show` / `pyautostat.presentation`):
-    -   Added `rich>=15,<16` as a core dependency for polished terminal reporting.
-    -   Implemented a decoupled presentation architecture with normalized display view models (`DisplayMetric`, `DisplayRow`, `DisplayTable`, `DisplayDiagnostic`, `TerminalView`) and domain adapters.
-    -   Added a centralized semantic theme (`PYAUTOSTAT_THEME`) avoiding color-coded statistical significance in favor of clear structural, role, and operational hierarchy.
-    -   Implemented pilot renderers for dataset profiling (`ResearchAssistant(df).profile()`), Welch independent-samples t-test (`welch_t`), Pearson correlation (`pearson_correlation`), and workflow non-completion statuses (`needs_input`, `data_limited`, `unsupported`, `failed`).
-    -   Added three detail levels: `compact` (single-line or concise summary), `standard` (default full-context terminal card), and `full` (complete diagnostics, warnings, and metadata).
-    -   Added terminal width adaptation (responsive to <80, 80-109, and >=110 column consoles) with graceful `NO_COLOR` and non-TTY execution support.
-    -   Added documentation in `docs/TERMINAL_PRESENTATION.md` including the architectural blueprint for future method families, and demonstration script `examples/10_rich_terminal_presentation.py`.
+-   Completed the Rich-based terminal presentation layer (`pyautostat.show` / `pyautostat.presentation`) across all supported analytical, descriptive, and governance families:
+    -   Implemented dedicated presentation renderers and modular adapters covering all 24 registered statistical method IDs: one-sample t-test, Welch t-test, Student t-test, Mann-Whitney U, paired t-test, Wilcoxon signed-rank, Welch one-way ANOVA, classical one-way ANOVA, Kruskal-Wallis, Pearson correlation, Spearman rank correlation, Kendall's tau-b, point-biserial correlation, partial Pearson correlation, Pearson chi-square test of independence, Fisher's exact test, McNemar test, linear regression (OLS), logistic regression, Cronbach's alpha, repeated-measures ANOVA, Friedman test, two-way factorial ANOVA, and intraclass correlation (ICC).
+    -   Added terminal presentation support for descriptive outputs: `frequency_table()` with level counts, valid/total/cumulative percentages, and cardinality diagnostics; and `cross_tab()` with 2D contingency counts and complete paired case accounting.
+    -   Added terminal presentation support for governance and prospective planning records: `StudyPlanningResult`, `SensitivityResult`, `PracticalSignificanceResult`, `StatisticalAnalysisPlan`, `PlanAdherenceResult`, `ReportingCompletenessResult`, `AuditResult`, `ReproducibilityRecord`, `ReproductionOutcome`, `DecisionLedger`, and `ResearchSessionSnapshot`.
+    -   Added direct `show(AnalysisResult)` presentation support for standalone analysis objects containing self-describing statistical values.
+    -   Preserved scientific invariants across all renderers: mandatory orientation displays (contrast direction, paired conditions, binary levels, modeled events, factor interactions, and canonical ICC definition preceding estimate), negative ICC values preserved without clamping, no post-hoc power display in study planning, no p-value sorting in sensitivity analysis, and operational badges strictly decoupled from statistical significance.
+    -   No statistical engine calculations, formulas, or result schemas were modified.
+    -   Added demonstration gallery in `examples/11_rich_terminal_method_gallery.py` and comprehensive coverage tests in `tests/test_terminal_presentation_coverage.py`.
 
 ### Changed
 

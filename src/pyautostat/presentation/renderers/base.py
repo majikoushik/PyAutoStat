@@ -128,7 +128,11 @@ class BaseRenderer:
         """Render primary key result metrics."""
         self.render_metrics_grid(metrics, label_width=22 if not self.is_narrow else None)
 
-    def render_data_table(self, table_model: DisplayTable) -> None:
+    def render_data_table(
+        self,
+        table_model: DisplayTable,
+        max_rows: int | None = None,
+    ) -> None:
         """Render a tabular dataset preview or group summary."""
         t = Table(
             title=f"[bold]{table_model.title}[/bold]" if table_model.title else None,
@@ -143,13 +147,27 @@ class BaseRenderer:
 
         for i, col in enumerate(table_model.columns):
             # Right-align columns that look numeric (not first column)
-            non_numeric = {"Levels", "Most common", "Most Common"}
+            non_numeric = {
+                "Levels",
+                "Most common",
+                "Most Common",
+                "Variable",
+                "Term",
+                "Group",
+                "Pair",
+                "Item",
+                "Condition",
+                "Component",
+            }
             justify: Literal["left", "right"] = (
                 "right" if i > 0 and col not in non_numeric else "left"
             )
             t.add_column(col, justify=justify, no_wrap=not self.is_narrow)
 
-        for row in table_model.rows:
+        total_rows = len(table_model.rows)
+        rows_to_render = table_model.rows[:max_rows] if max_rows is not None else table_model.rows
+
+        for row in rows_to_render:
             # Highlight Unavailable cells with muted style
             styled_cells: list[RenderableType] = []
             for cell in row.cells:
@@ -160,6 +178,12 @@ class BaseRenderer:
             t.add_row(*styled_cells)
 
         self.console.print(t)
+        if max_rows is not None and total_rows > max_rows:
+            msg = (
+                f"Showing {max_rows} of {total_rows} rows; "
+                "use detail='full' for the complete table."
+            )
+            self.console.print(f"[dim]{msg}[/dim]")
 
     def render_diagnostics(
         self,
@@ -221,3 +245,60 @@ class BaseRenderer:
             return
         for w in warnings:
             self.console.print(f"[!] [status.warning]{w}[/status.warning]")
+
+    def render_recommendation_rationale(self) -> None:
+        """Render recommendation rationale in full mode if present."""
+        rationale = self.view.metadata.get("rationale")
+        if rationale:
+            self.render_section_heading("RECOMMENDATION RATIONALE")
+            self.console.print(rationale, style="muted")
+
+    def render_audit_status(self) -> None:
+        """Render audit verification status in full mode if present."""
+        audit_status = self.view.metadata.get("audit_status")
+        if audit_status:
+            self.render_section_heading("AUDIT VERIFICATION")
+            status_upper = str(audit_status).upper()
+            color = "status.success" if status_upper == "PASS" else "status.warning"
+            self.console.print(f"Consistency Audit: [{color}]{status_upper}[/{color}]")
+
+    def render_reproducibility_metadata(self) -> None:
+        """Render reproducibility settings in full mode if present."""
+        repro = self.view.metadata.get("reproducibility")
+        if isinstance(repro, dict) and repro:
+            self.render_section_heading("REPRODUCIBILITY METADATA")
+            metrics = []
+            for k, v in repro.items():
+                metrics.append(DisplayMetric(str(k).replace("_", " ").title(), str(v)))
+            self.render_metrics_grid(metrics, label_width=20 if not self.is_narrow else None)
+
+    def render_sample_accounting(self) -> None:
+        """Render explicit sample and exclusion accounting if available."""
+        accounting = self.view.metadata.get("sample_accounting")
+        if isinstance(accounting, dict) and accounting:
+            self.render_section_heading("SAMPLE ACCOUNTING")
+            metrics = [
+                DisplayMetric(str(k).replace("_", " ").title(), str(v))
+                for k, v in accounting.items()
+            ]
+            self.render_metrics_grid(metrics, label_width=20 if not self.is_narrow else None)
+
+    def render_multiplicity_policy(self) -> None:
+        """Render multiplicity adjustment policy if present."""
+        multiplicity = self.view.metadata.get("multiplicity")
+        if multiplicity:
+            self.render_section_heading("MULTIPLICITY CONTROL")
+            self.console.print(f"Policy: {multiplicity}", style="muted")
+
+    def render_reference_levels(self) -> None:
+        """Render reference categorical levels if present."""
+        refs = self.view.metadata.get("reference_levels")
+        if isinstance(refs, dict) and refs:
+            self.render_section_heading("REFERENCE LEVELS")
+            metrics = [DisplayMetric(str(k), f"Reference: {v}") for k, v in refs.items()]
+            self.render_metrics_grid(metrics, label_width=18 if not self.is_narrow else None)
+
+    def render_unavailable_reason(self, reason: str | None) -> None:
+        """Render explicit explanation for unavailable inferential quantities."""
+        if reason:
+            self.console.print(f"Unavailable reason: {reason}", style="muted")

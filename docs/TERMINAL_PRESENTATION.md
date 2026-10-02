@@ -4,7 +4,7 @@ PyAutoStat provides a Rich-powered terminal presentation layer that transforms s
 authoritative statistical results into clear, accessible, and readable terminal reports.
 
 The presentation layer is strictly a **view** over existing results. It never recomputes
-statistics, selects methods, alters estimands, or invents evidence.
+statistics, selects methods, alters estimands, reverses contrasts, or invents evidence.
 
 ---
 
@@ -31,9 +31,10 @@ Existing PyAutoStat statistical engine
 
 The presentation layer enforces clean separation of concerns:
 - **`models.py`**: Normalized dataclasses (`TerminalView`, `DisplayMetric`, `DisplayTable`, `DisplayRow`, `DisplayDiagnostic`) that hold display-ready values.
-- **`adapters.py`**: Reads domain records (`ResearchWorkflowResult` or dataset profile dictionaries) without modifying them, formatting values for presentation.
+- **`adapters/`**: Reads domain records (`ResearchWorkflowResult`, `AnalysisResult`, `DatasetProfile`, planning, governance, or descriptives) without modifying them, formatting values for presentation.
 - **`theme.py`**: Centralized semantic Rich theme (`PYAUTOSTAT_THEME`).
 - **`renderers/`**: Visual layout components that render normalized `TerminalView` instances to a Rich `Console`.
+- **`formatting.py`**: Pure display helpers for numbers, p-values, sample sizes, effects, and intervals.
 - **`api.py`**: Public entry point `show()`.
 
 ---
@@ -43,28 +44,59 @@ The presentation layer enforces clean separation of concerns:
 ```python
 from pyautostat import show
 
-# Dataset profile
+# 1. Dataset profile
 profile = assistant.profile()
 show(profile)
 
-# Workflow results
+# 2. Workflow results (all 24 statistical methods)
 workflow = assistant.run(...)
 show(workflow)
 
+# 3. Direct analysis results
+analysis = workflow.analysis
+show(analysis)
+
+# 4. Descriptives
+freq = assistant.frequency_table("category")
+show(freq)
+ct = assistant.cross_tab("status", "group")
+show(ct)
+
+# 5. Study planning & Sensitivity
+plan = planner.independent_mean_power(...)
+show(plan)
+sens = assistant.sensitivity(...)
+show(sens)
+
+# 6. Governance & Audit
+sap = assistant.analysis_plan(...)
+show(sap)
+adherence = assistant.plan_adherence(...)
+show(adherence)
+completeness = assistant.reporting_completeness(...)
+show(completeness)
+audit = assistant.audit(...)
+show(audit)
+repro = assistant.reproducibility_record(...)
+show(repro)
+outcome = reproduce(repro, data=df)
+show(outcome)
+ledger = assistant.enable_tracking()
+show(ledger)
+snapshot = assistant.session_snapshot(workflow)
+show(snapshot)
+
 # Detail levels: "compact", "standard" (default), "full"
-show(workflow, detail="compact")
-show(workflow, detail="standard")
-show(workflow, detail="full")
+show(result, detail="compact")
+show(result, detail="standard")
+show(result, detail="full")
 ```
 
 ### Detail Levels
 
-- **`compact`**: Single-line concise output suitable for pipelines, batch runs, or quick terminal checks.
-  - Profile: `Dataset Profile | 5,000 rows x 39 vars | missing=502 (0.3%) | duplicates=0`
-  - Welch: `Welch t-test | N=5,000 | diff=-$47.70 | 95% CI -56.86...-38.55 | d=-0.29 | p=<0.001`
-  - Pearson: `Pearson r | N=5,000 | r=-0.036 | 95% CI [-0.063, -0.008] | p=0.012`
-- **`standard`** (default): Balanced report with title panel, research question/design, key result metrics, essential summary tables, deterministic interpretation, diagnostic context, and limitations.
-- **`full`**: Everything in standard, plus recommendation rationale, audit verification status, reproducibility metadata (seed, bootstrap resamples, specification reference), and extended tables/diagnostics.
+- **`compact`**: Single-line concise summary suitable for batch logs, CI, pipelines, or quick console checks.
+- **`standard`** (default): Complete yet clean report with title panel, design/estimand metrics, key results, essential summary tables, deterministic interpretation, diagnostic context, and limitations. Long tables truncate gracefully to the primary rows with explicit guidance.
+- **`full`**: Everything in standard, plus recommendation rationale, audit verification status, reproducibility metadata (seeds, bootstrap resamples, specification references), untruncated tables, reference levels, and extended diagnostic context.
 
 ---
 
@@ -75,122 +107,79 @@ Color is **never** the sole carrier of meaning:
 - Statistical significance is **never** color-coded green (for significant) or red (for non-significant), because scientific significance is not inherently "good" or "bad".
 - Green (`status.success`) is reserved for operational successes (e.g. audit `PASSED`).
 - Amber (`status.warning` / `status.review`) indicates review cues, advisory warnings, or missing inputs.
-- Red (`status.error`) indicates computational or audit failures.
-- Blue/cyan tones represent analysis families and sections (`family.mean`, `family.association`, `family.profile`).
+- Red (`status.error`) indicates computational failures or audit failures.
+- Blue/cyan tones represent analysis families and sections (`family.mean`, `family.association`, `family.profile`, `family.planning`, `family.governance`, `family.audit`).
 - Background colors are avoided by default.
 - Automatically respects `NO_COLOR` and non-TTY redirected output.
 
 ---
 
-## 4. Supported Pilot Objects
+## 4. Responsive Terminal Widths
 
-In this pilot implementation, `show()` supports:
-1. **Dataset Profile**: Returned by `ResearchAssistant(df).profile()` or `StatisticalAnalyzer(df).analyze_all()`.
-2. **Welch Independent-Samples t-test**: `ResearchWorkflowResult` with `method_id="welch_t"`.
-3. **Pearson Correlation**: `ResearchWorkflowResult` with `method_id="pearson_correlation"`.
-4. **Workflow Statuses**: `WorkflowStatus.NEEDS_INPUT`, `WorkflowStatus.DATA_LIMITED`, `WorkflowStatus.UNSUPPORTED`, and `WorkflowStatus.FAILED`.
-
-Unsupported object types raise `TypeError`. Methods outside the pilot raise `UnsupportedPresentationError`.
+Outputs adapt cleanly across terminal widths:
+- **70 columns (narrow)**: Sections stack vertically, labels wrap cleanly, secondary columns are omitted in standard mode, and primary estimates, intervals, and orientation fields remain visible without horizontal clipping.
+- **90 columns (standard)**: Balanced tabular presentation with full metrics and diagnostics.
+- **120 columns (wide)**: Extended layouts with wide confidence intervals, standard errors, and detailed diagnostics side-by-side.
 
 ---
 
-## 5. Future Presentation Blueprint
+## 5. Statistical Method Coverage Matrix
 
-Future phases will extend `RENDERER_REGISTRY` to cover all PyAutoStat methods using the following specification:
+PyAutoStat supports terminal presentation across all 24 registered statistical method contracts:
 
-### ONE-SAMPLE T-TEST
-- **Primary**: observed-minus-reference difference, CI, Cohen's d, effect CI, p-value
-- **Additional**: reference value, sample mean, N, SD
+| Method ID | Method Name | Renderer Family | Primary Display Elements |
+|---|---|---|---|
+| `one_sample_t` | One-sample t-test | `OneSampleRenderer` | Reference value, mean, difference, CI, Cohen's d, t, df, p |
+| `welch_t` | Welch's independent-samples t-test | `TwoGroupRenderer` | Signed difference, CI, Cohen's d, unequal variance context, t, df, p |
+| `student_t` | Student's independent-samples t-test | `TwoGroupRenderer` | Signed difference, CI, Cohen's d, equal-variance assumption context |
+| `mann_whitney_u` | Mann-Whitney U test | `TwoGroupRenderer` | Group medians/IQRs, rank-biserial effect, CI, U statistic, p |
+| `paired_t` | Paired-samples t-test | `PairedRenderer` | Condition order, paired difference, CI, Cohen's dz, complete pairs |
+| `wilcoxon_signed_rank` | Wilcoxon signed-rank test | `PairedRenderer` | Condition medians/IQRs, matched rank-biserial, CI, zero-diff policy |
+| `welch_anova` | Welch's one-way ANOVA | `MultiGroupRenderer` | Omnibus Welch F, df, p, Games-Howell pairwise table with simultaneous CIs |
+| `one_way_anova` | One-way ANOVA (equal variance) | `MultiGroupRenderer` | Omnibus F, df, p, eta-squared, Tukey-Kramer pairwise table |
+| `kruskal_wallis` | Kruskal-Wallis rank test | `MultiGroupRenderer` | Omnibus H, df, p, epsilon-squared, Dunn-Holm pairwise table with rank-biserial CIs |
+| `pearson_correlation` | Pearson correlation | `AssociationRenderer` | Pearson r, 95% CI, p, complete pairs, linear target context |
+| `spearman_correlation` | Spearman rank correlation | `AssociationRenderer` | Spearman rho, 95% CI, p, monotonic target context |
+| `kendall_tau_b` | Kendall's tau-b concordance | `AssociationRenderer` | Kendall tau-b, 95% CI, p, tie context; explicit note that tau-b is not variance explained |
+| `point_biserial_correlation`| Point-biserial correlation | `AssociationRenderer` | Point-biserial r, CI, p, explicit positive-level (+1 coding) orientation |
+| `partial_pearson_correlation`| Partial Pearson correlation | `AssociationRenderer` | Partial r, CI, t, df, p, control covariates list; non-causal limitation |
+| `pearson_chi_square` | Pearson chi-square independence | `CategoricalRenderer` | Contingency table, Chi-square, df, p, Cramer's V, expected count diagnostics |
+| `fisher_exact` | Fisher's exact test | `CategoricalRenderer` | 2x2 contingency table, category orientation, sample odds ratio, CI |
+| `mcnemar` | McNemar paired test | `PairedCategoricalRenderer` | 2x2 transition table, discordant pair counts, paired proportion difference, CI, exact p |
+| `linear_regression` | Linear regression (OLS) | `RegressionRenderer` | R², adj R², R² CI, model F, p, coefficients table, HC3 covariance, full diagnostics (VIF, condition number, influence) |
+| `logistic_regression` | Logistic regression | `LogisticRenderer` | Modeled event, reference category, LR statistic, pseudo-R², OR-first table, Wald CI, z, p |
+| `cronbach_alpha` | Cronbach's alpha | `ReliabilityRenderer` | Cronbach alpha, CI, item count, item-total correlations, alpha-if-deleted, inter-item matrix |
+| `repeated_measures_anova` | Repeated-measures ANOVA | `RepeatedMeasuresRenderer` | Condition summaries, omnibus F, df, partial eta², Mauchly sphericity, Greenhouse-Geisser correction, pairwise t |
+| `friedman_test` | Friedman rank test | `RepeatedMeasuresRenderer` | Condition medians/IQRs, Kendall W, Q statistic, df, pairwise Wilcoxon with Holm adjustment |
+| `two_way_anova` | Two-way factorial ANOVA | `FactorialRenderer` | Factors A and B, A×B interaction distinctly displayed, SS type, ANOVA effects table, cell summaries |
+| `intraclass_correlation` | Intraclass correlation (ICC) | `ICCRenderer` | Canonical definition displayed BEFORE estimate (model, agreement vs consistency, single vs average), ICC estimate (never clamped if negative), CI, F, df, p, ANOVA mean squares, variance components |
 
-### STUDENT T / WELCH T
-- **Primary**: signed mean difference, CI, Cohen's d, effect CI, p-value
-- **Additional**: group summary, contrast direction, variance assumption status
+---
 
-### PAIRED T
-- **Primary**: paired mean difference, CI, Cohen's dz, dz CI, p-value
-- **Additional**: complete pairs, incomplete units, condition order
+## 6. Descriptive Direct Outputs
 
-### MANN-WHITNEY U
-- **Primary**: U statistic, p-value, rank-biserial effect, CI
-- **Additional**: group medians/IQRs, explicit distribution/rank estimand
+PyAutoStat supports terminal presentation for descriptive analysis outputs:
+- **`frequency_table(column)`**: Displays level/category, count, valid percentage, total percentage, cumulative percentage (when applicable), valid N, missing N, and high-cardinality diagnostics.
+- **`cross_tab(row, col)`**: Displays 2D contingency counts, row/column categories, complete paired cases, and missing paired rows.
 
-### WILCOXON SIGNED-RANK
-- **Primary**: statistic, p-value, matched-pairs rank-biserial, bootstrap CI
-- **Additional**: complete pairs, zero-difference policy, condition order
+---
 
-### WELCH ANOVA
-- **Primary**: Welch F, df, p-value
-- **Additional**: group means, group Ns, Games-Howell pairwise table
+## 7. Governance and Study Planning Support
 
-### ONE-WAY ANOVA
-- **Primary**: F, df, p-value, eta-squared
-- **Additional**: group means, Tukey-Kramer follow-up table
+PyAutoStat governance and planning results render via specialized presentation families:
+- **`StudyPlanningResult`**: Prospective sample-size and power requirements, target precision, alpha, and researcher-supplied design assumptions. Explicitly notes that prospective planning is NOT observed post-hoc power.
+- **`SensitivityResult`**: Robustness scenario comparison table showing alternative methods, estimand comparability, contrast comparability, and decision status. Scenarios are never sorted or ranked by p-value.
+- **`PracticalSignificanceResult`**: Evaluates observed estimates and confidence intervals against researcher-supplied practical significance thresholds, keeping practical verdicts distinct from statistical significance.
+- **`StatisticalAnalysisPlan`**: Renders as an a priori scientific study plan (question, design, planned method, alpha, confidence level, missing data rules, multiplicity controls, sensitivity scenarios, and revision status) rather than an empirical result.
+- **`PlanAdherenceResult`**: Planned versus performed comparison table across all study dimensions, reporting deviations objectively without disciplinary or misconduct rhetoric.
+- **`ReportingCompletenessResult`**: Summarizes present, partial, and missing structural reporting items under target guidelines (e.g. APA), explicitly stating it is not a study-quality or publication-readiness score.
+- **`AuditResult`**: Scientific consistency audit verifying internal numerical invariants, contracts, and record coherence with operational status badges (`PASS`, `FAIL`, `REVIEW`). Explicitly notes it verifies internal consistency, not empirical truth.
+- **`ReproducibilityRecord` & `ReproductionOutcome`**: Displays runtime, package version, deterministic random seeds, bootstrap metadata, and dataset fingerprint verification without raw dictionary dumps.
+- **`DecisionLedger`**: Ordered sequential ledger of analytical decisions, audit events, and user specifications, noting that local ledgers do not claim external authenticated provenance.
+- **`ResearchSessionSnapshot`**: Overview of active session state, completed analyses, governance records, and active capabilities without unstructured JSON dumps.
 
-### KRUSKAL-WALLIS
-- **Primary**: H, df, p-value, epsilon-squared
-- **Additional**: medians/IQRs, Dunn-Holm follow-up, pairwise rank-biserial effects
+---
 
-### SPEARMAN / KENDALL / POINT-BISERIAL / PARTIAL PEARSON
-- Reuses `AssociationRenderer` family.
-- **Method-specific fields**: ties, positive-level orientation, controls, df, bootstrap CI
+## 8. Direct `AnalysisResult` Support
 
-### PEARSON CHI-SQUARE
-- **Primary**: chi-square, df, p-value, Cramer's V
-- **Additional**: contingency table, expected-count diagnostics
-
-### FISHER EXACT
-- **Primary**: odds ratio, CI, p-value
-- **Additional**: ordered 2x2 table, category orientation
-
-### MCNEMAR
-- **Primary**: paired proportion difference, CI, exact p-value
-- **Additional**: 2x2 transition table, discordant pair counts
-
-### LINEAR REGRESSION
-- **Primary**: R-squared, adjusted R-squared, R-squared CI, model F / p-value
-- **Additional**: coefficient table, standardized beta, VIF, residual diagnostics, influence diagnostics, covariance type
-
-### LOGISTIC REGRESSION
-- **Primary**: likelihood ratio test, McFadden pseudo-R2, event N
-- **Additional**: OR table first, raw beta only in full mode, convergence, VIF/condition diagnostics, event orientation
-
-### CRONBACH ALPHA
-- **Primary**: alpha, CI
-- **Additional**: item count, respondent N, corrected item-total correlations, alpha-if-deleted, inter-item summary, explicit limitation: alpha != validity/unidimensionality
-
-### REPEATED-MEASURES ANOVA
-- **Primary**: F, df, corrected p-value if applicable, partial eta-squared + CI
-- **Additional**: complete/incomplete units, condition summaries, Mauchly test, Greenhouse-Geisser epsilon, pairwise t + dz + adjusted p-value
-
-### FRIEDMAN
-- **Primary**: Q, df, p-value, Kendall's W + CI
-- **Additional**: condition medians/IQRs, complete units, pairwise Wilcoxon, rank-biserial CI, Holm p-value
-
-### TWO-WAY FACTORIAL ANOVA
-- **Primary table**: Factor A, Factor B, A×B interaction, F, df, p-value, partial eta-squared, CI
-- **Additional**: cell summaries, estimated marginal means, simple effects, interaction contrasts, multiplicity policy
-- Interaction visually distinct but not red/green-coded by significance.
-
-### INTRACLASS CORRELATION (ICC)
-- ALWAYS display definition before estimate.
-- **Definition**: canonical ICC form, model, agreement vs consistency, single vs average
-- **Primary**: ICC estimate, CI, F, df, p-value
-- **Additional**: target/rater counts, BMS/JMS/EMS/WMS, variance components, complete-target accounting, negative estimate policy
-
-### STUDY PLANNER
-- **Display**: planning objective, supplied assumptions, target power / precision, alpha, required N, allocation / pairs
-- Never imply observed post-hoc power.
-
-### SENSITIVITY
-- **Table**: scenario, method, estimand comparability, contrast comparability, status, decision
-- Do not rank by p-value.
-
-### PRACTICAL SIGNIFICANCE
-- **Display**: researcher threshold, observed estimate, CI, threshold relationship, statistical significance separately.
-
-### AUDIT
-- **Operational semantics**: PASS = green, INCOMPLETE = amber, FAIL = red.
-- These colors represent the audit verification process outcome, not scientific significance.
-
-### REPRODUCIBILITY
-- **Display**: package version, Python runtime, fingerprint availability, replay status, deterministic seed metadata. Full environment only in `detail="full"`.
+Direct calls to `show(analysis_result)` are supported for standalone analysis objects when they contain safe, self-describing statistical values. When invoked directly on an `AnalysisResult`, presentation displays only stored analysis fields without fabricating questions, recommendations, or extraneous metadata.
