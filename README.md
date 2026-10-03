@@ -226,11 +226,12 @@ report = workflow.report
 report.save_html("reports/research_report.html", style="general", overwrite=True)
 ```
 
+- **Unified presentation architecture:** Standalone results and canonical `ResearchReport` exports share the exact same component system, styling, and escaping rules.
 - **Zero recalculation:** Consumes authoritative normalized presentation view models without re-running statistical algorithms.
 - **Offline & self-contained:** Inline CSS with system fonts; no CDN dependencies, no external JavaScript, and no tracking.
-- **Responsive & printable:** Responsive metric grids, overflow-wrapped tables, and dedicated `@media print` stylesheets.
-- **Security-hardened:** All user text, variable names, and group labels are safely HTML-escaped.
-- **Representative method coverage:** Optimized coverage for Welch independent-samples t-test, Pearson correlation, OLS linear regression, and Kruskal-Wallis rank test. See [`docs/HTML_REPORTING.md`](docs/HTML_REPORTING.md) for details.
+- **Responsive & print-ready:** Responsive metric grids, overflow-wrapped semantic tables, and dedicated `@media print` stylesheets.
+- **Security-hardened:** All user text, variable names, table cells, and group labels are safely HTML-escaped.
+- **Universal coverage:** Complete static HTML rendering for all 24 statistical method families (mean comparisons, ANOVA, associations, categorical tables, regression, reliability, repeated measures, and ICC), dataset profiles, and planning/governance objects. See [`docs/HTML_REPORTING.md`](docs/HTML_REPORTING.md) for details.
 
 ---
 

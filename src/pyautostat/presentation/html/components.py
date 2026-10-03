@@ -6,15 +6,18 @@ from normalized presentation models.
 
 from __future__ import annotations
 
+import json
+import math
 from collections.abc import Sequence
 from typing import Any
 
 from ..models import (
     DisplayDiagnostic,
     DisplayMetric,
+    DisplayRow,
     DisplayTable,
 )
-from .formatting import escape_text, is_numeric_column
+from .formatting import escape_text, format_display_value, is_numeric_column
 from .theme import get_theme_css
 
 
@@ -172,16 +175,19 @@ def render_table(table: DisplayTable, *, max_rows: int | None = None) -> str:
         )
 
     caption_html = (
-        f'<h3 class="table-caption">{escape_text(table.title)}</h3>\n' if table.title else ""
+        f'  <caption class="sr-only">{escape_text(table.title)}</caption>\n' if table.title else ""
     )
 
     return (
         '<div class="table-container">\n'
+        '<div class="table-responsive">\n'
+        '<table class="styled-table">\n'
         f"{caption_html}"
-        "<table>\n"
         f"{thead_html}\n"
         f"{tbody_html}\n"
-        f"</table>{note_html}\n"
+        "</table>\n"
+        "</div>"
+        f"{note_html}\n"
         "</div>"
     )
 
@@ -316,3 +322,184 @@ def render_analysis_record(metadata: dict[str, Any], detail: str = "standard") -
         return ""
 
     return '<dl class="record-grid">\n' + "\n".join(items) + "\n</dl>"
+
+
+def _display_helper(value: Any, *, p_value: bool = False) -> str:
+    """Format an arbitrary value for report display with small p-value handling."""
+    if value is None:
+        return "Not available"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return "Not available"
+        if p_value and value == 0:
+            return "p < 0.001 (computational zero)"
+        return f"{value:.4g}" if isinstance(value, float) else str(value)
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, allow_nan=False)
+    return str(value)
+
+
+def report_table_to_display_table(table_payload: dict[str, Any]) -> DisplayTable:
+    """Convert a canonical report table payload dictionary into a DisplayTable."""
+    title = table_payload.get("title")
+    columns = tuple(str(c) for c in table_payload.get("columns", ()))
+    rows: list[DisplayRow] = []
+    for row in table_payload.get("rows", ()):
+        cells: list[str] = []
+        for item in row:
+            val = item.get("value") if isinstance(item, dict) else item
+            is_pval = isinstance(item, dict) and item.get("source") == "analysis.values.p_value"
+            cells.append(_display_helper(val, p_value=is_pval))
+        rows.append(DisplayRow(tuple(cells)))
+    return DisplayTable(title=title, columns=columns, rows=tuple(rows))
+
+
+def render_report_status(status: str) -> str:
+    """Render report execution status with an accessible semantic badge."""
+    status_lower = status.lower()
+    if status_lower in ("completed", "available", "passed", "reproduced"):
+        badge_class = "status-success"
+    elif status_lower in ("needs_input", "draft", "warning", "review"):
+        badge_class = "status-warning"
+    elif status_lower in ("failed", "error", "unsupported"):
+        badge_class = "status-error"
+    else:
+        badge_class = "status-neutral"
+    status_upper = status.upper()
+    return (
+        '<p class="report-status"><strong>Report status:</strong> '
+        f'<span class="diagnostic-status {badge_class}">[{escape_text(status_upper)}]</span> '
+        f"{escape_text(status)}</p>"
+    )
+
+
+def render_executive_summary(paragraphs: Sequence[str]) -> str:
+    """Render executive summary section with calm visual styling."""
+    if not paragraphs:
+        return ""
+    paras_html = "\n".join(
+        f"  <p>{escape_text(p, quote=True)}</p>" for p in paragraphs if p and p.strip()
+    )
+    return (
+        '<section class="executive-summary">\n'
+        "  <h2>Executive Summary</h2>\n"
+        f"{paras_html}\n"
+        "</section>"
+    )
+
+
+def render_report_section_dl(
+    section_data: dict[str, Any],
+    *,
+    p_value: bool = False,
+) -> str:
+    """Render a structured definition list for canonical report sections."""
+    if not section_data:
+        return ""
+
+    items: list[str] = []
+    for label, val in section_data.items():
+        if val is None or val == [] or val == {}:
+            continue
+        is_pval = p_value and (label == "p_value" or "p_value" in label)
+        disp_val = _display_helper(val, p_value=is_pval)
+        items.append(
+            f"  <dt><strong>{escape_text(label)}</strong></dt><dd>{escape_text(disp_val)}</dd>"
+        )
+
+    if not items:
+        return ""
+
+    joined = "\n".join(items)
+    return f"<dl>\n{joined}\n</dl>"
+
+
+def render_practical_significance(practical: dict[str, Any] | Any) -> str:
+    """Render practical significance findings, thresholds, and interval relations."""
+    if not practical:
+        return ""
+
+    data = practical.to_dict() if hasattr(practical, "to_dict") else dict(practical)
+
+    threshold_val = data.get("threshold")
+    threshold_str = str(threshold_val) if threshold_val is not None else None
+    estimate_val = data.get("estimate")
+    estimate_str = format_display_value(estimate_val) if estimate_val is not None else None
+    ci_val = data.get("confidence_interval")
+
+    metrics: list[DisplayMetric] = []
+    if threshold_str:
+        metrics.append(DisplayMetric("Practical Threshold", threshold_str))
+    if estimate_str:
+        metrics.append(DisplayMetric("Observed Estimate", estimate_str))
+    if isinstance(ci_val, dict):
+        lower = ci_val.get("lower")
+        upper = ci_val.get("upper")
+        conf = ci_val.get("confidence_level", 0.95)
+        pct = int(round(conf * 100)) if conf < 1.0 else int(conf)
+        if lower is not None and upper is not None:
+            metrics.append(DisplayMetric(f"{pct}% CI", f"[{lower:.4g}, {upper:.4g}]"))
+
+    cards_html = render_metric_cards(metrics) if metrics else ""
+
+    verdict = data.get("verdict")
+    status_badge = ""
+    if verdict:
+        v_str = str(verdict).lower()
+        if "meaningful" in v_str or "meets" in v_str or "superior" in v_str:
+            badge_class = "status-success"
+        elif "negligible" in v_str:
+            badge_class = "status-warning"
+        elif "inconclusive" in v_str:
+            badge_class = "status-neutral"
+        else:
+            badge_class = "status-neutral"
+        status_badge = (
+            f'<span class="diagnostic-status {badge_class}">'
+            f"[{escape_text(str(verdict).upper())}]</span>"
+        )
+
+    conclusion = data.get("conclusion")
+    conc_html = (
+        f'<p class="practical-conclusion">{status_badge} {escape_text(conclusion)}</p>'
+        if conclusion
+        else ""
+    )
+
+    dl_items = {}
+    for k in (
+        "quantity",
+        "planning_status",
+        "point_estimate_relationship",
+        "confidence_interval_relationship",
+        "statistical_evidence",
+    ):
+        if k in data and data[k] is not None:
+            dl_items[k] = data[k]
+
+    dl_html = render_report_section_dl(dl_items)
+    parts = [p for p in (cards_html, conc_html, dl_html) if p]
+    return "\n".join(parts)
+
+
+def render_sensitivity(sensitivity: dict[str, Any] | Any) -> str:
+    """Render sensitivity analysis scenario comparison metadata."""
+    if not sensitivity:
+        return ""
+
+    data = sensitivity.to_dict() if hasattr(sensitivity, "to_dict") else dict(sensitivity)
+    comparison_note = data.get("comparison_note")
+    note_html = (
+        f'<p class="sensitivity-note">{escape_text(comparison_note)}</p>' if comparison_note else ""
+    )
+
+    dl_items = {}
+    for k in ("baseline_method", "scenarios_evaluated", "estimand_stability"):
+        if k in data and data[k] is not None:
+            dl_items[k] = data[k]
+
+    dl_html = render_report_section_dl(dl_items)
+    parts = [p for p in (note_html, dl_html) if p]
+    return "\n".join(parts)

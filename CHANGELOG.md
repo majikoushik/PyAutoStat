@@ -9,6 +9,17 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Unified `ResearchReport.to_html()` and completed static HTML presentation coverage (`pyautostat.to_html`, `pyautostat.save_html`, and `pyautostat.presentation.html`):
+    -   Unified `ResearchReport.to_html()` to consume the exact same shared HTML component and rendering architecture (`ResearchReportHtmlRenderer` in `presentation/html/report_renderer.py`), eliminating the legacy separate hand-built HTML path while preserving canonical payload serialization.
+    -   Enabled source `AnalysisResult` normalization via `adapt(report._source_result, detail=...)` without re-running statistical algorithms, ensuring standalone HTML and `ResearchReport` HTML agree on primary estimates, confidence intervals, effect sizes, p-values, table fields, and diagnostic statuses.
+    -   Completed static HTML rendering and validation across all 24 registered statistical method IDs: one-sample t-test, Welch t-test, Student t-test, Mann-Whitney U, paired t-test, Wilcoxon signed-rank, Welch one-way ANOVA, classical one-way ANOVA, Kruskal-Wallis, Pearson correlation, Spearman rank correlation, Kendall's tau-b, point-biserial correlation, partial Pearson correlation, Pearson chi-square test of independence, Fisher's exact test, McNemar test, linear regression (OLS), logistic regression, Cronbach's alpha, repeated-measures ANOVA, Friedman test, two-way factorial ANOVA, and intraclass correlation (ICC).
+    -   Validated static HTML rendering across all non-analysis and governance presentation objects: dataset profile, frequency table, cross-tabulation, `StudyPlanningResult`, `SensitivityResult`, `PracticalSignificanceResult`, `StatisticalAnalysisPlan`, `PlanAdherenceResult`, `ReportingCompletenessResult`, `AuditResult`, `ReproducibilityRecord`, `ReproductionOutcome`, `DecisionLedger`, and `ResearchSessionSnapshot`.
+    -   Supported distinct rendering for non-completed workflow states: `needs_input`, `data_limited`, `unsupported`, and `failed` without raw tracebacks.
+    -   Eliminated duplicate visible table titles by consolidating visible titles in section headers and adding accessible `<caption class="sr-only">` table captions.
+    -   Expanded semantic table column alignment heuristics across library-wide text identifiers (Method, Scenario, Comparability, Reference, Severity, Rationale, Planning Status, Estimand, Adjustment, Reason, Event, Category, Level, etc.) to guarantee left-alignment.
+    -   Enforced responsive table row bounding in standard mode (showing up to 6 rows with a pagination note) while rendering all rows in full mode.
+    -   Preserved dynamic confidence levels (90%, 95%, 99%), falsey value fidelity (0, 0.0, False), and the zero-recalculation guarantee.
+    -   Added comprehensive coverage test suite in `tests/test_html_presentation_coverage.py`.
 -   Implemented the modern static HTML presentation system (`pyautostat.to_html`, `pyautostat.save_html`, and `pyautostat.presentation.html`) for reproducible research workflows:
     -   Added public `to_html(target, *, detail="standard", title=None, style="general")` and `save_html(target, path, *, detail="standard", title=None, style="general", overwrite=False)` APIs supporting `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, and `PresentationView`.
     -   Generalized the presentation architecture by introducing `PresentationView` (aliasing `TerminalView` for full backward compatibility), ensuring terminal and HTML renderers consume identical normalized semantic view models.

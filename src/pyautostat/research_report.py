@@ -383,81 +383,9 @@ class ResearchReport:
         detail: str = "standard",
         title: str | None = None,
     ) -> str:
-        style = _style(style)
-        if detail not in {"compact", "standard", "full"}:
-            raise ValueError(
-                f"Invalid detail mode '{detail}'. Expected 'compact', 'standard', or 'full'."
-            )
-        if title is not None and (not isinstance(title, str) or not title.strip()):
-            raise ReportError("title must be a non-empty string when provided.")
-        data = self._payload
-        report_title = title.strip() if title is not None else data["title"]
-        from .presentation.html.theme import get_theme_css
+        from .presentation.html.report_renderer import ResearchReportHtmlRenderer
 
-        theme_css = get_theme_css()
-        parts = [
-            "<!doctype html>",
-            '<html lang="en"><head><meta charset="utf-8">',
-            f"<title>{escape(report_title, quote=True)}</title>",
-            f'<style>{theme_css}</style></head><body><main class="report-container">',
-            f"<h1>{escape(report_title, quote=True)}</h1>",
-            f"<p><strong>Report status:</strong> {escape(data['status'])}</p>",
-        ]
-        practical_verdict = (
-            self._source_practical_significance.verdict
-            if self._source_practical_significance is not None
-            else None
-        )
-        sensitivity_verdict = (
-            self._source_sensitivity.verdict if self._source_sensitivity is not None else None
-        )
-        summary_paragraphs = _build_executive_summary(
-            data,
-            practical_verdict=practical_verdict,
-            sensitivity_verdict=sensitivity_verdict,
-        )
-        parts.append('<section class="executive-summary"><h2>Executive Summary</h2>')
-        parts.extend(f"<p>{escape(paragraph)}</p>" for paragraph in summary_paragraphs)
-        parts.append("</section>")
-        summary = _concise_result(data, style)
-        if summary is not None:
-            parts.append(f'<p class="oriented-summary">{escape(summary)}</p>')
-        if detail == "compact":
-            parts.append("</main></body></html>")
-            return "\n".join(parts)
-        for index, (key, heading) in enumerate(_report_sections(data), start=1):
-            styled = _styled_heading(heading, index, style)
-            parts.append(f"<section><h2>{escape(styled)}</h2><dl>")
-            for label, value in data["sections"][key].items():
-                if value is not None and value != [] and value != {}:
-                    display_value = escape(
-                        _display(value, p_value=key == "results" and label == "p_value")
-                    )
-                    parts.append(
-                        f"<dt><strong>{escape(label)}</strong></dt><dd>{display_value}</dd>"
-                    )
-            parts.append("</dl></section>")
-        for table in data["tables"]:
-            parts.append(f"<section><h2>{escape(table['title'])}</h2><table><thead><tr>")
-            parts.extend(f'<th scope="col">{escape(name)}</th>' for name in table["columns"])
-            parts.append("</tr></thead><tbody>")
-            for row in table["rows"]:
-                parts.append("<tr>")
-                for item in row:
-                    value = _display(
-                        item["value"], p_value=item["source"] == "analysis.values.p_value"
-                    )
-                    parts.append(f"<td>{escape(value)}</td>")
-                parts.append("</tr>")
-            parts.append("</tbody></table></section>")
-        for key, heading in (("limitations", "Limitations"), ("warnings", "Warnings")):
-            parts.append(f'<section class="caution"><h2>{heading}</h2><ul>')
-            parts.extend(f"<li>{escape(item)}</li>" for item in data[key])
-            if not data[key]:
-                parts.append("<li>None recorded.</li>")
-            parts.append("</ul></section>")
-        parts.append("</main></body></html>")
-        return "\n".join(parts)
+        return ResearchReportHtmlRenderer(self, detail=detail, title=title, style=style).render()
 
     def to_latex(self, *, style: str = "general") -> str:
         style = _style(style)

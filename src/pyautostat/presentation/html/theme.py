@@ -84,6 +84,28 @@ body {
   margin: 0;
 }
 
+.report-status {
+  font-size: 0.9375rem;
+  color: var(--pa-text-muted);
+  margin: 0.5rem 0 1.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
 /* Sections */
 .report-section {
   margin-bottom: 2.25rem;

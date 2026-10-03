@@ -133,40 +133,74 @@ All user-supplied content (variable names, group labels, table values, question 
 
 ---
 
-## 9. Representative Analyses
+## 9. Comprehensive Method and Object Coverage
 
-The HTML presentation system establishes and validates presentation for four representative analysis families:
+The HTML presentation architecture covers all 24 PyAutoStat statistical analysis methods and all non-analysis governance/planning objects supported by `PresentationView`:
 
-1. **Welch Independent-Samples t-test**:
-   - Signed mean difference (preserves direction; never reversed or absolute-valued).
-   - Dynamic estimate CI and Cohen's d effect size CI.
-   - Group summary table.
-   - Variance assumption explicitly marked `[NOT ASSUMED]`.
-2. **Pearson Linear Correlation**:
-   - Correlation coefficient `r`, dynamic CI, and two-sided p-value.
-   - Sample accounting for complete paired observations.
-   - Methodological limitation: association does not establish causation.
-3. **Ordinary Least Squares (OLS) Linear Regression**:
-   - Model fit metrics ($R^2$, adjusted $R^2$, $F$-statistic, p-value, residual standard error).
-   - Coefficient table in stable source order (Term, Estimate, Std Error, dynamic CI, $t$, p-value).
-   - Stored Breusch-Pagan heteroskedasticity and VIF collinearity diagnostics.
-4. **Kruskal-Wallis Rank Sum Test**:
-   - Omnibus $H$ statistic with degrees of freedom, p-value, and epsilon-squared effect size.
-   - Real group summary schema (Group, $N$, Median; no fabricated IQR).
-   - Dunn-Holm pairwise comparisons table (Contrast, Mean-Rank Diff, Dunn $z$, Rank-biserial $r$, Adjusted p-value, Decision).
-   - Equal-variance diagnostic explicitly marked `[NOT APPLICABLE]`.
-   - Preserves non-string/zero group labels (e.g. `0`).
+### Supported Statistical Analysis Methods
+
+| Method ID | Method Family | Scientific Presentation Features |
+|---|---|---|
+| `one_sample_t` | Comparison | Reference value, signed difference, CI, Cohen's d, $t$, df, p-value |
+| `student_t` | Comparison | Equal-variance assumption context, signed difference, CI, Cohen's d |
+| `welch_t` | Comparison | Robust unequal-variance, signed difference, CI, Cohen's d with effect CI |
+| `paired_t` | Comparison | Condition order preserved, complete pairs accounting, mean difference, CI |
+| `mann_whitney_u` | Rank Comparison | Rank-sum/distribution context (not universal median test), U statistic, rank-biserial $r_{rb}$, CI |
+| `wilcoxon_signed_rank` | Rank Comparison | Pair order, signed-rank $W$, rank-biserial $r_{rb}$, CI |
+| `welch_anova` | Multigroup | Omnibus Welch $F$, Games-Howell pairwise follow-up table with simultaneous CIs |
+| `one_way_anova` | Multigroup | Omnibus $F$, eta-squared $\eta^2$, Tukey-Kramer post-hoc follow-up table |
+| `kruskal_wallis` | Multigroup | Omnibus $H$ statistic, epsilon-squared $\epsilon^2$, Dunn-Holm pairwise follow-up table |
+| `pearson_correlation` | Association | Pearson $r$, dynamic CI, sample accounting for complete pairs, causation caveat |
+| `spearman_correlation` | Association | Spearman $\rho$ notation, monotonic association context, dynamic CI |
+| `kendall_tau_b` | Association | Kendall $\tau_b$ notation, tie-adjusted rank concordance, dynamic CI |
+| `point_biserial_correlation` | Association | Point-biserial $r_{pb}$, positive/reference level declaration, dynamic CI |
+| `partial_pearson_correlation` | Association | Partial $r$, control variables listed, dynamic CI, observational limitation |
+| `pearson_chi_square` | Categorical | Contingency table, Cramer's $V$, stored minimum expected-count diagnostic |
+| `fisher_exact` | Categorical | Odds ratio, exact p-value, explicit unavailable CI handling on zero cells |
+| `mcnemar` | Categorical | Paired transition table, discordant pairs, proportion difference, CI |
+| `linear_regression` | Regression | Model fit ($R^2$, adj $R^2$, $F$), OLS coefficient table, HC3 covariance label, Breusch-Pagan / VIF diagnostics |
+| `logistic_regression` | Regression | Modeled event, Odds Ratio (OR) first coefficient table, dynamic CIs |
+| `cronbach_alpha` | Reliability | Raw and standardized $\alpha$, bootstrap CI, item-deleted diagnostic table |
+| `repeated_measures_anova` | Repeated Measures | Within-subject omnibus $F$, Mauchly sphericity, Greenhouse-Geisser $\epsilon$ correction |
+| `friedman_test` | Repeated Measures | Friedman $\chi^2$, Kendall's $W$ concordance, Wilcoxon-Holm pairwise follow-ups |
+| `two_way_anova` | Factorial | Main effects Factor A, Factor B, interaction term A×B, partial $\eta^2$ |
+| `intraclass_correlation` | Reliability | ICC model and definition rendered prior to estimate, negative ICC preserved |
+
+### Supported Descriptive, Planning, and Governance Objects
+
+| Target Object | Presentation Features |
+|---|---|
+| Dataset Profile | Structured design grid (rows, columns, missing cells, duplicates, memory), numeric and categorical summaries |
+| Frequency Table | Frequency, valid percentage, cumulative percentage |
+| Cross-tabulation | Row/column categories, contingency counts, row/col percentages |
+| Study Planning Result (`StudyPlanningResult`) | Prospective power requirements, sample-size target, explicit non-post-hoc disclaimer |
+| Sensitivity Result (`SensitivityResult`) | Scenario comparisons in stable order, requested vs actual method, contrast preservation |
+| Practical Significance Result (`PracticalSignificanceResult`) | Quantity, threshold magnitude/unit, observed estimate, interval relation, verdict |
+| Statistical Analysis Plan (`StatisticalAnalysisPlan`) | Pre-analysis specification, planned estimand, planned methodology |
+| Plan Adherence Result (`PlanAdherenceResult`) | Planned vs executed method comparisons, deviation reasons |
+| Reporting Completeness Result (`ReportingCompletenessResult`) | Section completeness breakdown; states internal consistency, not study quality |
+| Audit Result (`AuditResult`) | Integrity checks, verification status badges (`[PASSED]`, `[REVIEW]`, `[FAILED]`) |
+| Reproducibility Record (`ReproducibilityRecord`) | Seed, runtime environment, execution metadata without raw dict dump |
+| Reproduction Outcome (`ReproductionOutcome`) | Replay verification status, numerical match status |
+| Decision Ledger (`DecisionLedger`) | Event ledger of research actions without unverified provenance claims |
+| Research Session Snapshot (`ResearchSessionSnapshot`) | UI-independent session state, workflow status, capability matrix |
 
 ---
 
-## 10. ResearchReport Integration
+## 10. ResearchReport Unification
 
-The canonical `ResearchReport` object provides upgraded `to_html(...)` and `save_html(...)` methods using the modern visual design system:
+The modern `ResearchReport.to_html(...)` method reuses the exact same component architecture, CSS theme, table styling, and escaping rules as standalone `to_html(...)`:
+
+- **Shared Visual Source**: When a `ResearchReport` contains a source `AnalysisResult`, it normalizes through `adapt(report._source_result, detail=...)` without re-running statistical algorithms.
+- **Identical Numbers and Badges**: Standalone HTML and report HTML agree on primary estimates, confidence intervals, effect sizes, p-values, table rows, and diagnostic statuses.
+- **Graceful Fallback**: If the source result is not attached, the renderer gracefully falls back to the canonical payload records without fabricating models.
+- **Executive Summary Component**: Calm visual styling for natural-language summary paragraphs.
+- **Responsive Table Bounding**: Large tables in `standard` detail mode show bounded rows with a clear pagination note, while `full` detail mode renders all rows.
 
 ```python
 report = assistant.report(analysis_result)
 
-# Export modern styled HTML report
+# Export unified modern styled HTML report
 html_text = report.to_html(style="general", detail="standard")
 report.save_html("customer_report.html", overwrite=True)
 ```
