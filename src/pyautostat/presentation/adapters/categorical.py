@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_effect,
     format_number,
     format_odds_ratio,
@@ -26,6 +27,7 @@ from .common import (
     extract_diagnostics,
     first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -35,6 +37,7 @@ def adapt_pearson_chi_square(
 ) -> TerminalView:
     """Adapt a Pearson chi-square independence test workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
     outcome = (spec.question.outcome if spec and spec.question else None) or "Outcome"
     predictor = (spec.question.predictor if spec and spec.question else None) or "Predictor"
 
@@ -59,12 +62,13 @@ def adapt_pearson_chi_square(
     v_str = format_effect(v_val, decimals=3)
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=3)
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level, prefix="Effect")
 
     key_metrics_list = [
         DisplayMetric("Test statistic", stat_str, role="result.evidence"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
         DisplayMetric("Cramer's V", v_str, role="result.effect"),
-        DisplayMetric("Effect 95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
     ]
 
     # Contingency Table
@@ -158,6 +162,7 @@ def adapt_fisher_exact(
 ) -> TerminalView:
     """Adapt a Fisher's exact 2x2 test workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
     outcome = (spec.question.outcome if spec and spec.question else None) or "Outcome"
     predictor = (spec.question.predictor if spec and spec.question else None) or "Predictor"
 
@@ -180,10 +185,11 @@ def adapt_fisher_exact(
         ci_str = "Unavailable (zero cell observed; no ad-hoc pseudocount added)"
     else:
         ci_str = format_confidence_interval(ci_dict, decimals=3)
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
 
     key_metrics_list = [
         DisplayMetric("Odds ratio", or_str, role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("p-value (two-sided)", p_str, role="result.evidence"),
     ]
 
@@ -260,6 +266,7 @@ def adapt_mcnemar(
 ) -> TerminalView:
     """Adapt a McNemar paired binary test workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
     outcome = (spec.question.outcome if spec and spec.question else None) or "Outcome"
     condition = (spec.question.predictor if spec and spec.question else None) or "Condition"
     unit_id = analysis.metadata.get("unit_id") or "unit_id"
@@ -281,6 +288,7 @@ def adapt_mcnemar(
     diff_str = format_number(diff, decimals=3)
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=3)
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
     matched_or = analysis.values.get("matched_odds_ratio")
@@ -288,7 +296,7 @@ def adapt_mcnemar(
 
     key_metrics_list = [
         DisplayMetric("Proportion difference", diff_str, role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("Matched Odds Ratio", or_str, role="result.effect"),
         DisplayMetric("p-value (exact)", p_str, role="result.evidence"),
     ]
@@ -355,7 +363,7 @@ def adapt_mcnemar(
 
     compact_text = (
         f"McNemar paired binary | N={format_sample_size(sample_size)} | "
-        f"diff={diff_str} | 95% CI {ci_str} | p={p_str}"
+        f"diff={diff_str} | {ci_label} {ci_str} | p={p_str}"
     )
 
     return TerminalView(

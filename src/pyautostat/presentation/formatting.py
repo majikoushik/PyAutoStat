@@ -235,3 +235,61 @@ def format_boolean_status(
     if val is False:
         return false_label
     return default
+
+
+def format_confidence_level_label(
+    ci: Any = None,
+    *,
+    confidence_level: float | None = None,
+    prefix: str | None = None,
+    suffix: str = "CI",
+) -> str:
+    """Format a dynamic confidence interval label reflecting stored confidence level.
+
+    Follows precedence:
+    1. Stored 'level' in the interval object/dictionary itself.
+    2. Explicit fallback 'confidence_level' (e.g. from analysis specification or metadata).
+    3. Neutral fallback label without assuming 95%.
+    """
+    level: float | None = None
+    if isinstance(ci, dict):
+        candidate = ci.get("level")
+        if (
+            isinstance(candidate, (int, float))
+            and not isinstance(candidate, bool)
+            and math.isfinite(candidate)
+            and 0 < candidate < 1
+        ):
+            level = float(candidate)
+    elif ci is not None:
+        candidate = getattr(ci, "level", None)
+        if (
+            isinstance(candidate, (int, float))
+            and not isinstance(candidate, bool)
+            and math.isfinite(candidate)
+            and 0 < candidate < 1
+        ):
+            level = float(candidate)
+
+    if level is None and confidence_level is not None:
+        if (
+            isinstance(confidence_level, (int, float))
+            and not isinstance(confidence_level, bool)
+            and math.isfinite(confidence_level)
+            and 0 < confidence_level < 1
+        ):
+            level = float(confidence_level)
+
+    parts: list[str] = []
+    if prefix:
+        parts.append(prefix)
+
+    if level is not None:
+        pct = level * 100
+        parts.append(f"{pct:g}%")
+
+    if suffix:
+        parts.append(suffix)
+
+    result = " ".join(parts).strip()
+    return result if result else "CI"

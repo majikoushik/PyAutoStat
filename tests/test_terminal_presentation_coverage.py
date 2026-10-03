@@ -2483,3 +2483,375 @@ def test_chi_square_expected_count_stored_status_wins():
     diag_none = next(d for d in view_none.diagnostics if d.label == "Min Expected Count")
     assert diag_none.status == "DOCUMENTED"
     assert diag_none.severity == "neutral"
+
+
+# ── Tests for Presentation Fidelity (CI Labels, Kruskal Schema, Falsey Labels) ─
+
+
+def test_format_confidence_level_label_unit():
+    """Unit test format_confidence_level_label precedence and formatting."""
+    from pyautostat.presentation.formatting import format_confidence_level_label
+
+    # Preferred source 1: Interval object with valid level
+    assert format_confidence_level_label({"level": 0.90}) == "90% CI"
+    assert format_confidence_level_label({"level": 0.95}) == "95% CI"
+    assert format_confidence_level_label({"level": 0.975}) == "97.5% CI"
+    assert format_confidence_level_label({"level": 0.99}) == "99% CI"
+    assert format_confidence_level_label({"level": 0.999}) == "99.9% CI"
+
+    # Preferred source 2: Explicit fallback confidence_level
+    assert format_confidence_level_label(confidence_level=0.90) == "90% CI"
+    assert format_confidence_level_label(None, confidence_level=0.99) == "99% CI"
+
+    # Precedence: interval level overrides fallback confidence_level
+    assert format_confidence_level_label({"level": 0.90}, confidence_level=0.95) == "90% CI"
+
+    # Prefixes and suffixes
+    assert (
+        format_confidence_level_label(confidence_level=0.90, prefix="R-squared")
+        == "R-squared 90% CI"
+    )
+    assert (
+        format_confidence_level_label(confidence_level=0.90, suffix="Simultaneous CI")
+        == "90% Simultaneous CI"
+    )
+    assert (
+        format_confidence_level_label(confidence_level=0.90, prefix="Effect", suffix="Bootstrap CI")
+        == "Effect 90% Bootstrap CI"
+    )
+
+    # Fallback to neutral label when no level is available (never assuming 95%)
+    assert format_confidence_level_label() == "CI"
+    assert format_confidence_level_label({}) == "CI"
+    assert format_confidence_level_label(None, confidence_level=None) == "CI"
+    assert format_confidence_level_label(prefix="R-squared") == "R-squared CI"
+    assert format_confidence_level_label(suffix="Bootstrap CI") == "Bootstrap CI"
+
+    # Invalid levels fall back to neutral label
+    assert format_confidence_level_label(confidence_level=0.0) == "CI"
+    assert format_confidence_level_label(confidence_level=1.0) == "CI"
+    assert format_confidence_level_label(confidence_level=-0.05) == "CI"
+    assert format_confidence_level_label(confidence_level=float("nan")) == "CI"
+
+
+def test_welch_t_dynamic_confidence_level():
+    """Verify Welch t-test displays 90% CI instead of 95% CI when configured."""
+    df = pd.DataFrame(
+        {
+            "score": [10.0, 11.0, 12.0, 13.0, 20.0, 21.0, 22.0, 23.0],
+            "group": ["A", "A", "A", "A", "B", "B", "B", "B"],
+        }
+    )
+    wf = ResearchAssistant(df).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="independent",
+        estimand="mean",
+        variable_types={"score": "continuous"},
+        options=AnalysisOptions(confidence_level=0.90),
+    )
+    view = adapt(wf, detail="standard")
+    labels = [m.label for m in view.key_metrics]
+    assert "90% CI" in labels
+    assert "95% CI" not in labels
+
+    out = _capture(wf, detail="standard")
+    assert "90% CI" in out
+    assert "95% CI" not in out
+
+
+def test_pearson_dynamic_confidence_level():
+    """Verify Pearson correlation displays 99% CI when configured with 0.99."""
+    df = pd.DataFrame(
+        {
+            "x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "y": [2.0, 4.0, 5.0, 7.0, 8.0, 11.0],
+        }
+    )
+    wf = ResearchAssistant(df).run(
+        objective="association",
+        outcome="y",
+        predictor="x",
+        estimand="linear",
+        design="independent",
+        variable_types={"x": "continuous", "y": "continuous"},
+        options=AnalysisOptions(confidence_level=0.99),
+    )
+    view = adapt(wf, detail="standard")
+    labels = [m.label for m in view.key_metrics]
+    assert "99% CI" in labels
+    assert "95% CI" not in labels
+
+    out = _capture(wf, detail="standard")
+    assert "99% CI" in out
+    assert "95% CI" not in out
+
+
+def test_linear_regression_dynamic_confidence_level():
+    """Verify OLS regression metrics and table headers use configured CI level."""
+    df = pd.DataFrame(
+        {
+            "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "x": [2.0, 3.0, 5.0, 7.0, 8.0, 10.0],
+        }
+    )
+    wf = ResearchAssistant(df).run(
+        objective="regression",
+        outcome="y",
+        predictors=["x"],
+        design="independent",
+        estimand="conditional_mean",
+        variable_types={"y": "continuous", "x": "continuous"},
+        options=AnalysisOptions(confidence_level=0.90),
+    )
+    view = adapt(wf, detail="standard")
+    labels = [m.label for m in view.key_metrics]
+    assert "R-squared 90% CI" in labels
+    assert "R-squared 95% CI" not in labels
+
+    coef_table = view.tables[0]
+    assert "90% CI" in coef_table.columns
+    assert "95% CI" not in coef_table.columns
+
+    out = _capture(wf, detail="standard")
+    assert "90% CI" in out
+    assert "95% CI" not in out
+
+
+def test_multigroup_pairwise_simultaneous_ci_level():
+    """Verify ANOVA pairwise table column displays 90% Simultaneous CI when configured."""
+    df = pd.DataFrame(
+        {
+            "group": ["A"] * 6 + ["B"] * 6 + ["C"] * 6,
+            "score": [
+                1.0,
+                2.0,
+                3.0,
+                2.0,
+                3.0,
+                4.0,
+                6.0,
+                7.0,
+                8.0,
+                6.0,
+                7.0,
+                9.0,
+                11.0,
+                12.0,
+                13.0,
+                12.0,
+                13.0,
+                14.0,
+            ],
+        }
+    )
+    wf = ResearchAssistant(df).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="independent",
+        estimand="mean",
+        variable_types={"score": "continuous", "group": "nominal"},
+        options=AnalysisOptions(confidence_level=0.90),
+    )
+    view = adapt(wf, detail="standard")
+    pair_table = next((t for t in view.tables if "PAIRWISE" in t.title), None)
+    assert pair_table is not None
+    assert any("90% Simultaneous CI" in col for col in pair_table.columns)
+    assert not any("95% Simultaneous CI" in col for col in pair_table.columns)
+
+
+def test_practical_significance_dynamic_ci_level():
+    """Verify practical significance display reflects stored interval level or neutral CI."""
+    # Stored level 0.90
+    ps_90 = PracticalSignificanceResult(
+        status="complete",
+        quantity="mean_difference",
+        estimate=4.5,
+        threshold=MeaningfulEffectThreshold("mean_difference", minimum_magnitude=3.0),
+        confidence_interval={"level": 0.90, "lower": 2.0, "upper": 7.0},
+        point_estimate_relation="exceeds_threshold",
+        confidence_interval_relation="entirely_above",
+        uncertainty_status="practically_significant",
+        statistical_significance="evidence_against_null",
+        conclusion="Effect is practically meaningful.",
+        warnings=(),
+        provenance={},
+    )
+    view_90 = adapt(ps_90)
+    labels_90 = [m.label for m in view_90.design_metrics]
+    assert "90% CI" in labels_90
+    assert "95% CI" not in labels_90
+
+    # No stored level: neutral "CI", never assuming 95%
+    ps_neutral = PracticalSignificanceResult(
+        status="complete",
+        quantity="mean_difference",
+        estimate=4.5,
+        threshold=MeaningfulEffectThreshold("mean_difference", minimum_magnitude=3.0),
+        confidence_interval={"lower": 2.0, "upper": 7.0},
+        point_estimate_relation="exceeds_threshold",
+        confidence_interval_relation="entirely_above",
+        uncertainty_status="practically_significant",
+        statistical_significance="evidence_against_null",
+        conclusion="Effect is practically meaningful.",
+        warnings=(),
+        provenance={},
+    )
+    view_neutral = adapt(ps_neutral)
+    labels_neutral = [m.label for m in view_neutral.design_metrics]
+    assert "CI" in labels_neutral
+    assert "95% CI" not in labels_neutral
+
+
+def test_kruskal_wallis_real_group_summary_schema():
+    """Verify real execution path Kruskal-Wallis group summary matches backend schema."""
+    df = pd.DataFrame(
+        {
+            "group": ["A"] * 6 + ["B"] * 6 + ["C"] * 6,
+            "score": [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+                8.0,
+                9.0,
+                10.0,
+                11.0,
+                12.0,
+                13.0,
+            ],
+        }
+    )
+    wf = ResearchAssistant(df).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="independent",
+        estimand="distribution",
+        variable_types={"score": "continuous", "group": "nominal"},
+    )
+    view = adapt(wf, detail="standard")
+    group_tbl = next(t for t in view.tables if "GROUP SUMMARY" in t.title)
+
+    # Must render Group | N | Median without fabricating IQR
+    assert group_tbl.columns == ("Group", "N", "Median")
+    assert "IQR" not in group_tbl.columns
+
+    for row in group_tbl.rows:
+        assert row.cells[0] in ("A", "B", "C")
+        assert row.cells[1] == "6"
+        assert row.cells[1] != "Unavailable"
+        assert row.cells[2] != "Unavailable"
+        float(row.cells[2])
+
+    out = _capture(wf, detail="standard")
+    assert "Unavailable" not in out
+
+
+def test_multigroup_integer_zero_labels_pairwise():
+    """Verify integer group labels (0, 1, 2) are preserved in pairwise comparisons."""
+    df = pd.DataFrame(
+        {
+            "group": [0] * 6 + [1] * 6 + [2] * 6,
+            "score": [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+                10.0,
+                11.0,
+                12.0,
+                13.0,
+                14.0,
+                15.0,
+                16.0,
+                17.0,
+                18.0,
+            ],
+        }
+    )
+
+    # 1. Kruskal-Wallis with Dunn
+    wf_kw = ResearchAssistant(df).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="independent",
+        estimand="distribution",
+        variable_types={"score": "continuous", "group": "nominal"},
+    )
+    view_kw = adapt(wf_kw, detail="standard")
+    kw_group_tbl = next(t for t in view_kw.tables if "GROUP SUMMARY" in t.title)
+    kw_groups = [r.cells[0] for r in kw_group_tbl.rows]
+    assert "0" in kw_groups
+    assert "1" in kw_groups
+    assert "2" in kw_groups
+
+    kw_pair_tbl = next(t for t in view_kw.tables if "DUNN" in t.title or "PAIRWISE" in t.title)
+    kw_contrasts = [r.cells[0] for r in kw_pair_tbl.rows]
+    assert "0 vs 1" in kw_contrasts
+    assert "0 vs 2" in kw_contrasts
+    assert "1 vs 2" in kw_contrasts
+    assert not any(c == "-" or "Unavailable" in c or "None" in c for c in kw_contrasts)
+
+    # 2. ANOVA with Tukey / Games-Howell
+    wf_anova = ResearchAssistant(df).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="independent",
+        estimand="mean",
+        variable_types={"score": "continuous", "group": "nominal"},
+    )
+    view_anova = adapt(wf_anova, detail="standard")
+    anova_group_tbl = next(t for t in view_anova.tables if "GROUP SUMMARY" in t.title)
+    anova_groups = [r.cells[0] for r in anova_group_tbl.rows]
+    assert "0" in anova_groups
+    assert "1" in anova_groups
+    assert "2" in anova_groups
+
+    anova_pair_tbl = next(t for t in view_anova.tables if "PAIRWISE" in t.title)
+    anova_contrasts = [r.cells[0] for r in anova_pair_tbl.rows]
+    assert any("0 - 1" in c or "0 vs 1" in c for c in anova_contrasts)
+    assert any("0 - 2" in c or "0 vs 2" in c for c in anova_contrasts)
+    assert not any(c.strip() == "-" for c in anova_contrasts)
+
+
+def test_no_hardcoded_95_ci_labels_in_presentation_adapters():
+    """Guard test: presentation adapters must not contain hard-coded 95% CI strings."""
+    import pathlib
+
+    adapters_dir = (
+        pathlib.Path(__file__).parent.parent / "src" / "pyautostat" / "presentation" / "adapters"
+    )
+    forbidden = [
+        "95% CI",
+        "95% Bootstrap CI",
+        "95% Wald CI",
+        "95% Simultaneous CI",
+        "R-squared 95% CI",
+        "Interaction 95% CI",
+        "Effect 95% CI",
+    ]
+    violations = []
+    for py_file in adapters_dir.glob("*.py"):
+        content = py_file.read_text(encoding="utf-8")
+        for bad in forbidden:
+            if bad in content:
+                violations.append(f"{py_file.name}: contains forbidden '{bad}'")
+    assert not violations, "Forbidden hardcoded CI labels found:\n" + "\n".join(violations)

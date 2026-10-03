@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from ...results import AnalysisResult
@@ -27,6 +28,47 @@ def first_present(record: dict[str, Any] | Any, *keys: str, default: Any = None)
             if val is not None:
                 return val
     return default
+
+
+def resolve_confidence_level(
+    analysis: AnalysisResult | None = None,
+    spec: Any | None = None,
+) -> float | None:
+    """Extract authoritative confidence level from specification or analysis metadata."""
+    if spec is not None and hasattr(spec, "options") and spec.options is not None:
+        val = getattr(spec.options, "confidence_level", None)
+        if (
+            isinstance(val, (int, float))
+            and not isinstance(val, bool)
+            and math.isfinite(val)
+            and 0 < val < 1
+        ):
+            return float(val)
+    if analysis is not None:
+        if (
+            analysis.specification is not None
+            and hasattr(analysis.specification, "options")
+            and analysis.specification.options is not None
+        ):
+            val = getattr(analysis.specification.options, "confidence_level", None)
+            if (
+                isinstance(val, (int, float))
+                and not isinstance(val, bool)
+                and math.isfinite(val)
+                and 0 < val < 1
+            ):
+                return float(val)
+        for container in (analysis.values, analysis.metadata):
+            if isinstance(container, dict):
+                val = container.get("confidence_level")
+                if (
+                    isinstance(val, (int, float))
+                    and not isinstance(val, bool)
+                    and math.isfinite(val)
+                    and 0 < val < 1
+                ):
+                    return float(val)
+    return None
 
 
 def extract_context(

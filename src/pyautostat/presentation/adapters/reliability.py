@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_df,
     format_number,
     format_p_value,
@@ -26,6 +27,7 @@ from .common import (
     extract_diagnostics,
     first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -35,6 +37,7 @@ def adapt_cronbach_alpha(
 ) -> TerminalView:
     """Adapt a Cronbach's alpha internal consistency scale workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
     items = analysis.values.get("items") or []
     item_count = analysis.values.get("item_count") or len(items)
 
@@ -82,12 +85,15 @@ def adapt_cronbach_alpha(
     alpha_str = format_number(alpha_val, decimals=3)
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=3)
+    ci_label = format_confidence_level_label(
+        ci_dict, confidence_level=conf_level, suffix="Bootstrap CI"
+    )
     mean_inter = analysis.values.get("mean_inter_item_correlation")
     mean_inter_str = format_number(mean_inter, decimals=3)
 
     key_metrics_list = [
         DisplayMetric("Cronbach's alpha", alpha_str, role="result.estimate"),
-        DisplayMetric("95% Bootstrap CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("Mean Inter-Item r", mean_inter_str, role="result.effect"),
     ]
 
@@ -209,9 +215,10 @@ def adapt_cronbach_alpha(
             "theoretical justification."
         )
 
+    ci_short_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
     compact_text = (
         f"Cronbach's alpha | Items={item_count} | N={format_sample_size(sample_size)} | "
-        f"alpha={alpha_str} | 95% CI {ci_str}"
+        f"alpha={alpha_str} | {ci_short_label} {ci_str}"
     )
 
     return TerminalView(
@@ -236,6 +243,7 @@ def adapt_intraclass_correlation(
 ) -> TerminalView:
     """Adapt an Intraclass Correlation Coefficient (ICC) rater reliability workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
 
     # MANDATORY: Extract canonical definition fields first
     variant = analysis.values.get("variant") or analysis.values.get("notation") or "ICC"
@@ -267,6 +275,7 @@ def adapt_intraclass_correlation(
     icc_str = format_number(icc_val, decimals=3)
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=3)
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
 
     f_test = analysis.values.get("f_test", {})
     f_stat = f_test.get("statistic")
@@ -277,7 +286,7 @@ def adapt_intraclass_correlation(
 
     key_metrics_list = [
         DisplayMetric(f"{variant} Estimate", icc_str, role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("Target F-test", f_str, role="result.evidence"),
         DisplayMetric("F-test p-value", f_p_str, role="result.evidence"),
     ]
@@ -351,7 +360,7 @@ def adapt_intraclass_correlation(
     compact_text = (
         f"ICC | {variant} ({model}, {definition}, {unit}) | "
         f"Targets={format_sample_size(n_targets)}, Raters={format_sample_size(n_raters)} | "
-        f"ICC={icc_str} | 95% CI {ci_str} | {f_str} | p={f_p_str}"
+        f"ICC={icc_str} | {ci_label} {ci_str} | {f_str} | p={f_p_str}"
     )
 
     metadata = build_metadata_dict(analysis, workflow)

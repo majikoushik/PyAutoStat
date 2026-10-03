@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_number,
     format_odds_ratio,
     format_p_value,
@@ -26,6 +27,7 @@ from .common import (
     extract_diagnostics,
     first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -35,6 +37,7 @@ def adapt_linear_regression(
 ) -> TerminalView:
     """Adapt an OLS linear regression workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
     outcome = analysis.values.get("outcome") or "Outcome"
     predictors = analysis.values.get("predictors") or []
     cov_type = analysis.values.get("covariance_type") or "nonrobust"
@@ -66,13 +69,16 @@ def adapt_linear_regression(
     r2_str = format_number(r2, decimals=4)
     adj_r2_str = format_number(adj_r2, decimals=4)
     ci_str = format_confidence_interval(r2_ci, decimals=4)
+    r2_ci_label = format_confidence_level_label(
+        r2_ci, confidence_level=conf_level, prefix="R-squared"
+    )
     f_str = format_statistic("F", f_stat, df=f_df)
     f_p_str = format_p_value(f_p)
 
     key_metrics_list = [
         DisplayMetric("R-squared", r2_str, role="result.estimate"),
         DisplayMetric("Adjusted R-squared", adj_r2_str, role="result.estimate"),
-        DisplayMetric("R-squared 95% CI", ci_str, role="result.ci"),
+        DisplayMetric(r2_ci_label, ci_str, role="result.ci"),
         DisplayMetric("Model F-test", f_str, role="result.evidence"),
         DisplayMetric("Model p-value", f_p_str, role="result.evidence"),
     ]
@@ -83,7 +89,11 @@ def adapt_linear_regression(
     tables: list[DisplayTable] = []
     raw_coefs = analysis.values.get("coefficients", [])
     if isinstance(raw_coefs, list) and raw_coefs:
-        cols = ("Term", "Estimate", "Std Error", "95% CI", "t", "p-value")
+        coef_ci_sample = (
+            raw_coefs[0].get("confidence_interval") if isinstance(raw_coefs[0], dict) else None
+        )
+        coef_ci_label = format_confidence_level_label(coef_ci_sample, confidence_level=conf_level)
+        cols = ("Term", "Estimate", "Std Error", coef_ci_label, "t", "p-value")
         rows: list[DisplayRow] = []
         for c in raw_coefs:
             term = str(c.get("term", c.get("term_label", c.get("name", ""))))
@@ -229,10 +239,11 @@ def adapt_logistic_regression(
 ) -> TerminalView:
     """Adapt a binary logistic regression workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
     outcome = analysis.values.get("outcome") or "Outcome"
     predictors = analysis.values.get("predictors") or []
-    event_lvl = analysis.values.get("event_level", "1")
-    non_event_lvl = analysis.values.get("non_event_level", "0")
+    event_lvl = first_present(analysis.values, "event_level", default="1")
+    non_event_lvl = first_present(analysis.values, "non_event_level", default="0")
     event_count = analysis.values.get("event_count")
     event_rate = analysis.values.get("event_rate")
 
@@ -273,9 +284,13 @@ def adapt_logistic_regression(
     tables: list[DisplayTable] = []
     raw_coefs = analysis.values.get("coefficients", [])
     if isinstance(raw_coefs, list) and raw_coefs:
+        or_ci_sample = raw_coefs[0].get("odds_ratio_ci") if isinstance(raw_coefs[0], dict) else None
+        wald_ci_label = format_confidence_level_label(
+            or_ci_sample, confidence_level=conf_level, suffix="Wald CI"
+        )
         cols: tuple[str, ...]
         if detail == "full":
-            cols = ("Term", "Odds Ratio", "95% Wald CI", "raw beta", "SE", "z", "p-value")
+            cols = ("Term", "Odds Ratio", wald_ci_label, "raw beta", "SE", "z", "p-value")
             rows = []
             for c in raw_coefs:
                 term = str(c.get("term", c.get("term_label", c.get("name", ""))))
@@ -287,7 +302,7 @@ def adapt_logistic_regression(
                 p_val = format_p_value(c.get("p_value"))
                 rows.append(DisplayRow((term, or_val, or_ci, beta, se, z_val, p_val)))
         else:
-            cols = ("Term", "Odds Ratio", "95% Wald CI", "z", "p-value")
+            cols = ("Term", "Odds Ratio", wald_ci_label, "z", "p-value")
             rows = []
             for c in raw_coefs:
                 term = str(c.get("term", c.get("term_label", c.get("name", ""))))

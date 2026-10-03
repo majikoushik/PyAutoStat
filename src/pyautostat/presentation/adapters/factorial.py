@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_df,
     format_effect,
     format_number,
@@ -25,6 +26,7 @@ from .common import (
     extract_diagnostics,
     first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -34,6 +36,7 @@ def adapt_two_way_anova(
 ) -> TerminalView:
     """Adapt an independent two-way factorial ANOVA workflow."""
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
+    conf_level = resolve_confidence_level(analysis, spec)
     outcome = analysis.values.get("outcome") or "Outcome"
     factor_a = analysis.values.get("factor_a") or "Factor A"
     factor_b = analysis.values.get("factor_b") or "Factor B"
@@ -67,17 +70,23 @@ def adapt_two_way_anova(
         p_str = format_p_value(p_int)
         eta_str = format_effect(eta_int, decimals=3)
         ci_str = format_confidence_interval(ci_int, decimals=3)
+        ci_label = format_confidence_level_label(
+            ci_int, confidence_level=conf_level, prefix="Interaction"
+        )
     else:
         f_str = "Unavailable"
         p_str = "Unavailable"
         eta_str = "Unavailable"
         ci_str = "Unavailable"
+        ci_label = format_confidence_level_label(
+            None, confidence_level=conf_level, prefix="Interaction"
+        )
 
     key_metrics_list = [
         DisplayMetric(f"{factor_a} x {factor_b} F", f_str, role="result.estimate"),
         DisplayMetric("Interaction p-value", p_str, role="result.evidence"),
         DisplayMetric("Interaction partial eta2", eta_str, role="result.effect"),
-        DisplayMetric("Interaction 95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
     ]
 
     # Tables: ANOVA effects table & Cell summaries

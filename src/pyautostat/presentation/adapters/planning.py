@@ -7,6 +7,7 @@ from ...sensitivity import SensitivityResult
 from ...study_planning import StudyPlanningResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_number,
     format_percent,
     format_sample_size,
@@ -260,10 +261,11 @@ def adapt_practical_significance(
         thresh_val = getattr(result.threshold, "threshold_value", str(result.threshold))
         thresh_str = format_number(thresh_val, decimals=3)
 
+    ci_label = format_confidence_level_label(result.confidence_interval)
     design_metrics = (
         DisplayMetric("Evaluated Quantity", str(result.quantity)),
         DisplayMetric("Observed Estimate", est_str, role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("Researcher Threshold", thresh_str, role="method"),
     )
 

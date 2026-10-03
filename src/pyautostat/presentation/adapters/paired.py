@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_effect,
     format_number,
     format_p_value,
@@ -23,6 +24,7 @@ from .common import (
     extract_diagnostics,
     first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -36,6 +38,7 @@ def adapt_paired_t(
     condition = (spec.question.predictor if spec and spec.question else None) or "Condition"
     unit_id = analysis.metadata.get("unit_id") or "unit_id"
     unit = (spec.data_dictionary or {}).get(outcome, {}).get("unit") if spec else None
+    conf_level = resolve_confidence_level(analysis, spec)
 
     # Condition order & contrast
     condition_order = analysis.metadata.get("condition_order") or analysis.metadata.get(
@@ -73,11 +76,16 @@ def adapt_paired_t(
     stat = analysis.values.get("test_statistic")
     df = analysis.values.get("degrees_of_freedom")
 
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
+    effect_ci_label = format_confidence_level_label(
+        effect_ci, confidence_level=conf_level, prefix="Effect"
+    )
+
     key_metrics_list = [
         DisplayMetric("Mean difference", diff_str, role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("Cohen's dz", effect_str, role="result.effect"),
-        DisplayMetric("Effect 95% CI", effect_ci_str, role="result.ci"),
+        DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
     if detail == "full" and stat is not None:
@@ -113,7 +121,7 @@ def adapt_paired_t(
 
     compact_text = (
         f"Paired t-test | N={format_sample_size(complete_pairs)} pairs | "
-        f"diff={diff_str} | 95% CI {ci_str.replace(' to ', '...')} | "
+        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')} | "
         f"dz={effect_str} | p={p_str}"
     )
 
@@ -145,6 +153,7 @@ def adapt_wilcoxon_signed_rank(
     outcome = (spec.question.outcome if spec and spec.question else None) or "Outcome"
     condition = (spec.question.predictor if spec and spec.question else None) or "Condition"
     unit_id = analysis.metadata.get("unit_id") or "unit_id"
+    conf_level = resolve_confidence_level(analysis, spec)
 
     condition_order = analysis.metadata.get("condition_order") or analysis.metadata.get(
         "group_order", []
@@ -179,10 +188,13 @@ def adapt_wilcoxon_signed_rank(
     ci_dict = effect_dict.get("confidence_interval") or analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=3)
 
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level, prefix="Effect")
+    short_ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
+
     key_metrics_list = [
         DisplayMetric("Wilcoxon W", stat_str, role="result.estimate"),
         DisplayMetric("Rank-biserial r", effect_str, role="result.effect"),
-        DisplayMetric("Effect 95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
 
@@ -216,7 +228,8 @@ def adapt_wilcoxon_signed_rank(
 
     compact_text = (
         f"Wilcoxon signed-rank | N={format_sample_size(complete_pairs)} pairs | "
-        f"W={stat_str} | r_rb={effect_str} | 95% CI {ci_str.replace(' to ', '...')} | p={p_str}"
+        f"W={stat_str} | r_rb={effect_str} | {short_ci_label} {ci_str.replace(' to ', '...')} | "
+        f"p={p_str}"
     )
 
     metadata = build_metadata_dict(analysis, workflow)

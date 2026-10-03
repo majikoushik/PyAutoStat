@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_effect,
     format_number,
     format_p_value,
@@ -25,6 +26,7 @@ from .common import (
     extract_diagnostics,
     first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -60,6 +62,7 @@ def _adapt_multigroup(
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
     outcome = (spec.question.outcome if spec and spec.question else None) or "Outcome"
     predictor = (spec.question.predictor if spec and spec.question else None) or "Group"
+    conf_level = resolve_confidence_level(analysis, spec)
 
     sample_size = analysis.sample_size
     excluded_rows = first_present(analysis, "excluded_rows", default=0)
@@ -107,31 +110,49 @@ def _adapt_multigroup(
         eff_ci = effect_dict.get("confidence_interval")
         if eff_ci:
             ci_str = format_confidence_interval(eff_ci, decimals=3)
-            key_metrics_list.append(DisplayMetric("Effect 95% CI", ci_str, role="result.ci"))
+            ci_label = format_confidence_level_label(
+                eff_ci, confidence_level=conf_level, prefix="Effect"
+            )
+            key_metrics_list.append(DisplayMetric(ci_label, ci_str, role="result.ci"))
 
     # Tables: Group summaries and pairwise comparisons
     tables: list[DisplayTable] = []
     group_sums = analysis.values.get("group_summaries")
     if isinstance(group_sums, list) and group_sums:
         if method_id == "kruskal_wallis":
-            cols = ("Group", "N", "Median", "IQR")
-            rows = [
-                DisplayRow(
-                    (
-                        str(g.get("group", "")),
-                        format_sample_size(first_present(g, "size", "n")),
-                        format_number(g.get("median"), decimals=2),
-                        format_number(g.get("iqr"), decimals=2),
+            has_iqr = any(isinstance(g, dict) and g.get("iqr") is not None for g in group_sums)
+            cols: tuple[str, ...]
+            if has_iqr:
+                cols = ("Group", "N", "Median", "IQR")
+                rows = [
+                    DisplayRow(
+                        (
+                            str(first_present(g, "group", default="")),
+                            format_sample_size(first_present(g, "sample_size", "size", "n")),
+                            format_number(g.get("median"), decimals=2),
+                            format_number(g.get("iqr"), decimals=2),
+                        )
                     )
-                )
-                for g in group_sums
-            ]
+                    for g in group_sums
+                ]
+            else:
+                cols = ("Group", "N", "Median")
+                rows = [
+                    DisplayRow(
+                        (
+                            str(first_present(g, "group", default="")),
+                            format_sample_size(first_present(g, "sample_size", "size", "n")),
+                            format_number(g.get("median"), decimals=2),
+                        )
+                    )
+                    for g in group_sums
+                ]
         else:
             cols = ("Group", "N", "Mean", "SD")
             rows = [
                 DisplayRow(
                     (
-                        str(g.get("group", "")),
+                        str(first_present(g, "group", default="")),
                         format_sample_size(first_present(g, "sample_size", "size", "n")),
                         format_number(g.get("mean"), decimals=2),
                         format_number(first_present(g, "sd", "standard_deviation"), decimals=2),
@@ -157,16 +178,18 @@ def _adapt_multigroup(
             )
             for pair in pairwise:
                 contrast_obj = pair.get("contrast")
-                g1 = pair.get("group1") or pair.get("first_group")
-                g2 = pair.get("group2") or pair.get("second_group")
-                if isinstance(contrast_obj, dict):
-                    g1 = g1 or contrast_obj.get("first_group") or contrast_obj.get("first")
-                    g2 = g2 or contrast_obj.get("second_group") or contrast_obj.get("second")
-                    contrast = f"{g1} vs {g2}" if (g1 and g2) else "-"
-                elif isinstance(contrast_obj, str) and contrast_obj:
+                g1 = first_present(pair, "group1", "first_group", "first")
+                g2 = first_present(pair, "group2", "second_group", "second")
+                if g1 is None and isinstance(contrast_obj, dict):
+                    g1 = first_present(contrast_obj, "first_group", "first")
+                if g2 is None and isinstance(contrast_obj, dict):
+                    g2 = first_present(contrast_obj, "second_group", "second")
+                if isinstance(contrast_obj, str) and contrast_obj:
                     contrast = contrast_obj
+                elif g1 is not None and g2 is not None:
+                    contrast = f"{g1} vs {g2}"
                 else:
-                    contrast = f"{g1} vs {g2}" if (g1 and g2) else "-"
+                    contrast = "-"
                 diff_val = format_number(pair.get("estimate"), decimals=2)
                 z_val = format_number(pair.get("statistic"), decimals=2)
                 eff_dict = pair.get("effect_size") or {}
@@ -181,25 +204,31 @@ def _adapt_multigroup(
                 p_rows.append(DisplayRow((contrast, diff_val, z_val, rb_val, adj_p, decision)))
             p_title = "DUNN-HOLM PAIRWISE COMPARISONS"
         else:
+            pair_ci = pairwise[0].get("confidence_interval") if pairwise else None
+            sim_ci_label = format_confidence_level_label(
+                pair_ci, confidence_level=conf_level, suffix="Simultaneous CI"
+            )
             pair_cols = (
                 "Contrast",
                 "Difference",
-                "95% Simultaneous CI",
+                sim_ci_label,
                 "Adjusted p",
                 "Decision",
             )
             for pair in pairwise:
                 contrast_obj = pair.get("contrast")
-                g1 = pair.get("group1") or pair.get("first_group")
-                g2 = pair.get("group2") or pair.get("second_group")
-                if isinstance(contrast_obj, dict):
-                    g1 = g1 or contrast_obj.get("first_group") or contrast_obj.get("first")
-                    g2 = g2 or contrast_obj.get("second_group") or contrast_obj.get("second")
-                    contrast = f"{g1} - {g2}" if (g1 and g2) else "-"
-                elif isinstance(contrast_obj, str) and contrast_obj:
+                g1 = first_present(pair, "group1", "first_group", "first")
+                g2 = first_present(pair, "group2", "second_group", "second")
+                if g1 is None and isinstance(contrast_obj, dict):
+                    g1 = first_present(contrast_obj, "first_group", "first")
+                if g2 is None and isinstance(contrast_obj, dict):
+                    g2 = first_present(contrast_obj, "second_group", "second")
+                if isinstance(contrast_obj, str) and contrast_obj:
                     contrast = contrast_obj
+                elif g1 is not None and g2 is not None:
+                    contrast = f"{g1} - {g2}"
                 else:
-                    contrast = f"{g1} - {g2}" if (g1 and g2) else "-"
+                    contrast = "-"
                 diff_val = format_number(
                     first_present(pair, "estimate", "mean_difference"), decimals=2
                 )

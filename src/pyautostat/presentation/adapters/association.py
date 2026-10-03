@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_number,
     format_p_value,
     format_sample_size,
@@ -22,7 +23,9 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -74,9 +77,10 @@ def _adapt_association(
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
     outcome = (spec.question.outcome if spec and spec.question else None) or "Variable A"
     predictor = (spec.question.predictor if spec and spec.question else None) or "Variable B"
+    conf_level = resolve_confidence_level(analysis, spec)
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     design_metrics_list = []
     if method_id == "pearson_correlation":
@@ -154,9 +158,11 @@ def _adapt_association(
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=3, bracket=True)
 
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
+
     key_metrics_list = [
         DisplayMetric(est_label, f"{symbol} = {r_str}", role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
 
@@ -230,7 +236,7 @@ def _adapt_association(
     comp_label = "Pearson r" if method_id == "pearson_correlation" else method_name
     compact_text = (
         f"{comp_label} | N={format_sample_size(sample_size)} | "
-        f"{symbol}={r_str} | 95% CI {ci_str} | p={p_str}"
+        f"{symbol}={r_str} | {ci_label} {ci_str} | p={p_str}"
     )
 
     return TerminalView(

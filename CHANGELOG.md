@@ -20,6 +20,10 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+-   Final Rich terminal presentation fidelity pass (`pyautostat.show` / `pyautostat.presentation`):
+    -   Implemented dynamic confidence-level labels across all presentation adapters via a centralized helper (`format_confidence_level_label`), resolving stored interval level and specification fallback (`confidence_level`) without assuming 95% or recalculating intervals (e.g., rendering "90% CI", "99% CI", "90% Simultaneous CI", "R-squared 90% CI", "Wald CI", or neutral "CI").
+    -   Corrected Kruskal-Wallis group-summary schema mapping to render `Group | N | Median` using authoritative `sample_size` and stored `median` without fabricating an `IQR` column or displaying `Unavailable`.
+    -   Preserved falsey categorical and group labels (including integer `0`) across pairwise comparisons and group tables using explicit non-None evaluation (`first_present`), preventing valid numeric zero categories from collapsing into missing defaults or invalid contrast strings.
 -   Final presentation-fidelity cleanup in Rich terminal presentation adapters (`pyautostat.show` / `pyautostat.presentation`):
     -   Aligned `AuditResult` and `AuditFinding` field mappings to authoritative schemas: mapped top-level audit status and internal consistency diagnostic consistently to `PASSED` (`success`), `INCOMPLETE` (`warning`), and `FAILED` (`error`); aligned finding severity counting to real vocabulary (`error`, `warning`, `pass`); and surfaced stored `explanation` rather than nonexistent `message`.
     -   Aligned Cronbach's alpha presentation with authoritative reliability result schema: retrieved sample accounting from `metadata["sample"]`, supported list-of-dicts reversed-item configuration, added inter-item alignment diagnostic for negative correlations, and added item-level missingness table under `detail="full"`.

@@ -142,7 +142,7 @@ def adapt_profile(profile: dict[str, Any], detail: str = "standard") -> Terminal
     for issue in issues[:max_issues]:
         if isinstance(issue, dict):
             sev = issue.get("severity", "review")
-            col = issue.get("column") or issue.get("section") or "Data Quality"
+            col = first_present(issue, "column", "section", default="Data Quality")
             msg = issue.get("message", "")
             diagnostics_list.append(
                 DisplayDiagnostic(

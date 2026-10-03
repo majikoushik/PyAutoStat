@@ -6,6 +6,7 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..formatting import (
     format_confidence_interval,
+    format_confidence_level_label,
     format_effect,
     format_number,
     format_p_value,
@@ -25,6 +26,7 @@ from .common import (
     extract_diagnostics,
     first_present,
     format_interpretation_text,
+    resolve_confidence_level,
 )
 
 
@@ -53,6 +55,7 @@ def _adapt_two_group_mean(
     outcome = (spec.question.outcome if spec and spec.question else None) or "Outcome"
     predictor = (spec.question.predictor if spec and spec.question else None) or "Predictor"
     unit = (spec.data_dictionary or {}).get(outcome, {}).get("unit") if spec else None
+    conf_level = resolve_confidence_level(analysis, spec)
 
     # Contrast
     contrast_dict = analysis.metadata.get("contrast")
@@ -85,8 +88,8 @@ def _adapt_two_group_mean(
     if group_sizes:
         rows: list[DisplayRow] = []
         for g_info in group_sizes:
-            g_name = str(g_info.get("group", ""))
-            g_n = format_sample_size(g_info.get("size"))
+            g_name = str(first_present(g_info, "group", default=""))
+            g_n = format_sample_size(first_present(g_info, "size", "n", "sample_size"))
             rows.append(DisplayRow((g_name, g_n)))
         tables.append(
             DisplayTable(
@@ -111,11 +114,16 @@ def _adapt_two_group_mean(
     stat = analysis.values.get("test_statistic")
     df = analysis.values.get("degrees_of_freedom")
 
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
+    effect_ci_label = format_confidence_level_label(
+        effect_ci, confidence_level=conf_level, prefix="Effect"
+    )
+
     key_metrics_list = [
         DisplayMetric("Mean difference", diff_str, role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("Cohen's d", effect_str, role="result.effect"),
-        DisplayMetric("Effect 95% CI", effect_ci_str, role="result.ci"),
+        DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
     if detail == "full" and stat is not None:
@@ -156,7 +164,7 @@ def _adapt_two_group_mean(
     compact_text = (
         f"{'Welch' if is_welch else 'Student'} t-test | "
         f"N={format_sample_size(sample_size)} | "
-        f"diff={diff_str} | 95% CI {ci_str.replace(' to ', '...')} | "
+        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')} | "
         f"d={effect_str} | p={p_str}"
     )
 
@@ -187,6 +195,7 @@ def adapt_mann_whitney_u(
     analysis, workflow, spec, interp, rec, audit = extract_context(target)
     outcome = (spec.question.outcome if spec and spec.question else None) or "Outcome"
     predictor = (spec.question.predictor if spec and spec.question else None) or "Predictor"
+    conf_level = resolve_confidence_level(analysis, spec)
 
     groups = analysis.metadata.get("group_order", [])
     contrast_dict = analysis.metadata.get("contrast")
@@ -213,8 +222,8 @@ def adapt_mann_whitney_u(
     if group_sizes:
         rows: list[DisplayRow] = []
         for g_info in group_sizes:
-            g_name = str(g_info.get("group", ""))
-            g_n = format_sample_size(g_info.get("size"))
+            g_name = str(first_present(g_info, "group", default=""))
+            g_n = format_sample_size(first_present(g_info, "size", "n", "sample_size"))
             rows.append(DisplayRow((g_name, g_n)))
         tables.append(
             DisplayTable(
@@ -235,10 +244,13 @@ def adapt_mann_whitney_u(
     ci_dict = effect_dict.get("confidence_interval") or analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=3)
 
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level, prefix="Effect")
+    short_ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
+
     key_metrics_list = [
         DisplayMetric("Mann-Whitney U", u_str, role="result.estimate"),
         DisplayMetric("Rank-biserial r", effect_str, role="result.effect"),
-        DisplayMetric("Effect 95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
 
@@ -265,7 +277,8 @@ def adapt_mann_whitney_u(
 
     compact_text = (
         f"Mann-Whitney U | N={format_sample_size(sample_size)} | "
-        f"U={u_str} | r_rb={effect_str} | 95% CI {ci_str.replace(' to ', '...')} | p={p_str}"
+        f"U={u_str} | r_rb={effect_str} | {short_ci_label} {ci_str.replace(' to ', '...')} | "
+        f"p={p_str}"
     )
 
     return TerminalView(
@@ -294,6 +307,7 @@ def adapt_one_sample_t(
     ref_val = analysis.values.get("reference_value")
     ref_str = format_number(ref_val, decimals=2)
     unit = (spec.data_dictionary or {}).get(outcome, {}).get("unit") if spec else None
+    conf_level = resolve_confidence_level(analysis, spec)
 
     sample_size = analysis.sample_size
     excluded_rows = first_present(analysis, "excluded_rows", default=0)
@@ -324,11 +338,16 @@ def adapt_one_sample_t(
     stat = analysis.values.get("test_statistic")
     df = analysis.values.get("degrees_of_freedom")
 
+    ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
+    effect_ci_label = format_confidence_level_label(
+        effect_ci, confidence_level=conf_level, prefix="Effect"
+    )
+
     key_metrics_list = [
         DisplayMetric("Observed - Reference", diff_str, role="result.estimate"),
-        DisplayMetric("95% CI", ci_str, role="result.ci"),
+        DisplayMetric(ci_label, ci_str, role="result.ci"),
         DisplayMetric("Cohen's d", effect_str, role="result.effect"),
-        DisplayMetric("Effect 95% CI", effect_ci_str, role="result.ci"),
+        DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
     if detail == "full" and stat is not None:
@@ -353,7 +372,7 @@ def adapt_one_sample_t(
 
     compact_text = (
         f"One-sample t-test | N={format_sample_size(sample_size)} | "
-        f"diff={diff_str} | 95% CI {ci_str.replace(' to ', '...')} | "
+        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')} | "
         f"d={effect_str} | p={p_str}"
     )
 
