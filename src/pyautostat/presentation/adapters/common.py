@@ -11,6 +11,24 @@ from ..models import (
 )
 
 
+def first_present(record: dict[str, Any] | Any, *keys: str, default: Any = None) -> Any:
+    """Return the first non-None value among keys from a dictionary or object.
+
+    Unlike boolean 'or', this safely preserves 0, 0.0, and False.
+    """
+    if isinstance(record, dict):
+        for key in keys:
+            if key in record and record[key] is not None:
+                return record[key]
+        return default
+    for key in keys:
+        if hasattr(record, key):
+            val = getattr(record, key)
+            if val is not None:
+                return val
+    return default
+
+
 def extract_context(
     target: ResearchWorkflowResult | AnalysisResult,
 ) -> tuple[

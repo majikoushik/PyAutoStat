@@ -17,6 +17,7 @@ from ..models import (
     DisplayTable,
     TerminalView,
 )
+from .common import first_present
 
 
 def is_profile(target: Any) -> bool:
@@ -47,15 +48,23 @@ def adapt_profile(profile: dict[str, Any], detail: str = "standard") -> Terminal
     total_cols = overview.get("total_columns", 0)
 
     missing = profile.get("missing_data", {})
-    missing_cells = missing.get("total_missing_cells", overview.get("missing_cells", 0))
-    missing_pct = missing.get(
-        "overall_missing_percentage", overview.get("missing_cell_percentage", 0.0)
+    missing_cells = first_present(
+        missing, "total_missing_cells", default=first_present(overview, "missing_cells", default=0)
+    )
+    missing_pct = first_present(
+        missing,
+        "overall_missing_percentage",
+        default=first_present(overview, "missing_cell_percentage", default=0.0),
     )
 
     quality = profile.get("data_quality", {})
-    duplicate_rows = quality.get("duplicate_rows", overview.get("duplicate_rows", 0))
-    mem_bytes = overview.get(
-        "memory_usage_bytes", profile.get("resource_info", {}).get("estimated_memory_bytes")
+    duplicate_rows = first_present(
+        quality, "duplicate_rows", default=first_present(overview, "duplicate_rows", default=0)
+    )
+    mem_bytes = first_present(
+        overview,
+        "memory_usage_bytes",
+        default=first_present(profile.get("resource_info", {}), "estimated_memory_bytes"),
     )
 
     design_metrics = (

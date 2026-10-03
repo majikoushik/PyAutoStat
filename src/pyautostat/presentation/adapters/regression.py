@@ -24,6 +24,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -39,7 +40,7 @@ def adapt_linear_regression(
     cov_type = analysis.values.get("covariance_type") or "nonrobust"
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     pred_summary = ", ".join(str(p) for p in predictors[:4])
     if len(predictors) > 4:
@@ -102,7 +103,7 @@ def adapt_linear_regression(
         if isinstance(bp, dict) and bp:
             bp_status_raw = bp.get("status")
             bp_status = "REVIEW" if bp_status_raw == "rejected" else "DOCUMENTED"
-            bp_lm_p = bp.get("lm_p_value", bp.get("p_value"))
+            bp_lm_p = first_present(bp, "lm_p_value", "p_value")
             bp_policy = bp.get(
                 "interpretation_policy", "diagnostic evidence only; covariance was not changed"
             )
@@ -236,7 +237,7 @@ def adapt_logistic_regression(
     event_rate = analysis.values.get("event_rate")
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     ev_cnt_str = format_sample_size(event_count)
     ev_pct_str = format_percent(event_rate * 100 if event_rate is not None else None)

@@ -273,17 +273,26 @@ def adapt_audit(
     if status_raw == "passed":
         status_upper = "PASSED"
         role_color = "status.success"
+        diag_severity = "success"
     elif status_raw == "failed":
         status_upper = "FAILED"
         role_color = "status.error"
+        diag_severity = "error"
     else:
         status_upper = "INCOMPLETE"
         role_color = "status.warning"
+        diag_severity = "warning"
 
     findings = result.findings
-    n_failures = sum(1 for f in findings if getattr(f, "severity", "") == "failure")
-    n_warnings = sum(1 for f in findings if getattr(f, "severity", "") == "warning")
-    n_pass = sum(1 for f in findings if getattr(f, "severity", "") == "pass")
+    n_failures = sum(
+        1 for f in findings if getattr(f, "severity", "").lower() in ("error", "failure")
+    )
+    n_warnings = sum(
+        1 for f in findings if getattr(f, "severity", "").lower() in ("warning", "warn")
+    )
+    n_pass = sum(
+        1 for f in findings if getattr(f, "severity", "").lower() in ("pass", "passed", "success")
+    )
 
     design_metrics = (
         DisplayMetric("Audit Outcome", status_upper, role=role_color),
@@ -306,13 +315,17 @@ def adapt_audit(
     findings_to_show = (
         findings
         if detail == "full"
-        else [f for f in findings if getattr(f, "severity", "") in ("failure", "warning")]
+        else [
+            f
+            for f in findings
+            if getattr(f, "severity", "").lower() in ("error", "failure", "warning", "warn")
+        ]
     )
     for f in findings_to_show:
         sev = str(getattr(f, "severity", "")).upper()
         comp = str(getattr(f, "component", "")).title()
         code = str(getattr(f, "code", getattr(f, "check", "")))
-        msg = str(getattr(f, "message", ""))
+        msg = str(getattr(f, "explanation", getattr(f, "message", "")))
         rows.append(DisplayRow((sev, comp, code, msg)))
 
     if rows:
@@ -328,9 +341,7 @@ def adapt_audit(
             label="Internal Consistency",
             status=status_upper,
             detail="Verifies mathematical and methodological consistency across result records.",
-            severity="success"
-            if status_upper == "PASS"
-            else ("error" if status_upper == "FAIL" else "warning"),
+            severity=diag_severity,
         )
     ]
 

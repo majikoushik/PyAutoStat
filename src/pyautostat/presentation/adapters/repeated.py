@@ -23,6 +23,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -39,7 +40,7 @@ def adapt_repeated_measures_anova(
     cond_order = analysis.metadata.get("condition_order", [])
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     c_summary = ", ".join(str(c) for c in cond_order[:4])
     if len(cond_order) > 4:
@@ -53,7 +54,7 @@ def adapt_repeated_measures_anova(
         DisplayMetric("Excluded Rows", f"{format_sample_size(excluded_rows)} rows"),
     )
 
-    stat = analysis.values.get("test_statistic") or analysis.values.get("statistic")
+    stat = first_present(analysis.values, "test_statistic", "statistic")
     df = analysis.values.get("degrees_of_freedom")
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
@@ -81,9 +82,9 @@ def adapt_repeated_measures_anova(
             DisplayRow(
                 (
                     str(c.get("condition", c.get("level", ""))),
-                    format_sample_size(c.get("n", c.get("size"))),
+                    format_sample_size(first_present(c, "n", "size")),
                     format_number(c.get("mean"), decimals=2),
-                    format_number(c.get("sd", c.get("standard_deviation")), decimals=2),
+                    format_number(first_present(c, "sd", "standard_deviation"), decimals=2),
                 )
             )
             for c in cond_sums
@@ -105,7 +106,7 @@ def adapt_repeated_measures_anova(
                 adj_p = "Unavailable"
                 decision = str(p.get("reason", "Unavailable"))
             else:
-                diff = format_number(p.get("estimate", p.get("mean_difference")), decimals=2)
+                diff = format_number(first_present(p, "estimate", "mean_difference"), decimals=2)
                 ci = format_confidence_interval(p.get("confidence_interval"), decimals=2)
                 eff_dict = p.get("effect_size") or {}
                 dz_val = eff_dict.get("value") if isinstance(eff_dict, dict) else p.get("cohen_dz")
@@ -127,9 +128,7 @@ def adapt_repeated_measures_anova(
     sphericity = analysis.values.get("sphericity")
     if isinstance(sphericity, dict):
         mauchly_p = sphericity.get("p_value")
-        w_stat_str = format_number(
-            sphericity.get("statistic", sphericity.get("mauchly_w")), decimals=3
-        )
+        w_stat_str = format_number(first_present(sphericity, "statistic", "mauchly_w"), decimals=3)
         sph_status_raw = sphericity.get("status")
         sph_status = (
             "VIOLATED"
@@ -215,7 +214,7 @@ def adapt_friedman_test(
     cond_order = analysis.metadata.get("condition_order", [])
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     c_summary = ", ".join(str(c) for c in cond_order[:4])
     if len(cond_order) > 4:
@@ -229,7 +228,7 @@ def adapt_friedman_test(
         DisplayMetric("Excluded Rows", f"{format_sample_size(excluded_rows)} rows"),
     )
 
-    stat = analysis.values.get("test_statistic") or analysis.values.get("statistic")
+    stat = first_present(analysis.values, "test_statistic", "statistic")
     df = analysis.values.get("degrees_of_freedom")
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
@@ -257,7 +256,7 @@ def adapt_friedman_test(
             DisplayRow(
                 (
                     str(c.get("condition", c.get("level", ""))),
-                    format_sample_size(c.get("n", c.get("size"))),
+                    format_sample_size(first_present(c, "n", "size")),
                     format_number(c.get("median"), decimals=2),
                     format_number(c.get("iqr"), decimals=2),
                 )

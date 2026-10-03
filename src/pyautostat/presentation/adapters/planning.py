@@ -211,14 +211,15 @@ def adapt_sensitivity(
             label="Comparability Policy",
             status="EVALUATED",
             detail=(
-                "Scenarios retain declared contrasts and identify estimand differences explicitly."
+                "Scenario comparability, estimand relationship, and contrast identity are "
+                "displayed from their stored records."
             ),
             severity="neutral",
         )
     ]
 
     limitations = [
-        "Sensitivity analysis explores robustness under alternative specifications; "
+        "Sensitivity analysis explores results under alternative specifications; "
         "do not select a scenario by favorable p-value.",
         "A nonsignificant superiority test across scenarios is not an equivalence test.",
     ]
@@ -231,7 +232,7 @@ def adapt_sensitivity(
 
     return TerminalView(
         title="Sensitivity Analysis",
-        subtitle=f"Robustness evaluation for {primary_method}",
+        subtitle=f"Specification sensitivity analysis for {primary_method}",
         family="family.planning",
         design_metrics=design_metrics,
         key_metrics=(),
@@ -285,12 +286,30 @@ def adapt_practical_significance(
         DisplayMetric("Statistical Evidence", stat_sig_str, role="result.evidence"),
     ]
 
+    p_status = getattr(result.threshold, "planning_status", "unknown")
+    if p_status == "planned":
+        status_label = "PLANNED"
+        thresh_detail = "Researcher-supplied planned threshold; declared a priori before analysis."
+        status_sev = "neutral"
+    elif p_status == "exploratory":
+        status_label = "EXPLORATORY"
+        thresh_detail = (
+            "Researcher-supplied exploratory threshold; not represented as prespecified."
+        )
+        status_sev = "review"
+    else:
+        status_label = "RESEARCHER-SUPPLIED"
+        thresh_detail = (
+            "Researcher-supplied threshold; planning timing is not established in the record."
+        )
+        status_sev = "neutral"
+
     diagnostics_list = [
         DisplayDiagnostic(
             label="Threshold Source",
-            status="RESEARCHER-SUPPLIED",
-            detail="Threshold declared a priori; not derived from observed distribution.",
-            severity="neutral",
+            status=status_label,
+            detail=thresh_detail,
+            severity=status_sev,
         ),
         DisplayDiagnostic(
             label="Inference Distinction",

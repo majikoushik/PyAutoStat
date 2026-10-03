@@ -23,6 +23,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -61,7 +62,7 @@ def _adapt_multigroup(
     predictor = (spec.question.predictor if spec and spec.question else None) or "Group"
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     if method_id == "welch_anova":
         method_name = "Welch's one-way ANOVA"
@@ -118,7 +119,7 @@ def _adapt_multigroup(
                 DisplayRow(
                     (
                         str(g.get("group", "")),
-                        format_sample_size(g.get("size", g.get("n"))),
+                        format_sample_size(first_present(g, "size", "n")),
                         format_number(g.get("median"), decimals=2),
                         format_number(g.get("iqr"), decimals=2),
                     )
@@ -131,9 +132,9 @@ def _adapt_multigroup(
                 DisplayRow(
                     (
                         str(g.get("group", "")),
-                        format_sample_size(g.get("sample_size") or g.get("size") or g.get("n")),
+                        format_sample_size(first_present(g, "sample_size", "size", "n")),
                         format_number(g.get("mean"), decimals=2),
-                        format_number(g.get("sd", g.get("standard_deviation")), decimals=2),
+                        format_number(first_present(g, "sd", "standard_deviation"), decimals=2),
                     )
                 )
                 for g in group_sums
@@ -200,7 +201,7 @@ def _adapt_multigroup(
                 else:
                     contrast = f"{g1} - {g2}" if (g1 and g2) else "-"
                 diff_val = format_number(
-                    pair.get("estimate", pair.get("mean_difference")), decimals=2
+                    first_present(pair, "estimate", "mean_difference"), decimals=2
                 )
                 ci_str = format_confidence_interval(pair.get("confidence_interval"), decimals=2)
                 adj_p = format_p_value(pair.get("adjusted_p_value"))
@@ -218,16 +219,30 @@ def _adapt_multigroup(
             )
         tables.append(DisplayTable(title=p_title, columns=pair_cols, rows=tuple(p_rows)))
 
+    if method_id == "welch_anova":
+        var_status = "Not assumed"
+        var_detail = (
+            "Welch ANOVA does not assume equal population variances; Games-Howell follow-up."
+        )
+        var_severity = "neutral"
+    elif method_id == "one_way_anova":
+        var_status = "Assumed"
+        var_detail = "Equal group variances assumed."
+        var_severity = "review"
+    else:  # kruskal_wallis
+        var_status = "Not applicable"
+        var_detail = (
+            "Rank-based nonparametric comparison; the classical equal-variance ANOVA "
+            "assumption is not invoked."
+        )
+        var_severity = "neutral"
+
     diagnostics_list = [
         DisplayDiagnostic(
             label="Equal Variance",
-            status="Not assumed" if method_id == "welch_anova" else "Assumed",
-            detail="Games-Howell adjustment used for pairwise follow-up."
-            if method_id == "welch_anova"
-            else "Equal group variances assumed."
-            if method_id == "one_way_anova"
-            else "Nonparametric rank test.",
-            severity="neutral" if method_id != "one_way_anova" else "review",
+            status=var_status,
+            detail=var_detail,
+            severity=var_severity,
         )
     ]
     diagnostics_list.extend(extract_diagnostics(analysis))

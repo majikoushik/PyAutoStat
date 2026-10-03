@@ -23,6 +23,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -41,7 +42,7 @@ def adapt_two_way_anova(
     ss_type = analysis.values.get("sum_of_squares_type") or "Type III"
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     design_metrics = (
         DisplayMetric("Method", "Two-way factorial ANOVA", role="method"),
@@ -106,9 +107,9 @@ def adapt_two_way_anova(
                 (
                     str(c.get("level_a", c.get(factor_a, ""))),
                     str(c.get("level_b", c.get(factor_b, ""))),
-                    format_sample_size(c.get("n", c.get("size"))),
+                    format_sample_size(first_present(c, "n", "size")),
                     format_number(c.get("mean"), decimals=2),
-                    format_number(c.get("sd", c.get("standard_deviation")), decimals=2),
+                    format_number(first_present(c, "sd", "standard_deviation"), decimals=2),
                 )
             )
             for c in cell_sums

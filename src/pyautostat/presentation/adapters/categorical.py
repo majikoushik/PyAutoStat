@@ -24,6 +24,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -38,7 +39,7 @@ def adapt_pearson_chi_square(
     predictor = (spec.question.predictor if spec and spec.question else None) or "Predictor"
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     design_metrics = (
         DisplayMetric("Method", "Pearson chi-square test of independence", role="method"),
@@ -93,16 +94,20 @@ def adapt_pearson_chi_square(
     diagnostics_list: list[DisplayDiagnostic] = []
     diag_data = analysis.metadata.get("diagnostics", {})
     if isinstance(diag_data, dict):
-        min_exp = diag_data.get("min_expected_frequency")
+        min_exp = first_present(diag_data, "minimum_expected_count", "min_expected_frequency")
         if min_exp is not None:
             min_exp_str = format_number(min_exp, decimals=2)
-            stored_status = diag_data.get("status") or diag_data.get("expected_count_status")
-            status = (
-                str(stored_status).upper()
-                if stored_status
-                else ("DOCUMENTED" if min_exp >= 5 else "REVIEW")
-            )
-            severity = "review" if status in ("REVIEW", "VIOLATED", "WARNING") else "neutral"
+            stored_status = first_present(diag_data, "expected_count_status", "status")
+            if stored_status is not None:
+                status = str(stored_status).upper()
+                severity = (
+                    "review"
+                    if status in ("REVIEW", "VIOLATED", "WARNING", "UNMET", "FAIL", "FAILED")
+                    else "neutral"
+                )
+            else:
+                status = "DOCUMENTED"
+                severity = "neutral"
             diagnostics_list.append(
                 DisplayDiagnostic(
                     label="Min Expected Count",
@@ -157,7 +162,7 @@ def adapt_fisher_exact(
     predictor = (spec.question.predictor if spec and spec.question else None) or "Predictor"
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     design_metrics = (
         DisplayMetric("Method", "Fisher's exact test (2x2)", role="method"),
@@ -261,7 +266,7 @@ def adapt_mcnemar(
     cond_order = analysis.metadata.get("condition_order", ["Condition 1", "Condition 2"])
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     design_metrics = (
         DisplayMetric("Method", "McNemar paired binary test", role="method"),
@@ -292,10 +297,10 @@ def adapt_mcnemar(
     tables: list[DisplayTable] = []
     trans = analysis.values.get("transition_table")
     if isinstance(trans, dict):
-        b_cell = trans.get("discordant_b", trans.get("b", 0))
-        c_cell = trans.get("discordant_c", trans.get("c", 0))
-        concord_a = trans.get("concordant_a", trans.get("a", 0))
-        concord_d = trans.get("concordant_d", trans.get("d", 0))
+        b_cell = first_present(trans, "discordant_b", "b", default=0)
+        c_cell = first_present(trans, "discordant_c", "c", default=0)
+        concord_a = first_present(trans, "concordant_a", "a", default=0)
+        concord_d = first_present(trans, "concordant_d", "d", default=0)
         cols = ("Pair Transition", f"{cond_order[1]}: Event", f"{cond_order[1]}: Non-event")
         t_rows = [
             DisplayRow(

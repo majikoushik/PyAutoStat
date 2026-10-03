@@ -9,6 +9,7 @@ from ..formatting import (
     format_df,
     format_number,
     format_p_value,
+    format_percent,
     format_sample_size,
     format_statistic,
 )
@@ -23,6 +24,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -36,9 +38,9 @@ def adapt_cronbach_alpha(
     items = analysis.values.get("items") or []
     item_count = analysis.values.get("item_count") or len(items)
 
-    sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows
-    sample_info = analysis.values.get("sample", {})
+    sample_info = analysis.metadata.get("sample") or analysis.values.get("sample", {})
+    sample_size = first_present(sample_info, "analyzed_rows", default=analysis.sample_size)
+    excluded_rows = first_present(sample_info, "excluded_rows", default=analysis.excluded_rows)
     missing_policy = sample_info.get("missing_data_policy")
     scoring_info = analysis.values.get("scoring", {})
     rev_applied = scoring_info.get("reverse_scoring_applied", False)
@@ -55,13 +57,21 @@ def adapt_cronbach_alpha(
     ]
     if missing_policy:
         design_metrics_list.append(DisplayMetric("Missingness Policy", str(missing_policy)))
-    if rev_applied and isinstance(rev_items, dict) and rev_items:
-        rev_names = ", ".join(rev_items.keys())
-        design_metrics_list.append(
-            DisplayMetric("Reverse Scoring", f"Applied to {len(rev_items)} items ({rev_names})")
-        )
-    elif rev_applied:
-        design_metrics_list.append(DisplayMetric("Reverse Scoring", "Applied"))
+    if rev_applied:
+        if isinstance(rev_items, list) and rev_items:
+            rev_names = ", ".join(
+                str(it.get("item", it)) if isinstance(it, dict) else str(it) for it in rev_items
+            )
+            design_metrics_list.append(
+                DisplayMetric("Reverse Scoring", f"Applied to {len(rev_items)} items ({rev_names})")
+            )
+        elif isinstance(rev_items, dict) and rev_items:
+            rev_names = ", ".join(str(k) for k in rev_items.keys())
+            design_metrics_list.append(
+                DisplayMetric("Reverse Scoring", f"Applied to {len(rev_items)} items ({rev_names})")
+            )
+        else:
+            design_metrics_list.append(DisplayMetric("Reverse Scoring", "Applied"))
     else:
         design_metrics_list.append(
             DisplayMetric("Reverse Scoring", "None (original item scales preserved)")
@@ -90,17 +100,35 @@ def adapt_cronbach_alpha(
         for it in item_stats:
             name = str(it.get("item", it.get("name", "")))
             m = format_number(it.get("mean"), decimals=2)
-            sd = format_number(it.get("sd", it.get("standard_deviation")), decimals=2)
+            sd = format_number(first_present(it, "sd", "standard_deviation"), decimals=2)
             citr = format_number(
-                it.get("corrected_item_total_correlation", it.get("item_total_correlation")),
+                first_present(it, "corrected_item_total_correlation", "item_total_correlation"),
                 decimals=3,
             )
             aid = format_number(it.get("alpha_if_deleted"), decimals=3)
             rows.append(DisplayRow((name, m, sd, citr, aid)))
         tables.append(DisplayTable(title="ITEM-LEVEL DIAGNOSTICS", columns=cols, rows=tuple(rows)))
 
-    # Inter-item correlation summary in full mode
+    # Inter-item correlation summary and item missingness in full mode
     if detail == "full":
+        missingness = analysis.values.get("missingness")
+        if isinstance(missingness, list) and missingness:
+            m_cols = ("Item", "Valid Count", "Missing Count", "Missing %")
+            m_rows = [
+                DisplayRow(
+                    (
+                        str(m.get("item", "")),
+                        format_sample_size(m.get("valid_count")),
+                        format_sample_size(m.get("missing_count")),
+                        format_percent(m.get("missing_percentage")),
+                    )
+                )
+                for m in missingness
+            ]
+            tables.append(
+                DisplayTable(title="ITEM-LEVEL MISSINGNESS", columns=m_cols, rows=tuple(m_rows))
+            )
+
         inter_corr = analysis.values.get("inter_item_correlations")
         if isinstance(inter_corr, dict) and "items" in inter_corr and "values" in inter_corr:
             items_list = list(inter_corr["items"])
@@ -132,6 +160,41 @@ def adapt_cronbach_alpha(
             severity="neutral",
         )
     ]
+    neg_info = analysis.values.get("negative_inter_item_correlations")
+    if isinstance(neg_info, dict):
+        neg_count = neg_info.get("count", 0)
+        if neg_count > 0:
+            most_neg = neg_info.get("most_negative_pair")
+            if isinstance(most_neg, dict):
+                p1 = most_neg.get("first_item", "item1")
+                p2 = most_neg.get("second_item", "item2")
+                r_val = format_number(most_neg.get("correlation"), decimals=2)
+                detail_text = (
+                    f"{neg_count} negative inter-item correlation(s) detected "
+                    f"(most negative: {p1} and {p2}, r={r_val}); review item scoring direction."
+                )
+            else:
+                detail_text = (
+                    f"{neg_count} negative inter-item correlation(s) detected; "
+                    "review item scoring direction."
+                )
+            diagnostics_list.append(
+                DisplayDiagnostic(
+                    label="Inter-Item Alignment",
+                    status="REVIEW",
+                    detail=detail_text,
+                    severity="review",
+                )
+            )
+        else:
+            diagnostics_list.append(
+                DisplayDiagnostic(
+                    label="Inter-Item Alignment",
+                    status="CONSISTENT",
+                    detail="All inter-item correlations are non-negative in the analyzed sample.",
+                    severity="neutral",
+                )
+            )
     diagnostics_list.extend(extract_diagnostics(analysis))
 
     interpretation_text = format_interpretation_text(interp, detail=detail)
@@ -184,7 +247,7 @@ def adapt_intraclass_correlation(
     n_targets = analysis.values.get("n_targets")
     n_raters = analysis.values.get("n_raters")
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
 
     design_metrics = (
         DisplayMetric("Canonical Form", str(variant), role="method"),
@@ -228,9 +291,9 @@ def adapt_intraclass_correlation(
         for src, data in anova_tbl.items():
             if isinstance(data, dict):
                 src_name = str(src).replace("_", " ").title()
-                ss = format_number(data.get("sum_of_squares", data.get("ss")), decimals=2)
-                df = format_df(data.get("degrees_of_freedom", data.get("df")))
-                ms = format_number(data.get("mean_square", data.get("ms")), decimals=2)
+                ss = format_number(first_present(data, "sum_of_squares", "ss"), decimals=2)
+                df = format_df(first_present(data, "degrees_of_freedom", "df"))
+                ms = format_number(first_present(data, "mean_square", "ms"), decimals=2)
                 rows.append(DisplayRow((src_name, ss, df, ms)))
         if rows:
             tables.append(DisplayTable(title="ANOVA MEAN SQUARES", columns=cols, rows=tuple(rows)))

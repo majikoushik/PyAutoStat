@@ -20,6 +20,14 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+-   Final presentation-fidelity cleanup in Rich terminal presentation adapters (`pyautostat.show` / `pyautostat.presentation`):
+    -   Aligned `AuditResult` and `AuditFinding` field mappings to authoritative schemas: mapped top-level audit status and internal consistency diagnostic consistently to `PASSED` (`success`), `INCOMPLETE` (`warning`), and `FAILED` (`error`); aligned finding severity counting to real vocabulary (`error`, `warning`, `pass`); and surfaced stored `explanation` rather than nonexistent `message`.
+    -   Aligned Cronbach's alpha presentation with authoritative reliability result schema: retrieved sample accounting from `metadata["sample"]`, supported list-of-dicts reversed-item configuration, added inter-item alignment diagnostic for negative correlations, and added item-level missingness table under `detail="full"`.
+    -   Corrected Kruskal-Wallis equal-variance diagnostic to render `Not applicable` with neutral severity rather than ANOVA-style `Assumed`.
+    -   Updated practical-significance threshold wording to respect stored `planning_status` (`planned`, `exploratory`, `unknown`), avoiding unverified a priori or prespecification claims.
+    -   Removed blanket sensitivity-analysis comparability assertions, adopting neutral subtitles (`Specification sensitivity analysis for <primary_method>`) and diagnostic descriptions evaluated directly from stored records.
+    -   Eliminated unsafe numeric `or` fallbacks across presentation adapters using explicit non-None fallback helpers (`first_present`), preserving legitimate `0.0` test statistics and counts.
+    -   Removed presentation-layer chi-square expected-count threshold inference, strictly consuming backend `expected_count_status` with a neutral fallback.
 -   Hardened Rich terminal presentation layer correctness and stored-result fidelity (`pyautostat.show` / `pyautostat.presentation`):
     -   Corrected logistic regression coefficient mapping to consume stored `odds_ratio` and `odds_ratio_ci` directly without falling back to log-odds intervals or exponentiating coefficients, and properly mapped `estimate`, `standard_error`, `statistic`, and `p_value`.
     -   Corrected OLS regression coefficient table mapping to display `estimate`, `standard_error`, `confidence_interval`, `statistic`, and `p_value` directly from stored records.

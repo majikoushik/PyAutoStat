@@ -23,6 +23,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -69,7 +70,7 @@ def _adapt_two_group_mean(
     )
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
     design_metrics = (
         DisplayMetric("Method", method_name, role="method"),
         DisplayMetric("Estimand", "Population mean difference"),
@@ -197,7 +198,7 @@ def adapt_mann_whitney_u(
         contrast_str = "Unavailable"
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
     design_metrics = (
         DisplayMetric("Method", "Mann-Whitney U rank test", role="method"),
         DisplayMetric("Estimand", "Stochastic superiority / rank distribution difference"),
@@ -295,7 +296,7 @@ def adapt_one_sample_t(
     unit = (spec.data_dictionary or {}).get(outcome, {}).get("unit") if spec else None
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = first_present(analysis, "excluded_rows", default=0)
     sample_mean = analysis.values.get("sample_mean")
     sample_mean_str = format_number(sample_mean, decimals=2, unit=unit)
 

@@ -20,6 +20,7 @@ from pyautostat import (
     AnalysisOptions,
     AnalysisResult,
     AnalysisStatus,
+    AuditFinding,
     AuditResult,
     MeaningfulEffectThreshold,
     PracticalSignificanceResult,
@@ -1946,6 +1947,8 @@ def test_audit_status_roles_exact_mapping():
     metric_pass = view_pass.design_metrics[0]
     assert metric_pass.value == "PASSED"
     assert metric_pass.role == "status.success"
+    assert view_pass.diagnostics[0].status == "PASSED"
+    assert view_pass.diagnostics[0].severity == "success"
 
     incomplete = AuditResult(
         status="incomplete",
@@ -1958,6 +1961,8 @@ def test_audit_status_roles_exact_mapping():
     metric_inc = view_inc.design_metrics[0]
     assert metric_inc.value == "INCOMPLETE"
     assert metric_inc.role == "status.warning"
+    assert view_inc.diagnostics[0].status == "INCOMPLETE"
+    assert view_inc.diagnostics[0].severity == "warning"
 
     failed = AuditResult(
         status="failed",
@@ -1970,6 +1975,86 @@ def test_audit_status_roles_exact_mapping():
     metric_fail = view_fail.design_metrics[0]
     assert metric_fail.value == "FAILED"
     assert metric_fail.role == "status.error"
+    assert view_fail.diagnostics[0].status == "FAILED"
+    assert view_fail.diagnostics[0].severity == "error"
+
+
+def test_audit_findings_severity_vocabulary_and_explanation():
+    """Verify AuditFinding severities ('error', 'warning', 'pass') and explanations render."""
+    f_err = AuditFinding(
+        code="STATISTIC_MISMATCH",
+        severity="error",
+        component="report",
+        field="test_statistic",
+        expected=4.5,
+        actual=5.2,
+        explanation="The inspected value differs from the canonical source.",
+    )
+    f_warn = AuditFinding(
+        code="MISSING_REQUIRED_WARNING",
+        severity="warning",
+        component="warnings",
+        field="warnings",
+        expected="Required warning",
+        actual="None",
+        explanation="A recommended warning was omitted.",
+    )
+    f_pass = AuditFinding(
+        code="SPECIFICATION_MATCH",
+        severity="pass",
+        component="specification",
+        field="alpha",
+        expected=0.05,
+        actual=0.05,
+        explanation="Alpha matches specification.",
+    )
+    audit = AuditResult(
+        status="failed",
+        findings=(f_err, f_warn, f_pass),
+        checked_components=("specification", "report", "warnings"),
+        skipped_checks=(),
+        source_references={"source": "ref"},
+    )
+
+    view = adapt(audit, detail="standard")
+    # Status and role
+    assert view.design_metrics[0].value == "FAILED"
+    assert view.design_metrics[0].role == "status.error"
+    assert view.diagnostics[0].status == "FAILED"
+    assert view.diagnostics[0].severity == "error"
+
+    # Invariants counting: error finding must count as failure, NOT zero!
+    metric_fail = next(m for m in view.design_metrics if m.label == "Failures")
+    assert metric_fail.value == "1 failures"
+    assert metric_fail.role == "status.error"
+
+    metric_warn = next(m for m in view.design_metrics if m.label == "Warnings")
+    assert metric_warn.value == "1 warnings"
+    assert metric_warn.role == "status.warning"
+
+    metric_pass = next(m for m in view.design_metrics if m.label == "Passed Invariants")
+    assert metric_pass.value == "1 checks"
+    assert metric_pass.role == "status.success"
+
+    # Table contains explanation, not empty message
+    assert len(view.tables) == 1
+    table = view.tables[0]
+    row_err = table.rows[0]
+    assert row_err.cells[0] == "ERROR"
+    assert row_err.cells[1] == "Report"
+    assert row_err.cells[2] == "STATISTIC_MISMATCH"
+    assert row_err.cells[3] == "The inspected value differs from the canonical source."
+
+    row_warn = table.rows[1]
+    assert row_warn.cells[0] == "WARNING"
+    assert row_warn.cells[3] == "A recommended warning was omitted."
+
+    # show() rendering check
+    out = _capture(audit, detail="standard")
+    assert "FAILED" in out
+    assert "1 failures" in out
+    assert "1 warnings" in out
+    assert "The inspected value differs from" in out
 
 
 def test_analysis_plan_meaningful_threshold_uses_minimum_magnitude():
@@ -2042,27 +2127,93 @@ def test_cronbach_alpha_surfaces_stored_missingness_and_scoring():
                 "status": "available",
             },
             "mean_inter_item_correlation": 0.54,
-            "sample": {
-                "missing_data_policy": "listwise_deletion",
-                "available_observations": 40,
-                "excluded_rows": 5,
-            },
             "scoring": {
                 "reverse_scoring_applied": True,
-                "reversed_items": {"q2": {"min": 1, "max": 5}},
+                "reversed_items": [
+                    {
+                        "item": "q2",
+                        "lower": 1.0,
+                        "upper": 5.0,
+                        "formula": "lower + upper - original",
+                    }
+                ],
+            },
+        },
+        metadata={
+            "sample": {
+                "missing_data_policy": "complete cases across all selected items",
+                "original_rows": 45,
+                "analyzed_rows": 40,
+                "excluded_rows": 5,
             },
         },
     )
 
     view = adapt(analysis, detail="standard")
     labels = {m.label: m.value for m in view.design_metrics}
-    assert labels["Missingness Policy"] == "listwise_deletion"
+    assert labels["Missingness Policy"] == "complete cases across all selected items"
     assert "Applied to 1 items (q2)" in labels["Reverse Scoring"]
     assert "5 rows" in labels["Excluded"]
 
     out = _capture(analysis, detail="standard")
-    assert "listwise_deletion" in out
+    assert "complete cases across all selected items" in out
     assert "Applied to 1 items (q2)" in out
+
+
+def test_cronbach_alpha_real_execution_path_with_missingness_and_reverse_scoring():
+    """Verify Cronbach alpha presentation consumes the real execution schema from ResearchAssistant.
+
+    Validates:
+    - Analyzed and excluded respondent counts from real metadata['sample'];
+    - Missingness policy from real metadata['sample'];
+    - Reverse-scoring configuration and item names from real values['scoring'];
+    - Item-level missingness in full detail mode;
+    - Negative inter-item correlation diagnostic handling.
+    """
+    df = pd.DataFrame(
+        {
+            "q1": [1.0, 2.0, 3.0, 4.0, 5.0, 2.0, 4.0, 3.0, None],
+            "q2": [5.0, 4.0, 3.0, 2.0, 1.0, 4.0, 2.0, 3.0, 2.0],  # reverse scored (1 to 5)
+            "q3": [2.0, 2.0, 3.0, 5.0, 5.0, 2.0, 4.0, 4.0, 1.0],
+        }
+    )
+    wf = ResearchAssistant(df).reliability(
+        ["q1", "q2", "q3"],
+        reverse_scoring={"q2": (1.0, 5.0)},
+        bootstrap_samples=40,
+    )
+    # Verify real engine output schema facts
+    assert "sample" not in wf.analysis.values
+    assert "sample" in wf.analysis.metadata
+    assert "scoring" in wf.analysis.values
+    assert "missingness" in wf.analysis.values
+
+    # Test standard adaptation
+    view = adapt(wf, detail="standard")
+    labels = {m.label: m.value for m in view.design_metrics}
+    assert labels["Respondents (N)"] == "8 complete cases"
+    assert labels["Excluded"] == "1 rows"
+    assert labels["Missingness Policy"] == "complete cases across all selected items"
+    assert "Applied to 1 items (q2)" in labels["Reverse Scoring"]
+
+    # Verify Inter-Item Alignment diagnostic is present
+    diag = next(d for d in view.diagnostics if d.label == "Inter-Item Alignment")
+    assert diag.status in ("CONSISTENT", "REVIEW")
+
+    # Test full adaptation includes item-level missingness table
+    view_full = adapt(wf, detail="full")
+    table_titles = [t.title for t in view_full.tables]
+    assert "ITEM-LEVEL MISSINGNESS" in table_titles
+
+    # Test show() rendering
+    out_std = _capture(wf, detail="standard")
+    assert "8 complete cases" in out_std
+    assert "1 rows" in out_std
+    assert "complete cases across all selected items" in out_std
+    assert "Applied to 1 items (q2)" in out_std
+
+    out_full = _capture(wf, detail="full")
+    assert "ITEM-LEVEL MISSINGNESS" in out_full
 
 
 def test_stored_result_fidelity_and_zero_recalculation(
@@ -2132,3 +2283,203 @@ def test_workflow_execution_at_alpha_0_01():
     out = _capture(wf, detail="standard")
     assert "Independent Group Comparison" in out
     assert "alpha = 0.01" in out
+
+
+def test_kruskal_wallis_equal_variance_diagnostic_not_applicable(kruskal_wallis_workflow):
+    """Verify Kruskal-Wallis equal-variance diagnostic is NOT APPLICABLE and never Assumed."""
+    view = adapt(kruskal_wallis_workflow, detail="standard")
+    diag = next(d for d in view.diagnostics if d.label == "Equal Variance")
+    assert diag.status == "Not applicable"
+    assert diag.severity == "neutral"
+    assert "Rank-based nonparametric comparison" in (diag.detail or "")
+    assert "Assumed" not in diag.status
+
+    out = _capture(kruskal_wallis_workflow, detail="standard")
+    assert "[NOT APPLICABLE]" in out
+    assert "Equal Variance" in out
+    assert "Assumed" not in out
+
+
+@pytest.mark.parametrize(
+    ("planning_status", "expected_status", "expected_detail_fragment"),
+    [
+        ("planned", "PLANNED", "Researcher-supplied planned threshold"),
+        ("exploratory", "EXPLORATORY", "Researcher-supplied exploratory threshold"),
+        ("unknown", "RESEARCHER-SUPPLIED", "planning timing is not established"),
+    ],
+)
+def test_practical_significance_respects_planning_status(
+    planning_status, expected_status, expected_detail_fragment
+):
+    """Verify practical significance diagnostic wording respects threshold planning status."""
+    threshold = MeaningfulEffectThreshold(
+        quantity="mean_difference",
+        minimum_magnitude=5.0,
+        unit="mg/dL",
+        direction="two_sided",
+        planning_status=planning_status,
+    )
+    result = PracticalSignificanceResult(
+        status="complete",
+        quantity="mean_difference",
+        estimate=6.0,
+        threshold=threshold,
+        confidence_interval={"lower": 2.0, "upper": 10.0, "level": 0.95, "status": "available"},
+        point_estimate_relation="exceeds_threshold",
+        confidence_interval_relation="inconclusive",
+        uncertainty_status="inconclusive",
+        statistical_significance="evidence_against_null",
+        conclusion="Point estimate exceeds threshold.",
+        warnings=(),
+        provenance={},
+    )
+    view = adapt(result, detail="standard")
+    diag = next(d for d in view.diagnostics if d.label == "Threshold Source")
+    assert diag.status == expected_status
+    assert expected_detail_fragment in (diag.detail or "")
+
+    out = _capture(result, detail="standard")
+    assert expected_status in out
+    out_normalized = " ".join(out.split())
+    assert expected_detail_fragment in out_normalized
+
+
+def test_sensitivity_presentation_neutral_wording_and_mixed_estimands(welch_t_workflow):
+    """Verify sensitivity presentation uses neutral subtitle and no blanket contrast claims."""
+    assistant = ResearchAssistant(
+        pd.DataFrame(
+            {
+                "score": [10.0, 12.0, 11.0, 13.0, 14.0, 20.0, 22.0, 21.0, 23.0, 24.0],
+                "group": ["A"] * 5 + ["B"] * 5,
+            }
+        )
+    )
+    base = welch_t_workflow.analysis
+    question_dist = replace(base.specification.question, estimand="distribution")
+    scenarios = [
+        SensitivitySpecification(
+            name="equal_var",
+            specification=base.specification,
+            method_id="student_t",
+            assumptions=("Equal population variances",),
+        ),
+        SensitivitySpecification(
+            name="rank_comparison",
+            specification=replace(base.specification, question=question_dist),
+            method_id="mann_whitney_u",
+            assumptions=("Ordinal or non-normal distribution",),
+        ),
+    ]
+    sensitivity = assistant.sensitivity_analysis(base, scenarios=scenarios)
+    view = adapt(sensitivity, detail="standard")
+
+    assert "Specification sensitivity analysis for" in (view.subtitle or "")
+    assert "Robustness evaluation" not in (view.subtitle or "")
+
+    diag = next(d for d in view.diagnostics if d.label == "Comparability Policy")
+    assert diag.status == "EVALUATED"
+    assert "displayed from their stored records" in (diag.detail or "")
+    assert "Scenarios retain declared contrasts" not in (diag.detail or "")
+
+    out = _capture(sensitivity, detail="standard")
+    assert "Specification sensitivity analysis for" in out
+
+
+def test_numeric_zero_preservation_in_presentation_adapters():
+    """Verify that an authoritative test statistic of exactly 0.0 is preserved vs fallback."""
+    # Test repeated measures ANOVA adapter with test_statistic=0.0 and fallback statistic=15.0
+    analysis = AnalysisResult(
+        method_id="repeated_measures_anova",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=20,
+        excluded_rows=0,
+        values={
+            "test_statistic": 0.0,
+            "statistic": 15.0,
+            "degrees_of_freedom": [2, 18],
+            "p_value": 1.0,
+            "condition_summaries": [
+                {"condition": "c1", "n": 0, "size": 10, "mean": 0.0, "sd": 0.0},
+                {"condition": "c2", "n": 10, "size": 10, "mean": 0.0, "sd": 0.0},
+            ],
+        },
+        metadata={"unit_id": "subject_id", "condition_order": ["c1", "c2"]},
+    )
+    view = adapt(analysis, detail="standard")
+    omnibus_metric = next(m for m in view.key_metrics if "Omnibus" in m.label)
+    assert "0.0" in omnibus_metric.value
+    assert "15.0" not in omnibus_metric.value
+    assert "15" not in omnibus_metric.value
+
+    # Condition summary N must preserve 0 rather than falling back to size 10
+    tbl = view.tables[0]
+    row_c1 = tbl.rows[0]
+    assert row_c1.cells[1] == "0"
+
+    out = _capture(analysis, detail="standard")
+    assert "F(2, 18) = 0.0" in out
+    assert "15.0" not in out
+
+
+def test_chi_square_expected_count_stored_status_wins():
+    """Verify Chi-Square diagnostic uses stored status and does not re-threshold at 5."""
+    # Sub-case A: min expected is 4.9, but backend records 'met'
+    analysis_met = AnalysisResult(
+        method_id="pearson_chi_square",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=100,
+        excluded_rows=0,
+        values={"primary_estimate": 0.35, "p_value": 0.01},
+        metadata={
+            "diagnostics": {
+                "minimum_expected_count": 4.9,
+                "expected_count_status": "met",
+            }
+        },
+    )
+    view_met = adapt(analysis_met, detail="standard")
+    diag_met = next(d for d in view_met.diagnostics if d.label == "Min Expected Count")
+    assert diag_met.status == "MET"
+    assert diag_met.severity == "neutral"
+    assert "4.9" in (diag_met.detail or "")
+
+    out_met = _capture(analysis_met, detail="standard")
+    assert "MET" in out_met
+    assert "REVIEW" not in out_met
+
+    # Sub-case B: min expected is 4.9, backend records 'review'
+    analysis_rev = AnalysisResult(
+        method_id="pearson_chi_square",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=100,
+        excluded_rows=0,
+        values={"primary_estimate": 0.35, "p_value": 0.01},
+        metadata={
+            "diagnostics": {
+                "minimum_expected_count": 4.9,
+                "expected_count_status": "review",
+            }
+        },
+    )
+    view_rev = adapt(analysis_rev, detail="standard")
+    diag_rev = next(d for d in view_rev.diagnostics if d.label == "Min Expected Count")
+    assert diag_rev.status == "REVIEW"
+    assert diag_rev.severity == "review"
+
+    # Sub-case C: missing status defaults to DOCUMENTED without inferring from 5
+    analysis_none = AnalysisResult(
+        method_id="pearson_chi_square",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=100,
+        excluded_rows=0,
+        values={"primary_estimate": 0.35, "p_value": 0.01},
+        metadata={
+            "diagnostics": {
+                "min_expected_frequency": 4.9,
+            }
+        },
+    )
+    view_none = adapt(analysis_none, detail="standard")
+    diag_none = next(d for d in view_none.diagnostics if d.label == "Min Expected Count")
+    assert diag_none.status == "DOCUMENTED"
+    assert diag_none.severity == "neutral"

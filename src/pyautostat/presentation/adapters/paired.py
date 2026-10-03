@@ -21,6 +21,7 @@ from .common import (
     build_metadata_dict,
     extract_context,
     extract_diagnostics,
+    first_present,
     format_interpretation_text,
 )
 
@@ -46,8 +47,8 @@ def adapt_paired_t(
         contrast_str = "Unavailable"
 
     sample_meta = analysis.metadata.get("sample", {})
-    complete_pairs = sample_meta.get("complete_pairs", analysis.sample_size)
-    incomplete_units = sample_meta.get("incomplete_units", 0)
+    complete_pairs = first_present(sample_meta, "complete_pairs", default=analysis.sample_size)
+    incomplete_units = first_present(sample_meta, "incomplete_units", default=0)
 
     design_metrics = (
         DisplayMetric("Method", "Paired-samples t-test", role="method"),
@@ -154,9 +155,9 @@ def adapt_wilcoxon_signed_rank(
         contrast_str = "Unavailable"
 
     sample_meta = analysis.metadata.get("sample", {})
-    complete_pairs = sample_meta.get("complete_pairs", analysis.sample_size)
-    nonzero_diffs = sample_meta.get("nonzero_differences", "Unavailable")
-    zero_diffs = sample_meta.get("zero_differences", 0)
+    complete_pairs = first_present(sample_meta, "complete_pairs", default=analysis.sample_size)
+    nonzero_diffs = first_present(sample_meta, "nonzero_differences", default="Unavailable")
+    zero_diffs = first_present(sample_meta, "zero_differences", default=0)
 
     design_metrics = (
         DisplayMetric("Method", "Wilcoxon signed-rank test", role="method"),
