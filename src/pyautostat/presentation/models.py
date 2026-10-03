@@ -47,8 +47,8 @@ class DisplayDiagnostic:
 
 
 @dataclass(frozen=True)
-class TerminalView:
-    """Universal normalized presentation model passed to Rich renderers."""
+class PresentationView:
+    """Universal normalized presentation model passed to terminal and HTML renderers."""
 
     title: str
     subtitle: str | None
@@ -62,3 +62,17 @@ class TerminalView:
     warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
     compact_text: str | None = None
+
+
+# Backward-compatible alias for terminal renderers
+TerminalView = PresentationView
+
+
+__all__ = [
+    "DisplayDiagnostic",
+    "DisplayMetric",
+    "DisplayRow",
+    "DisplayTable",
+    "PresentationView",
+    "TerminalView",
+]

@@ -376,22 +376,31 @@ class ResearchReport:
             lines.append("")
         return "\n".join(lines).rstrip() + "\n"
 
-    def to_html(self, *, style: str = "general") -> str:
+    def to_html(
+        self,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+    ) -> str:
         style = _style(style)
+        if detail not in {"compact", "standard", "full"}:
+            raise ValueError(
+                f"Invalid detail mode '{detail}'. Expected 'compact', 'standard', or 'full'."
+            )
+        if title is not None and (not isinstance(title, str) or not title.strip()):
+            raise ReportError("title must be a non-empty string when provided.")
         data = self._payload
+        report_title = title.strip() if title is not None else data["title"]
+        from .presentation.html.theme import get_theme_css
+
+        theme_css = get_theme_css()
         parts = [
             "<!doctype html>",
             '<html lang="en"><head><meta charset="utf-8">',
-            f"<title>{escape(data['title'], quote=True)}</title>",
-            "<style>body{font:16px/1.5 system-ui,sans-serif;max-width:1000px;"
-            "margin:2rem auto;padding:0 1rem;color:#17212b}h1,h2{line-height:1.2}"
-            "table{border-collapse:collapse;width:100%;margin:1rem 0;table-layout:fixed}"
-            "th,td{border:1px solid #aeb7bf;padding:.45rem;text-align:left;"
-            "vertical-align:top;overflow-wrap:anywhere}th{background:#eef2f5}"
-            ".caution{border-left:4px solid #a55b00;padding:.5rem 1rem;background:#fff7e9}"
-            "@media print{body{margin:0;max-width:none}.caution{break-inside:avoid}}"
-            "</style></head><body><main>",
-            f"<h1>{escape(data['title'], quote=True)}</h1>",
+            f"<title>{escape(report_title, quote=True)}</title>",
+            f'<style>{theme_css}</style></head><body><main class="report-container">',
+            f"<h1>{escape(report_title, quote=True)}</h1>",
             f"<p><strong>Report status:</strong> {escape(data['status'])}</p>",
         ]
         practical_verdict = (
@@ -413,6 +422,9 @@ class ResearchReport:
         summary = _concise_result(data, style)
         if summary is not None:
             parts.append(f'<p class="oriented-summary">{escape(summary)}</p>')
+        if detail == "compact":
+            parts.append("</main></body></html>")
+            return "\n".join(parts)
         for index, (key, heading) in enumerate(_report_sections(data), start=1):
             styled = _styled_heading(heading, index, style)
             parts.append(f"<section><h2>{escape(styled)}</h2><dl>")
@@ -476,9 +488,19 @@ class ResearchReport:
         return "\n".join(lines) + "\n"
 
     def save_html(
-        self, path: str | Path, *, style: str = "general", overwrite: bool = False
+        self,
+        path: str | Path,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+        overwrite: bool = False,
     ) -> Path:
-        output = _write(path, self.to_html(style=style), overwrite=overwrite)
+        output = _write(
+            path,
+            self.to_html(style=style, detail=detail, title=title),
+            overwrite=overwrite,
+        )
         if self._on_save is not None:
             self._on_save("html")
         return output

@@ -52,7 +52,13 @@ from .practical_significance import (
     MeaningfulEffectThreshold,
     PracticalSignificanceResult,
 )
-from .presentation import UnsupportedPresentationError, show
+from .presentation import (
+    PresentationView,
+    UnsupportedPresentationError,
+    save_html,
+    show,
+    to_html,
+)
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
 from .report import ReportGenerator
@@ -167,5 +173,8 @@ __all__ = [
     "detect_column_types",
     "suggest_column_roles",
     "show",
+    "to_html",
+    "save_html",
+    "PresentationView",
     "UnsupportedPresentationError",
 ]

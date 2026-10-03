@@ -208,6 +208,32 @@ show(assistant.audit(workflow.report, result=workflow.analysis))
 
 ---
 
+## Modern HTML and Research Reports
+
+PyAutoStat also provides a self-contained, offline HTML presentation layer (`to_html`, `save_html`) and upgraded `ResearchReport` HTML exports:
+
+```python
+from pyautostat import ResearchAssistant, save_html, to_html
+
+workflow = assistant.run(...)
+
+# Generate standalone HTML string or save to file
+html = to_html(workflow, detail="standard")
+save_html(workflow, "reports/analysis.html", detail="full", overwrite=True)
+
+# Upgraded canonical research report
+report = workflow.report
+report.save_html("reports/research_report.html", style="general", overwrite=True)
+```
+
+- **Zero recalculation:** Consumes authoritative normalized presentation view models without re-running statistical algorithms.
+- **Offline & self-contained:** Inline CSS with system fonts; no CDN dependencies, no external JavaScript, and no tracking.
+- **Responsive & printable:** Responsive metric grids, overflow-wrapped tables, and dedicated `@media print` stylesheets.
+- **Security-hardened:** All user text, variable names, and group labels are safely HTML-escaped.
+- **Representative method coverage:** Optimized coverage for Welch independent-samples t-test, Pearson correlation, OLS linear regression, and Kruskal-Wallis rank test. See [`docs/HTML_REPORTING.md`](docs/HTML_REPORTING.md) for details.
+
+---
+
 ## When information is missing
 
 A DataFrame cannot tell you whether observations are truly independent, which measurements belong
