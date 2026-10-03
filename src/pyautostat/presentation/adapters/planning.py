@@ -157,7 +157,7 @@ def adapt_sensitivity(
     )
 
     tables: list[DisplayTable] = []
-    cols = ("Scenario", "Method", "Estimand Match", "Contrast Match", "Status", "Conclusion")
+    cols = ("Scenario", "Method", "Estimand Match", "Contrast", "Status", "Conclusion")
     rows: list[DisplayRow] = []
     for sc in result.scenario_results:
         sc_name = getattr(sc, "name", "")
@@ -166,14 +166,40 @@ def adapt_sensitivity(
         comp_str = (
             str(comp_val.value)
             if (comp_val is not None and hasattr(comp_val, "value"))
-            else str(comp_val or "")
+            else str(comp_val or "unavailable")
         )
-        est_match = "Yes" if "same_estimand" in comp_str else ("No" if comp_str else "Unknown")
-        con_match = "Preserved"
+        if comp_str == "same_estimand":
+            est_match = "Same estimand"
+        elif comp_str == "different_estimand":
+            est_match = "Different estimand"
+        elif comp_str == "incompatible":
+            est_match = "Incompatible"
+        else:
+            est_match = comp_str.replace("_", " ").title()
+
+        comp_dict = getattr(sc, "comparison", {}) or {}
+        grp_contrast = getattr(sc, "group_contrast", None)
+        if grp_contrast:
+            if (
+                isinstance(grp_contrast, dict)
+                and "first" in grp_contrast
+                and "second" in grp_contrast
+            ):
+                con_match = f"{grp_contrast['first']} vs {grp_contrast['second']}"
+            elif isinstance(grp_contrast, (list, tuple)) and len(grp_contrast) == 2:
+                con_match = f"{grp_contrast[0]} vs {grp_contrast[1]}"
+            else:
+                con_match = str(grp_contrast)
+        elif "contrast_preserved" in comp_dict:
+            con_match = "Preserved" if comp_dict["contrast_preserved"] else "Changed"
+        elif "contrast" in comp_dict and comp_dict["contrast"]:
+            con_match = str(comp_dict["contrast"])
+        else:
+            con_match = "Not applicable"
+
         st = str(getattr(sc, "status", "")).upper()
         if hasattr(getattr(sc, "status", None), "value"):
             st = str(sc.status.value).upper()
-        comp_dict = getattr(sc, "comparison", {}) or {}
         conc = str(comp_dict.get("decision", comp_dict.get("conclusion", "Evaluated")))
         rows.append(DisplayRow((sc_name, m_name, est_match, con_match, st, conc)))
     tables.append(
@@ -241,7 +267,14 @@ def adapt_practical_significance(
     )
 
     stat_sig = result.statistical_significance
-    stat_sig_str = "Statistically significant" if stat_sig else "Not statistically significant"
+    if stat_sig == "evidence_against_null":
+        stat_sig_str = "Evidence against recorded null"
+    elif stat_sig == "no_evidence_against_null":
+        stat_sig_str = "No sufficient evidence against recorded null"
+    elif stat_sig == "unavailable":
+        stat_sig_str = "Unavailable"
+    else:
+        stat_sig_str = str(stat_sig).replace("_", " ").title()
 
     key_metrics_list = [
         DisplayMetric("Practical Verdict", str(result.status).upper(), role="result.estimate"),

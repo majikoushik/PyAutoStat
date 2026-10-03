@@ -131,7 +131,7 @@ def _adapt_multigroup(
                 DisplayRow(
                     (
                         str(g.get("group", "")),
-                        format_sample_size(g.get("size", g.get("n"))),
+                        format_sample_size(g.get("sample_size") or g.get("size") or g.get("n")),
                         format_number(g.get("mean"), decimals=2),
                         format_number(g.get("sd", g.get("standard_deviation")), decimals=2),
                     )
@@ -145,44 +145,77 @@ def _adapt_multigroup(
     if isinstance(pairwise, list) and pairwise:
         pair_cols: tuple[str, ...] = ()
         p_rows: list[DisplayRow] = []
-        for pair in pairwise:
-            contrast = f"{pair.get('group1', '')} - {pair.get('group2', '')}"
-            if (
-                method_id in ("welch_anova", "one_way_anova")
-                or "estimate" in pair
-                or "mean_difference" in pair
-            ):
+        if method_id == "kruskal_wallis":
+            pair_cols = (
+                "Contrast",
+                "Mean-Rank Diff",
+                "Dunn z",
+                "Rank-biserial r",
+                "Adjusted p",
+                "Decision",
+            )
+            for pair in pairwise:
+                contrast_obj = pair.get("contrast")
+                g1 = pair.get("group1") or pair.get("first_group")
+                g2 = pair.get("group2") or pair.get("second_group")
+                if isinstance(contrast_obj, dict):
+                    g1 = g1 or contrast_obj.get("first_group") or contrast_obj.get("first")
+                    g2 = g2 or contrast_obj.get("second_group") or contrast_obj.get("second")
+                    contrast = f"{g1} vs {g2}" if (g1 and g2) else "-"
+                elif isinstance(contrast_obj, str) and contrast_obj:
+                    contrast = contrast_obj
+                else:
+                    contrast = f"{g1} vs {g2}" if (g1 and g2) else "-"
+                diff_val = format_number(pair.get("estimate"), decimals=2)
+                z_val = format_number(pair.get("statistic"), decimals=2)
+                eff_dict = pair.get("effect_size") or {}
+                rb_val = format_effect(eff_dict.get("value"), decimals=3)
+                adj_p = format_p_value(pair.get("adjusted_p_value"))
+                dec_raw = pair.get("decision")
+                decision = (
+                    "Reject H0"
+                    if dec_raw == "reject"
+                    else ("Fail to reject" if dec_raw == "fail_to_reject" else str(dec_raw or ""))
+                )
+                p_rows.append(DisplayRow((contrast, diff_val, z_val, rb_val, adj_p, decision)))
+            p_title = "DUNN-HOLM PAIRWISE COMPARISONS"
+        else:
+            pair_cols = (
+                "Contrast",
+                "Difference",
+                "95% Simultaneous CI",
+                "Adjusted p",
+                "Decision",
+            )
+            for pair in pairwise:
+                contrast_obj = pair.get("contrast")
+                g1 = pair.get("group1") or pair.get("first_group")
+                g2 = pair.get("group2") or pair.get("second_group")
+                if isinstance(contrast_obj, dict):
+                    g1 = g1 or contrast_obj.get("first_group") or contrast_obj.get("first")
+                    g2 = g2 or contrast_obj.get("second_group") or contrast_obj.get("second")
+                    contrast = f"{g1} - {g2}" if (g1 and g2) else "-"
+                elif isinstance(contrast_obj, str) and contrast_obj:
+                    contrast = contrast_obj
+                else:
+                    contrast = f"{g1} - {g2}" if (g1 and g2) else "-"
                 diff_val = format_number(
                     pair.get("estimate", pair.get("mean_difference")), decimals=2
                 )
                 ci_str = format_confidence_interval(pair.get("confidence_interval"), decimals=2)
-                adj_p = format_p_value(pair.get("adjusted_p_value", pair.get("p_value")))
-                p_adj_val = pair.get("adjusted_p_value")
+                adj_p = format_p_value(pair.get("adjusted_p_value"))
+                dec_raw = pair.get("decision")
                 decision = (
                     "Reject H0"
-                    if (p_adj_val if p_adj_val is not None else 1.0) < 0.05
-                    else "Fail to reject"
+                    if dec_raw == "reject"
+                    else ("Fail to reject" if dec_raw == "fail_to_reject" else str(dec_raw or ""))
                 )
                 p_rows.append(DisplayRow((contrast, diff_val, ci_str, adj_p, decision)))
-                pair_cols = (
-                    "Contrast",
-                    "Difference",
-                    "95% Simultaneous CI",
-                    "Adjusted p",
-                    "Decision",
-                )
-            else:
-                eff_dict = pair.get("effect_size") or {}
-                eff_val = format_effect(eff_dict.get("value"), decimals=3)
-                adj_p = format_p_value(pair.get("adjusted_p_value", pair.get("p_value")))
-                p_rows.append(DisplayRow((contrast, eff_val, adj_p)))
-                pair_cols = ("Contrast", "Rank-biserial r", "Adjusted p")
-        if method_id == "welch_anova":
-            p_title = "GAMES-HOWELL PAIRWISE COMPARISONS"
-        elif method_id == "one_way_anova":
-            p_title = "TUKEY-KRAMER PAIRWISE COMPARISONS"
-        else:
-            p_title = "DUNN-HOLM PAIRWISE COMPARISONS"
+            p_title = (
+                "GAMES-HOWELL PAIRWISE COMPARISONS"
+                if method_id == "welch_anova"
+                else "TUKEY-KRAMER PAIRWISE COMPARISONS"
+            )
         tables.append(DisplayTable(title=p_title, columns=pair_cols, rows=tuple(p_rows)))
 
     diagnostics_list = [

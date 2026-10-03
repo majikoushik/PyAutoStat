@@ -57,7 +57,7 @@ def adapt_two_way_anova(
     terms = analysis.values.get("terms") or []
     interaction_term = next((t for t in terms if t.get("term_type") == "interaction"), None)
     if interaction_term:
-        f_int = interaction_term.get("statistic")
+        f_int = interaction_term.get("f_statistic")
         p_int = interaction_term.get("p_value")
         eff_dict = interaction_term.get("effect_size") or {}
         eta_int = eff_dict.get("value")

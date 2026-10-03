@@ -20,6 +20,22 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+-   Hardened Rich terminal presentation layer correctness and stored-result fidelity (`pyautostat.show` / `pyautostat.presentation`):
+    -   Corrected logistic regression coefficient mapping to consume stored `odds_ratio` and `odds_ratio_ci` directly without falling back to log-odds intervals or exponentiating coefficients, and properly mapped `estimate`, `standard_error`, `statistic`, and `p_value`.
+    -   Corrected OLS regression coefficient table mapping to display `estimate`, `standard_error`, `confidence_interval`, `statistic`, and `p_value` directly from stored records.
+    -   Refactored OLS diagnostics to consume stored Breusch-Pagan status and VIF maximum/advisories without inventing presentation-layer alpha thresholds or rule-of-thumb cutoffs.
+    -   Corrected repeated-measures ANOVA and Friedman follow-up tables to use stored condition names, contrast orientation, test statistics, effect sizes, adjusted p-values, and stored decisions without hardcoded alpha thresholds.
+    -   Enforced stored decision consumption across multigroup and repeated-measures pairwise comparisons, eliminating presentation-layer `0.05` threshold evaluations.
+    -   Implemented method-explicit multigroup follow-up branching ensuring Kruskal-Wallis (Dunn-Holm) follow-ups are never mislabeled as mean differences.
+    -   Mapped `PracticalSignificanceResult.statistical_significance` as a semantic tri-state string (`evidence_against_null`, `no_evidence_against_null`, `unavailable`) rather than evaluating boolean truthiness.
+    -   Consumed authoritative comparability and contrast orientation records in sensitivity analysis without unconditionally asserting preserved contrasts.
+    -   Mapped two-way ANOVA interaction headline metric to authoritative `f_statistic`.
+    -   Removed derived percentage-of-total calculations in ICC presentation to preserve raw unconstrained variance component estimates (including negative estimates).
+    -   Corrected audit outcome status and role mapping (`passed` -> `PASSED`/`success`, `incomplete` -> `INCOMPLETE`/`warning`, `failed` -> `FAILED`/`error`).
+    -   Mapped statistical analysis plan practical thresholds using stored `minimum_magnitude` instead of dataclass string representations.
+    -   Cleaned two-group mean and median summary tables to avoid advertising unavailable descriptive statistics when not stored in the authoritative result.
+    -   Surfaced stored Cronbach's alpha missingness, reverse-scoring configuration, and negative correlation diagnostics.
+    -   Added comprehensive zero-recalculation fidelity and non-default alpha test suites.
 -   Optimized participant-block bootstrap for Kendall's W rank concordance (`friedman_kendall_w_bootstrap_ci`) by precomputing within-unit ranks and unit tie penalties once across units, yielding mathematically identical replicate distributions in $O(B \times k)$ time.
 -   Standardized paired Wilcoxon signed-rank asymptotic approximation policy (`paired_wilcoxon` and `friedman_test` pairwise follow-ups), selecting asymptotic approximation when non-zero paired differences exceed 50 to maintain consistent large-sample behavior and performance across SciPy versions.
 -   Refined the minimum valid resample threshold for paired rank-biserial and Kendall's W bootstrap confidence intervals to `max(10, bootstrap_samples // 2)`, supporting low-resample fast test/CI runs ($B < 20$) with an empirical floor of 10 while maintaining the 50% validity requirement for standard runs ($B \ge 20$).

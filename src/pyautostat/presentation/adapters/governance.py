@@ -56,14 +56,39 @@ def adapt_statistical_analysis_plan(
         DisplayRow(("Multiplicity Control", str(plan.multiplicity_policy))),
         DisplayRow(("Report Style", str(plan.report_style))),
     ]
-    if plan.meaningful_threshold:
-        thresh_str = str(
-            getattr(plan.meaningful_threshold, "threshold_value", plan.meaningful_threshold)
-        )
-        p_rows.append(DisplayRow(("Practical Threshold", thresh_str)))
     tables.append(
         DisplayTable(title="PLANNED GOVERNANCE POLICIES", columns=p_cols, rows=tuple(p_rows))
     )
+
+    if plan.meaningful_threshold:
+        thresh = plan.meaningful_threshold
+        th_cols = ("Threshold Element", "Specification")
+        th_rows = [
+            DisplayRow(("Quantity", str(thresh.quantity))),
+            DisplayRow(
+                (
+                    "Minimum magnitude",
+                    format_number(thresh.minimum_magnitude, decimals=2)
+                    if hasattr(thresh, "minimum_magnitude")
+                    else str(thresh),
+                )
+            ),
+        ]
+        if getattr(thresh, "unit", None):
+            th_rows.append(DisplayRow(("Unit", str(thresh.unit))))
+        if getattr(thresh, "direction", None):
+            th_rows.append(DisplayRow(("Direction", str(thresh.direction))))
+        if getattr(thresh, "planning_status", None):
+            th_rows.append(DisplayRow(("Planning status", str(thresh.planning_status))))
+        c_ord = getattr(thresh, "contrast_order", None)
+        if c_ord and len(c_ord) >= 2:
+            c_order = f"{c_ord[0]} - {c_ord[1]}"
+            th_rows.append(DisplayRow(("Contrast", c_order)))
+        if getattr(thresh, "rationale", None):
+            th_rows.append(DisplayRow(("Rationale", str(thresh.rationale))))
+        tables.append(
+            DisplayTable(title="PRACTICAL THRESHOLD", columns=th_cols, rows=tuple(th_rows))
+        )
 
     if plan.sensitivity_scenarios:
         s_cols = ("Scenario Name", "Planned Modification")
@@ -242,12 +267,18 @@ def adapt_audit(
     detail: str = "standard",
 ) -> TerminalView:
     """Adapt an AuditResult into a TerminalView."""
-    status_upper = str(result.status).upper()
-    role_color = (
-        "status.success"
-        if status_upper == "PASS"
-        else ("status.error" if status_upper == "FAIL" else "status.warning")
-    )
+    res_status = getattr(result, "status", "")
+    status_raw = str(getattr(res_status, "value", res_status)).strip().lower()
+
+    if status_raw == "passed":
+        status_upper = "PASSED"
+        role_color = "status.success"
+    elif status_raw == "failed":
+        status_upper = "FAILED"
+        role_color = "status.error"
+    else:
+        status_upper = "INCOMPLETE"
+        role_color = "status.warning"
 
     findings = result.findings
     n_failures = sum(1 for f in findings if getattr(f, "severity", "") == "failure")

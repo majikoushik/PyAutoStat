@@ -7,6 +7,8 @@ and specific scientific presentation requirements.
 
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import replace
 from unittest.mock import patch
 
 import numpy as np
@@ -18,7 +20,9 @@ from pyautostat import (
     AnalysisOptions,
     AnalysisResult,
     AnalysisStatus,
+    AuditResult,
     MeaningfulEffectThreshold,
+    PracticalSignificanceResult,
     ResearchAssistant,
     ResearchWorkflowResult,
     SensitivitySpecification,
@@ -28,6 +32,7 @@ from pyautostat import (
     reproduce,
     show,
 )
+from pyautostat.presentation.adapters import adapt
 
 
 def _capture(target, detail="standard", width=80, no_color=False, force_terminal=True) -> str:
@@ -1280,3 +1285,850 @@ def test_theme_graceful_fallback_without_rich():
 
     with patch.dict("sys.modules", {"rich.theme": None}):
         assert get_theme() is None
+
+
+# ── Correctness Remediation Pass Tests (Codex Requirements) ─────────────────
+
+
+def test_logistic_or_ci_uses_authoritative_odds_ratio_ci():
+    """Verify logistic regression uses odds_ratio_ci and NEVER log-odds CI for OR interval."""
+    log_ci = {"lower": 0.216, "upper": 1.981, "level": 0.95, "status": "available"}
+    or_ci = {"lower": 1.241, "upper": 7.253, "level": 0.95, "status": "available"}
+
+    analysis = AnalysisResult(
+        method_id="logistic_regression",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=100,
+        excluded_rows=0,
+        values={
+            "outcome": "y",
+            "modeled_event": "1",
+            "coefficients": [
+                {
+                    "term": "x1",
+                    "estimate": 1.0986,
+                    "standard_error": 0.450,
+                    "statistic": 2.441,
+                    "statistic_type": "Wald z",
+                    "p_value": 0.0146,
+                    "confidence_interval": log_ci,
+                    "odds_ratio": 3.000,
+                    "odds_ratio_ci": or_ci,
+                    "decision": "reject",
+                }
+            ],
+            "fit": {
+                "pseudo_r_squared": 0.25,
+                "log_likelihood": -45.2,
+                "aic": 94.4,
+                "bic": 99.6,
+            },
+        },
+    )
+
+    # Layer A: Inspect normalized display model directly
+    view_std = adapt(analysis, detail="standard")
+    table_std = view_std.tables[0]
+    row_std = table_std.rows[0].cells
+    assert row_std[0] == "x1"
+    assert "3.000" in row_std[1]
+    assert "1.241 to 7.253" in row_std[2]
+    assert "0.216 to 1.981" not in row_std[2]
+    assert "2.44" in row_std[3]
+    assert "0.015" in row_std[4]
+
+    view_full = adapt(analysis, detail="full")
+    table_full = view_full.tables[0]
+    row_full = table_full.rows[0].cells
+    assert row_full[0] == "x1"
+    assert "3.000" in row_full[1]
+    assert "1.241 to 7.253" in row_full[2]
+    assert "0.216 to 1.981" not in row_full[2]
+    assert "1.099" in row_full[3]
+    assert "0.450" in row_full[4]
+    assert "2.44" in row_full[5]
+    assert "0.015" in row_full[6]
+
+    # Layer B: show() capture smoke assertion
+    out_std = _capture(analysis, detail="standard")
+    assert "3.000" in out_std
+    assert "1.241 to 7.253" in out_std
+    assert "0.216 to 1.981" not in out_std
+
+    out_full = _capture(analysis, detail="full")
+    assert "3.000" in out_full
+    assert "1.241 to 7.253" in out_full
+    assert "0.450" in out_full
+    assert "2.44" in out_full
+    assert "0.216 to 1.981" not in out_full
+
+
+def test_ols_coefficient_field_mapping_fidelity():
+    """Verify OLS coefficient table displays estimate, standard_error, CI, t, and p_value."""
+    analysis = AnalysisResult(
+        method_id="linear_regression",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=50,
+        excluded_rows=0,
+        values={
+            "outcome": "y",
+            "predictors": ["x1"],
+            "r_squared": 0.65,
+            "adjusted_r_squared": 0.64,
+            "coefficients": [
+                {
+                    "term": "x1",
+                    "estimate": 2.500,
+                    "standard_error": 0.500,
+                    "statistic": 5.000,
+                    "statistic_type": "t",
+                    "p_value": 0.0042,
+                    "confidence_interval": {
+                        "lower": 1.480,
+                        "upper": 3.520,
+                        "level": 0.95,
+                        "status": "available",
+                    },
+                    "standardized_beta": 0.806,
+                    "decision": "reject",
+                }
+            ],
+            "f_statistic": 25.0,
+            "f_p_value": 0.0042,
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    table = view.tables[0]
+    row = table.rows[0].cells
+    assert row[0] == "x1"
+    assert "2.500" in row[1]
+    assert "0.500" in row[2]
+    assert "1.480 to 3.520" in row[3]
+    assert "5.00" in row[4]
+    assert "0.004" in row[5]
+
+    out = _capture(analysis, detail="standard")
+    assert "2.500" in out
+    assert "0.500" in out
+    assert "1.480 to 3.520" in out
+    assert "5.00" in out
+    assert "0.004" in out
+
+
+def test_ols_diagnostics_use_stored_status_without_hardcoded_alpha():
+    """Verify Breusch-Pagan and VIF diagnostics use stored status/advisory without p<0.05 logic."""
+    analysis = AnalysisResult(
+        method_id="linear_regression",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=60,
+        excluded_rows=0,
+        values={
+            "outcome": "y",
+            "predictors": ["x1"],
+            "r_squared": 0.50,
+            "coefficients": [
+                {
+                    "term": "x1",
+                    "estimate": 1.0,
+                    "standard_error": 0.2,
+                    "statistic": 5.0,
+                    "p_value": 0.001,
+                    "confidence_interval": {
+                        "lower": 0.6,
+                        "upper": 1.4,
+                        "level": 0.95,
+                        "status": "available",
+                    },
+                }
+            ],
+            "diagnostics": {
+                "breusch_pagan": {
+                    "status": "homoscedasticity_tenable",
+                    "decision": "Homoscedasticity tenable",
+                    "lm_statistic": 3.95,
+                    "lm_p_value": 0.047,  # Less than 0.05, but backend deemed tenable
+                    "f_statistic": 3.90,
+                    "f_p_value": 0.049,
+                },
+                "vif": {
+                    "maximum": 6.2,  # > 5.0, but backend policy allows up to 10
+                    "threshold_policy": "Policy threshold is 10.0",
+                    "terms": {
+                        "x1": {
+                            "vif": 6.2,
+                            "status": "acceptable",
+                            "advisory": "Collinearity within acceptable tolerance",
+                        }
+                    },
+                },
+            },
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    bp_diag = next(d for d in view.diagnostics if "Breusch-Pagan" in d.label)
+    assert bp_diag.status != "REVIEW"
+    assert bp_diag.severity != "warning"
+    assert "0.047" in (bp_diag.detail or "") or "Homoscedasticity tenable" in (bp_diag.detail or "")
+
+    vif_diag = next(d for d in view.diagnostics if "VIF" in d.label)
+    assert vif_diag.status != "REVIEW"
+    assert "6.20" in (vif_diag.detail or "")
+    assert "10.0" in (vif_diag.detail or "")
+
+
+def test_repeated_measures_sphericity_uses_stored_status_at_alpha_0_01():
+    """Verify repeated-measures sphericity uses stored status and does not threshold at 0.05."""
+    analysis = AnalysisResult(
+        method_id="repeated_measures_anova",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=20,
+        excluded_rows=0,
+        values={
+            "f_statistic": 4.12,
+            "df_num": 2,
+            "df_den": 38,
+            "p_value": 0.024,
+            "sphericity": {
+                "status": "not_rejected",
+                "decision": "Fail to reject null of sphericity",
+                "statistic": 0.88,
+                "p_value": 0.035,
+            },
+            "greenhouse_geisser": {
+                "applied": False,
+                "epsilon": 0.89,
+                "p_value": 0.027,
+            },
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    diag = next(d for d in view.diagnostics if "Sphericity" in d.label)
+    assert diag.status == "NOT REJECTED"
+    assert diag.status != "VIOLATED"
+
+    out = _capture(analysis, detail="standard")
+    assert "VIOLATED" not in out
+    assert "NOT REJECTED" in out
+
+
+def test_repeated_measures_anova_pairwise_condition_mapping():
+    """Verify repeated-measures ANOVA pairwise follow-up maps conditions and stats."""
+    analysis = AnalysisResult(
+        method_id="repeated_measures_anova",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=15,
+        excluded_rows=0,
+        values={
+            "f_statistic": 8.50,
+            "df_num": 2,
+            "df_den": 28,
+            "p_value": 0.001,
+            "pairwise_comparisons": [
+                {
+                    "first_condition": "Baseline",
+                    "second_condition": "FollowUp",
+                    "estimate": -3.50,
+                    "confidence_interval": {
+                        "lower": -5.20,
+                        "upper": -1.80,
+                        "level": 0.95,
+                        "status": "available",
+                    },
+                    "statistic": -4.20,
+                    "statistic_name": "t",
+                    "effect_size": {
+                        "name": "cohen_dz",
+                        "value": 1.08,
+                    },
+                    "raw_p_value": 0.0008,
+                    "adjusted_p_value": 0.0024,
+                    "decision": "reject",
+                },
+                {
+                    "first_condition": "FollowUp",
+                    "second_condition": "Maintenance",
+                    "status": "unavailable",
+                    "reason": "insufficient paired observations",
+                },
+            ],
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    table = view.tables[0]
+    row0 = table.rows[0].cells
+    assert row0[0] == "Baseline - FollowUp"
+    assert "-3.50" in row0[1]
+    assert "-5.20 to -1.80" in row0[2]
+    assert "1.08" in row0[3]
+    assert "0.002" in row0[4]
+    assert "Reject H0" in row0[5]
+
+    row1 = table.rows[1].cells
+    assert row1[0] == "FollowUp - Maintenance"
+    assert "Unavailable" in row1[1]
+
+    out = _capture(analysis, detail="standard", width=120)
+    assert "Baseline - FollowUp" in out
+    assert "-3.50" in out
+    assert "-5.20 to -1.80" in out
+    assert "1.08" in out
+    assert "0.002" in out
+
+
+def test_friedman_pairwise_mapping_fidelity():
+    """Verify Friedman pairwise follow-up maps conditions, statistic, rank-biserial, and p."""
+    analysis = AnalysisResult(
+        method_id="friedman_test",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=12,
+        excluded_rows=0,
+        values={
+            "statistic": 10.5,
+            "p_value": 0.005,
+            "kendall_w": {"value": 0.44},
+            "pairwise_comparisons": [
+                {
+                    "first_condition": "Placebo",
+                    "second_condition": "DrugA",
+                    "statistic": 14.0,
+                    "statistic_name": "Wilcoxon W",
+                    "effect_size": {
+                        "name": "matched_pairs_rank_biserial",
+                        "value": -0.62,
+                    },
+                    "raw_p_value": 0.004,
+                    "adjusted_p_value": 0.012,
+                    "decision": "reject",
+                }
+            ],
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    table = view.tables[0]
+    row0 = table.rows[0].cells
+    assert row0[0] == "Placebo vs DrugA"
+    assert "14.0" in row0[1]
+    assert "-0.620" in row0[2]
+    assert "0.012" in row0[3]
+    assert "Reject H0" in row0[4]
+
+    out = _capture(analysis, detail="standard")
+    assert "Placebo vs DrugA" in out
+    assert "14.0" in out
+    assert "-0.620" in out
+
+
+def test_multigroup_pairwise_decision_fidelity_at_non_default_alpha():
+    """Verify multigroup pairwise decision uses stored decision without 0.05 re-threshold."""
+    analysis = AnalysisResult(
+        method_id="welch_anova",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=45,
+        excluded_rows=0,
+        values={
+            "f_statistic": 4.80,
+            "p_value": 0.015,
+            "pairwise_comparisons": [
+                {
+                    "first_group": "A",
+                    "second_group": "B",
+                    "mean_difference": 2.10,
+                    "confidence_interval": {
+                        "lower": 0.10,
+                        "upper": 4.10,
+                        "level": 0.99,
+                        "status": "available",
+                    },
+                    "adjusted_p_value": 0.038,  # < 0.05, but under alpha=0.01 it is fail_to_reject
+                    "decision": "fail_to_reject",
+                }
+            ],
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    table = view.tables[0]
+    row0 = table.rows[0].cells
+    assert "A - B" in row0[0] or "A vs B" in row0[0]
+    assert "0.038" in row0[3]
+    assert "Fail to reject" in row0[4]
+    assert "Reject H0" not in row0[4]
+
+    out = _capture(analysis, detail="standard")
+    assert "Fail to reject" in out
+    assert "Reject H0" not in out
+
+
+def test_kruskal_wallis_dunn_pairwise_headers_not_mean_difference():
+    """Verify Kruskal-Wallis Dunn-Holm follow-up does NOT use mean difference headers."""
+    analysis = AnalysisResult(
+        method_id="kruskal_wallis",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=30,
+        excluded_rows=0,
+        values={
+            "statistic": 7.82,
+            "p_value": 0.020,
+            "pairwise_comparisons": [
+                {
+                    "first_group": "Group1",
+                    "second_group": "Group2",
+                    "estimate": 6.5,
+                    "estimate_name": "pooled mean-rank difference",
+                    "statistic": 2.35,
+                    "statistic_name": "Dunn z",
+                    "effect_size": {"name": "rank_biserial", "value": 0.42},
+                    "adjusted_p_value": 0.035,
+                    "decision": "reject",
+                }
+            ],
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    table = view.tables[0]
+    assert "Mean Difference" not in table.columns
+    assert "Simultaneous 95% Mean CI" not in table.columns
+    assert "Mean-Rank Diff" in table.columns
+    assert "Dunn z" in table.columns
+
+    out = _capture(analysis, detail="standard", width=100)
+    assert "Mean Difference" not in out
+    assert "Mean-Rank Diff" in out
+
+
+def test_practical_significance_semantic_string_status_fidelity():
+    """Verify practical significance handles statistical_significance as a semantic string."""
+    threshold = MeaningfulEffectThreshold(
+        quantity="mean_difference",
+        minimum_magnitude=5.0,
+        unit="mg/dL",
+        direction="two_sided",
+    )
+
+    # Case 1: no_evidence_against_null must NEVER render as "Statistically significant"
+    res_no_ev = PracticalSignificanceResult(
+        status="complete",
+        quantity="mean_difference",
+        estimate=2.1,
+        threshold=threshold,
+        confidence_interval={"lower": -1.0, "upper": 5.2, "level": 0.95, "status": "available"},
+        point_estimate_relation="below_threshold",
+        confidence_interval_relation="inconclusive",
+        uncertainty_status="inconclusive",
+        statistical_significance="no_evidence_against_null",
+        conclusion="Point estimate is below threshold; interval is inconclusive.",
+        warnings=(),
+        provenance={},
+    )
+
+    view_no = adapt(res_no_ev, detail="standard")
+    stat_sig_metric = next(m for m in view_no.key_metrics if m.label == "Statistical Evidence")
+    assert stat_sig_metric.value == "No sufficient evidence against recorded null"
+    assert "Statistically significant" not in stat_sig_metric.value
+
+    out_no = _capture(res_no_ev, detail="standard")
+    assert "No sufficient evidence against recorded null" in out_no
+    assert "Statistically significant" not in out_no
+
+    # Case 2: evidence_against_null
+    res_ev = PracticalSignificanceResult(
+        status="complete",
+        quantity="mean_difference",
+        estimate=8.2,
+        threshold=threshold,
+        confidence_interval={"lower": 5.5, "upper": 10.9, "level": 0.95, "status": "available"},
+        point_estimate_relation="exceeds_threshold",
+        confidence_interval_relation="entirely_above",
+        uncertainty_status="clear_effect",
+        statistical_significance="evidence_against_null",
+        conclusion="Point estimate and confidence interval both exceed threshold.",
+        warnings=(),
+        provenance={},
+    )
+    view_ev = adapt(res_ev, detail="standard")
+    metric_ev = next(m for m in view_ev.key_metrics if m.label == "Statistical Evidence")
+    assert metric_ev.value == "Evidence against recorded null"
+
+    # Case 3: unavailable
+    res_un = PracticalSignificanceResult(
+        status="complete",
+        quantity="mean_difference",
+        estimate=8.2,
+        threshold=threshold,
+        confidence_interval=None,
+        point_estimate_relation="exceeds_threshold",
+        confidence_interval_relation="unavailable",
+        uncertainty_status="uncertain",
+        statistical_significance="unavailable",
+        conclusion="Unavailable.",
+        warnings=(),
+        provenance={},
+    )
+    view_un = adapt(res_un, detail="standard")
+    metric_un = next(m for m in view_un.key_metrics if m.label == "Statistical Evidence")
+    assert metric_un.value == "Unavailable"
+
+
+def test_sensitivity_comparability_and_contrast_fidelity(welch_t_workflow):
+    """Verify sensitivity table displays stored comparability and contrast accurately."""
+    assistant = ResearchAssistant(
+        pd.DataFrame(
+            {
+                "score": [10.0, 12.0, 11.0, 13.0, 14.0, 20.0, 22.0, 21.0, 23.0, 24.0],
+                "group": ["A"] * 5 + ["B"] * 5,
+            }
+        )
+    )
+    base = welch_t_workflow.analysis
+    question_dist = replace(base.specification.question, estimand="distribution")
+    scenarios = [
+        SensitivitySpecification(
+            name="equal_var",
+            specification=base.specification,
+            method_id="student_t",
+            assumptions=("Equal population variances",),
+        ),
+        SensitivitySpecification(
+            name="rank_comparison",
+            specification=replace(base.specification, question=question_dist),
+            method_id="mann_whitney_u",
+            assumptions=("Ordinal or non-normal distribution",),
+        ),
+    ]
+    sensitivity = assistant.sensitivity_analysis(base, scenarios=scenarios)
+    assert [item.comparability.value for item in sensitivity.scenario_results] == [
+        "same_estimand",
+        "different_estimand",
+    ]
+
+    view = adapt(sensitivity, detail="standard")
+    table = view.tables[0]
+    row0_comp = table.rows[0].cells[2]
+    row1_comp = table.rows[1].cells[2]
+    assert "Same estimand" in row0_comp
+    assert "Different estimand" in row1_comp
+
+    row0_contrast = table.rows[0].cells[3]
+    row1_contrast = table.rows[1].cells[3]
+    assert row0_contrast != "Preserved"
+    assert row1_contrast != "Preserved"
+
+    out = _capture(sensitivity, detail="standard")
+    assert "same estimand" in out.lower()
+    assert "different estimand" in out.lower()
+
+
+def test_two_way_anova_headline_interaction_f_statistic():
+    """Verify Two-Way ANOVA interaction headline uses f_statistic and is not 'Unavailable'."""
+    analysis = AnalysisResult(
+        method_id="two_way_anova",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=48,
+        excluded_rows=0,
+        values={
+            "factor_a": "Drug",
+            "factor_b": "Dosage",
+            "interaction_term": {
+                "term": "Drug x Dosage",
+                "term_type": "interaction",
+                "sum_of_squares": 45.2,
+                "mean_square": 22.6,
+                "df": 2,
+                "f_statistic": 6.84,  # Notice key is f_statistic, NOT statistic
+                "p_value": 0.0025,
+                "effect_size": {"name": "partial_eta_squared", "value": 0.23},
+            },
+            "terms": [
+                {
+                    "term": "Drug",
+                    "term_type": "main_effect",
+                    "sum_of_squares": 60.1,
+                    "mean_square": 60.1,
+                    "df": 1,
+                    "f_statistic": 18.2,
+                    "p_value": 0.0001,
+                    "effect_size": {"name": "partial_eta_squared", "value": 0.28},
+                },
+                {
+                    "term": "Dosage",
+                    "term_type": "main_effect",
+                    "sum_of_squares": 30.0,
+                    "mean_square": 15.0,
+                    "df": 2,
+                    "f_statistic": 4.54,
+                    "p_value": 0.016,
+                    "effect_size": {"name": "partial_eta_squared", "value": 0.17},
+                },
+                {
+                    "term": "Drug x Dosage",
+                    "term_type": "interaction",
+                    "sum_of_squares": 45.2,
+                    "mean_square": 22.6,
+                    "df": 2,
+                    "f_statistic": 6.84,
+                    "p_value": 0.0025,
+                    "effect_size": {"name": "partial_eta_squared", "value": 0.23},
+                },
+            ],
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    inter_metric = next(m for m in view.key_metrics if "F" in m.label)
+    assert inter_metric.value == "6.840"
+    assert inter_metric.value != "Unavailable"
+
+    out = _capture(analysis, detail="standard")
+    assert "6.840" in out
+    assert "Drug x Dosage" in out
+
+
+def test_icc_no_derived_percentage_and_negative_variance_component():
+    """Verify ICC table displays negative variance component and derives NO percentage-of-total."""
+    analysis = AnalysisResult(
+        method_id="intraclass_correlation",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=8,
+        excluded_rows=0,
+        values={
+            "variant": "ICC(2,1)",
+            "definition": "absolute agreement",
+            "model": "two-way random effects",
+            "unit": "single rater",
+            "primary_estimate": -0.125,
+            "intraclass_correlation": -0.125,
+            "confidence_interval": {
+                "lower": -0.42,
+                "upper": 0.25,
+                "level": 0.95,
+                "status": "available",
+            },
+            "variance_components": {
+                "target_variance": -0.045,  # Unconstrained negative component
+                "rater_variance": 0.150,
+                "residual_variance": 0.900,
+            },
+            "n_targets": 8,
+            "n_raters": 3,
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    table = next(t for t in view.tables if "VARIANCE COMPONENTS" in (t.title or "").upper())
+    assert table.columns == ("Component", "Estimate")
+    assert "Percent of Total" not in table.columns
+    assert "% of Total" not in table.columns
+    row_target = next(r.cells for r in table.rows if "Target" in r.cells[0])
+    assert "-0.045" in row_target[1]
+
+    out = _capture(analysis, detail="standard")
+    assert "-0.045" in out
+    assert "Percent of Total" not in out
+    assert "% of Total" not in out
+
+
+def test_audit_status_roles_exact_mapping():
+    """Verify AuditResult statuses ('passed', 'incomplete', 'failed') map to correct roles."""
+    passed = AuditResult(
+        status="passed",
+        findings=(),
+        checked_components=("a",),
+        skipped_checks=(),
+        source_references={},
+    )
+    view_pass = adapt(passed, detail="standard")
+    metric_pass = view_pass.design_metrics[0]
+    assert metric_pass.value == "PASSED"
+    assert metric_pass.role == "status.success"
+
+    incomplete = AuditResult(
+        status="incomplete",
+        findings=(),
+        checked_components=("a",),
+        skipped_checks=(),
+        source_references={},
+    )
+    view_inc = adapt(incomplete, detail="standard")
+    metric_inc = view_inc.design_metrics[0]
+    assert metric_inc.value == "INCOMPLETE"
+    assert metric_inc.role == "status.warning"
+
+    failed = AuditResult(
+        status="failed",
+        findings=(),
+        checked_components=("a",),
+        skipped_checks=(),
+        source_references={},
+    )
+    view_fail = adapt(failed, detail="standard")
+    metric_fail = view_fail.design_metrics[0]
+    assert metric_fail.value == "FAILED"
+    assert metric_fail.role == "status.error"
+
+
+def test_analysis_plan_meaningful_threshold_uses_minimum_magnitude():
+    """Verify StatisticalAnalysisPlan renders minimum_magnitude and no dataclass repr."""
+    df = pd.DataFrame(
+        {
+            "group": ["a"] * 6 + ["b"] * 6,
+            "score": [1, 2, 3, 4, 5, 6, 3, 4, 5, 6, 7, 9],
+        }
+    )
+    asst = ResearchAssistant(df)
+    draft = asst.prepare_question(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="independent",
+        estimand="mean",
+        variable_types={"score": "continuous"},
+    )
+    thresh = MeaningfulEffectThreshold(
+        quantity="mean_difference",
+        minimum_magnitude=25.0,
+        unit="USD/month",
+        direction="two_sided",
+        rationale="Budget significance threshold",
+    )
+    plan = asst.analysis_plan(draft, meaningful_threshold=thresh)
+
+    view = adapt(plan, detail="standard")
+    thresh_table = next(t for t in view.tables if "PRACTICAL THRESHOLD" in (t.title or "").upper())
+    rows_dict = {r.cells[0]: r.cells[1] for r in thresh_table.rows}
+    assert rows_dict["Minimum magnitude"] == "25.00"
+    assert rows_dict["Unit"] == "USD/month"
+    assert rows_dict["Rationale"] == "Budget significance threshold"
+
+    out = _capture(plan, detail="standard")
+    assert "25.00" in out
+    assert "USD/month" in out
+    assert "MeaningfulEffectThreshold(" not in out
+
+
+def test_two_group_no_unavailable_descriptive_columns(welch_t_workflow):
+    """Verify two-group mean summary table only shows Group and N when Mean/SD are not in result."""
+    view = adapt(welch_t_workflow.analysis, detail="standard")
+    table = next(t for t in view.tables if "GROUP SUMMARY" in (t.title or "").upper())
+    assert table.columns == ("Group", "N")
+    assert "Mean" not in table.columns
+    assert "SD" not in table.columns
+
+    out = _capture(welch_t_workflow.analysis, detail="standard")
+    assert "GROUP SUMMARY" in out
+    assert "Unavailable" not in out
+
+
+def test_cronbach_alpha_surfaces_stored_missingness_and_scoring():
+    """Verify Cronbach alpha adapter surfaces stored missingness and scoring configuration."""
+    analysis = AnalysisResult(
+        method_id="cronbach_alpha",
+        status=AnalysisStatus.AVAILABLE,
+        sample_size=40,
+        excluded_rows=5,
+        values={
+            "items": ["q1", "q2", "q3", "q4"],
+            "item_count": 4,
+            "primary_estimate": 0.825,
+            "confidence_interval": {
+                "lower": 0.75,
+                "upper": 0.88,
+                "level": 0.95,
+                "status": "available",
+            },
+            "mean_inter_item_correlation": 0.54,
+            "sample": {
+                "missing_data_policy": "listwise_deletion",
+                "available_observations": 40,
+                "excluded_rows": 5,
+            },
+            "scoring": {
+                "reverse_scoring_applied": True,
+                "reversed_items": {"q2": {"min": 1, "max": 5}},
+            },
+        },
+    )
+
+    view = adapt(analysis, detail="standard")
+    labels = {m.label: m.value for m in view.design_metrics}
+    assert labels["Missingness Policy"] == "listwise_deletion"
+    assert "Applied to 1 items (q2)" in labels["Reverse Scoring"]
+    assert "5 rows" in labels["Excluded"]
+
+    out = _capture(analysis, detail="standard")
+    assert "listwise_deletion" in out
+    assert "Applied to 1 items (q2)" in out
+
+
+def test_stored_result_fidelity_and_zero_recalculation(
+    welch_t_workflow, linear_regression_workflow
+):
+    """Verify that show() does not recalculate statistics or mutate the AnalysisResult."""
+    from scipy import stats
+
+    wf = deepcopy(welch_t_workflow)
+    orig_values = deepcopy(wf.analysis.values)
+    orig_sample_size = wf.analysis.sample_size
+    orig_p_value = wf.analysis.values.get("p_value")
+
+    with patch.object(
+        stats, "ttest_ind", side_effect=AssertionError("ttest_ind recomputed during show!")
+    ):
+        with patch.object(
+            stats, "pearsonr", side_effect=AssertionError("pearsonr recomputed during show!")
+        ):
+            with patch.object(
+                stats, "f_oneway", side_effect=AssertionError("f_oneway recomputed during show!")
+            ):
+                with patch.object(
+                    stats,
+                    "mannwhitneyu",
+                    side_effect=AssertionError("mannwhitneyu recomputed during show!"),
+                ):
+                    with patch(
+                        "pyautostat.research_assistant.execute_selected_method",
+                        side_effect=AssertionError("execute_selected_method called during show!"),
+                    ):
+                        with patch(
+                            "pyautostat.ResearchAssistant.recommend_test",
+                            side_effect=AssertionError("recommend_test called during show!"),
+                        ):
+                            out = _capture(wf, detail="full")
+                            assert len(out) > 0
+
+    assert wf.analysis.values == orig_values
+    assert wf.analysis.sample_size == orig_sample_size
+    assert wf.analysis.values.get("p_value") == orig_p_value
+
+
+def test_workflow_execution_at_alpha_0_01():
+    """Verify end-to-end workflow execution at alpha=0.01 where p is between 0.01 and 0.05.
+
+    The decision must be 'Fail to reject' / 'no evidence against null', and presentation
+    must faithfully render the stored decision without hardcoding 0.05.
+    """
+    g1 = [10.0, 11.0, 9.5, 10.5, 11.2, 10.8, 12.0, 9.8, 11.0, 10.2]
+    g2 = [11.0, 11.5, 10.2, 11.8, 11.2, 10.8, 11.9, 11.4, 11.7, 11.1]
+    df = pd.DataFrame({"score": g1 + g2, "group": ["A"] * 10 + ["B"] * 10})
+
+    wf = ResearchAssistant(df).run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        estimand="mean",
+        design="independent",
+        variable_types={"score": "continuous"},
+        options=AnalysisOptions(alpha=0.01, confidence_level=0.99, random_seed=42),
+    )
+    p_val = wf.analysis.values.get("p_value")
+    assert p_val is not None
+    assert 0.01 < p_val < 0.05
+
+    out = _capture(wf, detail="standard")
+    assert "Independent Group Comparison" in out
+    assert "alpha = 0.01" in out

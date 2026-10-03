@@ -85,12 +85,12 @@ def adapt_linear_regression(
         cols = ("Term", "Estimate", "Std Error", "95% CI", "t", "p-value")
         rows: list[DisplayRow] = []
         for c in raw_coefs:
-            term = str(c.get("term", c.get("name", "")))
-            est = format_number(c.get("estimate", c.get("coef")), decimals=3)
-            se = format_number(c.get("std_error", c.get("bse")), decimals=3)
+            term = str(c.get("term", c.get("term_label", c.get("name", ""))))
+            est = format_number(c.get("estimate"), decimals=3)
+            se = format_number(c.get("standard_error"), decimals=3)
             ci = format_confidence_interval(c.get("confidence_interval"), decimals=3)
-            t_val = format_number(c.get("t_statistic", c.get("tvalues")), decimals=2)
-            p_val = format_p_value(c.get("p_value", c.get("pvalues")))
+            t_val = format_number(c.get("statistic"), decimals=2)
+            p_val = format_p_value(c.get("p_value"))
             rows.append(DisplayRow((term, est, se, ci, t_val, p_val)))
         tables.append(DisplayTable(title="MODEL COEFFICIENTS", columns=cols, rows=tuple(rows)))
 
@@ -99,32 +99,88 @@ def adapt_linear_regression(
     diag_data = analysis.values.get("diagnostics", {})
     if isinstance(diag_data, dict):
         bp = diag_data.get("breusch_pagan", {})
-        if bp:
-            bp_p = bp.get("p_value")
+        if isinstance(bp, dict) and bp:
+            bp_status_raw = bp.get("status")
+            bp_status = "REVIEW" if bp_status_raw == "rejected" else "DOCUMENTED"
+            bp_lm_p = bp.get("lm_p_value", bp.get("p_value"))
+            bp_policy = bp.get(
+                "interpretation_policy", "diagnostic evidence only; covariance was not changed"
+            )
+            bp_detail = (
+                f"LM stat = {format_number(bp.get('lm_statistic'), decimals=2)}, "
+                f"p = {format_p_value(bp_lm_p)}; {bp_policy}."
+            )
             diagnostics_list.append(
                 DisplayDiagnostic(
                     label="Breusch-Pagan (Heteroskedasticity)",
-                    status="REVIEW" if (bp_p is not None and bp_p < 0.05) else "DOCUMENTED",
-                    detail=(
-                        f"p = {format_p_value(bp_p)}; "
-                        "HC3 robust covariance recommended if p < 0.05."
-                    ),
-                    severity="review" if (bp_p is not None and bp_p < 0.05) else "neutral",
+                    status=bp_status,
+                    detail=bp_detail,
+                    severity="review" if bp_status_raw == "rejected" else "neutral",
                 )
             )
-        vif = diag_data.get("variance_inflation_factors")
-        if isinstance(vif, dict):
-            max_vif = max(vif.values()) if vif else None
-            if max_vif is not None:
-                vif_str = format_number(max_vif, decimals=2)
-                diagnostics_list.append(
-                    DisplayDiagnostic(
-                        label="Collinearity (VIF)",
-                        status="REVIEW" if max_vif >= 5.0 else "DOCUMENTED",
-                        detail=f"Maximum VIF is {vif_str} (threshold >= 5.0).",
-                        severity="review" if max_vif >= 5.0 else "neutral",
-                    )
+
+        vif_data = diag_data.get("vif", {})
+        if isinstance(vif_data, dict) and vif_data:
+            max_vif = vif_data.get("maximum")
+            vif_terms = vif_data.get("terms", [])
+            has_signal = any(
+                isinstance(t, dict)
+                and t.get("advisory")
+                in ("elevated_collinearity_signal", "strong_collinearity_signal", "nonfinite")
+                for t in vif_terms
+            )
+            vif_status = "REVIEW" if has_signal else "DOCUMENTED"
+            policy_text = vif_data.get(
+                "threshold_policy",
+                "VIF values around 5 or 10 are review heuristics, not pass/fail rules.",
+            )
+            vif_str = format_number(max_vif, decimals=2)
+            vif_detail = f"Maximum VIF is {vif_str}. {policy_text}"
+            diagnostics_list.append(
+                DisplayDiagnostic(
+                    label="Collinearity (VIF)",
+                    status=vif_status,
+                    detail=vif_detail,
+                    severity="review" if has_signal else "neutral",
                 )
+            )
+
+        norm = diag_data.get("residual_normality", {})
+        if isinstance(norm, dict) and norm:
+            norm_status_raw = norm.get("status")
+            norm_status = "REVIEW" if norm_status_raw == "rejected" else "DOCUMENTED"
+            norm_detail = (
+                f"{norm.get('method', 'Residual test')} statistic = "
+                f"{format_number(norm.get('statistic'), decimals=2)}, "
+                f"p = {format_p_value(norm.get('p_value'))}."
+            )
+            diagnostics_list.append(
+                DisplayDiagnostic(
+                    label="Residual Normality",
+                    status=norm_status,
+                    detail=norm_detail,
+                    severity="review" if norm_status_raw == "rejected" else "neutral",
+                )
+            )
+
+        influence = diag_data.get("influence", {})
+        if isinstance(influence, dict) and influence:
+            inf_status_raw = influence.get("status")
+            inf_status = "REVIEW" if inf_status_raw == "review" else "DOCUMENTED"
+            flagged = influence.get("flagged_count", 0)
+            policy = influence.get(
+                "interpretation_policy",
+                "Thresholds are review heuristics; observations are never removed automatically.",
+            )
+            inf_detail = f"{flagged} observations flagged by review heuristics. {policy}"
+            diagnostics_list.append(
+                DisplayDiagnostic(
+                    label="Influence Diagnostics",
+                    status=inf_status,
+                    detail=inf_detail,
+                    severity="review" if inf_status_raw == "review" else "neutral",
+                )
+            )
 
     diagnostics_list.extend(extract_diagnostics(analysis))
 
@@ -221,29 +277,23 @@ def adapt_logistic_regression(
             cols = ("Term", "Odds Ratio", "95% Wald CI", "raw beta", "SE", "z", "p-value")
             rows = []
             for c in raw_coefs:
-                term = str(c.get("term", c.get("name", "")))
+                term = str(c.get("term", c.get("term_label", c.get("name", ""))))
                 or_val = format_odds_ratio(c.get("odds_ratio"))
-                or_ci = format_confidence_interval(
-                    c.get("odds_ratio_confidence_interval", c.get("confidence_interval")),
-                    decimals=3,
-                )
-                beta = format_number(c.get("estimate", c.get("coef")), decimals=3)
-                se = format_number(c.get("std_error", c.get("bse")), decimals=3)
-                z_val = format_number(c.get("z_statistic", c.get("tvalues")), decimals=2)
-                p_val = format_p_value(c.get("p_value", c.get("pvalues")))
+                or_ci = format_confidence_interval(c.get("odds_ratio_ci"), decimals=3)
+                beta = format_number(c.get("estimate"), decimals=3)
+                se = format_number(c.get("standard_error"), decimals=3)
+                z_val = format_number(c.get("statistic"), decimals=2)
+                p_val = format_p_value(c.get("p_value"))
                 rows.append(DisplayRow((term, or_val, or_ci, beta, se, z_val, p_val)))
         else:
             cols = ("Term", "Odds Ratio", "95% Wald CI", "z", "p-value")
             rows = []
             for c in raw_coefs:
-                term = str(c.get("term", c.get("name", "")))
+                term = str(c.get("term", c.get("term_label", c.get("name", ""))))
                 or_val = format_odds_ratio(c.get("odds_ratio"))
-                or_ci = format_confidence_interval(
-                    c.get("odds_ratio_confidence_interval", c.get("confidence_interval")),
-                    decimals=3,
-                )
-                z_val = format_number(c.get("z_statistic", c.get("tvalues")), decimals=2)
-                p_val = format_p_value(c.get("p_value", c.get("pvalues")))
+                or_ci = format_confidence_interval(c.get("odds_ratio_ci"), decimals=3)
+                z_val = format_number(c.get("statistic"), decimals=2)
+                p_val = format_p_value(c.get("p_value"))
                 rows.append(DisplayRow((term, or_val, or_ci, z_val, p_val)))
         tables.append(DisplayTable(title="PREDICTOR ODDS RATIOS", columns=cols, rows=tuple(rows)))
 

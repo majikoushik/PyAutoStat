@@ -92,15 +92,32 @@ def adapt_repeated_measures_anova(
 
     pairwise = analysis.values.get("pairwise_comparisons")
     if isinstance(pairwise, list) and pairwise:
-        p_cols = ("Contrast", "Difference", "95% CI", "Cohen's dz", "Adjusted p")
+        p_cols = ("Contrast", "Difference", "95% CI", "Cohen's dz", "Adjusted p", "Decision")
         p_rows = []
         for p in pairwise:
-            contrast = f"{p.get('condition1', '')} - {p.get('condition2', '')}"
-            diff = format_number(p.get("mean_difference", p.get("difference")), decimals=2)
-            ci = format_confidence_interval(p.get("confidence_interval"), decimals=2)
-            dz = format_number(p.get("cohen_dz", p.get("dz")), decimals=2)
-            adj_p = format_p_value(p.get("adjusted_p_value", p.get("p_value")))
-            p_rows.append(DisplayRow((contrast, diff, ci, dz, adj_p)))
+            c1 = p.get("first_condition", p.get("condition1", ""))
+            c2 = p.get("second_condition", p.get("condition2", ""))
+            contrast = f"{c1} - {c2}"
+            if p.get("status") == "unavailable":
+                diff = "Unavailable"
+                ci = "Unavailable"
+                dz = "Unavailable"
+                adj_p = "Unavailable"
+                decision = str(p.get("reason", "Unavailable"))
+            else:
+                diff = format_number(p.get("estimate", p.get("mean_difference")), decimals=2)
+                ci = format_confidence_interval(p.get("confidence_interval"), decimals=2)
+                eff_dict = p.get("effect_size") or {}
+                dz_val = eff_dict.get("value") if isinstance(eff_dict, dict) else p.get("cohen_dz")
+                dz = format_number(dz_val, decimals=2)
+                adj_p = format_p_value(p.get("adjusted_p_value"))
+                dec_raw = p.get("decision")
+                decision = (
+                    "Reject H0"
+                    if dec_raw == "reject"
+                    else ("Fail to reject" if dec_raw == "fail_to_reject" else str(dec_raw or ""))
+                )
+            p_rows.append(DisplayRow((contrast, diff, ci, dz, adj_p, decision)))
         tables.append(
             DisplayTable(title="PAIRWISE FOLLOW-UP COMPARISONS", columns=p_cols, rows=tuple(p_rows))
         )
@@ -110,13 +127,29 @@ def adapt_repeated_measures_anova(
     sphericity = analysis.values.get("sphericity")
     if isinstance(sphericity, dict):
         mauchly_p = sphericity.get("p_value")
-        w_stat_str = format_number(sphericity.get("statistic"), decimals=3)
+        w_stat_str = format_number(
+            sphericity.get("statistic", sphericity.get("mauchly_w")), decimals=3
+        )
+        sph_status_raw = sphericity.get("status")
+        sph_status = (
+            "VIOLATED"
+            if sph_status_raw == "rejected"
+            else (
+                "NOT REJECTED"
+                if sph_status_raw == "not_rejected"
+                else str(sph_status_raw or "DOCUMENTED").upper()
+            )
+        )
+        sph_decision = sphericity.get("decision", "")
+        sph_detail = f"W = {w_stat_str}, p = {format_p_value(mauchly_p)}."
+        if sph_decision:
+            sph_detail += f" {sph_decision}"
         diagnostics_list.append(
             DisplayDiagnostic(
                 label="Mauchly's Sphericity",
-                status="VIOLATED" if (mauchly_p is not None and mauchly_p < 0.05) else "SUPPORTED",
-                detail=f"W = {w_stat_str}, p = {format_p_value(mauchly_p)}.",
-                severity="warning" if (mauchly_p is not None and mauchly_p < 0.05) else "neutral",
+                status=sph_status,
+                detail=sph_detail,
+                severity="warning" if sph_status_raw == "rejected" else "neutral",
             )
         )
     gg = analysis.values.get("greenhouse_geisser")
@@ -237,16 +270,34 @@ def adapt_friedman_test(
 
     pairwise = analysis.values.get("pairwise_comparisons")
     if isinstance(pairwise, list) and pairwise:
-        p_cols = ("Contrast", "Wilcoxon W", "Rank-biserial r", "Adjusted p")
+        p_cols = ("Contrast", "Wilcoxon W", "Rank-biserial r", "Adjusted p", "Decision")
         p_rows = []
         for p in pairwise:
-            contrast = f"{p.get('condition1', '')} vs {p.get('condition2', '')}"
-            w_sub = format_number(p.get("statistic"), decimals=1)
-            rb = format_number(
-                p.get("rank_biserial_r", p.get("effect_size", {}).get("value")), decimals=3
-            )
-            adj_p = format_p_value(p.get("adjusted_p_value", p.get("p_value")))
-            p_rows.append(DisplayRow((contrast, w_sub, rb, adj_p)))
+            c1 = p.get("first_condition", p.get("condition1", ""))
+            c2 = p.get("second_condition", p.get("condition2", ""))
+            contrast = f"{c1} vs {c2}"
+            if p.get("status") == "unavailable":
+                w_sub = "Unavailable"
+                rb = "Unavailable"
+                adj_p = "Unavailable"
+                decision = str(p.get("reason", "Unavailable"))
+            else:
+                w_sub = format_number(p.get("statistic"), decimals=1)
+                eff_dict = p.get("effect_size") or {}
+                rb_val = (
+                    eff_dict.get("value")
+                    if isinstance(eff_dict, dict)
+                    else p.get("rank_biserial_r")
+                )
+                rb = format_number(rb_val, decimals=3)
+                adj_p = format_p_value(p.get("adjusted_p_value"))
+                dec_raw = p.get("decision")
+                decision = (
+                    "Reject H0"
+                    if dec_raw == "reject"
+                    else ("Fail to reject" if dec_raw == "fail_to_reject" else str(dec_raw or ""))
+                )
+            p_rows.append(DisplayRow((contrast, w_sub, rb, adj_p, decision)))
         tables.append(
             DisplayTable(title="PAIRWISE WILCOXON FOLLOW-UP", columns=p_cols, rows=tuple(p_rows))
         )

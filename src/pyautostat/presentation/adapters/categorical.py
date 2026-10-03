@@ -96,12 +96,19 @@ def adapt_pearson_chi_square(
         min_exp = diag_data.get("min_expected_frequency")
         if min_exp is not None:
             min_exp_str = format_number(min_exp, decimals=2)
+            stored_status = diag_data.get("status") or diag_data.get("expected_count_status")
+            status = (
+                str(stored_status).upper()
+                if stored_status
+                else ("DOCUMENTED" if min_exp >= 5 else "REVIEW")
+            )
+            severity = "review" if status in ("REVIEW", "VIOLATED", "WARNING") else "neutral"
             diagnostics_list.append(
                 DisplayDiagnostic(
                     label="Min Expected Count",
-                    status="DOCUMENTED" if min_exp >= 5 else "REVIEW",
+                    status=status,
                     detail=f"Minimum expected cell count is {min_exp_str} (standard rule >= 5).",
-                    severity="neutral" if min_exp >= 5 else "review",
+                    severity=severity,
                 )
             )
 

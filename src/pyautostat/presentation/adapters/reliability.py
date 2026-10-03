@@ -37,17 +37,36 @@ def adapt_cronbach_alpha(
     item_count = analysis.values.get("item_count") or len(items)
 
     sample_size = analysis.sample_size
-    excluded_rows = analysis.excluded_rows or 0
+    excluded_rows = analysis.excluded_rows
+    sample_info = analysis.values.get("sample", {})
+    missing_policy = sample_info.get("missing_data_policy")
+    scoring_info = analysis.values.get("scoring", {})
+    rev_applied = scoring_info.get("reverse_scoring_applied", False)
+    rev_items = scoring_info.get("reversed_items")
 
     item_summary = ", ".join(str(it) for it in items[:5])
     if len(items) > 5:
         item_summary += "..."
-    design_metrics = (
+    design_metrics_list = [
         DisplayMetric("Method", "Cronbach's alpha internal consistency", role="method"),
         DisplayMetric("Scale Items", f"{item_count} items ({item_summary})"),
         DisplayMetric("Respondents (N)", f"{format_sample_size(sample_size)} complete cases"),
         DisplayMetric("Excluded", f"{format_sample_size(excluded_rows)} rows"),
-    )
+    ]
+    if missing_policy:
+        design_metrics_list.append(DisplayMetric("Missingness Policy", str(missing_policy)))
+    if rev_applied and isinstance(rev_items, dict) and rev_items:
+        rev_names = ", ".join(rev_items.keys())
+        design_metrics_list.append(
+            DisplayMetric("Reverse Scoring", f"Applied to {len(rev_items)} items ({rev_names})")
+        )
+    elif rev_applied:
+        design_metrics_list.append(DisplayMetric("Reverse Scoring", "Applied"))
+    else:
+        design_metrics_list.append(
+            DisplayMetric("Reverse Scoring", "None (original item scales preserved)")
+        )
+    design_metrics = tuple(design_metrics_list)
 
     alpha_val = analysis.values.get("primary_estimate")
     alpha_str = format_number(alpha_val, decimals=3)
@@ -217,21 +236,13 @@ def adapt_intraclass_correlation(
             tables.append(DisplayTable(title="ANOVA MEAN SQUARES", columns=cols, rows=tuple(rows)))
 
     var_comp = analysis.values.get("variance_components")
-    if isinstance(var_comp, dict):
-        v_cols = ("Component", "Variance", "Percent of Total")
+    if isinstance(var_comp, dict) and var_comp:
+        v_cols = ("Component", "Estimate")
         rows = []
-        total_var = (
-            sum(v for v in var_comp.values() if isinstance(v, (int, float))) if var_comp else 0.0
-        )
         for comp, val in var_comp.items():
             c_name = str(comp).replace("_", " ").title()
-            v_str = format_number(val, decimals=3)
-            pct_str = (
-                format_number((val / total_var * 100) if total_var > 0 else None, decimals=1) + "%"
-                if total_var > 0
-                else "Unavailable"
-            )
-            rows.append(DisplayRow((c_name, v_str, pct_str)))
+            v_str = format_number(val, decimals=4)
+            rows.append(DisplayRow((c_name, v_str)))
         if rows:
             tables.append(
                 DisplayTable(title="VARIANCE COMPONENTS", columns=v_cols, rows=tuple(rows))

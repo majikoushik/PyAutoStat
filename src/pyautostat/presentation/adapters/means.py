@@ -86,11 +86,11 @@ def _adapt_two_group_mean(
         for g_info in group_sizes:
             g_name = str(g_info.get("group", ""))
             g_n = format_sample_size(g_info.get("size"))
-            rows.append(DisplayRow((g_name, g_n, "Unavailable", "Unavailable")))
+            rows.append(DisplayRow((g_name, g_n)))
         tables.append(
             DisplayTable(
                 title="GROUP SUMMARY",
-                columns=("Group", "N", "Mean", "SD"),
+                columns=("Group", "N"),
                 rows=tuple(rows),
             )
         )
@@ -214,11 +214,11 @@ def adapt_mann_whitney_u(
         for g_info in group_sizes:
             g_name = str(g_info.get("group", ""))
             g_n = format_sample_size(g_info.get("size"))
-            rows.append(DisplayRow((g_name, g_n, "Unavailable", "Unavailable")))
+            rows.append(DisplayRow((g_name, g_n)))
         tables.append(
             DisplayTable(
                 title="GROUP SAMPLE SIZES",
-                columns=("Group", "N", "Median", "IQR"),
+                columns=("Group", "N"),
                 rows=tuple(rows),
             )
         )
