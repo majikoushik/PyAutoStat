@@ -27,9 +27,11 @@ def render_page(
     *,
     style: str = "general",
     css: str | None = None,
+    extra_head: str = "",
 ) -> str:
     """Render a complete, self-contained HTML5 document wrapper."""
     theme_css = css if css is not None else get_theme_css()
+    head_extra = f"\n{extra_head}" if extra_head else ""
     return (
         "<!doctype html>\n"
         '<html lang="en">\n'
@@ -37,7 +39,7 @@ def render_page(
         '  <meta charset="utf-8">\n'
         '  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
         f"  <title>{escape_text(title, quote=True)}</title>\n"
-        f"  <style>{theme_css}</style>\n"
+        f"  <style>{theme_css}</style>{head_extra}\n"
         "</head>\n"
         "<body>\n"
         '  <main class="report-container">\n'

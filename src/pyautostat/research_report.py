@@ -387,6 +387,26 @@ class ResearchReport:
 
         return ResearchReportHtmlRenderer(self, detail=detail, title=title, style=style).render()
 
+    def to_interactive_html(
+        self,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+        include_figures: bool | None = None,
+    ) -> str:
+        """Render a self-contained interactive HTML report with Plotly figures."""
+        resolved_figures = self._include_figures if include_figures is None else include_figures
+        from .presentation.html.api import to_interactive_html
+
+        return to_interactive_html(
+            self,
+            detail=detail,
+            title=title,
+            style=style,
+            include_figures=resolved_figures,
+        )
+
     def to_latex(self, *, style: str = "general") -> str:
         style = _style(style)
         data = self._payload
@@ -431,6 +451,29 @@ class ResearchReport:
         )
         if self._on_save is not None:
             self._on_save("html")
+        return output
+
+    def save_interactive_html(
+        self,
+        path: str | Path,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+        include_figures: bool | None = None,
+        overwrite: bool = False,
+    ) -> Path:
+        """Save a self-contained interactive HTML report with Plotly figures."""
+        resolved_figures = self._include_figures if include_figures is None else include_figures
+        content = self.to_interactive_html(
+            style=style,
+            detail=detail,
+            title=title,
+            include_figures=resolved_figures,
+        )
+        output = _write(path, content, overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("interactive_html")
         return output
 
     def save_markdown(

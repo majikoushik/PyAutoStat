@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ...exceptions import ReportError
-from ..adapters import adapt
+from ..adapters import UnsupportedPresentationError, adapt
+from ..figures.models import FigureSpec
 from ..models import PresentationView
 from .components import (
     render_analysis_record,
@@ -27,6 +28,7 @@ from .components import (
     report_table_to_display_table,
 )
 from .formatting import escape_text
+from .plotly_renderer import get_plotly_bundle, render_figure_html, render_noscript_banner
 from .templates import section_anchor, styled_heading
 
 if TYPE_CHECKING:
@@ -46,6 +48,7 @@ class ResearchReportHtmlRenderer:
         detail: str = "standard",
         title: str | None = None,
         style: str = "general",
+        figure_spec: FigureSpec | None = None,
     ) -> None:
         if detail not in VALID_DETAILS:
             raise ValueError(
@@ -60,6 +63,7 @@ class ResearchReportHtmlRenderer:
         self.detail = detail
         self.title_override = title
         self.style = style
+        self.figure_spec = figure_spec
 
     def render(self) -> str:
         """Render the ResearchReport according to requested detail mode."""
@@ -82,7 +86,7 @@ class ResearchReportHtmlRenderer:
         if source_result is not None:
             try:
                 source_view = adapt(source_result, detail=self.detail)
-            except Exception:
+            except UnsupportedPresentationError:
                 source_view = None
 
         sec_idx = 1
@@ -110,10 +114,22 @@ class ResearchReportHtmlRenderer:
         if summary is not None:
             body_parts.append(f'<p class="oriented-summary">{escape_text(summary)}</p>')
 
+        figure_html = ""
+        plotly_bundle = ""
+        figure_inserted = False
+        if self.figure_spec is not None:
+            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
+            plotly_bundle = get_plotly_bundle()
+
         # Compact mode returns early
         if self.detail == "compact":
+            if figure_html and self.figure_spec and self.figure_spec.kind == "estimate_ci":
+                body_parts.append(figure_html)
+                figure_inserted = True
+            if figure_inserted:
+                body_parts.insert(1, render_noscript_banner())
             body_html = "\n\n".join(part for part in body_parts if part)
-            return render_page(report_title, body_html, style=self.style)
+            return render_page(report_title, body_html, style=self.style, extra_head=plotly_bundle)
 
         # Standard & Full Modes: Render canonical sections
         sections_dict: dict[str, Any] = data.get("sections", {})
@@ -126,6 +142,15 @@ class ResearchReportHtmlRenderer:
             )
             if section_content:
                 body_parts.append(render_section(sec_heading, section_content, section_id=sec_id))
+                if (
+                    figure_html
+                    and not figure_inserted
+                    and self.figure_spec is not None
+                    and key == "results"
+                    and self.figure_spec.placement == "KEY RESULTS"
+                ):
+                    body_parts.append(figure_html)
+                    figure_inserted = True
 
         # Tables
         for table_dict in data.get("tables", []):
@@ -148,6 +173,18 @@ class ResearchReportHtmlRenderer:
                     section_id=section_anchor(t_title),
                 )
             )
+            if (
+                figure_html
+                and not figure_inserted
+                and self.figure_spec is not None
+                and self.figure_spec.placement.upper() in t_title.upper()
+            ):
+                body_parts.append(figure_html)
+                figure_inserted = True
+
+        if figure_html and not figure_inserted:
+            body_parts.append(figure_html)
+            figure_inserted = True
 
         # Limitations & Warnings
         limitations = data.get("limitations", [])
@@ -192,8 +229,11 @@ class ResearchReportHtmlRenderer:
                     render_section(rec_heading, rec_html, section_id="analysis-record")
                 )
 
+        if figure_inserted:
+            body_parts.insert(1, render_noscript_banner())
+
         body_html = "\n\n".join(part for part in body_parts if part)
-        return render_page(report_title, body_html, style=self.style)
+        return render_page(report_title, body_html, style=self.style, extra_head=plotly_bundle)
 
     def _render_section_content(
         self,

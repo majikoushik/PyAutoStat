@@ -545,6 +545,43 @@ th.align-left, td.align-left {
   }
 }
 
+/* Figure Styling */
+.pyautostat-figure-container {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: 6px;
+}
+
+.pyautostat-figure {
+  margin: 0;
+  padding: 0;
+}
+
+.pyautostat-plotly-graph {
+  width: 100%;
+  min-height: 380px;
+}
+
+.pyautostat-figcaption {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--pa-text-muted);
+  text-align: center;
+  font-style: italic;
+}
+
+.pyautostat-noscript-banner {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  background-color: #fef3c7;
+  border-left: 4px solid #d97706;
+  color: #92400e;
+  font-size: 0.9375rem;
+  border-radius: 4px;
+}
+
 /* Print Styles */
 @media print {
   body {
@@ -567,10 +604,17 @@ th.align-left, td.align-left {
   .limitations-block,
   .warnings-block,
   .caution,
-  .executive-summary {
+  .executive-summary,
+  .pyautostat-figure-container {
     break-inside: avoid;
     box-shadow: none !important;
     border: 1px solid #cbd5e1 !important;
+  }
+  .js-plotly-plot .plotly .modebar {
+    display: none !important;
+  }
+  .pyautostat-plotly-graph {
+    max-width: 100% !important;
   }
   h1, h2, h3, h4 {
     break-after: avoid;

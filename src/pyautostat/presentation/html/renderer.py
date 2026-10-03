@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..figures.models import FigureSpec
 from ..models import DisplayMetric, PresentationView
 from .components import (
     render_analysis_record,
@@ -17,6 +18,7 @@ from .components import (
     render_warnings,
 )
 from .formatting import escape_text
+from .plotly_renderer import get_plotly_bundle, render_figure_html, render_noscript_banner
 from .templates import section_anchor, styled_heading
 
 
@@ -30,11 +32,13 @@ class HtmlRenderer:
         detail: str = "standard",
         title: str | None = None,
         style: str = "general",
+        figure_spec: FigureSpec | None = None,
     ) -> None:
         self.view = view
         self.detail = detail
         self.title_override = title
         self.style = style
+        self.figure_spec = figure_spec
 
     @property
     def display_title(self) -> str:
@@ -55,6 +59,13 @@ class HtmlRenderer:
         sec_idx = 1
         body_parts = [render_header(self.display_title, self.view.subtitle)]
 
+        figure_html = ""
+        plotly_bundle = ""
+        figure_inserted = False
+        if self.figure_spec is not None and self.figure_spec.kind == "estimate_ci":
+            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
+            plotly_bundle = get_plotly_bundle()
+
         # Key results
         if self.view.key_metrics:
             heading = styled_heading("KEY RESULTS", sec_idx, self.style)
@@ -66,6 +77,9 @@ class HtmlRenderer:
                     section_id="key-results",
                 )
             )
+            if figure_html:
+                body_parts.append(figure_html)
+                figure_inserted = True
 
         # Compact interpretation
         interp_text = self.view.compact_text or self.view.interpretation
@@ -81,13 +95,25 @@ class HtmlRenderer:
                 )
             )
 
+        if figure_inserted:
+            body_parts.insert(1, render_noscript_banner())
+
         body_html = "\n\n".join(part for part in body_parts if part)
-        return render_page(self.display_title, body_html, style=self.style)
+        return render_page(
+            self.display_title, body_html, style=self.style, extra_head=plotly_bundle
+        )
 
     def render_standard(self) -> str:
         """Render standard comprehensive report."""
         sec_idx = 1
         body_parts = [render_header(self.display_title, self.view.subtitle)]
+
+        figure_html = ""
+        plotly_bundle = ""
+        figure_inserted = False
+        if self.figure_spec is not None:
+            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
+            plotly_bundle = get_plotly_bundle()
 
         # APA / IEEE concise prefix if available in metadata
         apa_summary = self.view.metadata.get("apa_summary")
@@ -127,6 +153,14 @@ class HtmlRenderer:
                     section_id=section_anchor(results_title),
                 )
             )
+            if (
+                figure_html
+                and not figure_inserted
+                and self.figure_spec is not None
+                and self.figure_spec.placement == "KEY RESULTS"
+            ):
+                body_parts.append(figure_html)
+                figure_inserted = True
 
         # 3. Summary Tables (Pairwise comparisons bounded to max 6 rows in standard mode)
         if self.view.tables:
@@ -142,6 +176,18 @@ class HtmlRenderer:
                         section_id=section_anchor(table_title),
                     )
                 )
+                if (
+                    figure_html
+                    and not figure_inserted
+                    and self.figure_spec is not None
+                    and self.figure_spec.placement.upper() in table_title.upper()
+                ):
+                    body_parts.append(figure_html)
+                    figure_inserted = True
+
+        if figure_html and not figure_inserted:
+            body_parts.append(figure_html)
+            figure_inserted = True
 
         # 4. Interpretation
         if self.view.interpretation:
@@ -192,13 +238,25 @@ class HtmlRenderer:
                 )
             )
 
+        if figure_inserted:
+            body_parts.insert(1, render_noscript_banner())
+
         body_html = "\n\n".join(part for part in body_parts if part)
-        return render_page(self.display_title, body_html, style=self.style)
+        return render_page(
+            self.display_title, body_html, style=self.style, extra_head=plotly_bundle
+        )
 
     def render_full(self) -> str:
         """Render complete, detailed report with untruncated tables and governance records."""
         sec_idx = 1
         body_parts = [render_header(self.display_title, self.view.subtitle)]
+
+        figure_html = ""
+        plotly_bundle = ""
+        figure_inserted = False
+        if self.figure_spec is not None:
+            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
+            plotly_bundle = get_plotly_bundle()
 
         apa_summary = self.view.metadata.get("apa_summary")
         if self.style == "apa" and apa_summary:
@@ -237,6 +295,14 @@ class HtmlRenderer:
                     section_id=section_anchor(results_title),
                 )
             )
+            if (
+                figure_html
+                and not figure_inserted
+                and self.figure_spec is not None
+                and self.figure_spec.placement == "KEY RESULTS"
+            ):
+                body_parts.append(figure_html)
+                figure_inserted = True
 
         # 3. Tables (Untruncated)
         if self.view.tables:
@@ -251,6 +317,18 @@ class HtmlRenderer:
                         section_id=section_anchor(table_title),
                     )
                 )
+                if (
+                    figure_html
+                    and not figure_inserted
+                    and self.figure_spec is not None
+                    and self.figure_spec.placement.upper() in table_title.upper()
+                ):
+                    body_parts.append(figure_html)
+                    figure_inserted = True
+
+        if figure_html and not figure_inserted:
+            body_parts.append(figure_html)
+            figure_inserted = True
 
         # 4. Interpretation
         if self.view.interpretation:
@@ -415,5 +493,10 @@ class HtmlRenderer:
                 )
             )
 
+        if figure_inserted:
+            body_parts.insert(1, render_noscript_banner())
+
         body_html = "\n\n".join(part for part in body_parts if part)
-        return render_page(self.display_title, body_html, style=self.style)
+        return render_page(
+            self.display_title, body_html, style=self.style, extra_head=plotly_bundle
+        )

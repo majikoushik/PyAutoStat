@@ -233,6 +233,28 @@ report.save_html("reports/research_report.html", style="general", overwrite=True
 - **Security-hardened:** All user text, variable names, table cells, and group labels are safely HTML-escaped.
 - **Universal coverage:** Complete static HTML rendering for all 24 statistical method families (mean comparisons, ANOVA, associations, categorical tables, regression, reliability, repeated measures, and ICC), dataset profiles, and planning/governance objects. See [`docs/HTML_REPORTING.md`](docs/HTML_REPORTING.md) for details.
 
+### Optional Interactive HTML and Scientific Figures
+
+With the optional `[report]` extra (`pip install "pyautostat[report]"`), PyAutoStat adds interactive Plotly-backed scientific figures (point estimates with CIs, coefficient and odds-ratio forest plots, contingency heatmaps, and cell profile plots) as a progressive enhancement:
+
+```python
+from pyautostat import save_interactive_html, to_interactive_html
+
+# Generate self-contained, offline interactive HTML report
+save_interactive_html(
+    workflow,
+    "reports/analysis_interactive.html",
+    include_figures=True,
+    overwrite=True,
+)
+
+# ResearchReport interactive exports
+report = workflow.report
+report.save_interactive_html("reports/research_report_interactive.html", overwrite=True)
+```
+
+Interactive reports remain completely offline and self-contained, embed Plotly once per document, strictly visualize stored results without recalculation, and never embed raw row-level data by default. Static HTML remains the canonical default.
+
 ---
 
 ## When information is missing

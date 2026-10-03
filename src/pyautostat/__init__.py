@@ -56,8 +56,10 @@ from .presentation import (
     PresentationView,
     UnsupportedPresentationError,
     save_html,
+    save_interactive_html,
     show,
     to_html,
+    to_interactive_html,
 )
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
@@ -174,7 +176,9 @@ __all__ = [
     "suggest_column_roles",
     "show",
     "to_html",
+    "to_interactive_html",
     "save_html",
+    "save_interactive_html",
     "PresentationView",
     "UnsupportedPresentationError",
 ]

@@ -207,10 +207,118 @@ report.save_html("customer_report.html", overwrite=True)
 
 ---
 
-## 11. Future Roadmap: Interactive HTML
+## 11. Interactive HTML and Scientific Figures
 
-Future releases will introduce optional, progressive enhancements:
-- Interactive Plotly figures (using PyAutoStat's optional `[reporting]` extra).
-- Client-side sortable tables and column filters.
-- Collapsible diagnostic and reproducibility accordions.
-- Forest plots for pairwise comparisons and regression coefficients.
+PyAutoStat provides an **optional**, scientifically responsible interactive HTML and figure presentation layer as a progressive enhancement over the canonical static HTML reports.
+
+```text
+    Statistical Engine
+          ↓
+    Authoritative stored result (AnalysisResult / ResearchWorkflowResult / ResearchReport)
+          ↓
+    Existing PresentationView + report payload
+          ↓
+    Static HTML components  ← canonical textual and tabular presentation
+          ↓
+    Optional FigureSpec layer (Plotly-independent abstraction)
+          ↓
+    Optional Plotly renderer
+          ↓
+    Self-contained interactive HTML document
+```
+
+### Core Scientific Principles
+
+1. **No scientific conclusion exists only in a figure**: Every interactive figure is strictly supplementary to the authoritative textual and tabular presentation.
+2. **Canonical static HTML remains default**: Default `to_html(...)` and `ResearchReport.to_html(...)` remain 100% static, JavaScript-free, and Plotly-free.
+3. **Zero inferential recalculation**: Figures visualize stored estimates, stored confidence intervals, stored coefficient records, stored pairwise comparisons, stored contingency counts, and stored cell summaries only. No new CIs, effect sizes, p-values, or model refits are ever calculated during figure rendering.
+4. **Raw-data privacy by default**: Interactive HTML files never embed raw row-level observations, raw scatterplots, raw jitter plots, or row-level hover clouds. This ensures shared self-contained HTML files do not leak sensitive or participant-level data.
+5. **No significance traffic-light coloring**: Color is used strictly for series identification and visual distinction—never to encode green/red statistical significance thresholds.
+
+---
+
+## 12. Interactive API and Installation
+
+### Installation
+
+Plotly is an optional dependency included in the `[report]` extra:
+
+```bash
+python -m pip install "pyautostat[report]"
+```
+
+If Plotly is not installed, calling `to_interactive_html(...)` or `save_interactive_html(...)` with `include_figures=True` raises an actionable `ReportError` with the exact pip install command. Static HTML rendering (`to_html`, `save_html`) continues to work without Plotly.
+
+### Modern Public Interactive APIs
+
+```python
+from pyautostat import save_interactive_html, to_interactive_html
+
+# Standalone workflow or AnalysisResult
+html_str = to_interactive_html(
+    workflow,
+    detail="standard",
+    title="Customer Spending Analysis",
+    style="general",
+    include_figures=True,
+)
+
+# Save directly to file with overwrite protection
+saved_path = save_interactive_html(
+    workflow,
+    "reports/spending_interactive.html",
+    detail="standard",
+    include_figures=True,
+    overwrite=True,
+)
+
+# ResearchReport interactive exports
+report = workflow.report
+report_html = report.to_interactive_html(include_figures=True)
+report.save_interactive_html("reports/research_report_interactive.html", overwrite=True)
+```
+
+### Distinction from Legacy ReportGenerator
+
+- **`pyautostat.to_interactive_html(...)` / `report.to_interactive_html(...)`**: Modern presentation system consuming `PresentationView` and canonical `ResearchReport` models.
+- **Legacy `ReportGenerator.to_interactive_html(...)`**: Maintained for backward compatibility with the legacy `StatisticalAnalyzer` path.
+
+---
+
+## 13. Offline, Self-Contained Delivery & File Size
+
+- **100% Offline**: Interactive HTML documents embed the Plotly JavaScript runtime directly in the `<head>` of the document. No external CDN requests (`cdn.plot.ly`, `cdnjs`, etc.) are made.
+- **Single bundle per document**: The Plotly JavaScript bundle is embedded exactly once per HTML document, even when reports contain multiple figures.
+- **File size**: Because the full Plotly library is embedded inline for offline portability, interactive HTML files are typically between 3.5 MB and 4.8 MB. Static HTML reports remain lightweight (~20 KB to 50 KB).
+- **Restrained interface**: The Plotly modebar is minimal and unobtrusive (`displayModeBar: 'hover'`, `scrollZoom: false`, no cloud/export tracking buttons).
+
+---
+
+## 14. Supported Scientific Figure Types
+
+| Figure Kind | Chart Type | Scientific Features | Method Coverage |
+|---|---|---|---|
+| `estimate_ci` | Point estimate + error bar | Stored signed estimate, stored CI, neutral reference line (0.0 for differences/associations, 1.0 for odds ratios) | Welch t-test, Student t-test, Paired t-test, One-sample t-test, Pearson correlation, Spearman rank correlation, Kendall's tau-b, Point-biserial, Partial Pearson, ICC, Cronbach's alpha, Fisher's exact (OR fallback) |
+| `coefficient_forest` | Horizontal coefficient forest | Stored coefficients, stored CIs, source variable order preserved (no p-value sorting), reference line at 0.0 | Linear regression (OLS) |
+| `odds_ratio_forest` | Horizontal odds-ratio forest | Stored odds ratios, stored OR CIs, log x-scale when valid, reference line at 1.0, modeled event stated | Binary logistic regression |
+| `pairwise_forest` | Post-hoc pairwise contrast forest | Stored contrast differences, simultaneous CIs, source contrast order, reference line at 0.0 | Welch ANOVA (Games-Howell), One-way ANOVA (Tukey-Kramer) |
+| `count_heatmap` | Categorical contingency heatmap | Stored observed contingency frequencies, row/column category alignment, neutral sequential blues palette | Pearson chi-square test of independence, Fisher's exact test (2x2) |
+| `cell_profile` | Factorial interaction profile | Observed cell means across factor levels, source order preserved, no fabricated CI bands | Two-way factorial ANOVA |
+
+### Intentionally Table-Only Methods
+
+Not every method receives a figure. When authoritative numeric inputs or confidence intervals do not exist in the stored result, PyAutoStat intentionally omits the figure rather than fabricating visualizations:
+
+- **Kruskal-Wallis**: Omnibus rank test and Dunn-Holm follow-up contrasts are displayed cleanly in tables; pairwise forest plots are omitted because Dunn ranks lack authoritative confidence intervals.
+- **Mann-Whitney U / Wilcoxon Signed-Rank**: Rendered via comprehensive tabular summaries; rank-biserial effect sizes are presented in tables and KPI cards.
+- **Friedman Test / Repeated-Measures ANOVA**: Tabular presentation when condition summary grids lack sufficient cell-level interval data.
+
+---
+
+## 15. Accessibility, Security, and Print Layout
+
+- **Semantic HTML**: Figures are rendered using semantic `<figure class="pyautostat-figure">` and `<figcaption class="pyautostat-figcaption">` elements.
+- **JavaScript-disabled notice (`<noscript>`)**: If JavaScript is disabled, an accessible notice informs the user: *"Interactive figures require JavaScript; all statistical results remain available in the report tables and text."*
+- **XSS & injection safety**: Figure titles, axis labels, hover texts, and metadata are safely serialized using Unicode-escaped JSON (`\u003c`, `\u003e`, `\u0026`), preventing script tag breakout and HTML injection.
+- **Print media stylesheet (`@media print`)**: Automatically hides the Plotly interactive modebar, constrains figure dimensions to fit printable pages, and ensures primary tables break cleanly across pages.
+

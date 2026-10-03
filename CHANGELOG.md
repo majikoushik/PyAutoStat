@@ -9,6 +9,20 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Implemented optional interactive HTML presentation layer and Plotly-backed scientific figures (`pyautostat.to_interactive_html`, `pyautostat.save_interactive_html`, and `ResearchReport.to_interactive_html` / `ResearchReport.save_interactive_html`):
+    -   Introduced modern public interactive reporting APIs: `to_interactive_html(target, *, detail="standard", title=None, style="general", include_figures=True)` and `save_interactive_html(target, path, *, detail="standard", title=None, style="general", include_figures=True, overwrite=False)` supporting `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, and `PresentationView`.
+    -   Added Plotly-independent neutral figure specification layer (`FigureSpec`, `FigureSeries`, `build_figure_spec` in `pyautostat.presentation.figures`), isolating visualization data structures from rendering backends and keeping figures strictly supplementary to canonical textual and tabular presentation.
+    -   Enforced zero-recalculation guarantee: figure adapters extract authoritative stored estimates, confidence intervals, summaries, coefficient records, pairwise contrasts, contingency frequencies, and cell summaries without re-running models or recalculating inference.
+    -   Implemented raw-data privacy guarantees: figures never serialize row-level observations, raw scatterplots, raw jitter plots, or participant hover clouds, preventing data leaks in shared standalone HTML files.
+    -   Created reusable scientific figure renderers: point estimate with CI (differences, correlations, reliability), OLS coefficient forest plot (reference line at 0), binary logistic regression odds-ratio forest plot (reference line at 1.0, log x-scale), ANOVA pairwise comparison forest plot (Games-Howell and Tukey-Kramer), categorical contingency count heatmap (Pearson chi-square and Fisher exact), and factorial cell profile plot (two-way ANOVA).
+    -   Intentionally omitted figures where authoritative inputs or intervals are absent (e.g. Kruskal-Wallis pairwise contrasts where Dunn lacks authoritative intervals) to avoid visual fabrication.
+    -   Guaranteed 100% offline, self-contained interactive delivery by embedding the Plotly JavaScript runtime once per document in the `<head>`, eliminating external CDN dependencies, tracking, and redundant bundle duplication across multiple figures.
+    -   Implemented restrained Plotly configuration: minimal hover modebar, disabled scroll zoom, and no external cloud links.
+    -   Protected against XSS and script injection by safely Unicode-escaping user-controlled labels, titles, and JSON metadata (`\u003c`, `\u003e`, `\u0026`).
+    -   Maintained full backward compatibility: default static HTML output (`to_html`, `save_html`, `ResearchReport.to_html`) remains 100% static, JavaScript-free, Plotly-free, and lightweight.
+    -   Maintained distinction with legacy `ReportGenerator.to_interactive_html()`, which remains preserved for backward compatibility with the legacy `StatisticalAnalyzer` path.
+    -   Audited and respected `ResearchReport._include_figures` flag, allowing runtime rendering overrides without mutating report payload.
+    -   Added demonstration in `examples/14_interactive_html_reporting.py` and comprehensive tests in `tests/test_interactive_html.py`.
 -   Unified `ResearchReport.to_html()` and completed static HTML presentation coverage (`pyautostat.to_html`, `pyautostat.save_html`, and `pyautostat.presentation.html`):
     -   Unified `ResearchReport.to_html()` to consume the exact same shared HTML component and rendering architecture (`ResearchReportHtmlRenderer` in `presentation/html/report_renderer.py`), eliminating the legacy separate hand-built HTML path while preserving canonical payload serialization.
     -   Enabled source `AnalysisResult` normalization via `adapt(report._source_result, detail=...)` without re-running statistical algorithms, ensuring standalone HTML and `ResearchReport` HTML agree on primary estimates, confidence intervals, effect sizes, p-values, table fields, and diagnostic statuses.
@@ -40,6 +54,8 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+-   Hardened `ResearchReportHtmlRenderer` presentation adapter fallback:
+    -   Narrowed broad exception handling to catch only `UnsupportedPresentationError`, ensuring unexpected programming or adapter failures surface clearly instead of silently downgrading to canonical payload-only presentation.
 -   Final Rich terminal presentation fidelity pass (`pyautostat.show` / `pyautostat.presentation`):
     -   Implemented dynamic confidence-level labels across all presentation adapters via a centralized helper (`format_confidence_level_label`), resolving stored interval level and specification fallback (`confidence_level`) without assuming 95% or recalculating intervals (e.g., rendering "90% CI", "99% CI", "90% Simultaneous CI", "R-squared 90% CI", "Wald CI", or neutral "CI").
     -   Corrected Kruskal-Wallis group-summary schema mapping to render `Group | N | Median` using authoritative `sample_size` and stored `median` without fabricating an `IQR` column or displaying `Unavailable`.
