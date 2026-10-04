@@ -93,3 +93,29 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  pdf-integration:
+    name: PDF export integration (Python 3.12, ubuntu-latest)
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package with dev, pdf, and report extras
+        run: pip install -e ".[dev,pdf,report]"
+      - name: Install Chromium with system dependencies
+        run: python -m playwright install --with-deps chromium
+      - name: Run PDF integration tests
+        run: pytest -q tests/test_pdf_integration.py
+      - name: Run PDF reporting showcase example
+        run: python examples/15_pdf_reporting.py --output-dir generated-sample-pdfs
+      - name: Upload sample PDF artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-pdfs
+          path: generated-sample-pdfs/
+

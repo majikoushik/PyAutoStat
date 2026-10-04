@@ -105,7 +105,12 @@ class HtmlRenderer:
         plotly_bundle = ""
         if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
-            plotly_bundle = get_plotly_bundle()
+            plotly_bundle = (
+                get_plotly_bundle() + '\n<script type="text/javascript">\n'
+                f"  window.__pyautostatFiguresExpected = {len(inserted_indices)};\n"
+                "  window.__pyautostatFiguresRendered = 0;\n"
+                "</script>"
+            )
 
         body_html = "\n\n".join(part for part in body_parts if part)
         return render_page(
@@ -257,7 +262,12 @@ class HtmlRenderer:
         plotly_bundle = ""
         if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
-            plotly_bundle = get_plotly_bundle()
+            plotly_bundle = (
+                get_plotly_bundle() + '\n<script type="text/javascript">\n'
+                f"  window.__pyautostatFiguresExpected = {len(inserted_indices)};\n"
+                "  window.__pyautostatFiguresRendered = 0;\n"
+                "</script>"
+            )
 
         body_html = "\n\n".join(part for part in body_parts if part)
         return render_page(
@@ -521,7 +531,12 @@ class HtmlRenderer:
         plotly_bundle = ""
         if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
-            plotly_bundle = get_plotly_bundle()
+            plotly_bundle = (
+                get_plotly_bundle() + '\n<script type="text/javascript">\n'
+                f"  window.__pyautostatFiguresExpected = {len(inserted_indices)};\n"
+                "  window.__pyautostatFiguresRendered = 0;\n"
+                "</script>"
+            )
 
         body_html = "\n\n".join(part for part in body_parts if part)
         return render_page(

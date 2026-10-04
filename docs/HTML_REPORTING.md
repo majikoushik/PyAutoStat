@@ -326,3 +326,10 @@ Not every method receives a figure. When authoritative numeric inputs or confide
 - **XSS & injection safety**: Figure titles, axis labels, hover texts, and metadata are safely serialized using Unicode-escaped JSON (`\u003c`, `\u003e`, `\u0026`), preventing script tag breakout and HTML injection.
 - **Print media stylesheet (`@media print`)**: Automatically hides the Plotly interactive modebar, constrains figure dimensions to fit printable pages, and ensures primary tables break cleanly across pages.
 
+---
+
+## 16. Publication-Ready PDF Export
+
+PyAutoStat supports direct, publication-ready PDF export via `pyautostat.to_pdf`, `pyautostat.save_pdf`, `report.to_pdf`, and `report.save_pdf`. PDF generation prints the canonical HTML report via headless Chromium, ensuring complete visual, tabular, and numerical fidelity with zero statistical recalculation. See [`docs/PDF_REPORTING.md`](PDF_REPORTING.md) for full details.
+
+

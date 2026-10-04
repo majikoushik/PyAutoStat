@@ -607,6 +607,7 @@ th.align-left, td.align-left {
   .executive-summary,
   .pyautostat-figure-container {
     break-inside: avoid;
+    page-break-inside: avoid;
     box-shadow: none !important;
     border: 1px solid #cbd5e1 !important;
   }
@@ -618,12 +619,22 @@ th.align-left, td.align-left {
   }
   h1, h2, h3, h4 {
     break-after: avoid;
+    page-break-after: avoid;
   }
   table {
     break-inside: auto;
+    page-break-inside: auto;
+    width: 100%;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
   }
   tr {
     break-inside: avoid;
+    page-break-inside: avoid;
   }
   .no-print {
     display: none !important;

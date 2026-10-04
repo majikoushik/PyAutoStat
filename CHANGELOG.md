@@ -9,6 +9,17 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Implemented optional publication-ready PDF export and print fidelity layer (`pyautostat.to_pdf`, `pyautostat.save_pdf`, and `ResearchReport.to_pdf` / `ResearchReport.save_pdf`):
+    -   Introduced modern public PDF export APIs: `to_pdf(target, *, detail="standard", title=None, style="general", include_figures=False, page_size="A4", landscape=False, page_numbers=True)` and `save_pdf(target, path, *, detail="standard", title=None, style="general", include_figures=False, page_size="A4", landscape=False, page_numbers=True, overwrite=False)`.
+    -   Implemented browser-print architecture reusing canonical HTML reports via headless Chromium and Playwright, guaranteeing identical numerical, tabular, and visual presentation with zero statistical recalculation.
+    -   Enforced 100% offline generation: browser execution context aborts all external network requests (`http://`, `https://`, fonts, trackers).
+    -   Provided flexible page formatting: supports standard paper sizes (`A4`, `Letter`) and portrait or landscape orientation for wide tables.
+    -   Added running page numbers in the print footer (`"Page <current> of <total>"`) via Chromium print templates.
+    -   Supported optional inclusion of existing scientific figures (`include_figures=True`), waiting deterministically for chart readiness promises (`data-pyautostat-rendered="true"`) with actionable timeout handling.
+    -   Preserved privacy guarantees: never serializes or embeds raw row-level observations.
+    -   Preserved selectable vector text and table semantics rather than raster screenshots.
+    -   Added actionable error handling for missing Playwright or missing Chromium browser binary with exact installation guidance.
+    -   Demonstrated in `examples/15_pdf_reporting.py` and documented in `docs/PDF_REPORTING.md`.
 -   Implemented optional interactive HTML presentation layer and Plotly-backed scientific figures (`pyautostat.to_interactive_html`, `pyautostat.save_interactive_html`, and `ResearchReport.to_interactive_html` / `ResearchReport.save_interactive_html`):
     -   Introduced modern public interactive reporting APIs: `to_interactive_html(target, *, detail="standard", title=None, style="general", include_figures=True)` and `save_interactive_html(target, path, *, detail="standard", title=None, style="general", include_figures=True, overwrite=False)` supporting `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, and `PresentationView`.
     -   Added Plotly-independent neutral figure specification layer (`FigureSpec`, `FigureSeries`, `build_figure_spec` in `pyautostat.presentation.figures`), isolating visualization data structures from rendering backends and keeping figures strictly supplementary to canonical textual and tabular presentation.

@@ -233,6 +233,22 @@ def _write(path: str | Path, content: str, *, overwrite: bool) -> Path:
         raise ReportError(f"Could not write report to {path!r}: {exc}") from exc
 
 
+def _write_bytes(path: str | Path, content: bytes, *, overwrite: bool) -> Path:
+    try:
+        destination = Path(path)
+        if destination.suffix.lower() != ".pdf":
+            raise ReportError("PDF export destination must have a .pdf extension.")
+        if destination.exists() and not overwrite:
+            raise ReportError(f"Report destination already exists: {destination}.")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
+        return destination
+    except ReportError:
+        raise
+    except (OSError, ValueError, TypeError) as exc:
+        raise ReportError(f"Could not write report to {path!r}: {exc}") from exc
+
+
 def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
     """Remove individual identifier labels from a descriptive report copy."""
     if analysis["method_id"] != "dataset_profile":
@@ -407,6 +423,32 @@ class ResearchReport:
             include_figures=resolved_figures,
         )
 
+    def to_pdf(
+        self,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+        include_figures: bool | None = None,
+        page_size: str = "A4",
+        landscape: bool = False,
+        page_numbers: bool = True,
+    ) -> bytes:
+        """Render a publication-ready PDF document from this report snapshot."""
+        resolved_figures = self._include_figures if include_figures is None else include_figures
+        from .presentation.pdf.api import to_pdf
+
+        return to_pdf(
+            self,
+            detail=detail,
+            title=title,
+            style=style,
+            include_figures=resolved_figures,
+            page_size=page_size,
+            landscape=landscape,
+            page_numbers=page_numbers,
+        )
+
     def to_latex(self, *, style: str = "general") -> str:
         style = _style(style)
         data = self._payload
@@ -474,6 +516,35 @@ class ResearchReport:
         output = _write(path, content, overwrite=overwrite)
         if self._on_save is not None:
             self._on_save("interactive_html")
+        return output
+
+    def save_pdf(
+        self,
+        path: str | Path,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+        include_figures: bool | None = None,
+        page_size: str = "A4",
+        landscape: bool = False,
+        page_numbers: bool = True,
+        overwrite: bool = False,
+    ) -> Path:
+        """Save a publication-ready PDF report with overwrite protection."""
+        resolved_figures = self._include_figures if include_figures is None else include_figures
+        content = self.to_pdf(
+            style=style,
+            detail=detail,
+            title=title,
+            include_figures=resolved_figures,
+            page_size=page_size,
+            landscape=landscape,
+            page_numbers=page_numbers,
+        )
+        output = _write_bytes(path, content, overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("pdf")
         return output
 
     def save_markdown(

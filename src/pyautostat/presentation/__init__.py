@@ -14,6 +14,7 @@ from .models import (
     PresentationView,
     TerminalView,
 )
+from .pdf import save_pdf, to_pdf
 from .theme import PYAUTOSTAT_THEME
 
 __all__ = [
@@ -33,7 +34,9 @@ __all__ = [
     "build_figure_specs",
     "save_html",
     "save_interactive_html",
+    "save_pdf",
     "show",
     "to_html",
     "to_interactive_html",
+    "to_pdf",
 ]

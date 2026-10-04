@@ -126,6 +126,20 @@ For optional interactive Plotly reporting:
 python -m pip install "pyautostat[report]"
 ```
 
+For optional publication-ready PDF export:
+
+```bash
+python -m pip install "pyautostat[pdf]"
+python -m playwright install chromium
+```
+
+For figure-enabled PDF export:
+
+```bash
+python -m pip install "pyautostat[report,pdf]"
+python -m playwright install chromium
+```
+
 For development from the repository:
 
 ```bash
@@ -254,6 +268,45 @@ report.save_interactive_html("reports/research_report_interactive.html", overwri
 ```
 
 Interactive reports remain completely offline and self-contained, embed Plotly once per document, strictly visualize stored results without recalculation, and never embed raw row-level data by default. Static HTML remains the canonical default.
+
+### Publication-Ready PDF Export
+
+PyAutoStat supports direct, publication-ready PDF export by printing its canonical HTML reports via headless Chromium:
+
+```python
+from pyautostat import save_pdf
+
+# Static publication-ready PDF (A4 portrait)
+save_pdf(
+    workflow,
+    "reports/analysis.pdf",
+    detail="full",
+)
+
+# Optional figure-enabled PDF (reusing existing scientific figures)
+save_pdf(
+    workflow,
+    "reports/analysis_with_figures.pdf",
+    detail="full",
+    include_figures=True,
+)
+```
+
+Install:
+
+```bash
+pip install "pyautostat[pdf]"
+python -m playwright install chromium
+```
+
+For figure-enabled PDFs:
+
+```bash
+pip install "pyautostat[report,pdf]"
+python -m playwright install chromium
+```
+
+PDF exports work 100% offline, block external network requests, support A4/Letter and portrait/landscape, include running page numbers, preserve selectable vector text, and enforce zero statistical recalculation. See [`docs/PDF_REPORTING.md`](docs/PDF_REPORTING.md) for full details.
 
 ---
 

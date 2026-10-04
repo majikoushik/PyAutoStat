@@ -274,6 +274,18 @@ def render_figure_html(spec: FigureSpec, figure_idx: int = 1) -> str:
         "          modeBarButtonsToRemove: [\n"
         "            'lasso2d', 'select2d', 'sendDataToCloud', 'toggleSpikelines'\n"
         "          ]\n"
+        "        }).then(function() {\n"
+        f"          var el = document.getElementById('{fig_id}');\n"
+        "          if (el) {\n"
+        '            el.setAttribute("data-pyautostat-rendered", "true");\n'
+        "          }\n"
+        "          window.__pyautostatFiguresRendered = "
+        "(window.__pyautostatFiguresRendered || 0) + 1;\n"
+        "        }).catch(function(err) {\n"
+        f"          var el = document.getElementById('{fig_id}');\n"
+        "          if (el) {\n"
+        '            el.setAttribute("data-pyautostat-error", String(err));\n'
+        "          }\n"
         "        });\n"
         "      })();\n"
         "    </script>\n"

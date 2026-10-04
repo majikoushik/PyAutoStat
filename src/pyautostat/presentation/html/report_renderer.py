@@ -126,7 +126,6 @@ class ResearchReportHtmlRenderer:
             (spec, render_figure_html(spec, figure_idx=i + 1))
             for i, spec in enumerate(self.figure_specs)
         ]
-        plotly_bundle = get_plotly_bundle() if rendered_figures else ""
         inserted_indices: set[int] = set()
 
         # Compact mode returns early
@@ -137,8 +136,16 @@ class ResearchReportHtmlRenderer:
                     inserted_indices.add(idx)
             if inserted_indices:
                 body_parts.insert(1, render_noscript_banner())
+                extra_head = (
+                    get_plotly_bundle() + '\n<script type="text/javascript">\n'
+                    f"  window.__pyautostatFiguresExpected = {len(inserted_indices)};\n"
+                    "  window.__pyautostatFiguresRendered = 0;\n"
+                    "</script>"
+                )
+            else:
+                extra_head = ""
             body_html = "\n\n".join(part for part in body_parts if part)
-            return render_page(report_title, body_html, style=self.style, extra_head=plotly_bundle)
+            return render_page(report_title, body_html, style=self.style, extra_head=extra_head)
 
         # Standard & Full Modes: Render canonical sections
         sections_dict: dict[str, Any] = data.get("sections", {})
@@ -237,9 +244,17 @@ class ResearchReportHtmlRenderer:
 
         if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
+            extra_head = (
+                get_plotly_bundle() + '\n<script type="text/javascript">\n'
+                f"  window.__pyautostatFiguresExpected = {len(inserted_indices)};\n"
+                "  window.__pyautostatFiguresRendered = 0;\n"
+                "</script>"
+            )
+        else:
+            extra_head = ""
 
         body_html = "\n\n".join(part for part in body_parts if part)
-        return render_page(report_title, body_html, style=self.style, extra_head=plotly_bundle)
+        return render_page(report_title, body_html, style=self.style, extra_head=extra_head)
 
     def _render_section_content(
         self,

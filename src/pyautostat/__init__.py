@@ -57,9 +57,11 @@ from .presentation import (
     UnsupportedPresentationError,
     save_html,
     save_interactive_html,
+    save_pdf,
     show,
     to_html,
     to_interactive_html,
+    to_pdf,
 )
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
@@ -179,6 +181,8 @@ __all__ = [
     "to_interactive_html",
     "save_html",
     "save_interactive_html",
+    "save_pdf",
     "PresentationView",
     "UnsupportedPresentationError",
+    "to_pdf",
 ]
