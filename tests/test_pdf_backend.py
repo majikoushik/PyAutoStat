@@ -101,7 +101,13 @@ def test_html_to_pdf_bytes_figure_timeout_error():
     mock_browser.new_context.return_value = mock_context
     mock_context.new_page.return_value = mock_page
 
-    mock_page.wait_for_function.side_effect = TimeoutError("Wait timeout")
+    class PlaywrightTimeoutError(Exception):
+        pass
+
+    class PlaywrightError(Exception):
+        pass
+
+    mock_page.wait_for_function.side_effect = PlaywrightTimeoutError("Wait timeout")
 
     mock_playwright = MagicMock()
     mock_playwright.chromium.launch.return_value = mock_browser
@@ -115,7 +121,8 @@ def test_html_to_pdf_bytes_figure_timeout_error():
             {
                 "playwright.sync_api": MagicMock(
                     sync_playwright=mock_sync_playwright,
-                    Error=Exception,
+                    Error=PlaywrightError,
+                    TimeoutError=PlaywrightTimeoutError,
                 )
             },
         ):
@@ -126,6 +133,50 @@ def test_html_to_pdf_bytes_figure_timeout_error():
                 )
 
             assert "Interactive figures did not finish rendering before PDF export" in str(
+                exc_info.value
+            )
+            mock_browser.close.assert_called_once()
+
+
+def test_html_to_pdf_bytes_figure_browser_error():
+    mock_browser = MagicMock()
+    mock_context = MagicMock()
+    mock_page = MagicMock()
+    mock_browser.new_context.return_value = mock_context
+    mock_context.new_page.return_value = mock_page
+
+    class PlaywrightTimeoutError(Exception):
+        pass
+
+    class PlaywrightError(Exception):
+        pass
+
+    mock_page.wait_for_function.side_effect = PlaywrightError("Page crashed unexpectedly")
+
+    mock_playwright = MagicMock()
+    mock_playwright.chromium.launch.return_value = mock_browser
+
+    mock_sync_playwright = MagicMock()
+    mock_sync_playwright.return_value.__enter__.return_value = mock_playwright
+
+    with patch("pyautostat.presentation.pdf.backend.check_playwright_available"):
+        with patch.dict(
+            sys.modules,
+            {
+                "playwright.sync_api": MagicMock(
+                    sync_playwright=mock_sync_playwright,
+                    Error=PlaywrightError,
+                    TimeoutError=PlaywrightTimeoutError,
+                )
+            },
+        ):
+            with pytest.raises(ReportError) as exc_info:
+                html_to_pdf_bytes(
+                    "<html><body>Figure</body></html>",
+                    wait_for_figures=True,
+                )
+
+            assert "A browser error occurred while waiting for interactive figures" in str(
                 exc_info.value
             )
             mock_browser.close.assert_called_once()

@@ -43,6 +43,7 @@ dependencies = [
 [project.optional-dependencies]
 report = ["plotly>=5"]
 pdf = ["playwright>=1.40"]
+docx = ["python-docx>=1.2,<2"]
 dev = [
     "pytest>=7",
     "pytest-cov",
@@ -54,6 +55,7 @@ dev = [
     "openpyxl>=3",
     "pre-commit",
     "pypdf>=4",
+    "python-docx>=1.2,<2",
 ]
 
 [project.urls]

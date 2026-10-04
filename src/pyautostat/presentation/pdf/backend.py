@@ -62,6 +62,7 @@ def html_to_pdf_bytes(
 
     try:
         from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
         raise ReportError(
@@ -127,10 +128,15 @@ def html_to_pdf_bytes(
                         }""",
                         timeout=figure_timeout_seconds * 1000,
                     )
-                except Exception as exc:
+                except PlaywrightTimeoutError as exc:
                     raise ReportError(
                         "Interactive figures did not finish rendering before PDF export.\n"
                         "Try exporting without figures or inspect the interactive HTML output."
+                    ) from exc
+                except PlaywrightError as exc:
+                    raise ReportError(
+                        "A browser error occurred while waiting for interactive figures "
+                        f"to render: {exc}"
                     ) from exc
 
                 has_render_error = page.evaluate(

@@ -140,6 +140,12 @@ python -m pip install "pyautostat[report,pdf]"
 python -m playwright install chromium
 ```
 
+For optional editable Word (.docx) reports:
+
+```bash
+python -m pip install "pyautostat[docx]"
+```
+
 For development from the repository:
 
 ```bash
@@ -306,7 +312,29 @@ pip install "pyautostat[report,pdf]"
 python -m playwright install chromium
 ```
 
-PDF exports work 100% offline, block external network requests, support A4/Letter and portrait/landscape, include running page numbers, preserve selectable vector text, and enforce zero statistical recalculation. See [`docs/PDF_REPORTING.md`](docs/PDF_REPORTING.md) for full details.
+PDF exports work 100% offline, block external network requests, support A4/Letter and portrait/landscape, include running page numbers, preserve native selectable text and structured table layout, and enforce zero statistical recalculation. See [`docs/PDF_REPORTING.md`](docs/PDF_REPORTING.md) for full details.
+
+### Editable Word / DOCX Research Reports
+
+PyAutoStat supports editable Microsoft Word (`.docx`) export from the exact same presentation semantics:
+
+```python
+from pyautostat import save_docx
+
+save_docx(
+    workflow,
+    "analysis.docx",
+    detail="full",
+)
+```
+
+Install:
+
+```bash
+pip install "pyautostat[docx]"
+```
+
+DOCX exports generate true OpenXML documents with editable paragraphs and tables, support A4/Letter and portrait/landscape, include dynamic `PAGE` / `NUMPAGES` field codes, repeat table header rows across page breaks, enforce zero statistical recalculation, and ensure no raw row-level data leakage. See [`docs/DOCX_REPORTING.md`](docs/DOCX_REPORTING.md) for full details.
 
 ---
 

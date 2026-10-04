@@ -9,6 +9,25 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Implemented optional editable Microsoft Word (`.docx`) research reporting layer (`pyautostat.to_docx`, `pyautostat.save_docx`, and `ResearchReport.to_docx` / `ResearchReport.save_docx`):
+    -   Introduced modern public DOCX export APIs: `to_docx(target, *, detail="standard", title=None, style="general", page_size="A4", landscape=False, page_numbers=True) -> bytes` and `save_docx(target, path, *, detail="standard", title=None, style="general", page_size="A4", landscape=False, page_numbers=True, overwrite=False) -> Path`.
+    -   Implemented genuine OpenXML export architecture directly rendering from canonical `PresentationView` and `ResearchReport` structures via `python-docx`, eliminating HTML round-tripping or rasterized page captures.
+    -   Provided flexible page setup: supports standard page sizes (`A4`, `Letter`) and portrait or landscape orientation with centralized margins (~20 mm).
+    -   Added real dynamic Word footer field codes (`PAGE` and `NUMPAGES`) rendering `Page X of Y` when `page_numbers=True`.
+    -   Created clean semantic named styles (`PyAutoStat Title`, `PyAutoStat Subtitle`, `PyAutoStat Body`, `PyAutoStat Metric Label`, `PyAutoStat Metric Value`, `PyAutoStat Table Header`, `PyAutoStat Diagnostic`, `PyAutoStat Warning`) with typographic style presets (`general`, `apa`, `ieee`).
+    -   Structured OpenXML tables: converts statistical metrics and displays to true Word tables, applies `w:tblHeader` to repeat header rows across pages, applies `w:cantSplit` to individual rows to prevent awkward page splits, and right-aligns numerical estimates.
+    -   Validated universal presentation coverage: renders all 24 registered statistical method families and all 14 non-analysis governance/planning objects without statistical adapters.
+    -   Preserved research report fidelity: structured sections (Executive Summary, Research Question, Dataset, Methods, Results, Diagnostics, Interpretation, Practical Significance, Sensitivity Analysis, Limitations, Warnings, Analysis Record) matching standalone export values.
+    -   Enforced zero-recalculation guarantee and privacy protections: never re-executes statistical models or leaks raw row-level data.
+    -   Added actionable missing-dependency error handling when `python-docx` is not installed, preserving clean base imports.
+    -   Demonstrated in `examples/16_docx_reporting.py` and documented in `docs/DOCX_REPORTING.md`.
+
+### Fixed
+
+-   Fixed brittle case-sensitive string assertion in `test_partial_result_pdf_export`.
+-   Narrowed figure-wait exception handling in PDF backend to distinguish `PlaywrightTimeoutError` from general `PlaywrightError`.
+-   Corrected PDF documentation to state "native selectable text and structured table layout" rather than claiming formally tagged semantic PDF tables.
+
 -   Implemented optional publication-ready PDF export and print fidelity layer (`pyautostat.to_pdf`, `pyautostat.save_pdf`, and `ResearchReport.to_pdf` / `ResearchReport.save_pdf`):
     -   Introduced modern public PDF export APIs: `to_pdf(target, *, detail="standard", title=None, style="general", include_figures=False, page_size="A4", landscape=False, page_numbers=True)` and `save_pdf(target, path, *, detail="standard", title=None, style="general", include_figures=False, page_size="A4", landscape=False, page_numbers=True, overwrite=False)`.
     -   Implemented browser-print architecture reusing canonical HTML reports via headless Chromium and Playwright, guaranteeing identical numerical, tabular, and visual presentation with zero statistical recalculation.
@@ -17,7 +36,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
     -   Added running page numbers in the print footer (`"Page <current> of <total>"`) via Chromium print templates.
     -   Supported optional inclusion of existing scientific figures (`include_figures=True`), waiting deterministically for chart readiness promises (`data-pyautostat-rendered="true"`) with actionable timeout handling.
     -   Preserved privacy guarantees: never serializes or embeds raw row-level observations.
-    -   Preserved selectable vector text and table semantics rather than raster screenshots.
+    -   Preserved native selectable text and structured table layout rather than raster screenshots.
     -   Added actionable error handling for missing Playwright or missing Chromium browser binary with exact installation guidance.
     -   Demonstrated in `examples/15_pdf_reporting.py` and documented in `docs/PDF_REPORTING.md`.
 -   Implemented optional interactive HTML presentation layer and Plotly-backed scientific figures (`pyautostat.to_interactive_html`, `pyautostat.save_interactive_html`, and `ResearchReport.to_interactive_html` / `ResearchReport.save_interactive_html`):

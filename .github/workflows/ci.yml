@@ -119,3 +119,27 @@ jobs:
           name: sample-pdfs
           path: generated-sample-pdfs/
 
+  docx-integration:
+    name: DOCX export integration (Python 3.12, ubuntu-latest)
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package with dev and docx extras
+        run: pip install -e ".[dev,docx]"
+      - name: Run DOCX integration tests
+        run: pytest -q tests/test_docx_api.py tests/test_docx_presentation.py tests/test_docx_research_report.py tests/test_docx_security.py
+      - name: Run DOCX reporting showcase example
+        run: python examples/16_docx_reporting.py --output-dir generated-sample-docx
+      - name: Upload sample DOCX artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-docx
+          path: generated-sample-docx/
+
+

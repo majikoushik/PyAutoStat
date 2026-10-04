@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .adapters import UnsupportedPresentationError, adapt
 from .api import show
+from .docx import save_docx, to_docx
 from .figures import FigureSeries, FigureSpec, build_figure_spec, build_figure_specs
 from .html import HtmlRenderer, save_html, save_interactive_html, to_html, to_interactive_html
 from .models import (
@@ -32,10 +33,12 @@ __all__ = [
     "adapt",
     "build_figure_spec",
     "build_figure_specs",
+    "save_docx",
     "save_html",
     "save_interactive_html",
     "save_pdf",
     "show",
+    "to_docx",
     "to_html",
     "to_interactive_html",
     "to_pdf",

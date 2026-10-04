@@ -463,4 +463,11 @@ json.loads(icc_smoke.to_json())
 html = guided.report.to_html(style="apa")
 assert isinstance(html, str) and "<!doctype html>" in html
 assert '<section class="executive-summary">' in html
+
+try:
+    guided.report.to_docx()
+    raise AssertionError("Expected ReportError when python-docx is not installed")
+except pyautostat.ReportError as exc:
+    assert "pip install" in str(exc) and "docx" in str(exc)
+
 print(f"installed-wheel smoke passed: {pyautostat.__version__} from {module_path}")

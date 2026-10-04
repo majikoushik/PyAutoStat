@@ -342,4 +342,6 @@ def test_partial_result_pdf_export(welch_workflow):
     reader = pypdf.PdfReader(io.BytesIO(pdf))
     assert len(reader.pages) >= 1
     text = "\n".join(p.extract_text() for p in reader.pages)
-    assert "Mean difference" in text or "Difference" in text
+    normalized = text.casefold()
+    assert "mean difference" in normalized or "difference" in normalized
+    assert "cohen's d" not in normalized

@@ -233,11 +233,20 @@ def _write(path: str | Path, content: str, *, overwrite: bool) -> Path:
         raise ReportError(f"Could not write report to {path!r}: {exc}") from exc
 
 
-def _write_bytes(path: str | Path, content: bytes, *, overwrite: bool) -> Path:
+def _write_binary(
+    path: str | Path,
+    content: bytes,
+    expected_ext: str,
+    format_name: str,
+    *,
+    overwrite: bool,
+) -> Path:
     try:
         destination = Path(path)
-        if destination.suffix.lower() != ".pdf":
-            raise ReportError("PDF export destination must have a .pdf extension.")
+        if destination.suffix.lower() != expected_ext.lower():
+            raise ReportError(
+                f"{format_name} export destination must have a {expected_ext} extension."
+            )
         if destination.exists() and not overwrite:
             raise ReportError(f"Report destination already exists: {destination}.")
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -247,6 +256,10 @@ def _write_bytes(path: str | Path, content: bytes, *, overwrite: bool) -> Path:
         raise
     except (OSError, ValueError, TypeError) as exc:
         raise ReportError(f"Could not write report to {path!r}: {exc}") from exc
+
+
+def _write_bytes(path: str | Path, content: bytes, *, overwrite: bool) -> Path:
+    return _write_binary(path, content, ".pdf", "PDF", overwrite=overwrite)
 
 
 def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
@@ -449,6 +462,29 @@ class ResearchReport:
             page_numbers=page_numbers,
         )
 
+    def to_docx(
+        self,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+        page_size: str = "A4",
+        landscape: bool = False,
+        page_numbers: bool = True,
+    ) -> bytes:
+        """Render an editable Microsoft Word document from this report snapshot."""
+        from .presentation.docx.api import to_docx
+
+        return to_docx(
+            self,
+            detail=detail,
+            title=title,
+            style=style,
+            page_size=page_size,
+            landscape=landscape,
+            page_numbers=page_numbers,
+        )
+
     def to_latex(self, *, style: str = "general") -> str:
         style = _style(style)
         data = self._payload
@@ -545,6 +581,32 @@ class ResearchReport:
         output = _write_bytes(path, content, overwrite=overwrite)
         if self._on_save is not None:
             self._on_save("pdf")
+        return output
+
+    def save_docx(
+        self,
+        path: str | Path,
+        *,
+        style: str = "general",
+        detail: str = "standard",
+        title: str | None = None,
+        page_size: str = "A4",
+        landscape: bool = False,
+        page_numbers: bool = True,
+        overwrite: bool = False,
+    ) -> Path:
+        """Save an editable Microsoft Word report with overwrite protection."""
+        content = self.to_docx(
+            style=style,
+            detail=detail,
+            title=title,
+            page_size=page_size,
+            landscape=landscape,
+            page_numbers=page_numbers,
+        )
+        output = _write_binary(path, content, ".docx", "DOCX", overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("docx")
         return output
 
     def save_markdown(
