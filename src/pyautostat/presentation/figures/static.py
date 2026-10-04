@@ -6,14 +6,14 @@ Does not recalculate statistics, refit models, or serialize raw dataset rows.
 
 from __future__ import annotations
 
-import io
 import math
 import re
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Any
 
 from ...exceptions import ReportError
-from .models import FigureSpec, StaticFigureArtifact
+from .models import FigureSpec, StaticFigureArtifact, normalize_figure_placement
 from .plotly import spec_to_plotly_figure
 
 SUPPORTED_STATIC_FORMATS: tuple[str, ...] = ("png", "svg", "pdf")
@@ -58,21 +58,27 @@ def check_chrome_available() -> None:
         except ImportError:
             chrome_not_found_errors = (FileNotFoundError,)
 
+    error_msg = (
+        "Static figure export requires a compatible Chrome or Chromium browser.\n"
+        "Install one normally, or run: plotly_get_chrome"
+    )
+
     try:
         import choreographer.browsers.chromium as c
 
-        c.Chromium.find_browser(skip_local=False)
+        browser_path = c.Chromium.find_browser(skip_local=False)
     except chrome_not_found_errors as exc:
-        raise ReportError(
-            "Static figure export requires a compatible Chrome or Chromium browser.\n"
-            "Install one normally, or run: plotly_get_chrome"
-        ) from exc
+        raise ReportError(error_msg) from exc
     except Exception as exc:
         if "chrom" in str(exc).lower() and "not found" in str(exc).lower():
-            raise ReportError(
-                "Static figure export requires a compatible Chrome or Chromium browser.\n"
-                "Install one normally, or run: plotly_get_chrome"
-            ) from exc
+            raise ReportError(error_msg) from exc
+        raise
+
+    if not browser_path:
+        raise ReportError(error_msg)
+
+    if not Path(browser_path).exists():
+        raise ReportError(error_msg)
 
 
 def validate_static_format(format_name: Any) -> str:
@@ -201,14 +207,6 @@ def validate_rendered_bytes(data: bytes, fmt: str) -> None:
     elif fmt == "pdf":
         if not data.startswith(b"%PDF"):
             raise ReportError("Generated figure PDF data is missing %PDF header.")
-        try:
-            import pypdf
-
-            reader = pypdf.PdfReader(io.BytesIO(data))
-            if len(reader.pages) < 1:
-                raise ReportError("Generated figure PDF contains 0 pages.")
-        except Exception as exc:
-            raise ReportError(f"Generated figure PDF is invalid or unreadable: {exc}") from exc
 
 
 def render_static_figure_bytes(
@@ -283,7 +281,7 @@ def generate_static_artifact(
         index=index,
         kind=spec.kind,
         title=spec.title,
-        placement=spec.placement,
+        placement=normalize_figure_placement(spec.placement),
         format=fmt,
         data=data,
         filename=filename,

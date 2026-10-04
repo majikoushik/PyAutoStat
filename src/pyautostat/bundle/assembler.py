@@ -398,6 +398,7 @@ class BundleAssembler:
                         page_size=self.options.page_size,
                         landscape=self.options.landscape,
                         page_numbers=self.options.page_numbers,
+                        include_figures=include_figures,
                     )
                 else:
                     from ..presentation import to_docx
@@ -410,6 +411,7 @@ class BundleAssembler:
                         page_size=self.options.page_size,
                         landscape=self.options.landscape,
                         page_numbers=self.options.page_numbers,
+                        include_figures=include_figures,
                     )
                 add_file(
                     "pyautostat_bundle/report/report.docx", "editable_report", "docx", docx_bytes

@@ -192,3 +192,138 @@ def test_bundle_all_publication_formats_with_static_figures(tmp_path):
         assert "pyautostat_bundle/report/report.docx" in names
         assert "pyautostat_bundle/data/report.json" in names
         assert any(n.startswith("pyautostat_bundle/figures/") for n in names)
+
+
+def test_bundle_docx_case_1_neither_figures():
+    """Case 1: include_figures=False, include_static_figures=False.
+
+    Bundled DOCX has no images, and bundle has no standalone figures.
+    """
+    wf = make_welch_t_workflow()
+    bundle_bytes = to_bundle(
+        wf,
+        formats=("docx",),
+        include_figures=False,
+        include_static_figures=False,
+    )
+    assert verify_bundle(bundle_bytes).valid is True
+
+    with zipfile.ZipFile(io.BytesIO(bundle_bytes)) as zf:
+        names = zf.namelist()
+        assert "pyautostat_bundle/report/report.docx" in names
+        assert not any(n.startswith("pyautostat_bundle/figures/") for n in names)
+        docx_data = zf.read("pyautostat_bundle/report/report.docx")
+
+    with zipfile.ZipFile(io.BytesIO(docx_data)) as docx_zf:
+        media_files = [n for n in docx_zf.namelist() if n.startswith("word/media/")]
+        assert len(media_files) == 0
+
+
+def test_bundle_docx_case_2_embedded_figures_only():
+    """Case 2: include_figures=True, include_static_figures=False.
+
+    Bundled DOCX embeds figures (word/media/image*.png exists), but NO standalone figure members.
+    """
+    import docx
+
+    wf = make_welch_t_workflow()
+    bundle_bytes = to_bundle(
+        wf,
+        formats=("docx",),
+        include_figures=True,
+        include_static_figures=False,
+    )
+    assert verify_bundle(bundle_bytes).valid is True
+
+    with zipfile.ZipFile(io.BytesIO(bundle_bytes)) as zf:
+        names = zf.namelist()
+        assert "pyautostat_bundle/report/report.docx" in names
+        assert not any(n.startswith("pyautostat_bundle/figures/") for n in names)
+        docx_data = zf.read("pyautostat_bundle/report/report.docx")
+
+    with zipfile.ZipFile(io.BytesIO(docx_data)) as docx_zf:
+        media_files = [n for n in docx_zf.namelist() if n.startswith("word/media/image")]
+        assert len(media_files) >= 1
+        img_bytes = docx_zf.read(media_files[0])
+        assert img_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+
+    doc = docx.Document(io.BytesIO(docx_data))
+    captions = [p.text for p in doc.paragraphs if p.text.startswith("Figure ")]
+    assert len(captions) >= 1
+
+
+def test_bundle_docx_case_3_standalone_figures_only():
+    """Case 3: include_figures=False, include_static_figures=True.
+
+    Bundled DOCX has no images, but standalone pyautostat_bundle/figures/* exists.
+    """
+    wf = make_welch_t_workflow()
+    bundle_bytes = to_bundle(
+        wf,
+        formats=("docx",),
+        include_figures=False,
+        include_static_figures=True,
+        static_figure_format="png",
+    )
+    assert verify_bundle(bundle_bytes).valid is True
+
+    with zipfile.ZipFile(io.BytesIO(bundle_bytes)) as zf:
+        names = zf.namelist()
+        assert "pyautostat_bundle/report/report.docx" in names
+        fig_names = [n for n in names if n.startswith("pyautostat_bundle/figures/")]
+        assert len(fig_names) >= 1
+        docx_data = zf.read("pyautostat_bundle/report/report.docx")
+
+    with zipfile.ZipFile(io.BytesIO(docx_data)) as docx_zf:
+        media_files = [n for n in docx_zf.namelist() if n.startswith("word/media/")]
+        assert len(media_files) == 0
+
+
+def test_bundle_docx_case_4_both_figures():
+    """Case 4: include_figures=True, include_static_figures=True.
+
+    Both embedded DOCX figures and standalone figure files are present.
+    """
+    wf = make_welch_t_workflow()
+    bundle_bytes = to_bundle(
+        wf,
+        formats=("docx",),
+        include_figures=True,
+        include_static_figures=True,
+        static_figure_format="png",
+    )
+    result = verify_bundle(bundle_bytes)
+    assert result.valid is True
+    assert result.errors == ()
+
+    with zipfile.ZipFile(io.BytesIO(bundle_bytes)) as zf:
+        names = zf.namelist()
+        assert "pyautostat_bundle/report/report.docx" in names
+        fig_names = [n for n in names if n.startswith("pyautostat_bundle/figures/")]
+        assert len(fig_names) >= 1
+        docx_data = zf.read("pyautostat_bundle/report/report.docx")
+
+    with zipfile.ZipFile(io.BytesIO(docx_data)) as docx_zf:
+        media_files = [n for n in docx_zf.namelist() if n.startswith("word/media/image")]
+        assert len(media_files) >= 1
+
+
+def test_bundle_docx_direct_analysis_result_include_figures():
+    """Direct AnalysisResult bundle target propagates include_figures=True to DOCX."""
+    wf = make_welch_t_workflow()
+    assert wf.analysis is not None
+
+    bundle_bytes = to_bundle(
+        wf.analysis,
+        formats=("docx",),
+        include_figures=True,
+        include_static_figures=False,
+    )
+    assert verify_bundle(bundle_bytes).valid is True
+
+    with zipfile.ZipFile(io.BytesIO(bundle_bytes)) as zf:
+        docx_data = zf.read("pyautostat_bundle/report/report.docx")
+
+    with zipfile.ZipFile(io.BytesIO(docx_data)) as docx_zf:
+        media_files = [n for n in docx_zf.namelist() if n.startswith("word/media/image")]
+        assert len(media_files) >= 1

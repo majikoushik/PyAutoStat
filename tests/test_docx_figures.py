@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import xml.etree.ElementTree as ET
 import zipfile
 from unittest.mock import patch
 
@@ -11,6 +12,8 @@ import pandas as pd
 from method_factories import (
     make_chi_square_workflow,
     make_linear_regression_workflow,
+    make_one_way_anova_workflow,
+    make_two_way_anova_workflow,
     make_welch_t_workflow,
 )
 
@@ -158,3 +161,125 @@ def test_docx_figures_privacy_sentinels_not_leaked():
     with zipfile.ZipFile(io.BytesIO(docx_bytes)) as zf:
         doc_xml = zf.read("word/document.xml").decode("utf-8")
         assert sentinel_id not in doc_xml
+
+
+def _extract_body_elements(docx_bytes: bytes) -> list[tuple[str, str, bool]]:
+    """Return ordered list of (tag, text, has_drawing) for w:body children."""
+    with zipfile.ZipFile(io.BytesIO(docx_bytes)) as zf:
+        doc_xml = zf.read("word/document.xml").decode("utf-8")
+    root = ET.fromstring(doc_xml)
+    body = root.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}body")
+    assert body is not None
+    elements = []
+    for child in body:
+        tag = child.tag.split("}")[-1]
+        if tag == "sectPr":
+            continue
+        text = "".join(child.itertext()).strip()
+        has_drawing = any(elem.tag.endswith("drawing") for elem in child.iter())
+        elements.append((tag, text, has_drawing))
+    return elements
+
+
+def test_docx_welch_t_structural_placement_ordering():
+    """Verify Welch t figure appears after Key Results and before next major section."""
+    wf = make_welch_t_workflow()
+    docx_bytes = to_docx(wf, include_figures=True)
+    elements = _extract_body_elements(docx_bytes)
+
+    key_idx = next(i for i, (tag, text, _) in enumerate(elements) if "Key Results" in text)
+    caption_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if text.startswith("Figure 1.")
+    )
+    drawing_idx = next(i for i, (tag, _, has_draw) in enumerate(elements) if has_draw)
+
+    # Next section heading
+    next_sec_idx = next(
+        i
+        for i, (tag, text, _) in enumerate(elements)
+        if i > key_idx and ("Research Design" in text or "Diagnostics" in text)
+    )
+
+    assert key_idx < drawing_idx <= caption_idx < next_sec_idx
+
+
+def test_docx_linear_regression_structural_placement_ordering():
+    """Verify OLS coefficient forest appears after coefficients and not at document end."""
+    wf = make_linear_regression_workflow()
+    docx_bytes = to_docx(wf, include_figures=True)
+    elements = _extract_body_elements(docx_bytes)
+
+    coef_tbl_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if tag == "tbl" and "Estimate" in text
+    )
+    caption_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if text.startswith("Figure 1.")
+    )
+    next_sec_idx = next(
+        i
+        for i, (tag, text, _) in enumerate(elements)
+        if i > coef_tbl_idx and ("Diagnostics" in text or "Interpretation" in text)
+    )
+
+    assert coef_tbl_idx < caption_idx < next_sec_idx
+
+
+def test_docx_chi_square_structural_placement_ordering():
+    """Verify Chi-Square heatmap appears immediately after contingency table."""
+    wf = make_chi_square_workflow()
+    docx_bytes = to_docx(wf, include_figures=True)
+    elements = _extract_body_elements(docx_bytes)
+
+    tbl_idx = next(i for i, (tag, text, _) in enumerate(elements) if tag == "tbl")
+    caption_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if text.startswith("Figure 1.")
+    )
+    next_sec_idx = next(
+        i
+        for i, (tag, text, _) in enumerate(elements)
+        if i > tbl_idx and ("Diagnostics" in text or "Interpretation" in text)
+    )
+
+    assert tbl_idx < caption_idx < next_sec_idx
+
+
+def test_docx_pairwise_forest_structural_placement_ordering():
+    """Verify pairwise forest appears after pairwise comparisons table."""
+    wf = make_one_way_anova_workflow()
+    docx_bytes = to_docx(wf, include_figures=True)
+    elements = _extract_body_elements(docx_bytes)
+
+    pairwise_tbl_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if tag == "tbl" and "Contrast" in text
+    )
+    caption_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if text.startswith("Figure 1.")
+    )
+    next_sec_idx = next(
+        i
+        for i, (tag, text, _) in enumerate(elements)
+        if i > pairwise_tbl_idx and ("Diagnostics" in text or "Interpretation" in text)
+    )
+
+    assert pairwise_tbl_idx < caption_idx < next_sec_idx
+
+
+def test_docx_cell_profile_structural_placement_ordering():
+    """Verify two-way ANOVA cell profile appears near cell summary table."""
+    wf = make_two_way_anova_workflow()
+    docx_bytes = to_docx(wf, include_figures=True)
+    elements = _extract_body_elements(docx_bytes)
+
+    cell_tbl_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if tag == "tbl" and "Mean" in text
+    )
+    caption_idx = next(
+        i for i, (tag, text, _) in enumerate(elements) if text.startswith("Figure 1.")
+    )
+    next_sec_idx = next(
+        i
+        for i, (tag, text, _) in enumerate(elements)
+        if i > cell_tbl_idx and ("Diagnostics" in text or "Interpretation" in text)
+    )
+
+    assert cell_tbl_idx < caption_idx < next_sec_idx

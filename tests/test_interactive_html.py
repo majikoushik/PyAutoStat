@@ -379,7 +379,7 @@ def test_figurespec_fidelity_welch(welch_workflow: ResearchWorkflowResult) -> No
     assert series.estimate == expected_est
     assert series.lower == expected_ci["lower"]
     assert series.upper == expected_ci["upper"]
-    assert spec.placement == "KEY RESULTS"
+    assert spec.placement in ("KEY RESULTS", "key_results")
 
 
 def test_figurespec_fidelity_pearson(pearson_workflow: ResearchWorkflowResult) -> None:

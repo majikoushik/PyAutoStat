@@ -7,7 +7,15 @@ from typing import TYPE_CHECKING, Any
 
 from ...exceptions import ReportError
 from ..adapters import UnsupportedPresentationError, adapt
-from ..figures.models import FigureSpec
+from ..figures.models import (
+    PLACEMENT_CELL_SUMMARY,
+    PLACEMENT_COEFFICIENTS,
+    PLACEMENT_CONTINGENCY,
+    PLACEMENT_KEY_RESULTS,
+    PLACEMENT_PAIRWISE,
+    FigureSpec,
+    normalize_figure_placement,
+)
 from ..formatting import resolve_table_row_limit
 from ..models import PresentationView
 from .components import (
@@ -161,7 +169,10 @@ class ResearchReportHtmlRenderer:
                 body_parts.append(render_section(sec_heading, section_content, section_id=sec_id))
                 if key == "results":
                     for idx, (spec, fig_html) in enumerate(rendered_figures):
-                        if idx not in inserted_indices and spec.placement == "KEY RESULTS":
+                        norm_p = normalize_figure_placement(spec.placement)
+                        if idx not in inserted_indices and (
+                            norm_p == PLACEMENT_KEY_RESULTS or spec.placement == "KEY RESULTS"
+                        ):
                             body_parts.append(fig_html)
                             inserted_indices.add(idx)
 
@@ -180,11 +191,22 @@ class ResearchReportHtmlRenderer:
                 )
             )
             for idx, (spec, fig_html) in enumerate(rendered_figures):
-                if (
-                    idx not in inserted_indices
-                    and spec.placement
-                    and spec.placement.upper() in t_title.upper()
-                ):
+                norm_p = normalize_figure_placement(spec.placement)
+                t_up = t_title.upper()
+                matches_table = (
+                    spec.placement.upper() in t_up
+                    or (norm_p == PLACEMENT_COEFFICIENTS and "COEFFICIENT" in t_up)
+                    or (norm_p == PLACEMENT_PAIRWISE and "PAIRWISE" in t_up)
+                    or (
+                        norm_p == PLACEMENT_CONTINGENCY
+                        and ("CONTINGENCY" in t_up or "COUNT" in t_up)
+                    )
+                    or (
+                        norm_p == PLACEMENT_CELL_SUMMARY
+                        and ("CELL" in t_up or "PROFILE" in t_up or "SUMMARY" in t_up)
+                    )
+                )
+                if idx not in inserted_indices and spec.placement and matches_table:
                     body_parts.append(fig_html)
                     inserted_indices.add(idx)
 

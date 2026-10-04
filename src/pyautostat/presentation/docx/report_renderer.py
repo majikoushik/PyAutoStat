@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...exceptions import ReportError
 from ..adapters import UnsupportedPresentationError, adapt
+from ..figures.models import normalize_figure_placement
 from ..formatting import resolve_table_row_limit
 from ..html.components import report_table_to_display_table
 from ..models import DisplayMetric, PresentationView
@@ -189,7 +190,10 @@ class ResearchReportDocxRenderer:
 
         def _embed_for_placement(target_placement: str) -> None:
             for art in self.figures:
-                if art.index not in placed_indices and art.placement == target_placement:
+                if (
+                    art.index not in placed_indices
+                    and normalize_figure_placement(art.placement) == target_placement
+                ):
                     add_figure_image(doc, art, printable_width=printable_w)
                     placed_indices.add(art.index)
 

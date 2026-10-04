@@ -96,7 +96,7 @@ def test_welch_t_static_figure_png():
     assert fig.index == 1
     assert fig.format == "png"
     assert fig.filename == "figure_01_estimate_ci.png"
-    assert fig.placement in ("KEY RESULTS", "key_results")
+    assert fig.placement == "key_results"
     assert fig.data.startswith(b"\x89PNG\r\n\x1a\n")
 
 
@@ -169,3 +169,62 @@ def test_missing_dependencies_actionable_errors():
     ):
         with pytest.raises(ReportError, match="plotly_get_chrome"):
             check_chrome_available()
+
+
+def test_production_figure_pdf_validation_does_not_require_pypdf(monkeypatch: pytest.MonkeyPatch):
+    """Production PDF byte validation must not import or require pypdf."""
+    import sys
+
+    from pyautostat.presentation.figures.static import validate_rendered_bytes
+
+    # Block pypdf import
+    monkeypatch.setitem(sys.modules, "pypdf", None)
+
+    # Valid %PDF header succeeds without requiring pypdf
+    validate_rendered_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF", "pdf")
+
+    # Invalid header raises ReportError
+    with pytest.raises(ReportError, match="Generated figure PDF data is missing %PDF header"):
+        validate_rendered_bytes(b"NOT_A_PDF_STREAM", "pdf")
+
+
+def test_check_chrome_available_preflight_variants(tmp_path: Path):
+    """Test find_browser return value validation in check_chrome_available."""
+    from choreographer.errors import ChromeNotFoundError
+
+    from pyautostat.presentation.figures.static import check_chrome_available
+
+    # 1. find_browser raises ChromeNotFoundError -> ReportError
+    with patch(
+        "choreographer.browsers.chromium.Chromium.find_browser",
+        side_effect=ChromeNotFoundError("Browser not found"),
+    ):
+        with pytest.raises(ReportError, match="plotly_get_chrome"):
+            check_chrome_available()
+
+    # 2. find_browser returns None -> ReportError
+    with patch(
+        "choreographer.browsers.chromium.Chromium.find_browser",
+        return_value=None,
+    ):
+        with pytest.raises(ReportError, match="plotly_get_chrome"):
+            check_chrome_available()
+
+    # 3. find_browser returns nonexistent path -> ReportError
+    nonexistent = str(tmp_path / "nonexistent" / "chrome.exe")
+    with patch(
+        "choreographer.browsers.chromium.Chromium.find_browser",
+        return_value=nonexistent,
+    ):
+        with pytest.raises(ReportError, match="plotly_get_chrome"):
+            check_chrome_available()
+
+    # 4. find_browser returns existing path -> succeeds
+    real_mock_file = tmp_path / "mock_chrome.exe"
+    real_mock_file.write_text("binary")
+    with patch(
+        "choreographer.browsers.chromium.Chromium.find_browser",
+        return_value=str(real_mock_file),
+    ):
+        # Must succeed without error
+        check_chrome_available()

@@ -2,7 +2,15 @@
 
 from collections.abc import Sequence
 
-from ..figures.models import FigureSpec
+from ..figures.models import (
+    PLACEMENT_CELL_SUMMARY,
+    PLACEMENT_COEFFICIENTS,
+    PLACEMENT_CONTINGENCY,
+    PLACEMENT_KEY_RESULTS,
+    PLACEMENT_PAIRWISE,
+    FigureSpec,
+    normalize_figure_placement,
+)
 from ..formatting import resolve_table_row_limit
 from ..models import DisplayMetric, PresentationView
 from .components import (
@@ -168,15 +176,20 @@ class HtmlRenderer:
                 )
             )
             for idx, (spec, fig_html) in enumerate(rendered_figures):
+                norm_p = normalize_figure_placement(spec.placement)
                 if (
                     idx not in inserted_indices
                     and spec.placement
                     and (
-                        spec.placement == "KEY RESULTS"
+                        norm_p == PLACEMENT_KEY_RESULTS
+                        or spec.placement == "KEY RESULTS"
                         or spec.placement == results_title
                         or (
                             results_title == "MODEL FIT"
-                            and spec.placement in ("MODEL COEFFICIENTS", "PREDICTOR ODDS RATIOS")
+                            and (
+                                norm_p == PLACEMENT_COEFFICIENTS
+                                or spec.placement in ("MODEL COEFFICIENTS", "PREDICTOR ODDS RATIOS")
+                            )
                         )
                     )
                 ):
@@ -198,11 +211,22 @@ class HtmlRenderer:
                     )
                 )
                 for idx, (spec, fig_html) in enumerate(rendered_figures):
-                    if (
-                        idx not in inserted_indices
-                        and spec.placement
-                        and spec.placement.upper() in table_title.upper()
-                    ):
+                    norm_p = normalize_figure_placement(spec.placement)
+                    t_up = table_title.upper()
+                    matches_table = (
+                        spec.placement.upper() in t_up
+                        or (norm_p == PLACEMENT_COEFFICIENTS and "COEFFICIENT" in t_up)
+                        or (norm_p == PLACEMENT_PAIRWISE and "PAIRWISE" in t_up)
+                        or (
+                            norm_p == PLACEMENT_CONTINGENCY
+                            and ("CONTINGENCY" in t_up or "COUNT" in t_up)
+                        )
+                        or (
+                            norm_p == PLACEMENT_CELL_SUMMARY
+                            and ("CELL" in t_up or "PROFILE" in t_up or "SUMMARY" in t_up)
+                        )
+                    )
+                    if idx not in inserted_indices and spec.placement and matches_table:
                         body_parts.append(fig_html)
                         inserted_indices.add(idx)
 
@@ -324,15 +348,20 @@ class HtmlRenderer:
                 )
             )
             for idx, (spec, fig_html) in enumerate(rendered_figures):
+                norm_p = normalize_figure_placement(spec.placement)
                 if (
                     idx not in inserted_indices
                     and spec.placement
                     and (
-                        spec.placement == "KEY RESULTS"
+                        norm_p == PLACEMENT_KEY_RESULTS
+                        or spec.placement == "KEY RESULTS"
                         or spec.placement == results_title
                         or (
                             results_title == "MODEL FIT"
-                            and spec.placement in ("MODEL COEFFICIENTS", "PREDICTOR ODDS RATIOS")
+                            and (
+                                norm_p == PLACEMENT_COEFFICIENTS
+                                or spec.placement in ("MODEL COEFFICIENTS", "PREDICTOR ODDS RATIOS")
+                            )
                         )
                     )
                 ):
@@ -353,11 +382,22 @@ class HtmlRenderer:
                     )
                 )
                 for idx, (spec, fig_html) in enumerate(rendered_figures):
-                    if (
-                        idx not in inserted_indices
-                        and spec.placement
-                        and spec.placement.upper() in table_title.upper()
-                    ):
+                    norm_p = normalize_figure_placement(spec.placement)
+                    t_up = table_title.upper()
+                    matches_table = (
+                        spec.placement.upper() in t_up
+                        or (norm_p == PLACEMENT_COEFFICIENTS and "COEFFICIENT" in t_up)
+                        or (norm_p == PLACEMENT_PAIRWISE and "PAIRWISE" in t_up)
+                        or (
+                            norm_p == PLACEMENT_CONTINGENCY
+                            and ("CONTINGENCY" in t_up or "COUNT" in t_up)
+                        )
+                        or (
+                            norm_p == PLACEMENT_CELL_SUMMARY
+                            and ("CELL" in t_up or "PROFILE" in t_up or "SUMMARY" in t_up)
+                        )
+                    )
+                    if idx not in inserted_indices and spec.placement and matches_table:
                         body_parts.append(fig_html)
                         inserted_indices.add(idx)
 

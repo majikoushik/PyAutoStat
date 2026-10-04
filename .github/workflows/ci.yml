@@ -179,7 +179,7 @@ jobs:
       - name: Install package with dev, figures, and docx extras
         run: pip install -e ".[dev,figures,docx]"
       - name: Install Chrome for Kaleido
-        run: plotly_get_chrome
+        run: plotly_get_chrome -y
       - name: Run static figure, docx figure, and bundle figure tests
         run: pytest -q tests/test_static_figures_api.py tests/test_static_figures_fidelity.py tests/test_static_figures_security.py tests/test_docx_figures.py tests/test_bundle_static_figures.py
       - name: Run static figures showcase example

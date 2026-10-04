@@ -28,10 +28,10 @@ pip install "pyautostat[figures]"
 PyAutoStat relies on modern **Kaleido v1+**, which drives a headless Chrome or
 Chromium browser instance to render vector (SVG, PDF) and raster (PNG) graphics.
 
-To install a compatible browser, run the official Plotly helper:
+To install a compatible browser, run the official Plotly helper (use `-y` for non-interactive automation):
 
 ```bash
-plotly_get_chrome
+plotly_get_chrome -y
 ```
 
 > **Important:** PyAutoStat **never** downloads browsers or binary dependencies
@@ -76,7 +76,7 @@ class StaticFigureArtifact:
     index: int                  # 1-based sequential figure index
     kind: str                   # e.g. "estimate_ci", "forest", "count_heatmap"
     title: str                  # Scientific title from FigureSpec
-    placement: str              # Semantic placement (e.g. "key_results", "coefficients")
+    placement: str              # Canonical placement ('key_results', 'coefficients', 'pairwise', 'contingency', 'cell_summary')
     format: str                 # "png", "svg", or "pdf"
     data: bytes                 # Raw binary payload
     filename: str               # Library-controlled safe filename (e.g. "figure_01_estimate_ci.png")
@@ -157,8 +157,8 @@ from pyautostat import to_bundle, save_bundle
 bundle_bytes = to_bundle(
     workflow,
     formats=["html", "docx", "json", "csv"],
-    include_figures=True,            # Controls figures inside HTML/PDF reports
-    include_static_figures=True,     # Packages standalone figure files into zip
+    include_figures=True,            # Controls figures embedded inside HTML, PDF, and DOCX reports
+    include_static_figures=True,     # Packages standalone figure files into pyautostat_bundle/figures/
     static_figure_format="png",      # "png", "svg", or "pdf"
 )
 ```

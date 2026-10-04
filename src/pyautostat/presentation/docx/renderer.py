@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...exceptions import ReportError
+from ..figures.models import normalize_figure_placement
 from ..formatting import resolve_table_row_limit
 from ..models import PresentationView
 from .components import (
@@ -122,7 +123,10 @@ class DocxRenderer:
 
         def _embed_for_placement(target_placement: str) -> None:
             for art in self.figures:
-                if art.index not in placed_indices and art.placement == target_placement:
+                if (
+                    art.index not in placed_indices
+                    and normalize_figure_placement(art.placement) == target_placement
+                ):
                     add_figure_image(doc, art, printable_width=printable_w)
                     placed_indices.add(art.index)
 

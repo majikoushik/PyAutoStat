@@ -14,7 +14,15 @@ from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..adapters.common import extract_context, first_present, resolve_confidence_level
 from ..formatting import confidence_interval_phrase
-from .models import FigureSeries, FigureSpec
+from .models import (
+    PLACEMENT_CELL_SUMMARY,
+    PLACEMENT_COEFFICIENTS,
+    PLACEMENT_CONTINGENCY,
+    PLACEMENT_KEY_RESULTS,
+    PLACEMENT_PAIRWISE,
+    FigureSeries,
+    FigureSpec,
+)
 
 
 def _extract_ci(val: Any) -> tuple[float | None, float | None]:
@@ -155,7 +163,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                     ),
                 ),
                 note="Reference line at 0 indicates no difference between groups.",
-                placement="KEY RESULTS",
+                placement=PLACEMENT_KEY_RESULTS,
             ),
         )
 
@@ -189,7 +197,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                 note=(
                     f"Reference line at 0 indicates sample mean equals reference value ({ref_val})."
                 ),
-                placement="KEY RESULTS",
+                placement=PLACEMENT_KEY_RESULTS,
             ),
         )
 
@@ -232,7 +240,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                     ),
                 ),
                 note="Reference line at 0 indicates no mean difference across paired conditions.",
-                placement="KEY RESULTS",
+                placement=PLACEMENT_KEY_RESULTS,
             ),
         )
 
@@ -304,7 +312,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                     ),
                 ),
                 note=note_text,
-                placement="KEY RESULTS",
+                placement=PLACEMENT_KEY_RESULTS,
             ),
         )
 
@@ -337,7 +345,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                     "Interpretation depends on the declared ICC model, definition, "
                     "measurement unit, and study context."
                 ),
-                placement="KEY RESULTS",
+                placement=PLACEMENT_KEY_RESULTS,
             ),
         )
 
@@ -365,7 +373,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                     ),
                 ),
                 note="Figure displays the stored reliability estimate and confidence interval.",
-                placement="KEY RESULTS",
+                placement=PLACEMENT_KEY_RESULTS,
             ),
         )
 
@@ -419,7 +427,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                 reference_value=0.0,
                 series=tuple(series_list),
                 note="Reference line at 0 indicates no linear association.",
-                placement="MODEL COEFFICIENTS",
+                placement=PLACEMENT_COEFFICIENTS,
             ),
         )
 
@@ -481,7 +489,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                 reference_value=1.0,
                 series=tuple(series_list),
                 note="Reference line at 1.0 indicates no change in odds.",
-                placement="PREDICTOR ODDS RATIOS",
+                placement=PLACEMENT_COEFFICIENTS,
                 layout_hints={"log_x": all_positive},
             ),
         )
@@ -564,7 +572,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                 reference_value=0.0,
                 series=tuple(series_list),
                 note="Reference line at 0 indicates equality of population group means.",
-                placement="PAIRWISE",
+                placement=PLACEMENT_PAIRWISE,
             ),
         )
 
@@ -606,7 +614,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                 y_label=str(predictor_name),
                 series=tuple(series_list),
                 note="Cell values display observed frequencies across categories.",
-                placement="CONTINGENCY TABLE",
+                placement=PLACEMENT_CONTINGENCY,
             ),
         )
 
@@ -678,7 +686,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                 y_label="Observed Cell Mean",
                 series=tuple(series_list),
                 note="Profiles connect observed sample cell means; no CI bands are inferred.",
-                placement="CELL SUMMARIES",
+                placement=PLACEMENT_CELL_SUMMARY,
             ),
         )
 
@@ -712,7 +720,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                     y_label="Row Category",
                     series=tuple(series_list),
                     note="Cell values display observed frequencies in 2x2 contingency table.",
-                    placement="CONTINGENCY TABLE",
+                    placement=PLACEMENT_CONTINGENCY,
                 ),
             )
         # Fallback to OR if stored
@@ -738,7 +746,7 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                         ),
                     ),
                     note="Reference line at 1.0 indicates equal odds.",
-                    placement="KEY RESULTS",
+                    placement=PLACEMENT_KEY_RESULTS,
                 ),
             )
 
@@ -815,7 +823,7 @@ def _build_figure_spec_from_payload(payload: dict[str, Any]) -> FigureSpec | Non
                 ),
             ),
             note=note_text,
-            placement="KEY RESULTS",
+            placement=PLACEMENT_KEY_RESULTS,
         )
 
     # 2. One-sample mean difference -> reference 0.0
@@ -840,7 +848,7 @@ def _build_figure_spec_from_payload(payload: dict[str, Any]) -> FigureSpec | Non
                 ),
             ),
             note=f"Reference line at 0 indicates sample mean equals reference value ({ref_val}).",
-            placement="KEY RESULTS",
+            placement=PLACEMENT_KEY_RESULTS,
         )
 
     # 3. Bivariate correlation -> reference 0.0
@@ -905,7 +913,7 @@ def _build_figure_spec_from_payload(payload: dict[str, Any]) -> FigureSpec | Non
                 ),
             ),
             note=note_str,
-            placement="KEY RESULTS",
+            placement=PLACEMENT_KEY_RESULTS,
         )
 
     # 4. Odds ratio (Fisher's exact test or logistic regression OR) -> reference 1.0
@@ -931,7 +939,7 @@ def _build_figure_spec_from_payload(payload: dict[str, Any]) -> FigureSpec | Non
                 ),
             ),
             note="Reference line at 1.0 indicates equal odds.",
-            placement="KEY RESULTS",
+            placement=PLACEMENT_KEY_RESULTS,
         )
 
     # 5. Reliability -> no null reference line
@@ -956,7 +964,7 @@ def _build_figure_spec_from_payload(payload: dict[str, Any]) -> FigureSpec | Non
                 "Interpretation depends on the declared ICC model, definition, "
                 "measurement unit, and study context."
             ),
-            placement="KEY RESULTS",
+            placement=PLACEMENT_KEY_RESULTS,
         )
 
     if method_id == "cronbach_alpha":
@@ -976,7 +984,7 @@ def _build_figure_spec_from_payload(payload: dict[str, Any]) -> FigureSpec | Non
                 ),
             ),
             note="Figure displays the stored reliability estimate and confidence interval.",
-            placement="KEY RESULTS",
+            placement=PLACEMENT_KEY_RESULTS,
         )
 
     return None
