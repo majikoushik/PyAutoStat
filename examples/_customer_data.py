@@ -13,6 +13,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from rich.console import Console
+from rich.rule import Rule
+
+console = Console()
 
 DATA_FILE = Path(__file__).resolve().with_name("CustomerDataset.csv")
 
@@ -271,17 +275,15 @@ def verify_dataset_integrity(frame: pd.DataFrame | None = None) -> dict[str, Any
 
 
 def section(title: str) -> None:
-    """Print a major section banner."""
-    print("\n" + "=" * 76)
-    print(title.upper())
-    print("=" * 76)
+    """Print a major section banner using Rich Rule."""
+    console.print()
+    console.print(Rule(f"[bold cyan]{title.upper()}[/bold cyan]"))
 
 
 def subsection(title: str) -> None:
-    """Print a subsection divider."""
-    print("\n" + "-" * 76)
-    print(title)
-    print("-" * 76)
+    """Print a subsection divider using Rich Rule."""
+    console.print()
+    console.print(Rule(f"[dim]{title}[/dim]", align="left"))
 
 
 def format_number(value: Any, digits: int = 4) -> str:

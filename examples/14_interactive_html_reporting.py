@@ -23,9 +23,9 @@ from pathlib import Path
 # Allow importing local example utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _customer_data import DATA_DICTIONARY, load_customer_data
+from _customer_data import DATA_DICTIONARY, load_customer_data, section
 
-from pyautostat import AnalysisOptions, ResearchAssistant, save_interactive_html
+from pyautostat import AnalysisOptions, ResearchAssistant, save_interactive_html, show
 
 RANDOM_SEED = 42
 
@@ -49,19 +49,16 @@ def main() -> None:
         temp_dir = tempfile.TemporaryDirectory()
         out_dir = Path(temp_dir.name)
 
-    print("=" * 76)
-    print(" PyAutoStat Interactive HTML & Scientific Figure Foundation Showcase")
-    print(f" Target output directory: {out_dir}")
-    print("=" * 76)
+    section("PyAutoStat Interactive HTML & Scientific Figure Foundation Showcase")
+    print(f"Target output directory: {out_dir}")
 
     # Load customer dataset (customer IDs excluded to preserve privacy)
     df = load_customer_data(include_customer_id=False)
     assistant = ResearchAssistant(df)
 
     # -------------------------------------------------------------------------
-    # 1. Welch Independent-Samples t-test (Estimate + CI)
+    # 1. Welch Independent-Samples t-test (Source Analysis)
     # -------------------------------------------------------------------------
-    print("\n[1/6] Generating Welch t-test interactive HTML report...")
     welch_workflow = assistant.run(
         objective="compare_groups",
         outcome="total_avg_monthly_spend",
@@ -71,6 +68,11 @@ def main() -> None:
         options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=RANDOM_SEED),
         data_dictionary=DATA_DICTIONARY,
     )
+
+    section("SOURCE ANALYSIS")
+    show(welch_workflow, detail="standard")
+
+    section("GENERATED ARTIFACTS")
     welch_path = save_interactive_html(
         welch_workflow,
         out_dir / "welch_interactive.html",
@@ -79,12 +81,11 @@ def main() -> None:
         include_figures=True,
         overwrite=True,
     )
-    print(f"  -> Written: {welch_path} ({welch_path.stat().st_size:,} bytes)")
+    print(f"  ✓ Interactive HTML: {welch_path.name} ({welch_path.stat().st_size:,} bytes)")
 
     # -------------------------------------------------------------------------
     # 2. Pearson Linear Correlation (Estimate + CI)
     # -------------------------------------------------------------------------
-    print("\n[2/6] Generating Pearson correlation interactive HTML report...")
     pearson_workflow = assistant.run(
         objective="association",
         outcome="monthly_spend_product_a",
@@ -102,12 +103,11 @@ def main() -> None:
         include_figures=True,
         overwrite=True,
     )
-    print(f"  -> Written: {pearson_path} ({pearson_path.stat().st_size:,} bytes)")
+    print(f"  ✓ Interactive HTML: {pearson_path.name} ({pearson_path.stat().st_size:,} bytes)")
 
     # -------------------------------------------------------------------------
     # 3. OLS Linear Regression (Coefficient Forest Plot)
     # -------------------------------------------------------------------------
-    print("\n[3/6] Generating OLS linear regression interactive HTML report...")
     ols_workflow = assistant.run(
         objective="regression",
         outcome="total_avg_monthly_spend",
@@ -125,12 +125,11 @@ def main() -> None:
         include_figures=True,
         overwrite=True,
     )
-    print(f"  -> Written: {ols_path} ({ols_path.stat().st_size:,} bytes)")
+    print(f"  ✓ Interactive HTML: {ols_path.name} ({ols_path.stat().st_size:,} bytes)")
 
     # -------------------------------------------------------------------------
     # 4. Binary Logistic Regression (Odds-Ratio Forest Plot)
     # -------------------------------------------------------------------------
-    print("\n[4/6] Generating Logistic regression interactive HTML report...")
     logistic_workflow = assistant.run(
         objective="regression",
         outcome="high_value_customer",
@@ -149,12 +148,11 @@ def main() -> None:
         include_figures=True,
         overwrite=True,
     )
-    print(f"  -> Written: {logistic_path} ({logistic_path.stat().st_size:,} bytes)")
+    print(f"  ✓ Interactive HTML: {logistic_path.name} ({logistic_path.stat().st_size:,} bytes)")
 
     # -------------------------------------------------------------------------
     # 5. Pearson Chi-Square Test (Contingency Count Heatmap)
     # -------------------------------------------------------------------------
-    print("\n[5/6] Generating Pearson chi-square interactive HTML report...")
     chi2_workflow = assistant.run(
         objective="association",
         outcome="news_subscriber",
@@ -172,25 +170,21 @@ def main() -> None:
         include_figures=True,
         overwrite=True,
     )
-    print(f"  -> Written: {chi2_path} ({chi2_path.stat().st_size:,} bytes)")
+    print(f"  ✓ Interactive HTML: {chi2_path.name} ({chi2_path.stat().st_size:,} bytes)")
 
     # -------------------------------------------------------------------------
     # 6. Canonical ResearchReport Interactive Export
     # -------------------------------------------------------------------------
-    print("\n[6/6] Generating ResearchReport interactive HTML report...")
     report = welch_workflow.report
     rep_path = report.save_interactive_html(
         out_dir / "research_report_interactive.html",
         include_figures=True,
         overwrite=True,
     )
-    print(f"  -> Written: {rep_path} ({rep_path.stat().st_size:,} bytes)")
+    print(f"  ✓ Interactive HTML: {rep_path.name} ({rep_path.stat().st_size:,} bytes)")
 
-    print("\n" + "=" * 76)
-    print(" All interactive HTML reports generated successfully!")
-    print(f" Location: {out_dir.resolve()}")
-    print(" Note: Output files are self-contained and require no external network calls.")
-    print("=" * 76)
+    print(f"\nAll interactive HTML reports generated successfully in {out_dir}.")
+    print("Note: Output files are self-contained and require no external network calls.")
 
 
 if __name__ == "__main__":

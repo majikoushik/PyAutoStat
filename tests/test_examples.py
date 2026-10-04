@@ -54,6 +54,8 @@ def _run_example(filename: str, *arguments: str) -> subprocess.CompletedProcess[
         env=environment,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         timeout=180,
     )
@@ -360,6 +362,8 @@ def test_run_all_fast_mode(tmp_path: Path) -> None:
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         timeout=300,
     )
@@ -402,3 +406,74 @@ def test_expanded_scientific_guardrails() -> None:
         assert forbidden not in text.lower(), (
             f"Forbidden phrase '{forbidden}' found in example text"
         )
+
+
+def test_canonical_show_used_across_examples() -> None:
+    """Ensure public examples import and delegate statistical presentation to canonical show()."""
+    for script_name in PUBLIC_SCRIPTS:
+        content = (EXAMPLES / script_name).read_text(encoding="utf-8")
+        assert "show" in content, f"{script_name} must import show"
+        assert "show(" in content, f"{script_name} must call show()"
+
+    # Specific detail mode policy assertions
+    e02 = (EXAMPLES / "02_compare_customer_segments.py").read_text(encoding="utf-8")
+    assert 'show(workflow, detail="standard")' in e02
+
+    e05 = (EXAMPLES / "05_spend_drivers_regression.py").read_text(encoding="utf-8")
+    assert 'show(workflow, detail="full")' in e05
+
+    e09 = (EXAMPLES / "09_complete_research_workflow.py").read_text(encoding="utf-8")
+    for expected_target in (
+        "show(incomplete)",
+        'show(plan, detail="standard")',
+        'show(workflow, detail="full")',
+        'show(sensitivity, detail="standard")',
+        'show(practical, detail="standard")',
+        'show(adherence, detail="standard")',
+        'show(audit, detail="standard")',
+        'show(record, detail="compact")',
+        'show(replay, detail="compact")',
+        'show(completeness, detail="compact")',
+        'show(planning, detail="standard")',
+        'show(snapshot, detail="compact")',
+        'show(assistant.decision_ledger, detail="compact")',
+        'show(paired, detail="standard")',
+    ):
+        assert expected_target in e09, (
+            f"Missing lifecycle show call in Example 09: {expected_target}"
+        )
+
+
+def test_obsolete_manual_result_tables_removed() -> None:
+    """Verify deprecated manual statistical table formatting has been excised from examples."""
+    e01 = (EXAMPLES / "01_customer_360_profile.py").read_text(encoding="utf-8")
+    assert "home_val_tab.get('counts')" not in e01
+    assert "home_val_tab.get('row_percent')" not in e01
+
+    e02 = (EXAMPLES / "02_compare_customer_segments.py").read_text(encoding="utf-8")
+    assert "Primary Estimate (Mean Diff) :" not in e02
+    assert "Test Statistic (t)           :" not in e02
+
+    e03 = (EXAMPLES / "03_multigroup_customer_spending.py").read_text(encoding="utf-8")
+    assert "Games-Howell Pairwise Follow-Ups (Sample of Comparisons)" not in e03
+    assert "Welch F Statistic       :" not in e03
+
+    e04 = (EXAMPLES / "04_customer_value_association.py").read_text(encoding="utf-8")
+    assert "Pearson Chi-Square (X2) :" not in e04
+    assert "Minimum Expected Frequency:" not in e04
+
+    e05 = (EXAMPLES / "05_spend_drivers_regression.py").read_text(encoding="utf-8")
+    assert "Coefficient Table (HC3 Robust Standard Errors)" not in e05
+    assert "Overall Model F-Statistic :" not in e05
+
+    e06 = (EXAMPLES / "06_high_value_customer_logistic.py").read_text(encoding="utf-8")
+    assert "Odds Ratios & Wald Inference Table" not in e06
+    assert "Likelihood Ratio X2       :" not in e06
+
+    e07 = (EXAMPLES / "07_product_portfolio_repeated_measures.py").read_text(encoding="utf-8")
+    assert "Within-Customer Condition Summaries" not in e07
+    assert "Friedman Q Statistic    :" not in e07
+
+    e08 = (EXAMPLES / "08_factorial_customer_segments.py").read_text(encoding="utf-8")
+    assert "Cell Sample Sizes and Means (2x2 Design)" not in e08
+    assert "Source / Term" not in e08

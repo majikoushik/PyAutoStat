@@ -26,13 +26,14 @@ from pathlib import Path
 # Allow importing local example utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _customer_data import load_customer_data
+from _customer_data import load_customer_data, section
 
 from pyautostat import (
     AnalysisOptions,
     ResearchAssistant,
     save_docx,
     save_static_figures,
+    show,
 )
 
 RANDOM_SEED = 42
@@ -57,16 +58,13 @@ def main() -> None:
         temp_dir = tempfile.TemporaryDirectory()
         out_dir = Path(temp_dir.name)
 
-    print("=" * 76)
-    print(" PyAutoStat Static Scientific Figure Export & DOCX Embedding Showcase")
-    print("=" * 76)
+    section("PyAutoStat Static Scientific Figure Export & DOCX Embedding Showcase")
     print(f"Target directory: {out_dir.resolve()}\n")
 
     df = load_customer_data(include_customer_id=False)
     assistant = ResearchAssistant(df)
 
-    # 1. Welch t-test (PNG)
-    print("1. Generating Welch t-test Estimate & CI Figure (PNG)...")
+    # 1. Welch t-test (Source Analysis)
     wf_welch = assistant.run(
         objective="compare_groups",
         outcome="total_avg_monthly_spend",
@@ -76,6 +74,12 @@ def main() -> None:
         variable_types={"total_avg_monthly_spend": "continuous", "gender": "nominal"},
         options=AnalysisOptions(confidence_level=0.95),
     )
+
+    section("SOURCE ANALYSIS")
+    show(wf_welch, detail="standard")
+
+    section("GENERATED ARTIFACTS")
+    # 1. Welch t-test (PNG)
     welch_paths = save_static_figures(
         wf_welch,
         out_dir / "welch",
@@ -83,10 +87,9 @@ def main() -> None:
         overwrite=True,
     )
     for p in welch_paths:
-        print(f"   Saved: {p.name} ({p.stat().st_size:,} bytes)")
+        print(f"  ✓ Static Figure (PNG): {p.name} ({p.stat().st_size:,} bytes)")
 
     # 2. Pearson correlation (SVG)
-    print("\n2. Generating Pearson Correlation Estimate & CI Figure (SVG)...")
     wf_pearson = assistant.run(
         objective="association",
         outcome="total_avg_monthly_spend",
@@ -106,10 +109,9 @@ def main() -> None:
         overwrite=True,
     )
     for p in pearson_paths:
-        print(f"   Saved: {p.name} ({p.stat().st_size:,} bytes)")
+        print(f"  ✓ Static Figure (SVG): {p.name} ({p.stat().st_size:,} bytes)")
 
     # 3. OLS linear regression coefficient forest (PNG)
-    print("\n3. Generating OLS Regression Coefficient Forest Figure (PNG)...")
     wf_ols = assistant.run(
         objective="regression",
         outcome="total_avg_monthly_spend",
@@ -131,10 +133,9 @@ def main() -> None:
         overwrite=True,
     )
     for p in ols_paths:
-        print(f"   Saved: {p.name} ({p.stat().st_size:,} bytes)")
+        print(f"  ✓ Static Figure (PNG): {p.name} ({p.stat().st_size:,} bytes)")
 
     # 4. Logistic regression odds ratio forest (PNG)
-    print("\n4. Generating Logistic Regression Odds Ratio Forest Figure (PNG)...")
     wf_logit = assistant.run(
         objective="regression",
         outcome="high_value_customer",
@@ -156,10 +157,9 @@ def main() -> None:
         overwrite=True,
     )
     for p in logit_paths:
-        print(f"   Saved: {p.name} ({p.stat().st_size:,} bytes)")
+        print(f"  ✓ Static Figure (PNG): {p.name} ({p.stat().st_size:,} bytes)")
 
     # 5. Chi-square contingency heatmap (PNG)
-    print("\n5. Generating Chi-Square Contingency Count Heatmap Figure (PNG)...")
     wf_chi2 = assistant.run(
         objective="association",
         outcome="high_value_customer",
@@ -175,10 +175,9 @@ def main() -> None:
         overwrite=True,
     )
     for p in chi2_paths:
-        print(f"   Saved: {p.name} ({p.stat().st_size:,} bytes)")
+        print(f"  ✓ Static Figure (PNG): {p.name} ({p.stat().st_size:,} bytes)")
 
     # 6. Two-way ANOVA cell profile (PNG)
-    print("\n6. Generating Two-Way ANOVA Observed Cell Profile Figure (PNG)...")
     wf_twoway = assistant.run(
         objective="compare_groups",
         outcome="total_avg_monthly_spend",
@@ -199,10 +198,9 @@ def main() -> None:
         overwrite=True,
     )
     for p in twoway_paths:
-        print(f"   Saved: {p.name} ({p.stat().st_size:,} bytes)")
+        print(f"  ✓ Static Figure (PNG): {p.name} ({p.stat().st_size:,} bytes)")
 
     # 7. Editable Microsoft Word (.docx) report with embedded figures
-    print("\n7. Generating Editable Word Report (.docx) with Embedded Figures...")
     docx_path = out_dir / "spend_drivers_research_report.docx"
     save_docx(
         wf_ols,
@@ -212,11 +210,12 @@ def main() -> None:
         style="apa",
         overwrite=True,
     )
-    print(f"   Saved DOCX: {docx_path.name} ({docx_path.stat().st_size:,} bytes)")
+    print(f"  ✓ Embedded DOCX: {docx_path.name} ({docx_path.stat().st_size:,} bytes)")
 
-    print("\n" + "=" * 76)
-    print(" Static scientific figure generation and DOCX embedding completed.")
-    print("=" * 76)
+    print(
+        f"\nStatic scientific figure generation and DOCX embedding completed in "
+        f"{out_dir.resolve()}."
+    )
 
 
 if __name__ == "__main__":

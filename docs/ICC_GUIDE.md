@@ -166,7 +166,7 @@ PyAutoStat applies **complete-target panel filtering**:
 ### Guided Workflow
 
 ```python
-from pyautostat import ResearchAssistant
+from pyautostat import ResearchAssistant, show
 
 assistant = ResearchAssistant(ratings_df)
 workflow = assistant.run(
@@ -180,7 +180,7 @@ workflow = assistant.run(
     unit="single",
 )
 
-print(workflow.explain())
+show(workflow)
 ```
 
 ### Direct Analyzer API

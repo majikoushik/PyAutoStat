@@ -22,9 +22,9 @@ from pathlib import Path
 # Allow importing local example utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _customer_data import DATA_DICTIONARY, load_customer_data
+from _customer_data import DATA_DICTIONARY, load_customer_data, section
 
-from pyautostat import AnalysisOptions, ResearchAssistant, save_docx
+from pyautostat import AnalysisOptions, ResearchAssistant, save_docx, show
 
 RANDOM_SEED = 42
 
@@ -48,17 +48,14 @@ def main() -> None:
         temp_dir = tempfile.TemporaryDirectory()
         out_dir = Path(temp_dir.name)
 
-    print("=" * 76)
-    print(" PyAutoStat Editable Word / DOCX Research Reporting Showcase")
-    print(f" Target output directory: {out_dir.resolve()}")
-    print("=" * 76)
+    section("PyAutoStat Editable Word / DOCX Research Reporting Showcase")
+    print(f"Target output directory: {out_dir.resolve()}")
 
     # Load customer dataset (customer IDs excluded to preserve privacy)
     df = load_customer_data(include_customer_id=False)
     assistant = ResearchAssistant(df)
 
-    # 1. Welch t-test (Standard detail, A4 Portrait)
-    print("\n[1/5] Generating Welch t-test DOCX report (A4 portrait)...")
+    # 1. Welch t-test (Source Analysis)
     welch_workflow = assistant.run(
         objective="compare_groups",
         outcome="total_avg_monthly_spend",
@@ -68,6 +65,11 @@ def main() -> None:
         options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=RANDOM_SEED),
         data_dictionary=DATA_DICTIONARY,
     )
+
+    section("SOURCE ANALYSIS")
+    show(welch_workflow, detail="standard")
+
+    section("GENERATED ARTIFACTS")
     welch_docx = out_dir / "welch.docx"
     save_docx(
         welch_workflow,
@@ -79,10 +81,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {welch_docx} ({welch_docx.stat().st_size:,} bytes)")
+    print(f"  ✓ DOCX: {welch_docx.name} ({welch_docx.stat().st_size:,} bytes)")
 
     # 2. OLS linear regression (Full detail, A4 Portrait)
-    print("\n[2/5] Generating OLS regression full DOCX report (A4 portrait)...")
     ols_workflow = assistant.run(
         objective="regression",
         outcome="total_avg_monthly_spend",
@@ -103,10 +104,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {ols_docx} ({ols_docx.stat().st_size:,} bytes)")
+    print(f"  ✓ DOCX: {ols_docx.name} ({ols_docx.stat().st_size:,} bytes)")
 
     # 3. Binary logistic regression (Standard detail, A4 Portrait)
-    print("\n[3/5] Generating Logistic regression DOCX report (A4 portrait)...")
     logistic_workflow = assistant.run(
         objective="regression",
         outcome="high_value_customer",
@@ -128,10 +128,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {logistic_docx} ({logistic_docx.stat().st_size:,} bytes)")
+    print(f"  ✓ DOCX: {logistic_docx.name} ({logistic_docx.stat().st_size:,} bytes)")
 
     # 4. Canonical ResearchReport DOCX (Full detail)
-    print("\n[4/5] Generating canonical ResearchReport full DOCX export...")
     report = welch_workflow.report
     report_docx = out_dir / "research_report_full.docx"
     report.save_docx(
@@ -141,10 +140,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {report_docx} ({report_docx.stat().st_size:,} bytes)")
+    print(f"  ✓ DOCX: {report_docx.name} ({report_docx.stat().st_size:,} bytes)")
 
     # 5. Wide-table regression analysis in landscape orientation (Letter format)
-    print("\n[5/5] Generating wide-table analysis in landscape orientation (Letter)...")
     landscape_docx = out_dir / "wide_landscape.docx"
     save_docx(
         ols_workflow,
@@ -156,13 +154,13 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {landscape_docx} ({landscape_docx.stat().st_size:,} bytes)")
+    print(f"  ✓ DOCX: {landscape_docx.name} ({landscape_docx.stat().st_size:,} bytes)")
 
-    print("\n" + "=" * 76)
-    print(" All editable Microsoft Word (.docx) reports generated successfully!")
-    print(f" Location: {out_dir.resolve()}")
-    print(" Note: Output files are valid, self-contained OpenXML packages.")
-    print("=" * 76)
+    print(
+        f"\nAll editable Microsoft Word (.docx) reports generated successfully in "
+        f"{out_dir.resolve()}."
+    )
+    print("Note: Output files are valid, self-contained OpenXML packages.")
 
 
 if __name__ == "__main__":

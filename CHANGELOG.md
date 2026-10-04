@@ -7,6 +7,12 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+-   Modernized the example suite to use the canonical Rich `show()` presentation for statistical, planning, governance, and workflow results.
+-   Removed redundant hand-built terminal tables and duplicated statistical formatting from tutorial examples.
+-   Aligned example terminal framing with the current presentation system while preserving business/research teaching commentary.
+
 ### Added
 
 -   Implemented optional publication-quality static scientific figure export (`to_static_figures`, `save_static_figures`):

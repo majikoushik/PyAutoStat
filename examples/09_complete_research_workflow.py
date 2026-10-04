@@ -44,6 +44,7 @@ from pyautostat import (
     SensitivitySpecification,
     StudyPlanner,
     reproduce,
+    show,
 )
 
 RANDOM_SEED = 42
@@ -92,7 +93,7 @@ def run_independent_workflow(
         data_dictionary=DATA_DICTIONARY,
     )
     print("Initial workflow status:", incomplete.status.value)
-    print("Requested information:", [item.field for item in incomplete.missing_information])
+    show(incomplete)
 
     # Caller explicitly declares the design
     draft = assistant.update_question(
@@ -141,8 +142,7 @@ def run_independent_workflow(
         meaningful_threshold=threshold,
         report_style="apa",
     )
-    print("Plan status:", plan.status.value)
-    print("Planned method:", plan.primary_method_id)
+    show(plan, detail="standard")
     print("Plan created after analysis:", plan.created_after_analysis)
 
     section("3. EXECUTE ONCE AND INTERPRET RECORDED VALUES")
@@ -150,15 +150,11 @@ def run_independent_workflow(
     if workflow.analysis is None or workflow.interpretation is None:
         raise RuntimeError(f"Analysis unavailable: {workflow.blockers}")
     result = workflow.analysis
-    print(workflow.explain())
-    print("Method ID:", result.method_id)
-    print("Analyzed/excluded rows:", result.sample_size, "/", result.excluded_rows)
-    print("Primary estimate:", result.values.get("primary_estimate"))
-    print("Finding codes:", [item.code for item in workflow.interpretation.findings])
+    show(workflow, detail="full")
 
     section("4. COMPARE DECLARED SENSITIVITY SCENARIOS")
     sensitivity = assistant.sensitivity_analysis(result, scenarios=[pooled, ranks])
-    print(sensitivity.compare())
+    show(sensitivity, detail="standard")
     for scenario in sensitivity.scenario_results:
         print(
             scenario.name,
@@ -170,10 +166,7 @@ def run_independent_workflow(
 
     section("5. KEEP PRACTICAL IMPORTANCE SEPARATE FROM THE P-VALUE")
     practical = assistant.practical_significance(result, threshold=threshold)
-    print(practical.verdict)
-    print("Assessment status:", practical.status)
-    print("Statistical significance:", practical.statistical_significance)
-    print("Point estimate relation:", practical.point_estimate_relation)
+    show(practical, detail="standard")
 
     adherence = assistant.plan_adherence(
         plan,
@@ -181,11 +174,11 @@ def run_independent_workflow(
         sensitivity=sensitivity,
         practical_significance=practical,
     )
-    print("Plan adherence:", adherence.status)
-    print(
-        "Adherence fields:",
-        {item["field"]: item["status"] for item in adherence.comparisons},
+    show(adherence, detail="standard")
+    adherence_st = (
+        adherence.status.value if hasattr(adherence.status, "value") else str(adherence.status)
     )
+    print("Plan adherence:", adherence_st)
 
     section("6. REPORT, AUDIT, REPLAY, AND SERIALIZE THE SESSION")
     report = assistant.report(
@@ -201,13 +194,24 @@ def run_independent_workflow(
         sensitivity=sensitivity,
         practical_significance=practical,
     )
+    show(audit, detail="standard")
+    audit_st = audit.status.value if hasattr(audit.status, "value") else str(audit.status)
+    print("Audit:", audit_st)
+
     record = assistant.reproducibility_record(
         result,
         sensitivity=sensitivity,
         practical_significance=practical,
     )
     replay = reproduce(record, data=frame)
+    show(record, detail="compact")
+    show(replay, detail="compact")
+    replay_st = replay.status.value if hasattr(replay.status, "value") else str(replay.status)
+    print("Same-data replay:", replay_st)
+
     completeness = assistant.reporting_completeness(report, style="apa")
+    show(completeness, detail="compact")
+
     planning = StudyPlanner().independent_mean_power(
         target_difference=20.0,
         sd_group1=100.0,
@@ -215,6 +219,8 @@ def run_independent_workflow(
         alpha=0.05,
         target_power=0.80,
     )
+    show(planning, detail="standard")
+
     snapshot = assistant.session_snapshot(
         workflow,
         sensitivity=sensitivity,
@@ -223,6 +229,8 @@ def run_independent_workflow(
         study_planning=planning,
         reporting_completeness=completeness,
     )
+    show(snapshot, detail="compact")
+    show(assistant.decision_ledger, detail="compact")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     html_path = report.save_html(output_dir / "customer_analysis.html", style="apa", overwrite=True)
@@ -236,15 +244,11 @@ def run_independent_workflow(
         assistant.decision_ledger.to_json(), encoding="utf-8"
     )
 
-    print("Audit:", audit.status)
-    print("Same-data replay:", replay.status)
-    print("Reporting completeness:", completeness.status)
-    print("Prospective total sample size:", planning.total_required_n)
-    print("Decision events:", len(assistant.decision_ledger.events))
-    print("Snapshot schema:", snapshot.to_dict()["schema_version"])
-    print("In-memory APA HTML characters:", len(report.to_html(style="apa")))
-    print("Exports:", html_path.name, markdown_path.name, json_path.name)
-    print("CSV tables:", len(csv_paths))
+    print(f"Exported canonical reports to {output_dir}:")
+    print(f"  - HTML: {html_path.name}")
+    print(f"  - Markdown: {markdown_path.name}")
+    print(f"  - JSON: {json_path.name}")
+    print(f"  - CSV tables: {len(csv_paths)} tables")
 
 
 def run_paired_workflow(full_data: pd.DataFrame, fast_mode: bool = False) -> None:
@@ -280,11 +284,7 @@ def run_paired_workflow(full_data: pd.DataFrame, fast_mode: bool = False) -> Non
     if paired.analysis is None:
         raise RuntimeError(f"Paired analysis unavailable: {paired.blockers}")
 
-    sample = paired.analysis.metadata["sample"]
-    print("Method:", paired.analysis.method_label)
-    print("Contrast order:", paired.analysis.specification.condition_order)
-    print("Complete pairs:", sample["complete_pairs"])
-    print("Mean paired difference:", paired.analysis.values["primary_estimate"])
+    show(paired, detail="standard")
     print("Identifier values are used for matching and are not included in report output.")
 
     paired_planning = StudyPlanner().paired_mean_power(
@@ -293,10 +293,7 @@ def run_paired_workflow(full_data: pd.DataFrame, fast_mode: bool = False) -> Non
         alpha=0.05,
         target_power=0.80,
     )
-    print(
-        "Prospective complete pairs from supplied assumptions:",
-        paired_planning.required_pairs,
-    )
+    show(paired_planning, detail="standard")
 
 
 def main() -> None:

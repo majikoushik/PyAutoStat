@@ -23,12 +23,13 @@ from pathlib import Path
 # Allow importing local example utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _customer_data import DATA_DICTIONARY, load_customer_data
+from _customer_data import DATA_DICTIONARY, load_customer_data, section
 
 from pyautostat import (
     AnalysisOptions,
     ResearchAssistant,
     save_bundle,
+    show,
     verify_bundle,
 )
 from pyautostat.presentation.docx import check_docx_available
@@ -56,16 +57,13 @@ def main() -> None:
         temp_dir = tempfile.TemporaryDirectory()
         out_dir = Path(temp_dir.name)
 
-    print("=" * 76)
-    print(" PyAutoStat Reproducible Research Export Bundle Showcase")
-    print(f" Target output directory: {out_dir.resolve()}")
-    print("=" * 76)
+    section("PyAutoStat Reproducible Research Export Bundle Showcase")
+    print(f"Target output directory: {out_dir.resolve()}")
 
     # Load customer dataset (customer IDs excluded to preserve privacy)
     df = load_customer_data(include_customer_id=False)
     assistant = ResearchAssistant(df)
 
-    print("\n1. Running statistical analysis workflow...")
     workflow = assistant.run(
         objective="compare_groups",
         outcome="total_avg_monthly_spend",
@@ -75,11 +73,12 @@ def main() -> None:
         options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=RANDOM_SEED),
         data_dictionary=DATA_DICTIONARY,
     )
-    print(f"   Status: {workflow.status}")
-    print(f"   Method: {workflow.analysis.method_id if workflow.analysis else 'N/A'}")
 
+    section("SOURCE ANALYSIS")
+    show(workflow, detail="standard")
+
+    section("GENERATED ARTIFACTS")
     # 1. Lightweight Bundle (Default: HTML + JSON + CSV)
-    print("\n2. Assembling lightweight default research bundle...")
     lightweight_path = out_dir / "lightweight_research_bundle.zip"
     save_bundle(
         workflow,
@@ -88,31 +87,30 @@ def main() -> None:
         detail="full",
         overwrite=True,
     )
-    print(f"   Saved to: {lightweight_path.name} ({lightweight_path.stat().st_size:,} bytes)")
+    print(
+        f"  ✓ Bundle (Lightweight): {lightweight_path.name} "
+        f"({lightweight_path.stat().st_size:,} bytes)"
+    )
 
     # Verify lightweight bundle
-    print("   Verifying lightweight bundle integrity...")
     res_light = verify_bundle(lightweight_path)
-    print(f"   Integrity status: {'VALID' if res_light.valid else 'INVALID'}")
-    print(f"   Checked files: {res_light.checked_files}")
+    status_str = "VALID" if res_light.valid else "INVALID"
+    print(f"    Integrity verification: {status_str} ({res_light.checked_files} files checked)")
     assert res_light.valid, f"Verification failed: {res_light.errors}"
 
-    # Print member list
-    print("   Archive contents:")
+    print("    Archive contents:")
     with zipfile.ZipFile(lightweight_path) as zf:
         for info in zf.infolist():
-            print(f"     - {info.filename} ({info.file_size:,} bytes)")
+            print(f"      - {info.filename} ({info.file_size:,} bytes)")
 
     # 2. Publication Bundle with Optional Formats
-    print("\n3. Assembling publication-grade research bundle...")
     formats = ["html", "json", "csv", "markdown", "latex"]
 
     try:
         check_docx_available()
         formats.append("docx")
-        print("   [+] DOCX export enabled (python-docx detected)")
     except Exception:
-        print("   [-] DOCX export skipped (python-docx not installed)")
+        pass
 
     try:
         check_playwright_available()
@@ -122,9 +120,8 @@ def main() -> None:
             browser = p.chromium.launch()
             browser.close()
         formats.append("pdf")
-        print("   [+] PDF export enabled (Playwright & Chromium detected)")
     except Exception:
-        print("   [-] PDF export skipped (Playwright / Chromium not available)")
+        pass
 
     publication_path = out_dir / "publication_research_bundle.zip"
     save_bundle(
@@ -134,23 +131,23 @@ def main() -> None:
         detail="full",
         overwrite=True,
     )
-    print(f"   Saved to: {publication_path.name} ({publication_path.stat().st_size:,} bytes)")
+    print(
+        f"\n  ✓ Bundle (Publication): {publication_path.name} "
+        f"({publication_path.stat().st_size:,} bytes)"
+    )
 
     # Verify publication bundle
-    print("   Verifying publication bundle integrity...")
     res_pub = verify_bundle(publication_path)
-    print(f"   Integrity status: {'VALID' if res_pub.valid else 'INVALID'}")
-    print(f"   Checked files: {res_pub.checked_files}")
+    pub_status = "VALID" if res_pub.valid else "INVALID"
+    print(f"    Integrity verification: {pub_status} ({res_pub.checked_files} files checked)")
     assert res_pub.valid, f"Verification failed: {res_pub.errors}"
 
-    print("   Archive contents:")
+    print("    Archive contents:")
     with zipfile.ZipFile(publication_path) as zf:
         for info in zf.infolist():
-            print(f"     - {info.filename} ({info.file_size:,} bytes)")
+            print(f"      - {info.filename} ({info.file_size:,} bytes)")
 
-    print("\n" + "=" * 76)
-    print(" Bundle generation and verification completed successfully!")
-    print("=" * 76)
+    print("\nBundle generation and cryptographic verification completed successfully.")
 
 
 if __name__ == "__main__":

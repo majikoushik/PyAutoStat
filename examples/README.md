@@ -156,13 +156,13 @@ The same workflow applies to any pandas DataFrame:
 
 ```python
 import pandas as pd
-from pyautostat import ResearchAssistant
+from pyautostat import ResearchAssistant, show
 
 df = pd.read_csv("your_data.csv")
 assistant = ResearchAssistant(df)
 
 # 1. Profile and inspect data quality
-print(assistant.summarize())
+show(assistant.profile())
 
 # 2. Run a design-aware research workflow
 workflow = assistant.run(
@@ -174,8 +174,12 @@ workflow = assistant.run(
     variable_types={"revenue": "continuous", "campaign_tier": "nominal"},
 )
 
-# 3. Print deterministic explanation and export canonical report
-print(workflow.explain())
+# 3. Canonical Rich presentation and export
+show(workflow)
+
+# Programmatic access is always available:
+# estimate = workflow.analysis.values["primary_estimate"]
+
 report = assistant.report(workflow.analysis)
 report.save_html("research_report.html", style="apa")
 ```

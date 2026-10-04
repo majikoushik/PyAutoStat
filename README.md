@@ -178,7 +178,7 @@ profile = assistant.profile()
 ## Guided analysis
 
 ```python
-result = assistant.run(
+workflow = assistant.run(
     objective="compare_groups",
     outcome="score",
     predictor="group",
@@ -187,11 +187,14 @@ result = assistant.run(
     variable_types={"score": "continuous"},
 )
 
-print(result.analysis.method_label)
-print(result.interpretation.findings_plain)
-print(result.audit.status)
+show(workflow)
 
-html = result.report.to_html()
+# Programmatic access to the underlying structured result is always preserved:
+estimate = workflow.analysis.values["primary_estimate"]
+ci = workflow.analysis.values["confidence_interval"]
+p_value = workflow.analysis.values["p_value"]
+
+html = workflow.report.to_html()
 ```
 
 The important part is not merely that PyAutoStat can execute a t-test. It records **why that method

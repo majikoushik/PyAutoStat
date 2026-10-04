@@ -10,6 +10,8 @@ Scientific Focus:
     (services not subscribed by all customers), the Friedman rank-sum test evaluates
     rank distributions without forcing normality or deleting zero-spend observations.
     Follow-up pairwise Wilcoxon tests apply Holm multiplicity adjustments.
+    Canonical Rich presentation renders the omnibus test, condition summaries, and
+    pairwise contrast table.
 """
 
 from __future__ import annotations
@@ -22,15 +24,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _customer_data import (
     announce_fast_mode_if_active,
-    format_currency,
-    format_number,
     load_product_spend_long,
     resolve_bootstrap_samples,
     section,
-    subsection,
 )
 
-from pyautostat import AnalysisOptions, ResearchAssistant
+from pyautostat import AnalysisOptions, ResearchAssistant, show
 
 RANDOM_SEED = 42
 CONDITION_ORDER = ("Product A", "Product B", "Product C")
@@ -76,94 +75,20 @@ def main() -> None:
     if workflow.analysis is None or workflow.interpretation is None:
         raise RuntimeError(f"Workflow execution failed: {workflow.blockers}")
 
-    analysis = workflow.analysis
-    values = analysis.values
+    # 3. Canonical Rich Terminal Presentation (detail="full")
+    show(workflow, detail="full")
 
-    section("PYAUTOSTAT DECISION")
-    print(f"Selected Method: {analysis.method_label} ({analysis.method_id})")
-    print("Design Structure: Repeated measures matched on unit identifier (customer_id)")
-    print("Privacy Guard   : Individual customer identifiers are NEVER printed or exported.")
-    print("Complete Units  : 5,000 complete customer panels (0 incomplete)")
-    print(f"Total Rows      : {analysis.sample_size:,} observations analyzed")
-    print(f"Conditions (k=3): {', '.join(CONDITION_ORDER)}")
-
-    subsection("Recommendation Rationale")
-    if workflow.recommendation:
-        print(workflow.recommendation.rationale_text.strip())
-
-    section("RESULT: OMNIBUS FRIEDMAN TEST")
-    q_stat = values.get("test_statistic")
-    df = values.get("degrees_of_freedom")
-    p_val = values.get("p_value")
-    effect = values.get("effect_size") or {}
-
-    print(f"Friedman Q Statistic    : {format_number(q_stat)}")
-    print(f"Degrees of Freedom (df) : {format_number(df)}")
-    print(f"p-value                 : {format_number(p_val)}")
-    print(
-        f"Kendall's W Concordance : {format_number(effect.get('value'))} "
-        f"({effect.get('interpretation', 'small')})"
-    )
-
-    subsection("Within-Customer Condition Summaries")
-    print(
-        f"  {'Product':<14} | {'Median ($)':<12} | {'IQR ($)':<12} | "
-        f"{'Mean ($)':<12} | Zero Spend (%)"
-    )
-    print("  " + "-" * 70)
-    for c_info in values.get("condition_summaries", []):
-        c_name = c_info["condition"]
-        med = c_info["median"]
-        iqr = c_info["iqr"]
-        mean_val = c_info["mean"]
-        zero_pct = float(
-            (long_frame.loc[long_frame["product"] == c_name, "monthly_spend"] == 0).mean() * 100.0
-        )
-        print(
-            f"  {c_name:<14} | {med:>12.2f} | {iqr:>12.2f} | {mean_val:>12.2f} | {zero_pct:>13.1f}%"
-        )
-
-    subsection("Pairwise Wilcoxon Signed-Rank Tests (Holm Multiplicity Control)")
-    pairwise = values.get("pairwise_comparisons", [])
-    print(
-        f"  {'Pairwise Contrast':<28} | {'Rank-Biserial r':<16} | "
-        f"{'95% Bootstrap CI':<24} | {'Holm Adj p':<12} | Decision"
-    )
-    print("  " + "-" * 98)
-    for comp in pairwise:
-        label = f"{comp['first_condition']} vs {comp['second_condition']}"
-        r_biserial = comp.get("estimate")
-        ci_dict = comp.get("confidence_interval") or {}
-        ci_str = f"[{ci_dict.get('lower', 0):.4f}, {ci_dict.get('upper', 0):.4f}]"
-        adj_p = format_number(comp.get("adjusted_p_value"))
-        decision = comp.get("decision", "reject")
-        print(f"  {label:<28} | {r_biserial:>16.4f} | {ci_str:<24} | {adj_p:<12} | {decision}")
-
-    section("INTERPRETATION")
-    print(workflow.explain())
-
-    cond_map = {c["condition"]: c for c in values.get("condition_summaries", [])}
-    med_a = cond_map.get("Product A", {}).get("median", 0.0)
-    med_b = cond_map.get("Product B", {}).get("median", 0.0)
-    med_c = cond_map.get("Product C", {}).get("median", 0.0)
-
+    # 4. Contextual tutorial takeaways
     section("WHAT THIS MEANS")
-    m_a = format_currency(med_a)
-    m_b = format_currency(med_b)
-    m_c = format_currency(med_c)
     print(
-        f"- Product A is purchased by 100% of customers (median {m_a}), "
-        f"whereas Products B and C have median {m_b} and {m_c}"
-    )
-    print("  due to non-subscription (zero-inflated distributions).")
-    print(
-        f"- The Friedman rank-sum test accounts for within-customer pairing across "
-        f"all {len(long_frame['customer_id'].unique()):,} complete customer panels."
+        "- The Friedman rank-sum test accounts for within-customer pairing across "
+        "all complete customer panels without requiring normality."
     )
     print(
-        "- Pairwise Wilcoxon tests evaluate condition rank shifts after Holm "
-        "multiplicity adjustment."
+        "- Follow-up pairwise Wilcoxon signed-rank tests evaluate condition rank shifts "
+        "after Holm multiplicity adjustment."
     )
+    print("- Kendall's W concordance measures overall agreement across conditions.")
 
     section("WHAT THIS DOES NOT MEAN")
     print(
@@ -171,11 +96,11 @@ def main() -> None:
     )
     print(
         "- This repeated-measures analysis does NOT treat conditions as independent "
-        "customer groups."
+        "customer groups; matching on customer_id is required."
     )
     print(
-        "- Finding that Product A has higher ranks does NOT mean purchasing Product A causes "
-        "customers to buy Product B."
+        "- Finding that Product A has higher ranks does NOT establish that purchasing Product A "
+        "causes customers to buy Product B or C."
     )
     print(
         "\nNext step: Run 'python examples/08_factorial_customer_segments.py' for two-factor ANOVA."

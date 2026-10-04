@@ -23,9 +23,9 @@ from pathlib import Path
 # Allow importing local example utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _customer_data import DATA_DICTIONARY, load_customer_data
+from _customer_data import DATA_DICTIONARY, load_customer_data, section
 
-from pyautostat import AnalysisOptions, ResearchAssistant, save_pdf
+from pyautostat import AnalysisOptions, ResearchAssistant, save_pdf, show
 
 RANDOM_SEED = 42
 
@@ -49,17 +49,14 @@ def main() -> None:
         temp_dir = tempfile.TemporaryDirectory()
         out_dir = Path(temp_dir.name)
 
-    print("=" * 76)
-    print(" PyAutoStat Publication-Ready PDF Export & Print Fidelity Showcase")
-    print(f" Target output directory: {out_dir.resolve()}")
-    print("=" * 76)
+    section("PyAutoStat Publication-Ready PDF Export & Print Fidelity Showcase")
+    print(f"Target output directory: {out_dir.resolve()}")
 
     # Load customer dataset (customer IDs excluded to preserve privacy)
     df = load_customer_data(include_customer_id=False)
     assistant = ResearchAssistant(df)
 
-    # 1. Welch t-test (Static PDF, A4 Portrait)
-    print("\n[1/6] Generating Welch t-test static PDF report (A4 portrait)...")
+    # 1. Welch t-test (Source Analysis)
     welch_workflow = assistant.run(
         objective="compare_groups",
         outcome="total_avg_monthly_spend",
@@ -69,6 +66,11 @@ def main() -> None:
         options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=RANDOM_SEED),
         data_dictionary=DATA_DICTIONARY,
     )
+
+    section("SOURCE ANALYSIS")
+    show(welch_workflow, detail="standard")
+
+    section("GENERATED ARTIFACTS")
     welch_pdf = out_dir / "welch_static.pdf"
     save_pdf(
         welch_workflow,
@@ -80,10 +82,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {welch_pdf} ({welch_pdf.stat().st_size:,} bytes)")
+    print(f"  ✓ PDF: {welch_pdf.name} ({welch_pdf.stat().st_size:,} bytes)")
 
     # 2. OLS linear regression (Full detail PDF, A4 Portrait)
-    print("\n[2/6] Generating OLS regression full PDF report (A4 portrait)...")
     ols_workflow = assistant.run(
         objective="regression",
         outcome="total_avg_monthly_spend",
@@ -104,10 +105,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {ols_pdf} ({ols_pdf.stat().st_size:,} bytes)")
+    print(f"  ✓ PDF: {ols_pdf.name} ({ols_pdf.stat().st_size:,} bytes)")
 
     # 3. Binary logistic regression (Figure-enabled PDF)
-    print("\n[3/6] Generating Logistic regression PDF with odds-ratio figure...")
     logistic_workflow = assistant.run(
         objective="regression",
         outcome="high_value_customer",
@@ -130,10 +130,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {logistic_pdf} ({logistic_pdf.stat().st_size:,} bytes)")
+    print(f"  ✓ PDF: {logistic_pdf.name} ({logistic_pdf.stat().st_size:,} bytes)")
 
     # 4. Pearson chi-square test (Figure-enabled PDF with heatmap)
-    print("\n[4/6] Generating Pearson chi-square PDF with heatmap figure...")
     chi2_workflow = assistant.run(
         objective="association",
         outcome="news_subscriber",
@@ -155,10 +154,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {chi_sq_pdf} ({chi_sq_pdf.stat().st_size:,} bytes)")
+    print(f"  ✓ PDF: {chi_sq_pdf.name} ({chi_sq_pdf.stat().st_size:,} bytes)")
 
     # 5. Canonical ResearchReport PDF
-    print("\n[5/6] Generating canonical ResearchReport full PDF export...")
     report = welch_workflow.report
     report_pdf = out_dir / "research_report_full.pdf"
     report.save_pdf(
@@ -168,10 +166,9 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {report_pdf} ({report_pdf.stat().st_size:,} bytes)")
+    print(f"  ✓ PDF: {report_pdf.name} ({report_pdf.stat().st_size:,} bytes)")
 
     # 6. Wide-table analysis in landscape orientation (Letter format)
-    print("\n[6/6] Generating wide-table analysis in landscape orientation (Letter)...")
     landscape_pdf = out_dir / "wide_landscape.pdf"
     save_pdf(
         ols_workflow,
@@ -183,13 +180,10 @@ def main() -> None:
         page_numbers=True,
         overwrite=True,
     )
-    print(f"  -> Written: {landscape_pdf} ({landscape_pdf.stat().st_size:,} bytes)")
+    print(f"  ✓ PDF: {landscape_pdf.name} ({landscape_pdf.stat().st_size:,} bytes)")
 
-    print("\n" + "=" * 76)
-    print(" All publication-ready PDF reports generated successfully!")
-    print(f" Location: {out_dir.resolve()}")
-    print(" Note: Output files are self-contained and generated offline.")
-    print("=" * 76)
+    print(f"\nAll publication-ready PDF reports generated successfully in {out_dir.resolve()}.")
+    print("Note: Output files are self-contained and generated offline.")
 
 
 if __name__ == "__main__":

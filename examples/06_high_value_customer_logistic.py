@@ -12,6 +12,8 @@ Scientific Focus:
     (Streaming, Wireless) are intentionally excluded. Evaluates odds ratios, Wald
     confidence intervals, and McFadden's pseudo-R2 strictly as inferential associations,
     not predictive AutoML.
+    Canonical Rich presentation renders model fit, likelihood ratio test, odds ratios,
+    and diagnostics.
 """
 
 from __future__ import annotations
@@ -24,14 +26,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _customer_data import (
     DATA_DICTIONARY,
-    format_number,
     load_customer_data,
     section,
-    subsection,
     verify_dataset_integrity,
 )
 
-from pyautostat import AnalysisOptions, ResearchAssistant
+from pyautostat import AnalysisOptions, ResearchAssistant, show
 
 RANDOM_SEED = 42
 
@@ -103,106 +103,39 @@ def main() -> None:
     if workflow.analysis is None or workflow.interpretation is None:
         raise RuntimeError(f"Workflow execution failed: {workflow.blockers}")
 
-    analysis = workflow.analysis
-    values = analysis.values
-    fit = values.get("model_fit", {})
+    # 4. Canonical Rich Terminal Presentation (detail="full" for odds ratios, CIs, Wald tests)
+    show(workflow, detail="full")
 
-    section("PYAUTOSTAT DECISION")
-    print(f"Selected Method: {analysis.method_label} ({analysis.method_id})")
-    print("Modeled Event  : high_value_customer == 1 (High Value Segment)")
-    print(f"Sample Size    : {analysis.sample_size:,} complete cases (0 excluded)")
-    event_cnt = values.get("event_count", 0)
-    event_rate = values.get("event_rate", 0.0)
-    print(f"Event Prevalence: {event_cnt:,} / {analysis.sample_size:,} ({event_rate * 100:.1f}%)")
-
-    subsection("Recommendation Rationale")
-    if workflow.recommendation:
-        print(workflow.recommendation.rationale_text.strip())
-
-    section("RESULT: MODEL FIT & LIKELIHOOD RATIO TEST")
-    lr_stat = fit.get("lr_statistic")
-    lr_p = fit.get("lr_p_value")
-    mcfadden = fit.get("mcfadden_r2")
-    aic = fit.get("aic")
-
-    print(
-        f"Likelihood Ratio X2       : {format_number(lr_stat)} "
-        f"(df = {fit.get('model_degrees_of_freedom')})"
-    )
-    print(f"LR p-value                : {format_number(lr_p)}")
-    print(
-        f"McFadden's Pseudo-R2      : {format_number(mcfadden)} "
-        f"({mcfadden * 100:.1f}% log-likelihood improvement)"
-    )
-    print(f"Akaike Information (AIC)  : {format_number(aic)}")
-
-    subsection("Odds Ratios & Wald Inference Table")
-    print(
-        f"  {'Predictor':<28} | {'Odds Ratio':<12} | {'95% Wald CI':<24} | {'Wald z':<10} | p-value"
-    )
-    print("  " + "-" * 92)
-    for coef in values.get("coefficients", []):
-        t_label = coef.get("term_label", coef.get("term", ""))
-        if coef.get("kind") == "intercept":
-            continue
-        or_val = coef.get("odds_ratio")
-        or_ci = coef.get("odds_ratio_ci") or {}
-        ci_str = f"[{or_ci.get('lower', 0):.4f}, {or_ci.get('upper', 0):.4f}]"
-        z_stat = coef.get("statistic")
-        p_val = format_number(coef.get("p_value"))
-        print(f"  {t_label:<28} | {or_val:>12.4f} | {ci_str:<24} | {z_stat:>10.2f} | {p_val}")
-
-    section("INTERPRETATION")
-    print(workflow.explain())
-
-    coef_map = {c.get("term", ""): c for c in values.get("coefficients", [])}
-    edu_c = coef_map.get("education_years", {})
-    edu_or = edu_c.get("odds_ratio")
-    edu_ci = edu_c.get("odds_ratio_ci") or {}
-    edu_p = format_number(edu_c.get("p_value"))
-
-    tenure_c = coef_map.get("brand_tenure_months", {})
-    tenure_or = tenure_c.get("odds_ratio")
-    tenure_ci = tenure_c.get("odds_ratio_ci") or {}
-    tenure_p = format_number(tenure_c.get("p_value"))
-
+    # 5. Contextual tutorial takeaways
     section("WHAT THIS MEANS")
     print(
-        "- Even after rigorously excluding spend leakage, education years and brand tenure are "
-        "strongly associated"
+        "- Binary logistic regression models the log-odds of high-value customer status "
+        "as a linear function of non-leakage customer characteristics."
     )
-    print("  with high-value segment membership.")
-    if edu_or is not None and edu_ci:
-        edu_lo = edu_ci.get("lower", 0)
-        edu_hi = edu_ci.get("upper", 0)
-        print(
-            f"- Each additional year of education multiplies the odds of high-value status "
-            f"by an estimated {edu_or:.2f} (95% Wald CI [{edu_lo:.2f}, {edu_hi:.2f}], p = {edu_p})."
-        )
-    if tenure_or is not None and tenure_ci:
-        pct_increase = (tenure_or - 1.0) * 100.0
-        ten_lo = tenure_ci.get("lower", 0)
-        ten_hi = tenure_ci.get("upper", 0)
-        print(
-            f"- Each additional month of brand tenure is associated with an estimated "
-            f"{pct_increase:.1f}% increase in odds (OR = {tenure_or:.3f}, "
-            f"95% Wald CI [{ten_lo:.3f}, {ten_hi:.3f}], p = {tenure_p})."
-        )
+    print(
+        "- Odds Ratios (OR = exp(beta)) represent multiplicative factors on the odds of being "
+        "a high-value customer for a one-unit change in the predictor, holding other variables "
+        "constant."
+    )
+    print(
+        "- Even after rigorously excluding spend leakage, education years and brand tenure are "
+        "strongly associated with high-value segment membership."
+    )
 
     section("WHAT THIS DOES NOT MEAN")
     print("- An Odds Ratio is NOT a constant difference in probability.")
+    print("- Odds are p / (1 - p); doubling the odds does not mean doubling the probability.")
     print(
         "- This model establishes conditional epidemiological associations, "
         "NOT causal interventions."
     )
-    mcf_pct = mcfadden * 100.0 if isinstance(mcfadden, (int, float)) else 0.0
     print(
-        f"- McFadden pseudo-R2 ({mcf_pct:.1f}%) indicates meaningful explanatory signal, "
-        "but is NOT comparable to OLS R2."
+        "- McFadden's pseudo-R2 indicates relative log-likelihood improvement, "
+        "and is not comparable to OLS R-squared."
     )
     print(
-        "- This is an inferential model; no test-set AUC or classification accuracy "
-        "threshold is claimed."
+        "- This is an inferential model; no claim is made regarding out-of-sample predictive "
+        "accuracy."
     )
     print(
         "\nNext step: Run 'python examples/07_product_portfolio_repeated_measures.py' for "
