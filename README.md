@@ -336,6 +336,31 @@ pip install "pyautostat[docx]"
 
 DOCX exports generate true OpenXML documents with editable paragraphs and tables, support A4/Letter and portrait/landscape, include dynamic `PAGE` / `NUMPAGES` field codes, repeat table header rows across page breaks, enforce zero statistical recalculation, and ensure no raw row-level data leakage. See [`docs/DOCX_REPORTING.md`](docs/DOCX_REPORTING.md) for full details.
 
+### Reproducible Research Export Bundles
+
+PyAutoStat can package its canonical statistical reports, machine-readable records, tabular CSV exports, and execution provenance into an offline, integrity-verifiable ZIP bundle without recalculating statistics or exposing raw participant rows:
+
+```python
+from pyautostat import save_bundle, verify_bundle
+
+save_bundle(
+    workflow,
+    "analysis_bundle.zip",
+    formats=("html", "docx", "json", "csv"),
+    detail="full",
+)
+
+check = verify_bundle("analysis_bundle.zip")
+print(check.valid)
+```
+
+- **Lightweight default:** Packages `html`, `json`, and `csv` tables without requiring heavy PDF or DOCX dependencies.
+- **Cryptographic integrity:** Every member file's SHA-256 digest and exact byte size are recorded in `pyautostat_bundle/manifest.json`.
+- **Tamper detection:** `verify_bundle` detects modified bytes, truncated files, deleted members, and unauthorized extra files.
+- **Zero recalculation:** Packages existing authoritative results; statistical engines are never re-invoked.
+- **No raw data:** Derived aggregate reports and tables only; row-level source observations are strictly excluded.
+- See [`docs/RESEARCH_BUNDLES.md`](docs/RESEARCH_BUNDLES.md) for full details.
+
 ---
 
 ## When information is missing

@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 
 from ..figures.models import FigureSpec
+from ..formatting import resolve_table_row_limit
 from ..models import DisplayMetric, PresentationView
 from .components import (
     render_analysis_record,
@@ -186,7 +187,7 @@ class HtmlRenderer:
         if self.view.tables:
             for table_model in self.view.tables:
                 table_title = table_model.title or "SUMMARY TABLE"
-                max_r = 6 if "PAIRWISE" in table_title.upper() else None
+                max_r = resolve_table_row_limit(table_model, detail=self.detail)
                 heading = styled_heading(table_title, sec_idx, self.style)
                 sec_idx += 1
                 body_parts.append(

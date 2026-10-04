@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...exceptions import ReportError
+from ..formatting import resolve_table_row_limit
 from ..models import PresentationView
 from .components import (
     add_analysis_record,
@@ -124,7 +125,7 @@ class DocxRenderer:
         # Display Tables
         if self.view.tables:
             for table in self.view.tables:
-                max_r = 8 if self.detail == "standard" and len(table.rows) > 12 else None
+                max_r = resolve_table_row_limit(table, detail=self.detail)
                 add_display_table(doc, table, max_rows=max_r)
 
         # Assumption Diagnostics

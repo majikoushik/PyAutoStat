@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...exceptions import ReportError
 from ..adapters import UnsupportedPresentationError, adapt
+from ..formatting import resolve_table_row_limit
 from ..html.components import report_table_to_display_table
 from ..models import DisplayMetric, PresentationView
 from .components import (
@@ -18,6 +19,7 @@ from .components import (
     add_metric_grid,
     add_report_header,
     add_section_heading,
+    format_display_value,
 )
 from .ooxml import add_page_number_fields
 from .settings import apply_section_geometry, normalize_page_size
@@ -28,6 +30,32 @@ if TYPE_CHECKING:
 
 VALID_DETAILS = {"compact", "standard", "full"}
 VALID_STYLES = {"general", "apa", "ieee"}
+
+
+def _render_structured_section(doc: Any, sec_data: dict[str, Any]) -> None:
+    """Render a structured report section with no raw Python dict/list repr."""
+    if not isinstance(sec_data, dict) or not sec_data:
+        return
+
+    pending_metrics: list[DisplayMetric] = []
+
+    def flush_metrics() -> None:
+        if pending_metrics:
+            add_design_table(doc, list(pending_metrics))
+            pending_metrics.clear()
+
+    for k, v in sec_data.items():
+        if v is None or v == "" or v == [] or v == {}:
+            continue
+        label = str(k).replace("_", " ").title()
+
+        if isinstance(v, (list, tuple)) and any(isinstance(x, str) and len(x) > 35 for x in v):
+            flush_metrics()
+            add_bullet_section(doc, [format_display_value(x) for x in v])
+        else:
+            pending_metrics.append(DisplayMetric(label, format_display_value(v)))
+
+    flush_metrics()
 
 
 class ResearchReportDocxRenderer:
@@ -149,11 +177,12 @@ class ResearchReportDocxRenderer:
                 add_metric_grid(doc, source_view.key_metrics)
             elif "sections" in data and "results" in data["sections"]:
                 res_metrics = [
-                    DisplayMetric(str(k).replace("_", " ").title(), str(v))
+                    DisplayMetric(str(k).replace("_", " ").title(), format_display_value(v))
                     for k, v in data["sections"]["results"].items()
-                    if v is not None and v != ""
+                    if v is not None and v != "" and v != [] and v != {}
                 ]
-                add_metric_grid(doc, res_metrics)
+                if res_metrics:
+                    add_metric_grid(doc, res_metrics)
             return doc
 
         # Executive Summary
@@ -176,43 +205,34 @@ class ResearchReportDocxRenderer:
                 if source_view and source_view.design_metrics:
                     add_design_table(doc, source_view.design_metrics)
                 else:
-                    items = [
-                        DisplayMetric(str(k).replace("_", " ").title(), str(v))
-                        for k, v in sec_data.items()
-                        if v is not None and v != ""
-                    ]
-                    add_design_table(doc, items)
+                    _render_structured_section(doc, sec_data)
 
             elif key == "results":
                 if source_view and source_view.key_metrics:
                     add_metric_grid(doc, source_view.key_metrics)
                 else:
                     items = [
-                        DisplayMetric(str(k).replace("_", " ").title(), str(v))
+                        DisplayMetric(str(k).replace("_", " ").title(), format_display_value(v))
                         for k, v in sec_data.items()
-                        if v is not None and v != ""
+                        if v is not None and v != "" and v != [] and v != {}
                     ]
-                    add_metric_grid(doc, items)
+                    if items:
+                        add_metric_grid(doc, items)
 
             elif key == "diagnostics":
                 if source_view and source_view.diagnostics:
                     add_diagnostics(doc, source_view.diagnostics)
                 else:
-                    diag_metrics = [
-                        DisplayMetric(str(k).replace("_", " ").title(), str(v))
-                        for k, v in sec_data.items()
-                        if v is not None and v != ""
-                    ]
-                    add_design_table(doc, diag_metrics)
+                    _render_structured_section(doc, sec_data)
 
             elif key == "interpretation":
                 if source_view and source_view.interpretation:
                     add_interpretation(doc, source_view.interpretation)
                 elif isinstance(sec_data, dict):
                     interp_text = " ".join(
-                        f"{str(k).replace('_', ' ').title()}: {v}"
+                        f"{str(k).replace('_', ' ').title()}: {format_display_value(v)}"
                         for k, v in sec_data.items()
-                        if v is not None and v != ""
+                        if v is not None and v != "" and v != [] and v != {}
                     )
                     add_interpretation(doc, interp_text)
                 elif isinstance(sec_data, str):
@@ -221,20 +241,12 @@ class ResearchReportDocxRenderer:
             else:
                 # Other structured sections (dataset, methods, sensitivity, practical significance)
                 if isinstance(sec_data, dict):
-                    sec_metrics = [
-                        DisplayMetric(str(k).replace("_", " ").title(), str(v))
-                        for k, v in sec_data.items()
-                        if v is not None and v != "" and v != [] and v != {}
-                    ]
-                    if sec_metrics:
-                        add_design_table(doc, sec_metrics)
+                    _render_structured_section(doc, sec_data)
 
         # Embedded Tables
         for table_dict in data.get("tables", []):
             disp_table = report_table_to_display_table(table_dict)
-            is_pairwise = "PAIRWISE" in (disp_table.title or "").upper()
-            is_long = len(disp_table.rows) > 12
-            max_r = 8 if (self.detail == "standard" and (is_pairwise or is_long)) else None
+            max_r = resolve_table_row_limit(disp_table, detail=self.detail)
             add_display_table(doc, disp_table, max_rows=max_r)
 
         # Limitations

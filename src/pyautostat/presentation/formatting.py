@@ -312,3 +312,32 @@ def confidence_interval_phrase(
         confidence_level=confidence_level,
         suffix=suffix,
     )
+
+
+def resolve_table_row_limit(table: Any, detail: str = "standard") -> int | None:
+    """Determine the maximum number of rows to display for a table across formats.
+
+    Guarantees stable source order and identical standard-mode row selection
+    between HTML and DOCX without ranking by p-value or effect size.
+
+    Rules:
+    - full detail: always None (show all rows)
+    - standard detail: 6 rows if the table title indicates pairwise comparison
+      or the table has more than 10 rows; otherwise None.
+    - compact detail: 6 rows if pairwise or long; otherwise None.
+    """
+    if detail == "full":
+        return None
+
+    rows = getattr(table, "rows", None)
+    title = getattr(table, "title", None) or ""
+    num_rows = len(rows) if rows is not None else 0
+    is_pairwise = "PAIRWISE" in title.upper()
+    is_long = num_rows > 10
+
+    if detail in ("standard", "compact"):
+        if is_pairwise or is_long:
+            return 6
+        return None
+
+    return None

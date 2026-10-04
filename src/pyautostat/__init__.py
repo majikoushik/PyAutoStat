@@ -1,5 +1,8 @@
 """Statistical analysis, insights, and reports for pandas DataFrames."""
 
+__version__ = "0.5.0"
+__author__ = "Koushik Chandra Maji"
+
 from .analysis_plan import (
     AnalysisPlanStatus,
     PlanAdherenceResult,
@@ -8,6 +11,14 @@ from .analysis_plan import (
 )
 from .analyzer import StatisticalAnalyzer
 from .audit import AuditFinding, AuditResult, StatisticalResultAuditor
+from .bundle import (
+    BUNDLE_SCHEMA_VERSION,
+    BundleOptions,
+    BundleVerificationResult,
+    save_bundle,
+    to_bundle,
+    verify_bundle,
+)
 from .completeness import (
     CompletenessItem,
     ReportingCompletenessResult,
@@ -96,9 +107,6 @@ from .specifications import (
 )
 from .study_planning import StudyPlanner, StudyPlanningResult
 from .workflow import ResearchWorkflowResult, WorkflowStatus
-
-__version__ = "0.5.0"
-__author__ = "Koushik Chandra Maji"
 
 __all__ = [
     "StatisticalAnalyzer",
@@ -189,4 +197,10 @@ __all__ = [
     "UnsupportedPresentationError",
     "to_docx",
     "to_pdf",
+    "BUNDLE_SCHEMA_VERSION",
+    "BundleOptions",
+    "BundleVerificationResult",
+    "save_bundle",
+    "to_bundle",
+    "verify_bundle",
 ]

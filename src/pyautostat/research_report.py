@@ -6,7 +6,7 @@ import csv
 import io
 import json
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from html import escape
 from pathlib import Path
@@ -485,6 +485,34 @@ class ResearchReport:
             page_numbers=page_numbers,
         )
 
+    def to_bundle(
+        self,
+        *,
+        formats: Sequence[str] | None = None,
+        detail: str = "full",
+        style: str = "general",
+        title: str | None = None,
+        include_figures: bool = False,
+        page_size: str = "A4",
+        landscape: bool = False,
+        page_numbers: bool = True,
+    ) -> bytes:
+        """Package this report and associated records into an integrity-verifiable ZIP bundle."""
+        from .bundle.assembler import BundleAssembler
+        from .bundle.models import BundleOptions
+
+        options = BundleOptions(
+            detail=detail,
+            style=style,
+            title=title,
+            include_figures=include_figures,
+            page_size=page_size,
+            landscape=landscape,
+            page_numbers=page_numbers,
+        )
+        assembler = BundleAssembler(self, formats=formats, options=options)
+        return assembler.assemble()
+
     def to_latex(self, *, style: str = "general") -> str:
         style = _style(style)
         data = self._payload
@@ -607,6 +635,36 @@ class ResearchReport:
         output = _write_binary(path, content, ".docx", "DOCX", overwrite=overwrite)
         if self._on_save is not None:
             self._on_save("docx")
+        return output
+
+    def save_bundle(
+        self,
+        path: str | Path,
+        *,
+        formats: Sequence[str] | None = None,
+        detail: str = "full",
+        style: str = "general",
+        title: str | None = None,
+        include_figures: bool = False,
+        page_size: str = "A4",
+        landscape: bool = False,
+        page_numbers: bool = True,
+        overwrite: bool = False,
+    ) -> Path:
+        """Save a research export bundle archive with overwrite and integrity protection."""
+        content = self.to_bundle(
+            formats=formats,
+            detail=detail,
+            style=style,
+            title=title,
+            include_figures=include_figures,
+            page_size=page_size,
+            landscape=landscape,
+            page_numbers=page_numbers,
+        )
+        output = _write_binary(path, content, ".zip", "ZIP", overwrite=overwrite)
+        if self._on_save is not None:
+            self._on_save("bundle")
         return output
 
     def save_markdown(

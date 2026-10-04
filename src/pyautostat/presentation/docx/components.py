@@ -17,16 +17,85 @@ from .ooxml import (
 )
 
 
-def format_cell_text(val: Any) -> str:
-    """Format a cell value while strictly preserving falsey numeric and boolean data."""
+def clean_text_repr(s: Any) -> str:
+    """Clean stringified Python dict/list reprs into reader-facing text."""
+    if not isinstance(s, str):
+        return format_display_value(s)
+    s_strip = s.strip()
+    if (s_strip.startswith("{") and s_strip.endswith("}")) or (
+        s_strip.startswith("[") and s_strip.endswith("]")
+    ):
+        try:
+            import ast
+
+            parsed = ast.literal_eval(s_strip)
+            return format_display_value(parsed)
+        except Exception:
+            pass
+    if "['" in s_strip or '["' in s_strip:
+        for delim in ("['", '["'):
+            if delim in s_strip:
+                idx = s_strip.find(delim)
+                prefix = s_strip[:idx].strip()
+                list_part = s_strip[idx:]
+                try:
+                    import ast
+
+                    parsed = ast.literal_eval(list_part)
+                    clean_list = format_display_value(parsed)
+                    return f"{prefix} {clean_list}".strip()
+                except Exception:
+                    pass
+    if "{'" in s_strip or '{"' in s_strip:
+        for delim in ("{'", '{"'):
+            if delim in s_strip:
+                idx = s_strip.find(delim)
+                prefix = s_strip[:idx].strip()
+                dict_part = s_strip[idx:]
+                try:
+                    import ast
+
+                    parsed = ast.literal_eval(dict_part)
+                    clean_dict = format_display_value(parsed)
+                    return f"{prefix} {clean_dict}".strip()
+                except Exception:
+                    pass
+    return s_strip if s_strip else "—"
+
+
+def format_display_value(val: Any) -> str:
+    """Format an arbitrary value for reader-facing presentation without raw Python repr."""
     if val is None:
         return "—"
     if isinstance(val, bool):
         return "True" if val else "False"
     if isinstance(val, (int, float)):
         return str(val)
+    if isinstance(val, (list, tuple, set)):
+        if not val:
+            return "—"
+        items = [format_display_value(x) for x in val if x is not None]
+        return ", ".join(items) if items else "—"
+    if isinstance(val, dict):
+        if not val:
+            return "—"
+        pairs = []
+        for k, v in val.items():
+            if v is None or v == "" or v == [] or v == {}:
+                continue
+            k_clean = str(k).replace("_", " ").title()
+            v_clean = format_display_value(v)
+            pairs.append(f"{k_clean}: {v_clean}")
+        return "; ".join(pairs) if pairs else "—"
+    if isinstance(val, str):
+        return clean_text_repr(val)
     s = str(val).strip()
     return s if s else "—"
+
+
+def format_cell_text(val: Any) -> str:
+    """Format a cell value while strictly preserving falsey numeric and boolean data."""
+    return format_display_value(val)
 
 
 def add_report_header(
@@ -90,9 +159,9 @@ def add_metric_grid(doc: Any, metrics: Sequence[DisplayMetric]) -> None:
         p_lbl.style = "PyAutoStat Metric Label"
         p_lbl.text = m.label
 
-        cell.add_paragraph(m.value, style="PyAutoStat Metric Value")
+        cell.add_paragraph(clean_text_repr(m.value), style="PyAutoStat Metric Value")
         if m.note:
-            p_note = cell.add_paragraph(m.note)
+            p_note = cell.add_paragraph(clean_text_repr(m.note))
             p_note.paragraph_format.space_before = 0
             p_note.paragraph_format.space_after = 0
             if p_note.runs:
@@ -140,7 +209,7 @@ def add_design_table(doc: Any, metrics: Sequence[DisplayMetric]) -> None:
         c0.runs[0].bold = True if c0.runs else False
 
         c1 = row.cells[1].paragraphs[0]
-        c1.text = m.value
+        c1.text = clean_text_repr(m.value)
 
     p_sp = doc.add_paragraph()
     p_sp.paragraph_format.space_after = 6
@@ -205,7 +274,7 @@ def add_display_table(
 
     if max_rows is not None and total_rows > max_rows:
         p_note = doc.add_paragraph(
-            f"Showing {max_rows} of {total_rows} rows; use detail='full' for complete table."
+            f"Showing {max_rows} of {total_rows} rows; use detail='full' for the complete table."
         )
         p_note.paragraph_format.space_before = 2
         p_note.paragraph_format.space_after = 6
@@ -257,7 +326,7 @@ def add_diagnostics(doc: Any, diagnostics: Sequence[DisplayDiagnostic]) -> None:
                 c1.runs[0].font.color.rgb = RGBColor(146, 64, 14)
 
         c2 = row.cells[2].paragraphs[0]
-        c2.text = diag.detail or "—"
+        c2.text = clean_text_repr(diag.detail) if diag.detail else "—"
 
     p_sp = doc.add_paragraph()
     p_sp.paragraph_format.space_after = 6
@@ -267,7 +336,7 @@ def add_interpretation(doc: Any, interpretation: str) -> None:
     """Render deterministic statistical interpretation text."""
     if not interpretation:
         return
-    p = doc.add_paragraph(interpretation, style="PyAutoStat Body")
+    p = doc.add_paragraph(clean_text_repr(interpretation), style="PyAutoStat Body")
     p.paragraph_format.space_after = 8
 
 
@@ -279,7 +348,7 @@ def add_bullet_section(doc: Any, items: Sequence[str]) -> None:
         return
 
     for item in items:
-        p = doc.add_paragraph(item, style="List Bullet")
+        p = doc.add_paragraph(clean_text_repr(item), style="List Bullet")
         p.paragraph_format.space_after = 2
 
     p_sp = doc.add_paragraph()
@@ -296,10 +365,12 @@ def add_executive_summary(doc: Any, summary: dict[str, Any] | str) -> None:
         return
 
     for k, v in summary.items():
+        if v is None or v == "" or v == [] or v == {}:
+            continue
         p = doc.add_paragraph()
         r_k = p.add_run(f"{k.replace('_', ' ').title()}: ")
         r_k.bold = True
-        p.add_run(str(v))
+        p.add_run(format_display_value(v))
         p.paragraph_format.space_after = 3
 
 

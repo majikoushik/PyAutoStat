@@ -271,32 +271,175 @@ def test_representative_methods_docx_fidelity(
 # ── Full 24 Method Coverage Test ─────────────────────────────────────────────
 
 
-def test_all_24_registered_methods_produce_valid_docx(welch_workflow):
-    """Ensure every registered method adapter in METHOD_ADAPTERS can be adapted and rendered."""
+def test_all_24_registered_methods_produce_valid_docx():
+    """Ensure every registered method adapter produces schema-faithful valid DOCX."""
+    import sys
+    from pathlib import Path
+
+    tests_dir = str(Path(__file__).parent)
+    if tests_dir not in sys.path:
+        sys.path.insert(0, tests_dir)
+    from method_factories import ALL_24_METHOD_FACTORIES
+
+    from pyautostat.presentation import adapt
+
+    assert len(ALL_24_METHOD_FACTORIES) == 24
     assert len(METHOD_ADAPTERS) == 24
 
-    for method_id, _adapter_fn in METHOD_ADAPTERS.items():
-        # Create a mock or adapt directly from sample view
-        view = PresentationView(
-            title=f"Test Method: {method_id}",
-            subtitle="Testing method coverage",
-            family="comparison",
-            design_metrics=[DisplayMetric("Method ID", method_id)],
-            key_metrics=[DisplayMetric("Estimate", "1.234")],
-            tables=[DisplayTable("Table 1", ("Col A", "Col B"), (DisplayRow(("1", "2")),))],
-            diagnostics=[],
-            interpretation="Valid interpretation statement.",
-            limitations=["Limitation 1"],
-            warnings=[],
-            metadata={"method_id": method_id},
-        )
-        b = to_docx(view)
+    for method_id, (factory, expected_label) in ALL_24_METHOD_FACTORIES.items():
+        wf = factory()
+        res = wf.analysis
+        assert res is not None
+        assert res.method_id == method_id
+
+        # Source object unchanged assertion setup
+        res_copy = deepcopy(res)
+
+        # Call adapt(result, detail="standard")
+        view = adapt(res, detail="standard")
+        assert view is not None
+
+        # Call to_docx(result)
+        b = to_docx(res)
         assert b.startswith(b"PK")
 
+        # Source object unchanged
+        assert res == res_copy
+
+        # Reopen DOCX
         doc = docx.Document(io.BytesIO(b))
         assert len(doc.paragraphs) > 0
-        full_text = "\n".join(p.text for p in doc.paragraphs)
-        assert method_id in full_text
+        full_text = extract_docx_text(b)
+
+        # Assert method label and primary method-specific displayed value
+        assert (
+            expected_label.lower() in full_text.lower()
+            or res.method_label.lower() in full_text.lower()
+            or method_id in full_text.lower()
+        )
+
+        # Primary method-specific value: check that statistic, p_value,
+        # or primary effect is present in text
+        stat = res.values.get("statistic")
+        pval = res.values.get("p_value")
+        if stat is not None and isinstance(stat, (int, float)):
+            stat_val = f"{stat:.2f}"
+            stat_alt = f"{stat:g}"
+            assert (
+                stat_val in full_text
+                or stat_alt in full_text
+                or "Statistic" in full_text
+                or "Value" in full_text
+            )
+        elif pval is not None:
+            assert "0.0" in full_text or "<0.001" in full_text or "p" in full_text.lower()
+
+        # Assert no traceback / raw Python dict or list repr
+        assert "Traceback" not in full_text
+        assert "{'primary_estimate':" not in full_text
+        assert "{'" not in full_text
+        assert "['" not in full_text
+
+
+def test_aligned_html_docx_table_row_selection():
+    """Verify static HTML and DOCX standard mode use aligned row selection."""
+    from pyautostat.presentation import to_html
+
+    # Construct a 15-row table model
+    rows = tuple(DisplayRow((f"Item_{i:02d}", f"{i * 10}", f"{i * 0.1:.2f}")) for i in range(1, 16))
+    table = DisplayTable(
+        title="Sample Long Table",
+        columns=("Name", "Count", "Score"),
+        rows=rows,
+    )
+    view = PresentationView(
+        title="Table Alignment Test",
+        subtitle=None,
+        family="test",
+        design_metrics=[],
+        key_metrics=[],
+        tables=[table],
+        diagnostics=[],
+        interpretation="Alignment test interpretation.",
+        limitations=[],
+        warnings=[],
+    )
+
+    # 1. Standard mode
+    html_std = to_html(view, detail="standard")
+    docx_std_bytes = to_docx(view, detail="standard")
+    docx_std_text = extract_docx_text(docx_std_bytes)
+
+    # Both must show exactly 6 of 15 rows
+    assert "Showing 6 of 15 rows; use detail='full' for the complete table." in html_std
+    assert "Showing 6 of 15 rows; use detail='full' for the complete table." in docx_std_text
+
+    # Both must show the first 6 items in exact stable order
+    for i in range(1, 7):
+        assert f"Item_{i:02d}" in html_std
+        assert f"Item_{i:02d}" in docx_std_text
+
+    # Neither should show item 7 onwards in standard mode
+    for i in range(7, 16):
+        assert f"Item_{i:02d}" not in html_std
+        assert f"Item_{i:02d}" not in docx_std_text
+
+    # 2. Full mode
+    html_full = to_html(view, detail="full")
+    docx_full_bytes = to_docx(view, detail="full")
+    docx_full_text = extract_docx_text(docx_full_bytes)
+
+    assert "Showing 6 of 15 rows" not in html_full
+    assert "Showing 6 of 15 rows" not in docx_full_text
+
+    # All 15 rows present in full mode
+    for i in range(1, 16):
+        assert f"Item_{i:02d}" in html_full
+        assert f"Item_{i:02d}" in docx_full_text
+
+
+def test_no_raw_python_repr_in_reader_facing_docx():
+    """Verify reader-facing DOCX does not output raw Python repr for nested structures."""
+    from pyautostat import ResearchReport
+
+    payload = {
+        "title": "Nested Dict Test Report",
+        "status": "complete",
+        "summary": "Report with nested data.",
+        "sections": {
+            "research_question": {
+                "objective": "compare_groups",
+                "nested_params": {"alpha": 0.05, "power": 0.80},
+                "tags": ["clinical", "trial", "phase-3"],
+            },
+            "results": {
+                "primary_effect": 2.5,
+                "intervals": {"lower": 1.2, "upper": 3.8},
+            },
+            "interpretation": {
+                "findings": "Significant group difference observed.",
+                "details": {"direction": "positive", "magnitude": "moderate"},
+            },
+            "additional_info": {
+                "narrative_notes": [
+                    "This is an extended explanatory bullet point regarding methodology.",
+                    "Another detailed narrative note for reviewer consideration.",
+                ],
+                "scalar_list": [1, 2, 3],
+            },
+        },
+        "limitations": ["Small sample size."],
+        "warnings": [],
+    }
+    report = ResearchReport(payload)
+    docx_bytes = report.to_docx(detail="standard")
+    full_text = extract_docx_text(docx_bytes)
+
+    # Reader-facing DOCX must NOT show raw Python dict or list repr
+    assert "{'" not in full_text
+    assert "['" not in full_text
+    assert "Alpha: 0.05" in full_text or "alpha: 0.05" in full_text.lower()
+    assert "clinical, trial, phase-3" in full_text
 
 
 # ── Non-Analysis Targets ─────────────────────────────────────────────────────

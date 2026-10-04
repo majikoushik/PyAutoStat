@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from ...exceptions import ReportError
 from ..adapters import UnsupportedPresentationError, adapt
 from ..figures.models import FigureSpec
+from ..formatting import resolve_table_row_limit
 from ..models import PresentationView
 from .components import (
     render_analysis_record,
@@ -168,14 +169,7 @@ class ResearchReportHtmlRenderer:
         for table_dict in data.get("tables", []):
             t_title = table_dict.get("title") or "Table"
             disp_table = report_table_to_display_table(table_dict)
-            max_r = (
-                6
-                if (
-                    self.detail == "standard"
-                    and ("PAIRWISE" in t_title.upper() or len(disp_table.rows) > 10)
-                )
-                else None
-            )
+            max_r = resolve_table_row_limit(disp_table, detail=self.detail)
             heading = styled_heading(t_title, sec_idx, self.style)
             sec_idx += 1
             body_parts.append(

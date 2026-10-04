@@ -9,6 +9,22 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Implemented reproducible research export bundles (`pyautostat.to_bundle`, `pyautostat.save_bundle`, `pyautostat.verify_bundle`, and `ResearchReport.to_bundle` / `ResearchReport.save_bundle`):
+    -   Introduced modern public bundle APIs: `to_bundle(target, *, formats=("html", "json", "csv"), detail="full", style="general", title=None, include_figures=False, page_size="A4", landscape=False, page_numbers=True) -> bytes` and `save_bundle(target, path, *, formats=("html", "json", "csv"), detail="full", style="general", title=None, include_figures=False, page_size="A4", landscape=False, page_numbers=True, overwrite=False) -> Path`.
+    -   Implemented offline ZIP archive assembler packaging existing canonical reports (`html`, `interactive_html`, `pdf`, `docx`, `json`, `csv`, `markdown`, `latex`), presentation tables, and execution provenance without recalculating statistics.
+    -   Introduced versioned manifest schema (`BUNDLE_SCHEMA_VERSION = 1`) recording bundle metadata, target type, method ID, detail/style options, and sorted member records with file roles, formats, exact byte sizes, and cryptographic SHA-256 digests.
+    -   Implemented cryptographic integrity verification engine `verify_bundle(bundle_input) -> BundleVerificationResult` accepting bytes, paths, or file strings; verifies SHA-256 digests and file sizes, detects missing declared files, undeclared files, modified bytes, and structural archive corruptions.
+    -   Enforced single-render efficiency: each requested format is rendered exactly once during bundle assembly.
+    -   Packaged authoritative execution provenance: includes `provenance/analysis.json`, `provenance/audit.json`, `provenance/reproducibility.json`, and `provenance/session.json` where already recorded without triggering new scans.
+    -   Enforced strict privacy guarantees: raw observations, participant identifiers, and source DataFrame rows are strictly excluded.
+    -   Hardened ZIP path safety and resource bounds: validates forward-slash relative member paths, rejects `..` traversal, absolute paths, and Windows drive letters; sanitizes table filenames; enforces conservative limits on member count (500), single file size (50 MB), and total uncompressed size (100 MB).
+    -   Added demonstration in `examples/17_research_export_bundle.py` and comprehensive documentation in `docs/RESEARCH_BUNDLES.md`.
+
+-   Phase 5 DOCX fidelity hardening:
+    -   Replaced synthetic all-24 DOCX test with schema-faithful method fixtures verifying actual method labels and primary numerical statistics across all 24 registered methods.
+    -   Aligned HTML and DOCX standard-mode table row selection via shared `resolve_table_row_limit` helper; standard mode bounds long tables to 6 rows in stable source order with an informative truncation notice, while full mode retains all rows.
+    -   Eliminated raw Python `dict`/`list` string repr dumps from reader-facing DOCX report sections via structured text/bullet rendering helpers.
+
 -   Implemented optional editable Microsoft Word (`.docx`) research reporting layer (`pyautostat.to_docx`, `pyautostat.save_docx`, and `ResearchReport.to_docx` / `ResearchReport.save_docx`):
     -   Introduced modern public DOCX export APIs: `to_docx(target, *, detail="standard", title=None, style="general", page_size="A4", landscape=False, page_numbers=True) -> bytes` and `save_docx(target, path, *, detail="standard", title=None, style="general", page_size="A4", landscape=False, page_numbers=True, overwrite=False) -> Path`.
     -   Implemented genuine OpenXML export architecture directly rendering from canonical `PresentationView` and `ResearchReport` structures via `python-docx`, eliminating HTML round-tripping or rasterized page captures.
