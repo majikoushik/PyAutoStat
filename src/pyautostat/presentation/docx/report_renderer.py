@@ -15,6 +15,7 @@ from .components import (
     add_design_table,
     add_diagnostics,
     add_display_table,
+    add_figure_image,
     add_interpretation,
     add_metric_grid,
     add_report_header,
@@ -68,6 +69,7 @@ class ResearchReportDocxRenderer:
         detail: str = "standard",
         title: str | None = None,
         style: str = "general",
+        figures: Any = (),
         page_size: str = "A4",
         landscape: bool = False,
         page_numbers: bool = True,
@@ -85,6 +87,7 @@ class ResearchReportDocxRenderer:
         self.detail = detail
         self.title_override = title.strip() if title else None
         self.style = style
+        self.figures = tuple(figures) if figures else ()
         self.page_size = normalize_page_size(page_size)
         self.landscape = landscape
         self.page_numbers = page_numbers
@@ -171,6 +174,25 @@ class ResearchReportDocxRenderer:
             if p_concise.runs:
                 p_concise.runs[0].italic = True
 
+        # Printable width for figure embedding
+        sec = doc.sections[0]
+        page_w = sec.page_width
+        left_m = sec.left_margin
+        right_m = sec.right_margin
+        if page_w is not None and left_m is not None and right_m is not None:
+            printable_w = page_w - left_m - right_m
+        else:
+            from docx.shared import Inches
+
+            printable_w = Inches(6.0)
+        placed_indices: set[int] = set()
+
+        def _embed_for_placement(target_placement: str) -> None:
+            for art in self.figures:
+                if art.index not in placed_indices and art.placement == target_placement:
+                    add_figure_image(doc, art, printable_width=printable_w)
+                    placed_indices.add(art.index)
+
         # Compact Mode returns early
         if self.detail == "compact":
             if source_view and source_view.key_metrics:
@@ -183,6 +205,10 @@ class ResearchReportDocxRenderer:
                 ]
                 if res_metrics:
                     add_metric_grid(doc, res_metrics)
+            for art in self.figures:
+                if art.index not in placed_indices:
+                    add_figure_image(doc, art, printable_width=printable_w)
+                    placed_indices.add(art.index)
             return doc
 
         # Executive Summary
@@ -218,6 +244,7 @@ class ResearchReportDocxRenderer:
                     ]
                     if items:
                         add_metric_grid(doc, items)
+                _embed_for_placement("key_results")
 
             elif key == "diagnostics":
                 if source_view and source_view.diagnostics:
@@ -243,11 +270,37 @@ class ResearchReportDocxRenderer:
                 if isinstance(sec_data, dict):
                     _render_structured_section(doc, sec_data)
 
-        # Embedded Tables
+        # Embedded Tables & Placement-linked Figures
         for table_dict in data.get("tables", []):
             disp_table = report_table_to_display_table(table_dict)
             max_r = resolve_table_row_limit(disp_table, detail=self.detail)
             add_display_table(doc, disp_table, max_rows=max_r)
+            t_id = str(table_dict.get("id", "")).lower()
+            t_title = str(table_dict.get("title", "")).lower()
+            if (
+                "coefficient" in t_id
+                or "coefficient" in t_title
+                or "estimate" in t_id
+                or "estimate" in t_title
+            ):
+                _embed_for_placement("coefficients")
+            elif "pairwise" in t_id or "pairwise" in t_title:
+                _embed_for_placement("pairwise")
+            elif (
+                "contingency" in t_id
+                or "contingency" in t_title
+                or "crosstab" in t_id
+                or "count" in t_id
+            ):
+                _embed_for_placement("contingency")
+            elif "cell" in t_id or "profile" in t_id:
+                _embed_for_placement("cell_summary")
+
+        # Fallback table-linked figures
+        _embed_for_placement("coefficients")
+        _embed_for_placement("pairwise")
+        _embed_for_placement("contingency")
+        _embed_for_placement("cell_summary")
 
         # Limitations
         limitations = data.get("limitations") or ["None recorded."]
@@ -277,5 +330,11 @@ class ResearchReportDocxRenderer:
             if "audit_status" in data:
                 meta["audit_status"] = data["audit_status"]
             add_analysis_record(doc, meta)
+
+        # Embed any remaining unplaced figures
+        for art in self.figures:
+            if art.index not in placed_indices:
+                add_figure_image(doc, art, printable_width=printable_w)
+                placed_indices.add(art.index)
 
         return doc

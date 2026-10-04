@@ -9,6 +9,26 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Implemented optional publication-quality static scientific figure export (`to_static_figures`, `save_static_figures`):
+    -   Renders canonical `FigureSpec` objects directly to standalone PNG, SVG, and figure-PDF artifacts using modern Plotly and Kaleido v1+ headless Chromium rendering.
+    -   Refactored shared Plotly converter (`spec_to_plotly_figure`) in `pyautostat.presentation.figures.plotly` used by both interactive HTML and static image export layers.
+    -   Guarantees zero statistical recalculation and zero raw dataset row exposure; figures consume only authoritative stored estimates, intervals, and aggregates.
+    -   Enforced centralized dimension defaults and rigorous parameter validation (positive integer dimensions, maximum dimension 10,000 px, scale limit 8.0, booleans rejected as integers).
+    -   Preflights destination path collisions with overwrite protection (`overwrite=False` by default).
+    -   Returns empty tuple `()` without requiring Kaleido or Chrome when targets have no figure specifications.
+    -   Provides actionable setup errors distinguishing missing `pyautostat[figures]` package from missing Chrome browser (`plotly_get_chrome`).
+    -   Demonstrated in `examples/18_static_scientific_figures.py` and documented in `docs/STATIC_FIGURES.md`.
+
+-   Implemented optional scientific figure embedding in editable Microsoft Word reports (`to_docx`, `save_docx`, `ResearchReport.to_docx`, `ResearchReport.save_docx`):
+    -   Added `include_figures: bool = False` parameter (defaulting to False to preserve zero-Kaleido DOCX usage).
+    -   When enabled, embeds high-resolution PNG figures near their relevant semantic sections (`key_results`, `coefficients`, `pairwise`, `contingency`, `cell_summary`).
+    -   Added numbered, editable captions styled with `PyAutoStat Figure Caption` (e.g. `Figure 1. ...`).
+    -   Automatically scales image width to printable document dimensions across page formats (A4/Letter) and orientations (portrait/landscape) without rasterizing report text, tables, or diagnostics.
+
+-   Implemented optional static figure packaging in research export bundles:
+    -   Added `include_static_figures: bool = False` and `static_figure_format: str = "png"` to bundle options.
+    -   Packages standalone scientific figures under `pyautostat_bundle/figures/` with manifest role `"scientific_figure"` and verified SHA-256 digests.
+
 -   Implemented reproducible research export bundles (`pyautostat.to_bundle`, `pyautostat.save_bundle`, `pyautostat.verify_bundle`, and `ResearchReport.to_bundle` / `ResearchReport.save_bundle`):
     -   Introduced modern public bundle APIs: `to_bundle(target, *, formats=("html", "json", "csv"), detail="full", style="general", title=None, include_figures=False, page_size="A4", landscape=False, page_numbers=True) -> bytes` and `save_bundle(target, path, *, formats=("html", "json", "csv"), detail="full", style="general", title=None, include_figures=False, page_size="A4", landscape=False, page_numbers=True, overwrite=False) -> Path`.
     -   Implemented offline ZIP archive assembler packaging existing canonical reports (`html`, `interactive_html`, `pdf`, `docx`, `json`, `csv`, `markdown`, `latex`), presentation tables, and execution provenance without recalculating statistics.
@@ -20,7 +40,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
     -   Hardened ZIP path safety and resource bounds: validates forward-slash relative member paths, rejects `..` traversal, absolute paths, and Windows drive letters; sanitizes table filenames; enforces conservative limits on member count (500), single file size (50 MB), and total uncompressed size (100 MB).
     -   Added demonstration in `examples/17_research_export_bundle.py` and comprehensive documentation in `docs/RESEARCH_BUNDLES.md`.
 
--   Phase 5 DOCX fidelity hardening:
+-   DOCX export fidelity hardening:
     -   Replaced synthetic all-24 DOCX test with schema-faithful method fixtures verifying actual method labels and primary numerical statistics across all 24 registered methods.
     -   Aligned HTML and DOCX standard-mode table row selection via shared `resolve_table_row_limit` helper; standard mode bounds long tables to 6 rows in stable source order with an informative truncation notice, while full mode retains all rows.
     -   Eliminated raw Python `dict`/`list` string repr dumps from reader-facing DOCX report sections via structured text/bullet rendering helpers.
@@ -40,6 +60,12 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+-   Strengthened bundle manifest validation: strictly validates manifest file records before lookup map conversion, rejecting missing/malformed SHA-256 digests, invalid/negative/boolean sizes, non-mapping records, unsafe paths, manifest self-declarations, and duplicate path declarations with actionable `ReportError`.
+-   Rejected duplicate generated bundle member paths: tracks generated internal bundle member paths in `BundleAssembler`, raising `ReportError` immediately upon collision (e.g. sanitized CSV table IDs) before ZIP archive creation.
+-   Propagated figure options for direct AnalysisResult PDF bundle export: ensured `include_figures` is passed to `to_pdf(target_obj, ...)` when bundling direct analysis results.
+-   Completed all-format bundle integration coverage: extended full-publication bundle tests to exercise `interactive_html` alongside `html`, `pdf`, `docx`, `json`, `csv`, `markdown`, and `latex`.
+-   Removed numbered-phase terminology across all active repository documentation files to preserve clean, feature-based governance.
+-   Corrected bundle documentation determinism wording: clarified that SHA-256 digests verify transmission integrity rather than cryptographic digital signatures or deterministic byte reproducibility across differing compression engines.
 -   Fixed brittle case-sensitive string assertion in `test_partial_result_pdf_export`.
 -   Narrowed figure-wait exception handling in PDF backend to distinguish `PlaywrightTimeoutError` from general `PlaywrightError`.
 -   Corrected PDF documentation to state "native selectable text and structured table layout" rather than claiming formally tagged semantic PDF tables.

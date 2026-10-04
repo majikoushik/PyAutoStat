@@ -38,6 +38,7 @@ def to_docx(
     page_size: str = "A4",
     landscape: bool = False,
     page_numbers: bool = True,
+    include_figures: bool = False,
 ) -> bytes:
     """Render an editable Microsoft Word (.docx) document from a PyAutoStat result or report.
 
@@ -61,6 +62,8 @@ def to_docx(
         Whether to format in landscape orientation (useful for wide tables).
     page_numbers : bool, default=True
         Whether to include dynamic Word page number fields in the footer.
+    include_figures : bool, default=False
+        Whether to embed canonical scientific figures (PNG format) into the Word report.
 
     Returns
     -------
@@ -79,9 +82,17 @@ def to_docx(
         raise ReportError("landscape must be a Boolean.")
     if not isinstance(page_numbers, bool):
         raise ReportError("page_numbers must be a Boolean.")
+    if not isinstance(include_figures, bool):
+        raise ReportError("include_figures must be a Boolean.")
 
     norm_size = normalize_page_size(page_size)
     check_docx_available()
+
+    figures: tuple[Any, ...] = ()
+    if include_figures:
+        from ..figures.api import to_static_figures
+
+        figures = to_static_figures(target, format="png", detail=detail, scale=2.0)
 
     renderer: DocxRenderer | ResearchReportDocxRenderer
     if isinstance(target, ResearchReport):
@@ -90,6 +101,7 @@ def to_docx(
             detail=detail,
             title=title,
             style=style,
+            figures=figures,
             page_size=norm_size,
             landscape=landscape,
             page_numbers=page_numbers,
@@ -100,6 +112,7 @@ def to_docx(
             detail=detail,
             title=title,
             style=style,
+            figures=figures,
             page_size=norm_size,
             landscape=landscape,
             page_numbers=page_numbers,
@@ -111,6 +124,7 @@ def to_docx(
             detail=detail,
             title=title,
             style=style,
+            figures=figures,
             page_size=norm_size,
             landscape=landscape,
             page_numbers=page_numbers,
@@ -137,6 +151,7 @@ def save_docx(
     page_size: str = "A4",
     landscape: bool = False,
     page_numbers: bool = True,
+    include_figures: bool = False,
     overwrite: bool = False,
 ) -> Path:
     """Save an editable Microsoft Word (.docx) report with overwrite protection.
@@ -160,6 +175,8 @@ def save_docx(
         Whether to format in landscape orientation.
     page_numbers : bool, default=True
         Whether to include running page numbers in the footer.
+    include_figures : bool, default=False
+        Whether to embed canonical scientific figures (PNG format) into the Word report.
     overwrite : bool, default=False
         Whether to overwrite an existing destination file.
 
@@ -180,6 +197,7 @@ def save_docx(
             style=style,
             detail=detail,
             title=title,
+            include_figures=include_figures,
             page_size=page_size,
             landscape=landscape,
             page_numbers=page_numbers,
@@ -194,6 +212,7 @@ def save_docx(
         page_size=page_size,
         landscape=landscape,
         page_numbers=page_numbers,
+        include_figures=include_figures,
     )
 
     try:

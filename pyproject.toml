@@ -42,6 +42,10 @@ dependencies = [
 
 [project.optional-dependencies]
 report = ["plotly>=5"]
+figures = [
+    "plotly>=6.1",
+    "kaleido>=1,<2",
+]
 pdf = ["playwright>=1.40"]
 docx = ["python-docx>=1.2,<2"]
 dev = [
@@ -56,6 +60,7 @@ dev = [
     "pre-commit",
     "pypdf>=4",
     "python-docx>=1.2,<2",
+    "kaleido>=1,<2",
 ]
 
 [project.urls]

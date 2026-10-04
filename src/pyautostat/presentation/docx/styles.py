@@ -132,3 +132,12 @@ def setup_document_styles(doc: Any, style_mode: str = "general") -> None:
     st_warn.font.bold = True
     st_warn.font.color.rgb = warning_color
     st_warn.paragraph_format.space_after = Pt(2)
+
+    # 9. PyAutoStat Figure Caption
+    st_cap = _get_or_add_style("PyAutoStat Figure Caption", WD_STYLE_TYPE.PARAGRAPH)
+    st_cap.font.name = font_name
+    st_cap.font.size = Pt(10 if is_apa else (9 if is_ieee else 9.5))
+    st_cap.font.italic = bool(is_apa)
+    st_cap.font.color.rgb = secondary_color
+    st_cap.paragraph_format.space_before = Pt(4)
+    st_cap.paragraph_format.space_after = Pt(10)

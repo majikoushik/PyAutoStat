@@ -405,7 +405,39 @@ def add_analysis_record(doc: Any, metadata: dict[str, Any]) -> None:
             c0.runs[0].bold = True
 
         c1 = row.cells[1].paragraphs[0]
-        c1.text = format_cell_text(v)
-
+        c1.text = str(v)
     p_sp = doc.add_paragraph()
     p_sp.paragraph_format.space_after = 6
+
+
+def add_figure_image(
+    doc: Any,
+    artifact: Any,
+    *,
+    printable_width: Any = None,
+    note: str | None = None,
+) -> None:
+    """Embed a static PNG figure and caption into an OpenXML Word document."""
+    import io
+
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    p_img = doc.add_paragraph()
+    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_img.paragraph_format.space_before = 6
+    p_img.paragraph_format.space_after = 2
+
+    run = p_img.add_run()
+    img_stream = io.BytesIO(artifact.data)
+    if printable_width is not None:
+        run.add_picture(img_stream, width=printable_width)
+    else:
+        run.add_picture(img_stream)
+
+    set_keep_with_next(p_img)
+
+    caption_text = f"Figure {artifact.index}. {artifact.title}."
+    if note:
+        caption_text += f" {note}"
+    p_cap = doc.add_paragraph(caption_text, style="PyAutoStat Figure Caption")
+    p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER

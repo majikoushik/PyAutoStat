@@ -21,6 +21,8 @@ def to_bundle(
     style: str = "general",
     title: str | None = None,
     include_figures: bool = False,
+    include_static_figures: bool = False,
+    static_figure_format: str = "png",
     page_size: str = "A4",
     landscape: bool = False,
     page_numbers: bool = True,
@@ -29,11 +31,16 @@ def to_bundle(
 
     Returns raw in-memory ZIP archive bytes.
     """
+    if not isinstance(include_static_figures, bool):
+        raise ReportError("include_static_figures must be a Boolean.")
+
     options = BundleOptions(
         detail=detail,
         style=style,
         title=title,
         include_figures=include_figures,
+        include_static_figures=include_static_figures,
+        static_figure_format=static_figure_format,
         page_size=page_size,
         landscape=landscape,
         page_numbers=page_numbers,
@@ -51,6 +58,8 @@ def save_bundle(
     style: str = "general",
     title: str | None = None,
     include_figures: bool = False,
+    include_static_figures: bool = False,
+    static_figure_format: str = "png",
     page_size: str = "A4",
     landscape: bool = False,
     page_numbers: bool = True,
@@ -74,6 +83,10 @@ def save_bundle(
         Custom document title overriding default.
     include_figures : bool, default False
         Whether to generate figures for interactive HTML and PDF.
+    include_static_figures : bool, default False
+        Whether to package standalone static scientific figures into the bundle archive.
+    static_figure_format : {"png", "svg", "pdf"}, default "png"
+        Format for standalone static scientific figures.
     page_size : str, default 'A4'
         Page geometry ('A4' or 'Letter').
     landscape : bool, default False
@@ -105,6 +118,8 @@ def save_bundle(
             style=style,
             title=title,
             include_figures=include_figures,
+            include_static_figures=include_static_figures,
+            static_figure_format=static_figure_format,
             page_size=page_size,
             landscape=landscape,
             page_numbers=page_numbers,
@@ -118,6 +133,8 @@ def save_bundle(
         style=style,
         title=title,
         include_figures=include_figures,
+        include_static_figures=include_static_figures,
+        static_figure_format=static_figure_format,
         page_size=page_size,
         landscape=landscape,
         page_numbers=page_numbers,

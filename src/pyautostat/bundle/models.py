@@ -39,6 +39,8 @@ class BundleOptions:
     style: str = "general"
     title: str | None = None
     include_figures: bool = False
+    include_static_figures: bool = False
+    static_figure_format: str = "png"
     page_size: str = "A4"
     landscape: bool = False
     page_numbers: bool = True

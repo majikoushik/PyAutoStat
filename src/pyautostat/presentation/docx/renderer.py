@@ -13,6 +13,7 @@ from .components import (
     add_design_table,
     add_diagnostics,
     add_display_table,
+    add_figure_image,
     add_interpretation,
     add_metric_grid,
     add_report_header,
@@ -36,6 +37,7 @@ class DocxRenderer:
         detail: str = "standard",
         title: str | None = None,
         style: str = "general",
+        figures: Any = (),
         page_size: str = "A4",
         landscape: bool = False,
         page_numbers: bool = True,
@@ -53,6 +55,7 @@ class DocxRenderer:
         self.detail = detail
         self.title = title.strip() if title else view.title
         self.style = style
+        self.figures = tuple(figures) if figures else ()
         self.page_size = normalize_page_size(page_size)
         self.landscape = landscape
         self.page_numbers = page_numbers
@@ -104,29 +107,75 @@ class DocxRenderer:
         # Document Header
         add_report_header(doc, self.title, self.view.subtitle, style_mode=self.style)
 
+        # Printable width for figure embedding
+        sec = doc.sections[0]
+        page_w = sec.page_width
+        left_m = sec.left_margin
+        right_m = sec.right_margin
+        if page_w is not None and left_m is not None and right_m is not None:
+            printable_w = page_w - left_m - right_m
+        else:
+            from docx.shared import Inches
+
+            printable_w = Inches(6.0)
+        placed_indices: set[int] = set()
+
+        def _embed_for_placement(target_placement: str) -> None:
+            for art in self.figures:
+                if art.index not in placed_indices and art.placement == target_placement:
+                    add_figure_image(doc, art, printable_width=printable_w)
+                    placed_indices.add(art.index)
+
         # Compact Mode
         if self.detail == "compact":
             if self.view.key_metrics:
                 add_metric_grid(doc, self.view.key_metrics)
             if self.view.compact_text:
                 doc.add_paragraph(self.view.compact_text, style="PyAutoStat Body")
+            # If figures requested, embed them compactly
+            for art in self.figures:
+                if art.index not in placed_indices:
+                    add_figure_image(doc, art, printable_width=printable_w)
+                    placed_indices.add(art.index)
             return doc
 
         # Key Results Section
         if self.view.key_metrics:
             add_section_heading(doc, "Key Results", level=1)
             add_metric_grid(doc, self.view.key_metrics)
+            _embed_for_placement("key_results")
+        else:
+            _embed_for_placement("key_results")
 
         # Design & Sample Facts
         if self.view.design_metrics:
             add_section_heading(doc, "Research Design & Sample", level=1)
             add_design_table(doc, self.view.design_metrics)
 
-        # Display Tables
+        # Display Tables & Associated Figures
         if self.view.tables:
             for table in self.view.tables:
                 max_r = resolve_table_row_limit(table, detail=self.detail)
                 add_display_table(doc, table, max_rows=max_r)
+                title_lower = (table.title or "").lower()
+                if "coefficient" in title_lower or "estimate" in title_lower:
+                    _embed_for_placement("coefficients")
+                elif "pairwise" in title_lower or "contrast" in title_lower:
+                    _embed_for_placement("pairwise")
+                elif (
+                    "contingency" in title_lower
+                    or "crosstab" in title_lower
+                    or "count" in title_lower
+                ):
+                    _embed_for_placement("contingency")
+                elif "cell" in title_lower or "profile" in title_lower:
+                    _embed_for_placement("cell_summary")
+
+        # Ensure any tables-linked figures are placed even if title keywords didn't trigger
+        _embed_for_placement("coefficients")
+        _embed_for_placement("pairwise")
+        _embed_for_placement("contingency")
+        _embed_for_placement("cell_summary")
 
         # Assumption Diagnostics
         if self.view.diagnostics:
@@ -152,5 +201,11 @@ class DocxRenderer:
         if self.detail == "full" and self.view.metadata:
             add_section_heading(doc, "Analysis Record & Reproducibility", level=1)
             add_analysis_record(doc, self.view.metadata)
+
+        # Embed any remaining unplaced figures
+        for art in self.figures:
+            if art.index not in placed_indices:
+                add_figure_image(doc, art, printable_width=printable_w)
+                placed_indices.add(art.index)
 
         return doc

@@ -204,3 +204,105 @@ def test_verify_detects_undeclared_extra_file(sample_bundle_bytes: bytes):
     assert res.valid is False
     assert "pyautostat_bundle/extra_file.txt" in res.unexpected_files
     assert any("Found 1 undeclared files" in err for err in res.errors)
+
+
+def _repack_with_manifest(sample_bundle_bytes: bytes, manifest_modifier) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(sample_bundle_bytes)) as zf_in:
+        with zipfile.ZipFile(buf, mode="w") as zf_out:
+            for item in zf_in.infolist():
+                if item.filename == "pyautostat_bundle/manifest.json":
+                    manifest = json.loads(zf_in.read(item.filename).decode("utf-8"))
+                    manifest_modifier(manifest)
+                    zf_out.writestr(item, json.dumps(manifest).encode("utf-8"))
+                else:
+                    zf_out.writestr(item, zf_in.read(item.filename))
+    return buf.getvalue()
+
+
+def test_verify_rejects_duplicate_manifest_path(sample_bundle_bytes: bytes):
+    def modify(manifest):
+        entry = manifest["files"][0]
+        manifest["files"].append(entry.copy())
+
+    bundle = _repack_with_manifest(sample_bundle_bytes, modify)
+    with pytest.raises(ReportError, match="duplicate file path declaration"):
+        verify_bundle(bundle)
+
+
+def test_verify_rejects_missing_sha256(sample_bundle_bytes: bytes):
+    def modify(manifest):
+        del manifest["files"][0]["sha256"]
+
+    bundle = _repack_with_manifest(sample_bundle_bytes, modify)
+    with pytest.raises(ReportError, match="missing required field 'sha256'"):
+        verify_bundle(bundle)
+
+
+def test_verify_rejects_missing_size_bytes(sample_bundle_bytes: bytes):
+    def modify(manifest):
+        del manifest["files"][0]["size_bytes"]
+
+    bundle = _repack_with_manifest(sample_bundle_bytes, modify)
+    with pytest.raises(ReportError, match="missing required field 'size_bytes'"):
+        verify_bundle(bundle)
+
+
+def test_verify_rejects_malformed_sha256(sample_bundle_bytes: bytes):
+    def modify(manifest):
+        manifest["files"][0]["sha256"] = "not_a_valid_64_char_hex_digest"
+
+    bundle = _repack_with_manifest(sample_bundle_bytes, modify)
+    with pytest.raises(ReportError, match="invalid sha256 digest"):
+        verify_bundle(bundle)
+
+
+def test_verify_rejects_negative_or_bool_size(sample_bundle_bytes: bytes):
+    def modify_negative(manifest):
+        manifest["files"][0]["size_bytes"] = -5
+
+    bundle1 = _repack_with_manifest(sample_bundle_bytes, modify_negative)
+    with pytest.raises(ReportError, match="invalid size_bytes"):
+        verify_bundle(bundle1)
+
+    def modify_bool(manifest):
+        manifest["files"][0]["size_bytes"] = True
+
+    bundle2 = _repack_with_manifest(sample_bundle_bytes, modify_bool)
+    with pytest.raises(ReportError, match="invalid size_bytes"):
+        verify_bundle(bundle2)
+
+
+def test_verify_rejects_non_dict_entry(sample_bundle_bytes: bytes):
+    def modify(manifest):
+        manifest["files"].append("not_a_dict_entry")
+
+    bundle = _repack_with_manifest(sample_bundle_bytes, modify)
+    with pytest.raises(ReportError, match="must be a JSON object/mapping"):
+        verify_bundle(bundle)
+
+
+def test_verify_rejects_unsafe_declared_path(sample_bundle_bytes: bytes):
+    def modify(manifest):
+        manifest["files"][0]["path"] = "../traversal/path.txt"
+
+    bundle = _repack_with_manifest(sample_bundle_bytes, modify)
+    with pytest.raises(ReportError, match="traversal segment"):
+        verify_bundle(bundle)
+
+
+def test_verify_rejects_manifest_self_declaration(sample_bundle_bytes: bytes):
+    def modify(manifest):
+        manifest["files"].append(
+            {
+                "path": "pyautostat_bundle/manifest.json",
+                "role": "metadata",
+                "format": "json",
+                "size_bytes": 100,
+                "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            }
+        )
+
+    bundle = _repack_with_manifest(sample_bundle_bytes, modify)
+    with pytest.raises(ReportError, match="may not declare the manifest itself"):
+        verify_bundle(bundle)

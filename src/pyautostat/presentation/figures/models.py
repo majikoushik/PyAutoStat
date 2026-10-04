@@ -47,7 +47,27 @@ class FigureSpec:
     layout_hints: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class StaticFigureArtifact:
+    """An immutable static scientific figure artifact rendered from a FigureSpec.
+
+    Contains rendered byte payload (e.g. PNG, SVG, PDF), library-controlled safe filename,
+    dimensions, and placement metadata. Excludes all raw dataset rows.
+    """
+
+    index: int
+    kind: str
+    title: str
+    placement: str
+    format: str
+    data: bytes
+    filename: str
+    width: int | None = None
+    height: int | None = None
+
+
 __all__ = [
     "FigureSeries",
     "FigureSpec",
+    "StaticFigureArtifact",
 ]

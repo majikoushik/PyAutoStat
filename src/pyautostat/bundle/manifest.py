@@ -44,6 +44,7 @@ def build_manifest_dict(
     detail: str,
     style: str,
     include_figures: bool,
+    include_static_figures: bool = False,
     files: list[BundleFileRecord],
 ) -> dict[str, Any]:
     """Assemble a deterministic manifest dictionary adhering to BUNDLE_SCHEMA_VERSION."""
@@ -57,6 +58,7 @@ def build_manifest_dict(
         "detail": detail,
         "style": style,
         "include_figures": include_figures,
+        "include_static_figures": include_static_figures,
         "files": [f.to_dict() for f in sorted_files],
     }
 

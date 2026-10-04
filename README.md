@@ -336,9 +336,54 @@ pip install "pyautostat[docx]"
 
 DOCX exports generate true OpenXML documents with editable paragraphs and tables, support A4/Letter and portrait/landscape, include dynamic `PAGE` / `NUMPAGES` field codes, repeat table header rows across page breaks, enforce zero statistical recalculation, and ensure no raw row-level data leakage. See [`docs/DOCX_REPORTING.md`](docs/DOCX_REPORTING.md) for full details.
 
+### Publication-Quality Static Scientific Figures
+
+PyAutoStat supports exporting publication-ready static figures (PNG, SVG, and standalone figure-PDF) from authoritative `FigureSpec` models:
+
+```python
+from pyautostat import save_static_figures, to_static_figures
+
+# Render in-memory
+figures = to_static_figures(workflow, format="png", scale=2.0)
+
+# Save directly with collision protection
+save_static_figures(workflow, "figures/", format="svg", overwrite=True)
+```
+
+Install:
+
+```bash
+pip install "pyautostat[figures]"
+plotly_get_chrome
+```
+
+- **Zero recalculation:** Figures strictly visualize stored estimates, confidence intervals, and matrix counts without refitting or p-value ranking.
+- **Privacy-first:** Never accesses raw DataFrame observations or embeds individual participant data points.
+- **Clean vector & high-DPI raster:** Exports crisp PNG (high-DPI scale=2.0 default), clean SVG with injection safeguards, or standalone figure-PDF. See [`docs/STATIC_FIGURES.md`](docs/STATIC_FIGURES.md) for full details.
+
+#### Optional Figures in Editable Word / DOCX Reports
+
+Embed canonical high-resolution PNG figures directly into editable Word documents:
+
+```python
+from pyautostat import save_docx
+
+save_docx(
+    workflow,
+    "analysis_with_figures.docx",
+    include_figures=True,
+    title="Spend Drivers Analysis",
+    style="apa",
+)
+```
+
+- Embeds PNG figures near their relevant semantic sections (`key_results`, `coefficients`, `pairwise`, `contingency`, `cell_summary`).
+- Generates numbered, editable captions styled with `PyAutoStat Figure Caption` (e.g. `Figure 1. ...`).
+- Automatically fits printable page geometry (A4 / Letter, portrait / landscape) while preserving editable OpenXML paragraphs and tables.
+
 ### Reproducible Research Export Bundles
 
-PyAutoStat can package its canonical statistical reports, machine-readable records, tabular CSV exports, and execution provenance into an offline, integrity-verifiable ZIP bundle without recalculating statistics or exposing raw participant rows:
+PyAutoStat can package canonical, integrity-verifiable research reports and provenance artifacts (including machine-readable records and tabular CSV exports) into an offline ZIP bundle without recalculating statistics or exposing raw participant rows:
 
 ```python
 from pyautostat import save_bundle, verify_bundle
@@ -355,10 +400,10 @@ print(check.valid)
 ```
 
 - **Lightweight default:** Packages `html`, `json`, and `csv` tables without requiring heavy PDF or DOCX dependencies.
-- **Cryptographic integrity:** Every member file's SHA-256 digest and exact byte size are recorded in `pyautostat_bundle/manifest.json`.
+- **Cryptographic integrity:** Every member file's SHA-256 digest and exact byte size are recorded in `pyautostat_bundle/manifest.json`. Checksums verify archive integrity against transmission corruption, incomplete writes, or unauthorized file alteration; they do not constitute digital certificates, legal electronic signatures, or identity authentication.
 - **Tamper detection:** `verify_bundle` detects modified bytes, truncated files, deleted members, and unauthorized extra files.
 - **Zero recalculation:** Packages existing authoritative results; statistical engines are never re-invoked.
-- **No raw data:** Derived aggregate reports and tables only; row-level source observations are strictly excluded.
+- **Data privacy:** Packages derived aggregate reports, summary tables, and recorded execution provenance only; raw dataset observations and participant identifiers are strictly excluded.
 - See [`docs/RESEARCH_BUNDLES.md`](docs/RESEARCH_BUNDLES.md) for full details.
 
 ---

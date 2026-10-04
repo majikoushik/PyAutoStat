@@ -5,7 +5,15 @@ from __future__ import annotations
 from .adapters import UnsupportedPresentationError, adapt
 from .api import show
 from .docx import save_docx, to_docx
-from .figures import FigureSeries, FigureSpec, build_figure_spec, build_figure_specs
+from .figures import (
+    FigureSeries,
+    FigureSpec,
+    StaticFigureArtifact,
+    build_figure_spec,
+    build_figure_specs,
+    save_static_figures,
+    to_static_figures,
+)
 from .html import HtmlRenderer, save_html, save_interactive_html, to_html, to_interactive_html
 from .models import (
     DisplayDiagnostic,
@@ -28,6 +36,7 @@ __all__ = [
     "HtmlRenderer",
     "PYAUTOSTAT_THEME",
     "PresentationView",
+    "StaticFigureArtifact",
     "TerminalView",
     "UnsupportedPresentationError",
     "adapt",
@@ -37,9 +46,11 @@ __all__ = [
     "save_html",
     "save_interactive_html",
     "save_pdf",
+    "save_static_figures",
     "show",
     "to_docx",
     "to_html",
     "to_interactive_html",
     "to_pdf",
+    "to_static_figures",
 ]

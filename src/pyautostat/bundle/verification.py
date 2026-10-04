@@ -92,14 +92,80 @@ def verify_bundle(bundle_input: bytes | str | pathlib.Path) -> BundleVerificatio
                 f"Supported schema version is {BUNDLE_SCHEMA_VERSION}."
             )
 
-        declared_files_list = manifest_data.get("files", [])
+        declared_files_list = manifest_data.get("files")
         if not isinstance(declared_files_list, list):
             raise ReportError("Manifest 'files' property must be a list.")
 
+        REQUIRED_FIELDS = ("path", "role", "format", "size_bytes", "sha256")
+        HEX_DIGITS = set("0123456789abcdefABCDEF")
+
         declared_files: dict[str, dict[str, Any]] = {}
-        for entry in declared_files_list:
-            if isinstance(entry, dict) and "path" in entry:
-                declared_files[str(entry["path"])] = entry
+        for idx, entry in enumerate(declared_files_list):
+            if not isinstance(entry, dict):
+                raise ReportError(
+                    f"Manifest 'files' entry at index {idx} must be a JSON object/mapping, "
+                    f"got {type(entry).__name__}."
+                )
+
+            for req in REQUIRED_FIELDS:
+                if req not in entry:
+                    raise ReportError(
+                        f"Manifest file entry at index {idx} is missing required field {req!r}."
+                    )
+
+            path = entry["path"]
+            if not isinstance(path, str) or not path.strip():
+                raise ReportError(
+                    f"Manifest file entry at index {idx} has invalid path: "
+                    "must be a non-empty string."
+                )
+
+            from .safety import validate_zip_member_path
+
+            validate_zip_member_path(path)
+
+            if path == manifest_path or path == "manifest.json" or path.endswith("/manifest.json"):
+                raise ReportError(
+                    f"Manifest file entry at index {idx} may not declare the manifest itself: "
+                    f"{path!r}."
+                )
+
+            if path in declared_files:
+                raise ReportError(f"Manifest contains duplicate file path declaration: {path!r}.")
+
+            role = entry["role"]
+            if not isinstance(role, str) or not role.strip():
+                raise ReportError(
+                    f"Manifest file entry for {path!r} has invalid role: "
+                    "must be a non-empty string."
+                )
+
+            fmt = entry["format"]
+            if not isinstance(fmt, str) or not fmt.strip():
+                raise ReportError(
+                    f"Manifest file entry for {path!r} has invalid format: "
+                    "must be a non-empty string."
+                )
+
+            size_bytes = entry["size_bytes"]
+            if not isinstance(size_bytes, int) or isinstance(size_bytes, bool) or size_bytes < 0:
+                raise ReportError(
+                    f"Manifest file entry for {path!r} has invalid size_bytes: "
+                    f"must be an integer >= 0, got {size_bytes!r}."
+                )
+
+            sha256 = entry["sha256"]
+            if (
+                not isinstance(sha256, str)
+                or len(sha256) != 64
+                or not all(c in HEX_DIGITS for c in sha256)
+            ):
+                raise ReportError(
+                    f"Manifest file entry for {path!r} has invalid sha256 digest: "
+                    f"must be a 64-character hexadecimal string, got {sha256!r}."
+                )
+
+            declared_files[path] = entry
 
         # 3. Check actual member files (excluding directory entries and manifest itself)
         actual_members = set(

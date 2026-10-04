@@ -65,16 +65,19 @@ from .practical_significance import (
 )
 from .presentation import (
     PresentationView,
+    StaticFigureArtifact,
     UnsupportedPresentationError,
     save_docx,
     save_html,
     save_interactive_html,
     save_pdf,
+    save_static_figures,
     show,
     to_docx,
     to_html,
     to_interactive_html,
     to_pdf,
+    to_static_figures,
 )
 from .question_builder import ClarificationQuestion, QuestionDraft, QuestionStatus
 from .recommendation import MethodCapability
@@ -197,6 +200,9 @@ __all__ = [
     "UnsupportedPresentationError",
     "to_docx",
     "to_pdf",
+    "to_static_figures",
+    "save_static_figures",
+    "StaticFigureArtifact",
     "BUNDLE_SCHEMA_VERSION",
     "BundleOptions",
     "BundleVerificationResult",

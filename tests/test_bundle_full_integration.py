@@ -174,7 +174,15 @@ def test_full_mode_includes_all_table_rows(complex_workflow: ResearchWorkflowRes
 
 
 def test_full_publication_bundle_verification(complex_workflow: ResearchWorkflowResult):
-    formats: list[str] = ["html", "docx", "json", "csv", "markdown", "latex"]
+    formats: list[str] = [
+        "html",
+        "interactive_html",
+        "docx",
+        "json",
+        "csv",
+        "markdown",
+        "latex",
+    ]
     if HAS_CHROMIUM:
         formats.append("pdf")
 

@@ -620,13 +620,19 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
         levels_a = values.get("factor_a_levels") or []
         levels_b = values.get("factor_b_levels") or []
 
+        def _cell_level(c_dict: dict[str, Any], prefix: str, factor_col: str) -> str:
+            for k in (f"level_{prefix}", f"factor_{prefix}_level", f"factor_{prefix}", factor_col):
+                if k in c_dict and c_dict[k] is not None:
+                    return str(c_dict[k])
+            return ""
+
         if not levels_a or not levels_b:
             # Extract distinct levels preserving source encounter order
             seen_a: list[str] = []
             seen_b: list[str] = []
             for c in cell_sums:
-                la = str(c.get("level_a", c.get(factor_a, "")))
-                lb = str(c.get("level_b", c.get(factor_b, "")))
+                la = _cell_level(c, "a", factor_a)
+                lb = _cell_level(c, "b", factor_b)
                 if la and la not in seen_a:
                     seen_a.append(la)
                 if lb and lb not in seen_b:
@@ -642,8 +648,8 @@ def build_figure_specs(target: Any) -> tuple[FigureSpec, ...]:
                     (
                         c
                         for c in cell_sums
-                        if str(c.get("level_a", c.get(factor_a, ""))) == str(a_lvl)
-                        and str(c.get("level_b", c.get(factor_b, ""))) == str(b_lvl)
+                        if _cell_level(c, "a", factor_a) == str(a_lvl)
+                        and _cell_level(c, "b", factor_b) == str(b_lvl)
                     ),
                     None,
                 )

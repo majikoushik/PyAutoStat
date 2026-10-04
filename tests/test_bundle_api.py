@@ -203,3 +203,52 @@ def test_bundle_options_propagation(welch_workflow: ResearchWorkflowResult):
         readme = zf.read("pyautostat_bundle/README.md").decode("utf-8")
         assert "Detail Mode:** compact" in readme
         assert "Style Mode:** apa" in readme
+
+
+def test_bundle_rejects_duplicate_sanitized_table_ids(welch_workflow: ResearchWorkflowResult):
+    from unittest.mock import patch
+
+    # Mock to_csv_tables returning keys that sanitize to the exact same filename
+    colliding_tables = {
+        "group:score": "a,b\n1,2",
+        "group score": "a,b\n3,4",
+    }
+    with patch(
+        "pyautostat.research_report.ResearchReport.to_csv_tables", return_value=colliding_tables
+    ):
+        with pytest.raises(ReportError, match="Duplicate bundle member path generated"):
+            to_bundle(welch_workflow, formats=("csv",))
+
+
+def test_direct_analysis_result_pdf_bundle_figure_propagation(
+    welch_workflow: ResearchWorkflowResult,
+):
+    analysis = welch_workflow.analysis
+    assert analysis is not None
+
+    from unittest.mock import MagicMock, patch
+
+    mock_pdf = MagicMock(return_value=b"%PDF-1.4 mock pdf data")
+
+    # Verify zero recalculation: monkeypatch statistical execution and scipy
+    with (
+        patch("pyautostat.presentation.to_pdf", mock_pdf),
+        patch(
+            "pyautostat.execution.execute_specification",
+            side_effect=RuntimeError("Recalculation detected!"),
+        ),
+        patch(
+            "pyautostat.execution.execute_selected_method",
+            side_effect=RuntimeError("Recalculation detected!"),
+        ),
+        patch("scipy.stats.ttest_ind", side_effect=RuntimeError("Recalculation detected!")),
+    ):
+        # 1. Test with include_figures=False
+        bundle_false = to_bundle(analysis, formats=("pdf",), include_figures=False)
+        assert bundle_false.startswith(b"PK")
+        assert mock_pdf.call_args.kwargs["include_figures"] is False
+
+        # 2. Test with include_figures=True
+        bundle_true = to_bundle(analysis, formats=("pdf",), include_figures=True)
+        assert bundle_true.startswith(b"PK")
+        assert mock_pdf.call_args.kwargs["include_figures"] is True
