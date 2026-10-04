@@ -52,6 +52,18 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
     -   No statistical engine calculations, formulas, or result schemas were modified.
     -   Added demonstration gallery in `examples/11_rich_terminal_method_gallery.py` and comprehensive coverage tests in `tests/test_terminal_presentation_coverage.py`.
 
+### Fixed
+
+-   Remediated interactive HTML and presentation layer for scientific fidelity and CI stability:
+    -   Fixed partial-result presentation crash across adapters (`means.py`, `paired.py`, `repeated.py`, `multigroup.py`, `governance.py`) when optional components such as `effect_size` are explicitly `None`, restoring clean rendering for valid partial `ResearchReport`s and passing audit checks.
+    -   Removed silent 95% CI fallback in figure layer; unified on centralized `confidence_interval_phrase` helper with dynamic interval precedence (stored interval level -> spec fallback -> neutral "confidence interval" when unknown).
+    -   Made source-less `ResearchReport` figure fallback method-aware and conservative, correctly mapping reference lines (e.g. 0.0 for differences/associations, 1.0 for odds ratios) and omitting figures on ambiguous payloads rather than guessing null values.
+    -   Removed generic reliability threshold claims from figure notes (eliminated `0.70`, "acceptable internal consistency", and universal qualitative ratings for Cronbach's alpha and ICC).
+    -   Made correlation reference-line notes method-accurate (explicitly referencing the null value for Pearson r, Spearman rho, Kendall tau-b, point-biserial, and partial Pearson).
+    -   Implemented true multi-figure rendering infrastructure (`build_figure_specs`, `figure_specs` in `HtmlRenderer` and `ResearchReportHtmlRenderer`) with unique chart IDs and verified single Plotly bundle embedding.
+    -   Avoided unnecessary Plotly requirement in `to_interactive_html`: checks if any figure can actually be built before checking Plotly availability, allowing table-only methods (e.g., Kruskal-Wallis) and direct `PresentationView` targets to render without Plotly installed.
+    -   Strengthened figure numeric fidelity, privacy sentinels (extended across OLS, logistic, factorial), and XSS escaping protections.
+
 ### Changed
 
 -   Hardened `ResearchReportHtmlRenderer` presentation adapter fallback:

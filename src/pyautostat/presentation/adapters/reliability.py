@@ -41,11 +41,13 @@ def adapt_cronbach_alpha(
     items = analysis.values.get("items") or []
     item_count = analysis.values.get("item_count") or len(items)
 
-    sample_info = analysis.metadata.get("sample") or analysis.values.get("sample", {})
+    sample_obj = analysis.metadata.get("sample") or analysis.values.get("sample")
+    sample_info = sample_obj if isinstance(sample_obj, dict) else {}
     sample_size = first_present(sample_info, "analyzed_rows", default=analysis.sample_size)
     excluded_rows = first_present(sample_info, "excluded_rows", default=analysis.excluded_rows)
     missing_policy = sample_info.get("missing_data_policy")
-    scoring_info = analysis.values.get("scoring", {})
+    scoring_obj = analysis.values.get("scoring")
+    scoring_info = scoring_obj if isinstance(scoring_obj, dict) else {}
     rev_applied = scoring_info.get("reverse_scoring_applied", False)
     rev_items = scoring_info.get("reversed_items")
 
@@ -277,7 +279,8 @@ def adapt_intraclass_correlation(
     ci_str = format_confidence_interval(ci_dict, decimals=3)
     ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
 
-    f_test = analysis.values.get("f_test", {})
+    f_test_obj = analysis.values.get("f_test")
+    f_test = f_test_obj if isinstance(f_test_obj, dict) else {}
     f_stat = f_test.get("statistic")
     f_df = [f_test.get("df1"), f_test.get("df2")]
     f_p = f_test.get("p_value")

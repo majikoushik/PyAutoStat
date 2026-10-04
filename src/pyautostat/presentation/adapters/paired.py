@@ -66,36 +66,47 @@ def adapt_paired_t(
     diff_str = format_number(diff, decimals=2, unit=unit)
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=2)
-    effect_dict = analysis.values.get("effect_size", {})
-    effect_val = effect_dict.get("value")
-    effect_str = format_effect(effect_val, decimals=2)
-    effect_ci = effect_dict.get("confidence_interval")
-    effect_ci_str = format_confidence_interval(effect_ci, decimals=2)
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
     stat = analysis.values.get("test_statistic")
     df = analysis.values.get("degrees_of_freedom")
 
     ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
-    effect_ci_label = format_confidence_level_label(
-        effect_ci, confidence_level=conf_level, prefix="Effect"
-    )
 
     key_metrics_list = [
         DisplayMetric("Mean difference", diff_str, role="result.estimate"),
         DisplayMetric(ci_label, ci_str, role="result.ci"),
-        DisplayMetric("Cohen's dz", effect_str, role="result.effect"),
-        DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"),
-        DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
+
+    effect_obj = analysis.values.get("effect_size")
+    effect_val = None
+    if isinstance(effect_obj, dict):
+        effect_val = effect_obj.get("value")
+        effect_str = format_effect(effect_val, decimals=2)
+        effect_ci = effect_obj.get("confidence_interval")
+        effect_ci_str = format_confidence_interval(effect_ci, decimals=2)
+        effect_ci_label = format_confidence_level_label(
+            effect_ci, confidence_level=conf_level, prefix="Effect"
+        )
+        if effect_val is not None:
+            key_metrics_list.append(DisplayMetric("Cohen's dz", effect_str, role="result.effect"))
+        if effect_ci is not None:
+            key_metrics_list.append(DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"))
+
+    key_metrics_list.append(DisplayMetric("p-value", p_str, role="result.evidence"))
     if detail == "full" and stat is not None:
         key_metrics_list.append(DisplayMetric("Test statistic", format_statistic("t", stat, df=df)))
 
+    cond_detail = (
+        f"Condition '{condition_order[0]}' minus '{condition_order[1]}'."
+        if len(condition_order) >= 2
+        else "Condition contrast order unavailable."
+    )
     diagnostics_list = [
         DisplayDiagnostic(
             label="Condition Order",
             status="PRESERVED",
-            detail=f"Condition '{condition_order[0]}' minus '{condition_order[1]}'.",
+            detail=cond_detail,
             severity="neutral",
         ),
         DisplayDiagnostic(
@@ -121,9 +132,11 @@ def adapt_paired_t(
 
     compact_text = (
         f"Paired t-test | N={format_sample_size(complete_pairs)} pairs | "
-        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')} | "
-        f"dz={effect_str} | p={p_str}"
+        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')}"
     )
+    if effect_val is not None:
+        compact_text += f" | dz={format_effect(effect_val, decimals=2)}"
+    compact_text += f" | p={p_str}"
 
     metadata = build_metadata_dict(analysis, workflow)
     metadata["condition_order"] = condition_order
@@ -182,22 +195,37 @@ def adapt_wilcoxon_signed_rank(
     stat_str = format_number(stat, decimals=1)
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
-    effect_dict = analysis.values.get("effect_size", {})
-    effect_val = effect_dict.get("value")
-    effect_str = format_effect(effect_val, decimals=3)
-    ci_dict = effect_dict.get("confidence_interval") or analysis.values.get("confidence_interval")
-    ci_str = format_confidence_interval(ci_dict, decimals=3)
+    effect_obj = analysis.values.get("effect_size")
+    effect_val = None
+    ci_dict = None
+    if isinstance(effect_obj, dict):
+        effect_val = effect_obj.get("value")
+        ci_dict = effect_obj.get("confidence_interval")
+    if ci_dict is None:
+        ci_dict = analysis.values.get("confidence_interval")
 
+    ci_str = format_confidence_interval(ci_dict, decimals=3)
     ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level, prefix="Effect")
     short_ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
 
     key_metrics_list = [
         DisplayMetric("Wilcoxon W", stat_str, role="result.estimate"),
-        DisplayMetric("Rank-biserial r", effect_str, role="result.effect"),
-        DisplayMetric(ci_label, ci_str, role="result.ci"),
-        DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
+    if effect_val is not None:
+        key_metrics_list.append(
+            DisplayMetric(
+                "Rank-biserial r", format_effect(effect_val, decimals=3), role="result.effect"
+            )
+        )
+    if ci_dict is not None:
+        key_metrics_list.append(DisplayMetric(ci_label, ci_str, role="result.ci"))
+    key_metrics_list.append(DisplayMetric("p-value", p_str, role="result.evidence"))
 
+    wilc_cond_detail = (
+        f"Positive ranks favor condition '{condition_order[0]}'."
+        if len(condition_order) >= 1
+        else "Condition order unavailable."
+    )
     diagnostics_list = [
         DisplayDiagnostic(
             label="Zero Differences",
@@ -208,7 +236,7 @@ def adapt_wilcoxon_signed_rank(
         DisplayDiagnostic(
             label="Condition Order",
             status="PRESERVED",
-            detail=f"Positive ranks favor condition '{condition_order[0]}'.",
+            detail=wilc_cond_detail,
             severity="neutral",
         ),
     ]
@@ -227,10 +255,13 @@ def adapt_wilcoxon_signed_rank(
         )
 
     compact_text = (
-        f"Wilcoxon signed-rank | N={format_sample_size(complete_pairs)} pairs | "
-        f"W={stat_str} | r_rb={effect_str} | {short_ci_label} {ci_str.replace(' to ', '...')} | "
-        f"p={p_str}"
+        f"Wilcoxon signed-rank | N={format_sample_size(complete_pairs)} pairs | W={stat_str}"
     )
+    if effect_val is not None:
+        compact_text += f" | r_rb={format_effect(effect_val, decimals=3)}"
+    if ci_dict is not None:
+        compact_text += f" | {short_ci_label} {ci_str.replace(' to ', '...')}"
+    compact_text += f" | p={p_str}"
 
     metadata = build_metadata_dict(analysis, workflow)
     metadata["condition_order"] = condition_order

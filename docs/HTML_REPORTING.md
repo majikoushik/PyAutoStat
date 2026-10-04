@@ -247,7 +247,9 @@ Plotly is an optional dependency included in the `[report]` extra:
 python -m pip install "pyautostat[report]"
 ```
 
-If Plotly is not installed, calling `to_interactive_html(...)` or `save_interactive_html(...)` with `include_figures=True` raises an actionable `ReportError` with the exact pip install command. Static HTML rendering (`to_html`, `save_html`) continues to work without Plotly.
+If Plotly is not installed, calling `to_interactive_html(...)` or `save_interactive_html(...)` with `include_figures=True` raises an actionable `ReportError` with the exact pip install command **only if at least one authoritative figure can actually be rendered**.
+
+If no figure can be constructed—such as for intentionally table-only methods (e.g., Kruskal-Wallis) or when passing a formatted `PresentationView` directly—the report safely renders standard static HTML without requiring Plotly. PyAutoStat will never attempt to reverse-engineer or parse numerical figures from formatted `PresentationView` text strings.
 
 ### Modern Public Interactive APIs
 
@@ -288,7 +290,9 @@ report.save_interactive_html("reports/research_report_interactive.html", overwri
 ## 13. Offline, Self-Contained Delivery & File Size
 
 - **100% Offline**: Interactive HTML documents embed the Plotly JavaScript runtime directly in the `<head>` of the document. No external CDN requests (`cdn.plot.ly`, `cdnjs`, etc.) are made.
-- **Single bundle per document**: The Plotly JavaScript bundle is embedded exactly once per HTML document, even when reports contain multiple figures.
+- **Single bundle per document**: The Plotly JavaScript bundle is embedded exactly once per HTML document, even when reports contain multiple figures. Multiple figures receive stable unique identifiers (e.g. `pyautostat-chart-1`, `pyautostat-chart-2`), cleanly coexist in the DOM, and share the single bundle.
+- **No silent CI level assumptions**: Figure titles inspect individual stored interval levels and render exact labels (e.g., "90% confidence interval", "99% confidence interval"). If the interval level is unspecified, the figure uses the neutral phrase "confidence interval"—never assuming a 95% interval.
+- **No subjective reliability thresholds**: Figures for Cronbach's alpha and ICC display stored estimates and intervals without inventing arbitrary cutoffs (such as 0.70) or qualitative ratings ("acceptable", "poor", "excellent").
 - **File size**: Because the full Plotly library is embedded inline for offline portability, interactive HTML files are typically between 3.5 MB and 4.8 MB. Static HTML reports remain lightweight (~20 KB to 50 KB).
 - **Restrained interface**: The Plotly modebar is minimal and unobtrusive (`displayModeBar: 'hover'`, `scrollZoom: false`, no cloud/export tracking buttons).
 

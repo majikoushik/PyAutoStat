@@ -63,21 +63,27 @@ def adapt_repeated_measures_anova(
     p_str = format_p_value(p_val)
     stat_str = format_statistic("F", stat, df=df)
 
-    effect_dict = analysis.values.get("effect_size", {})
-    eta_val = effect_dict.get("value")
-    eta_str = format_effect(eta_val, decimals=3)
-    eta_ci = effect_dict.get("confidence_interval")
-    eta_ci_str = format_confidence_interval(eta_ci, decimals=3)
-    eta_ci_label = format_confidence_level_label(
-        eta_ci, confidence_level=conf_level, prefix="Effect"
-    )
-
     key_metrics_list = [
         DisplayMetric("Omnibus F-test", stat_str, role="result.estimate"),
         DisplayMetric("Primary p-value", p_str, role="result.evidence"),
-        DisplayMetric("Partial eta-squared", eta_str, role="result.effect"),
-        DisplayMetric(eta_ci_label, eta_ci_str, role="result.ci"),
     ]
+
+    effect_obj = analysis.values.get("effect_size")
+    eta_str = "—"
+    if isinstance(effect_obj, dict):
+        eta_val = effect_obj.get("value")
+        eta_str = format_effect(eta_val, decimals=3)
+        eta_ci = effect_obj.get("confidence_interval")
+        eta_ci_str = format_confidence_interval(eta_ci, decimals=3)
+        eta_ci_label = format_confidence_level_label(
+            eta_ci, confidence_level=conf_level, prefix="Effect"
+        )
+        if eta_val is not None:
+            key_metrics_list.append(
+                DisplayMetric("Partial eta-squared", eta_str, role="result.effect")
+            )
+        if eta_ci is not None:
+            key_metrics_list.append(DisplayMetric(eta_ci_label, eta_ci_str, role="result.ci"))
 
     # Tables: Condition summaries & Pairwise comparisons
     tables: list[DisplayTable] = []
@@ -243,19 +249,25 @@ def adapt_friedman_test(
     p_str = format_p_value(p_val)
     stat_str = format_statistic("Friedman Q", stat, df=df)
 
-    effect_dict = analysis.values.get("effect_size", {})
-    w_val = effect_dict.get("value")
-    w_str = format_effect(w_val, decimals=3)
-    w_ci = effect_dict.get("confidence_interval")
-    w_ci_str = format_confidence_interval(w_ci, decimals=3)
-    w_ci_label = format_confidence_level_label(w_ci, confidence_level=conf_level, prefix="Effect")
-
     key_metrics_list = [
         DisplayMetric("Friedman Q Test", stat_str, role="result.estimate"),
         DisplayMetric("p-value", p_str, role="result.evidence"),
-        DisplayMetric("Kendall's W", w_str, role="result.effect"),
-        DisplayMetric(w_ci_label, w_ci_str, role="result.ci"),
     ]
+
+    effect_obj = analysis.values.get("effect_size")
+    w_str = "—"
+    if isinstance(effect_obj, dict):
+        w_val = effect_obj.get("value")
+        w_str = format_effect(w_val, decimals=3)
+        w_ci = effect_obj.get("confidence_interval")
+        w_ci_str = format_confidence_interval(w_ci, decimals=3)
+        w_ci_label = format_confidence_level_label(
+            w_ci, confidence_level=conf_level, prefix="Effect"
+        )
+        if w_val is not None:
+            key_metrics_list.append(DisplayMetric("Kendall's W", w_str, role="result.effect"))
+        if w_ci is not None:
+            key_metrics_list.append(DisplayMetric(w_ci_label, w_ci_str, role="result.ci"))
 
     # Tables: Condition summaries (medians/IQRs) & Pairwise comparisons
     tables: list[DisplayTable] = []

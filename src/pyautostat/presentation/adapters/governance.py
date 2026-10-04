@@ -515,7 +515,9 @@ def adapt_session_snapshot(
     schema_ver = payload.get("schema_version", 1)
     status = payload.get("status", "recorded")
     q = payload.get("question", {})
-    method = payload.get("method_id", payload.get("analysis", {}).get("method_id", "Not run"))
+    analysis_payload = payload.get("analysis")
+    analysis_dict = analysis_payload if isinstance(analysis_payload, dict) else {}
+    method = payload.get("method_id", analysis_dict.get("method_id", "Not run"))
 
     design_metrics = (
         DisplayMetric("Snapshot Version", f"v{schema_ver}", role="method"),

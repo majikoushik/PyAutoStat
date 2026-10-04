@@ -320,7 +320,10 @@ def test_single_plotly_bundle_embedding(ols_workflow: ResearchWorkflowResult) ->
     # Bundle is embedded exactly once in the entire document
     assert html_out.count('id="pyautostat-plotly-bundle"') == 1
 
-    # Multi-figure test: build a mock view with multiple figures and ensure bundle occurs once
+    # Multi-figure test: render multiple figures and verify exactly one bundle and noscript banner
+    from pyautostat.presentation.html.renderer import HtmlRenderer
+    from pyautostat.presentation.models import PresentationView
+
     spec1 = FigureSpec(
         kind="estimate_ci",
         title="Estimate 1",
@@ -331,8 +334,17 @@ def test_single_plotly_bundle_embedding(ols_workflow: ResearchWorkflowResult) ->
         title="Estimate 2",
         series=(FigureSeries(label="E2", estimate=2.0, lower=1.5, upper=2.5),),
     )
-    assert spec1.series[0].estimate == 1.0
-    assert spec2.series[0].estimate == 2.0
+    view = PresentationView(
+        title="Multi-figure View",
+        subtitle="Testing single bundle guarantee with 2 figures",
+        family="family.comparison",
+    )
+    rendered_multi = HtmlRenderer(view, figure_specs=(spec1, spec2)).render()
+    assert rendered_multi.count("Plotly.newPlot") == 2
+    assert "pyautostat-chart-1" in rendered_multi
+    assert "pyautostat-chart-2" in rendered_multi
+    assert rendered_multi.count('id="pyautostat-plotly-bundle"') == 1
+    assert rendered_multi.count("<noscript>") == 1
 
 
 # ── Section 5 & 32: Raw-Data Privacy ─────────────────────────────────────────

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .adapters import UnsupportedPresentationError, adapt
 from .api import show
-from .figures import FigureSeries, FigureSpec, build_figure_spec
+from .figures import FigureSeries, FigureSpec, build_figure_spec, build_figure_specs
 from .html import HtmlRenderer, save_html, save_interactive_html, to_html, to_interactive_html
 from .models import (
     DisplayDiagnostic,
@@ -30,6 +30,7 @@ __all__ = [
     "UnsupportedPresentationError",
     "adapt",
     "build_figure_spec",
+    "build_figure_specs",
     "save_html",
     "save_interactive_html",
     "show",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ...exceptions import ReportError
@@ -49,6 +50,7 @@ class ResearchReportHtmlRenderer:
         title: str | None = None,
         style: str = "general",
         figure_spec: FigureSpec | None = None,
+        figure_specs: Sequence[FigureSpec] | None = None,
     ) -> None:
         if detail not in VALID_DETAILS:
             raise ValueError(
@@ -63,7 +65,13 @@ class ResearchReportHtmlRenderer:
         self.detail = detail
         self.title_override = title
         self.style = style
-        self.figure_spec = figure_spec
+        if figure_specs is not None:
+            self.figure_specs: tuple[FigureSpec, ...] = tuple(figure_specs)
+        elif figure_spec is not None:
+            self.figure_specs = (figure_spec,)
+        else:
+            self.figure_specs = ()
+        self.figure_spec = self.figure_specs[0] if self.figure_specs else None
 
     def render(self) -> str:
         """Render the ResearchReport according to requested detail mode."""
@@ -114,19 +122,20 @@ class ResearchReportHtmlRenderer:
         if summary is not None:
             body_parts.append(f'<p class="oriented-summary">{escape_text(summary)}</p>')
 
-        figure_html = ""
-        plotly_bundle = ""
-        figure_inserted = False
-        if self.figure_spec is not None:
-            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
-            plotly_bundle = get_plotly_bundle()
+        rendered_figures = [
+            (spec, render_figure_html(spec, figure_idx=i + 1))
+            for i, spec in enumerate(self.figure_specs)
+        ]
+        plotly_bundle = get_plotly_bundle() if rendered_figures else ""
+        inserted_indices: set[int] = set()
 
         # Compact mode returns early
         if self.detail == "compact":
-            if figure_html and self.figure_spec and self.figure_spec.kind == "estimate_ci":
-                body_parts.append(figure_html)
-                figure_inserted = True
-            if figure_inserted:
+            for idx, (spec, fig_html) in enumerate(rendered_figures):
+                if spec.kind == "estimate_ci":
+                    body_parts.append(fig_html)
+                    inserted_indices.add(idx)
+            if inserted_indices:
                 body_parts.insert(1, render_noscript_banner())
             body_html = "\n\n".join(part for part in body_parts if part)
             return render_page(report_title, body_html, style=self.style, extra_head=plotly_bundle)
@@ -142,15 +151,11 @@ class ResearchReportHtmlRenderer:
             )
             if section_content:
                 body_parts.append(render_section(sec_heading, section_content, section_id=sec_id))
-                if (
-                    figure_html
-                    and not figure_inserted
-                    and self.figure_spec is not None
-                    and key == "results"
-                    and self.figure_spec.placement == "KEY RESULTS"
-                ):
-                    body_parts.append(figure_html)
-                    figure_inserted = True
+                if key == "results":
+                    for idx, (spec, fig_html) in enumerate(rendered_figures):
+                        if idx not in inserted_indices and spec.placement == "KEY RESULTS":
+                            body_parts.append(fig_html)
+                            inserted_indices.add(idx)
 
         # Tables
         for table_dict in data.get("tables", []):
@@ -173,18 +178,19 @@ class ResearchReportHtmlRenderer:
                     section_id=section_anchor(t_title),
                 )
             )
-            if (
-                figure_html
-                and not figure_inserted
-                and self.figure_spec is not None
-                and self.figure_spec.placement.upper() in t_title.upper()
-            ):
-                body_parts.append(figure_html)
-                figure_inserted = True
+            for idx, (spec, fig_html) in enumerate(rendered_figures):
+                if (
+                    idx not in inserted_indices
+                    and spec.placement
+                    and spec.placement.upper() in t_title.upper()
+                ):
+                    body_parts.append(fig_html)
+                    inserted_indices.add(idx)
 
-        if figure_html and not figure_inserted:
-            body_parts.append(figure_html)
-            figure_inserted = True
+        for idx, (_spec, fig_html) in enumerate(rendered_figures):
+            if idx not in inserted_indices:
+                body_parts.append(fig_html)
+                inserted_indices.add(idx)
 
         # Limitations & Warnings
         limitations = data.get("limitations", [])
@@ -229,7 +235,7 @@ class ResearchReportHtmlRenderer:
                     render_section(rec_heading, rec_html, section_id="analysis-record")
                 )
 
-        if figure_inserted:
+        if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
 
         body_html = "\n\n".join(part for part in body_parts if part)

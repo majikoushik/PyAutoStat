@@ -1,6 +1,6 @@
 """HTML renderer for PyAutoStat normalized presentation models."""
 
-from __future__ import annotations
+from collections.abc import Sequence
 
 from ..figures.models import FigureSpec
 from ..models import DisplayMetric, PresentationView
@@ -33,12 +33,19 @@ class HtmlRenderer:
         title: str | None = None,
         style: str = "general",
         figure_spec: FigureSpec | None = None,
+        figure_specs: Sequence[FigureSpec] | None = None,
     ) -> None:
         self.view = view
         self.detail = detail
         self.title_override = title
         self.style = style
-        self.figure_spec = figure_spec
+        if figure_specs is not None:
+            self.figure_specs: tuple[FigureSpec, ...] = tuple(figure_specs)
+        elif figure_spec is not None:
+            self.figure_specs = (figure_spec,)
+        else:
+            self.figure_specs = ()
+        self.figure_spec = self.figure_specs[0] if self.figure_specs else None
 
     @property
     def display_title(self) -> str:
@@ -59,12 +66,11 @@ class HtmlRenderer:
         sec_idx = 1
         body_parts = [render_header(self.display_title, self.view.subtitle)]
 
-        figure_html = ""
-        plotly_bundle = ""
-        figure_inserted = False
-        if self.figure_spec is not None and self.figure_spec.kind == "estimate_ci":
-            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
-            plotly_bundle = get_plotly_bundle()
+        rendered_figures = [
+            (spec, render_figure_html(spec, figure_idx=i + 1))
+            for i, spec in enumerate(self.figure_specs)
+        ]
+        inserted_indices: set[int] = set()
 
         # Key results
         if self.view.key_metrics:
@@ -77,9 +83,10 @@ class HtmlRenderer:
                     section_id="key-results",
                 )
             )
-            if figure_html:
-                body_parts.append(figure_html)
-                figure_inserted = True
+            for idx, (spec, fig_html) in enumerate(rendered_figures):
+                if idx not in inserted_indices and spec.kind == "estimate_ci":
+                    body_parts.append(fig_html)
+                    inserted_indices.add(idx)
 
         # Compact interpretation
         interp_text = self.view.compact_text or self.view.interpretation
@@ -95,8 +102,10 @@ class HtmlRenderer:
                 )
             )
 
-        if figure_inserted:
+        plotly_bundle = ""
+        if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
+            plotly_bundle = get_plotly_bundle()
 
         body_html = "\n\n".join(part for part in body_parts if part)
         return render_page(
@@ -108,12 +117,11 @@ class HtmlRenderer:
         sec_idx = 1
         body_parts = [render_header(self.display_title, self.view.subtitle)]
 
-        figure_html = ""
-        plotly_bundle = ""
-        figure_inserted = False
-        if self.figure_spec is not None:
-            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
-            plotly_bundle = get_plotly_bundle()
+        rendered_figures = [
+            (spec, render_figure_html(spec, figure_idx=i + 1))
+            for i, spec in enumerate(self.figure_specs)
+        ]
+        inserted_indices: set[int] = set()
 
         # APA / IEEE concise prefix if available in metadata
         apa_summary = self.view.metadata.get("apa_summary")
@@ -153,14 +161,21 @@ class HtmlRenderer:
                     section_id=section_anchor(results_title),
                 )
             )
-            if (
-                figure_html
-                and not figure_inserted
-                and self.figure_spec is not None
-                and self.figure_spec.placement == "KEY RESULTS"
-            ):
-                body_parts.append(figure_html)
-                figure_inserted = True
+            for idx, (spec, fig_html) in enumerate(rendered_figures):
+                if (
+                    idx not in inserted_indices
+                    and spec.placement
+                    and (
+                        spec.placement == "KEY RESULTS"
+                        or spec.placement == results_title
+                        or (
+                            results_title == "MODEL FIT"
+                            and spec.placement in ("MODEL COEFFICIENTS", "PREDICTOR ODDS RATIOS")
+                        )
+                    )
+                ):
+                    body_parts.append(fig_html)
+                    inserted_indices.add(idx)
 
         # 3. Summary Tables (Pairwise comparisons bounded to max 6 rows in standard mode)
         if self.view.tables:
@@ -176,18 +191,19 @@ class HtmlRenderer:
                         section_id=section_anchor(table_title),
                     )
                 )
-                if (
-                    figure_html
-                    and not figure_inserted
-                    and self.figure_spec is not None
-                    and self.figure_spec.placement.upper() in table_title.upper()
-                ):
-                    body_parts.append(figure_html)
-                    figure_inserted = True
+                for idx, (spec, fig_html) in enumerate(rendered_figures):
+                    if (
+                        idx not in inserted_indices
+                        and spec.placement
+                        and spec.placement.upper() in table_title.upper()
+                    ):
+                        body_parts.append(fig_html)
+                        inserted_indices.add(idx)
 
-        if figure_html and not figure_inserted:
-            body_parts.append(figure_html)
-            figure_inserted = True
+        for idx, (_spec, fig_html) in enumerate(rendered_figures):
+            if idx not in inserted_indices:
+                body_parts.append(fig_html)
+                inserted_indices.add(idx)
 
         # 4. Interpretation
         if self.view.interpretation:
@@ -238,8 +254,10 @@ class HtmlRenderer:
                 )
             )
 
-        if figure_inserted:
+        plotly_bundle = ""
+        if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
+            plotly_bundle = get_plotly_bundle()
 
         body_html = "\n\n".join(part for part in body_parts if part)
         return render_page(
@@ -251,12 +269,11 @@ class HtmlRenderer:
         sec_idx = 1
         body_parts = [render_header(self.display_title, self.view.subtitle)]
 
-        figure_html = ""
-        plotly_bundle = ""
-        figure_inserted = False
-        if self.figure_spec is not None:
-            figure_html = render_figure_html(self.figure_spec, figure_idx=1)
-            plotly_bundle = get_plotly_bundle()
+        rendered_figures = [
+            (spec, render_figure_html(spec, figure_idx=i + 1))
+            for i, spec in enumerate(self.figure_specs)
+        ]
+        inserted_indices: set[int] = set()
 
         apa_summary = self.view.metadata.get("apa_summary")
         if self.style == "apa" and apa_summary:
@@ -295,14 +312,21 @@ class HtmlRenderer:
                     section_id=section_anchor(results_title),
                 )
             )
-            if (
-                figure_html
-                and not figure_inserted
-                and self.figure_spec is not None
-                and self.figure_spec.placement == "KEY RESULTS"
-            ):
-                body_parts.append(figure_html)
-                figure_inserted = True
+            for idx, (spec, fig_html) in enumerate(rendered_figures):
+                if (
+                    idx not in inserted_indices
+                    and spec.placement
+                    and (
+                        spec.placement == "KEY RESULTS"
+                        or spec.placement == results_title
+                        or (
+                            results_title == "MODEL FIT"
+                            and spec.placement in ("MODEL COEFFICIENTS", "PREDICTOR ODDS RATIOS")
+                        )
+                    )
+                ):
+                    body_parts.append(fig_html)
+                    inserted_indices.add(idx)
 
         # 3. Tables (Untruncated)
         if self.view.tables:
@@ -317,18 +341,19 @@ class HtmlRenderer:
                         section_id=section_anchor(table_title),
                     )
                 )
-                if (
-                    figure_html
-                    and not figure_inserted
-                    and self.figure_spec is not None
-                    and self.figure_spec.placement.upper() in table_title.upper()
-                ):
-                    body_parts.append(figure_html)
-                    figure_inserted = True
+                for idx, (spec, fig_html) in enumerate(rendered_figures):
+                    if (
+                        idx not in inserted_indices
+                        and spec.placement
+                        and spec.placement.upper() in table_title.upper()
+                    ):
+                        body_parts.append(fig_html)
+                        inserted_indices.add(idx)
 
-        if figure_html and not figure_inserted:
-            body_parts.append(figure_html)
-            figure_inserted = True
+        for idx, (_spec, fig_html) in enumerate(rendered_figures):
+            if idx not in inserted_indices:
+                body_parts.append(fig_html)
+                inserted_indices.add(idx)
 
         # 4. Interpretation
         if self.view.interpretation:
@@ -493,8 +518,10 @@ class HtmlRenderer:
                 )
             )
 
-        if figure_inserted:
+        plotly_bundle = ""
+        if inserted_indices:
             body_parts.insert(1, render_noscript_banner())
+            plotly_bundle = get_plotly_bundle()
 
         body_html = "\n\n".join(part for part in body_parts if part)
         return render_page(

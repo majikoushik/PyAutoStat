@@ -8,7 +8,7 @@ from typing import Any
 from ...exceptions import ReportError
 from ...research_report import ResearchReport
 from ..adapters import adapt
-from ..figures.adapters import build_figure_spec
+from ..figures.adapters import build_figure_specs
 from ..models import PresentationView
 from .plotly_renderer import check_plotly_available
 from .renderer import HtmlRenderer
@@ -166,7 +166,9 @@ def to_interactive_html(
     ----------
     target : Any
         A supported PyAutoStat object (e.g. ResearchWorkflowResult, AnalysisResult,
-        ResearchReport, or PresentationView).
+        ResearchReport, or PresentationView). Note: When passing a PresentationView,
+        no figures are reconstructed from formatted text; if no figures are generated,
+        static HTML is returned and Plotly is not required.
     detail : {"compact", "standard", "full"}, default="standard"
         Detail level for the HTML report.
     title : str | None, optional
@@ -175,7 +177,8 @@ def to_interactive_html(
         Reporting style convention.
     include_figures : bool, default=True
         Whether to generate and embed supplementary interactive figures.
-        When False, Plotly is not required and static HTML is returned.
+        When False, or when the target generates no figures, Plotly is not
+        required and static HTML is returned.
 
     Returns
     -------
@@ -196,21 +199,23 @@ def to_interactive_html(
     if not include_figures:
         return to_html(target, detail=detail, title=title, style=style)
 
+    figure_specs = build_figure_specs(target)
+    if not figure_specs:
+        return to_html(target, detail=detail, title=title, style=style)
+
     check_plotly_available()
 
     if isinstance(target, ResearchReport):
-        fig_spec = build_figure_spec(target)
         renderer = ResearchReportHtmlRenderer(
             target,
             detail=detail,
             title=title,
             style=style,
-            figure_spec=fig_spec,
+            figure_specs=figure_specs,
         )
         return renderer.render()
 
     if isinstance(target, PresentationView):
-        fig_spec = build_figure_spec(target)
         view = target
         if title is not None:
             view = PresentationView(
@@ -232,11 +237,10 @@ def to_interactive_html(
             detail=detail,
             title=title,
             style=style,
-            figure_spec=fig_spec,
+            figure_specs=figure_specs,
         )
         return renderer_inst.render()
 
-    fig_spec = build_figure_spec(target)
     view = adapt(target, detail=detail)
     if title is not None:
         view = PresentationView(
@@ -258,7 +262,7 @@ def to_interactive_html(
         detail=detail,
         title=title,
         style=style,
-        figure_spec=fig_spec,
+        figure_specs=figure_specs,
     )
     return renderer_inst.render()
 

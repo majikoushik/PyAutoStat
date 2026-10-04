@@ -84,7 +84,8 @@ def _adapt_two_group_mean(
 
     # Group summary table
     tables: list[DisplayTable] = []
-    group_sizes = analysis.metadata.get("sample", {}).get("group_sizes", [])
+    sample_meta = analysis.metadata.get("sample")
+    group_sizes = sample_meta.get("group_sizes", []) if isinstance(sample_meta, dict) else []
     if group_sizes:
         rows: list[DisplayRow] = []
         for g_info in group_sizes:
@@ -104,28 +105,34 @@ def _adapt_two_group_mean(
     diff_str = format_number(diff, decimals=2, unit=unit)
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=2)
-    effect_dict = analysis.values.get("effect_size", {})
-    effect_val = effect_dict.get("value")
-    effect_str = format_effect(effect_val, decimals=2)
-    effect_ci = effect_dict.get("confidence_interval")
-    effect_ci_str = format_confidence_interval(effect_ci, decimals=2)
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
     stat = analysis.values.get("test_statistic")
     df = analysis.values.get("degrees_of_freedom")
 
     ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
-    effect_ci_label = format_confidence_level_label(
-        effect_ci, confidence_level=conf_level, prefix="Effect"
-    )
 
     key_metrics_list = [
         DisplayMetric("Mean difference", diff_str, role="result.estimate"),
         DisplayMetric(ci_label, ci_str, role="result.ci"),
-        DisplayMetric("Cohen's d", effect_str, role="result.effect"),
-        DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"),
-        DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
+
+    effect_obj = analysis.values.get("effect_size")
+    effect_val = None
+    if isinstance(effect_obj, dict):
+        effect_val = effect_obj.get("value")
+        effect_str = format_effect(effect_val, decimals=2)
+        effect_ci = effect_obj.get("confidence_interval")
+        effect_ci_str = format_confidence_interval(effect_ci, decimals=2)
+        effect_ci_label = format_confidence_level_label(
+            effect_ci, confidence_level=conf_level, prefix="Effect"
+        )
+        if effect_val is not None:
+            key_metrics_list.append(DisplayMetric("Cohen's d", effect_str, role="result.effect"))
+        if effect_ci is not None:
+            key_metrics_list.append(DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"))
+
+    key_metrics_list.append(DisplayMetric("p-value", p_str, role="result.evidence"))
     if detail == "full" and stat is not None:
         key_metrics_list.append(DisplayMetric("Test statistic", format_statistic("t", stat, df=df)))
 
@@ -164,9 +171,11 @@ def _adapt_two_group_mean(
     compact_text = (
         f"{'Welch' if is_welch else 'Student'} t-test | "
         f"N={format_sample_size(sample_size)} | "
-        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')} | "
-        f"d={effect_str} | p={p_str}"
+        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')}"
     )
+    if effect_val is not None:
+        compact_text += f" | d={format_effect(effect_val, decimals=2)}"
+    compact_text += f" | p={p_str}"
 
     metadata = build_metadata_dict(analysis, workflow)
     metadata["contrast"] = contrast_str
@@ -218,7 +227,8 @@ def adapt_mann_whitney_u(
 
     # Group summaries table
     tables: list[DisplayTable] = []
-    group_sizes = analysis.metadata.get("sample", {}).get("group_sizes", [])
+    sample_meta = analysis.metadata.get("sample")
+    group_sizes = sample_meta.get("group_sizes", []) if isinstance(sample_meta, dict) else []
     if group_sizes:
         rows: list[DisplayRow] = []
         for g_info in group_sizes:
@@ -238,21 +248,31 @@ def adapt_mann_whitney_u(
     u_str = format_number(u_stat, decimals=1)
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
-    effect_dict = analysis.values.get("effect_size", {})
-    effect_val = effect_dict.get("value")
-    effect_str = format_effect(effect_val, decimals=3)
-    ci_dict = effect_dict.get("confidence_interval") or analysis.values.get("confidence_interval")
-    ci_str = format_confidence_interval(ci_dict, decimals=3)
+    effect_obj = analysis.values.get("effect_size")
+    effect_val = None
+    ci_dict = None
+    if isinstance(effect_obj, dict):
+        effect_val = effect_obj.get("value")
+        ci_dict = effect_obj.get("confidence_interval")
+    if ci_dict is None:
+        ci_dict = analysis.values.get("confidence_interval")
 
+    ci_str = format_confidence_interval(ci_dict, decimals=3)
     ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level, prefix="Effect")
     short_ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
 
     key_metrics_list = [
         DisplayMetric("Mann-Whitney U", u_str, role="result.estimate"),
-        DisplayMetric("Rank-biserial r", effect_str, role="result.effect"),
-        DisplayMetric(ci_label, ci_str, role="result.ci"),
-        DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
+    if effect_val is not None:
+        key_metrics_list.append(
+            DisplayMetric(
+                "Rank-biserial r", format_effect(effect_val, decimals=3), role="result.effect"
+            )
+        )
+    if ci_dict is not None:
+        key_metrics_list.append(DisplayMetric(ci_label, ci_str, role="result.ci"))
+    key_metrics_list.append(DisplayMetric("p-value", p_str, role="result.evidence"))
 
     diagnostics_list = [
         DisplayDiagnostic(
@@ -275,11 +295,12 @@ def adapt_mann_whitney_u(
             "Statistical significance alone does not establish practical importance."
         )
 
-    compact_text = (
-        f"Mann-Whitney U | N={format_sample_size(sample_size)} | "
-        f"U={u_str} | r_rb={effect_str} | {short_ci_label} {ci_str.replace(' to ', '...')} | "
-        f"p={p_str}"
-    )
+    compact_text = f"Mann-Whitney U | N={format_sample_size(sample_size)} | U={u_str}"
+    if effect_val is not None:
+        compact_text += f" | r_rb={format_effect(effect_val, decimals=3)}"
+    if ci_dict is not None:
+        compact_text += f" | {short_ci_label} {ci_str.replace(' to ', '...')}"
+    compact_text += f" | p={p_str}"
 
     return TerminalView(
         title="Independent Group Rank Comparison",
@@ -328,28 +349,34 @@ def adapt_one_sample_t(
     diff_str = format_number(diff, decimals=2, unit=unit)
     ci_dict = analysis.values.get("confidence_interval")
     ci_str = format_confidence_interval(ci_dict, decimals=2)
-    effect_dict = analysis.values.get("effect_size", {})
-    effect_val = effect_dict.get("value")
-    effect_str = format_effect(effect_val, decimals=2)
-    effect_ci = effect_dict.get("confidence_interval")
-    effect_ci_str = format_confidence_interval(effect_ci, decimals=2)
     p_val = analysis.values.get("p_value")
     p_str = format_p_value(p_val)
     stat = analysis.values.get("test_statistic")
     df = analysis.values.get("degrees_of_freedom")
 
     ci_label = format_confidence_level_label(ci_dict, confidence_level=conf_level)
-    effect_ci_label = format_confidence_level_label(
-        effect_ci, confidence_level=conf_level, prefix="Effect"
-    )
 
     key_metrics_list = [
         DisplayMetric("Observed - Reference", diff_str, role="result.estimate"),
         DisplayMetric(ci_label, ci_str, role="result.ci"),
-        DisplayMetric("Cohen's d", effect_str, role="result.effect"),
-        DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"),
-        DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
+
+    effect_obj = analysis.values.get("effect_size")
+    effect_val = None
+    if isinstance(effect_obj, dict):
+        effect_val = effect_obj.get("value")
+        effect_str = format_effect(effect_val, decimals=2)
+        effect_ci = effect_obj.get("confidence_interval")
+        effect_ci_str = format_confidence_interval(effect_ci, decimals=2)
+        effect_ci_label = format_confidence_level_label(
+            effect_ci, confidence_level=conf_level, prefix="Effect"
+        )
+        if effect_val is not None:
+            key_metrics_list.append(DisplayMetric("Cohen's d", effect_str, role="result.effect"))
+        if effect_ci is not None:
+            key_metrics_list.append(DisplayMetric(effect_ci_label, effect_ci_str, role="result.ci"))
+
+    key_metrics_list.append(DisplayMetric("p-value", p_str, role="result.evidence"))
     if detail == "full" and stat is not None:
         key_metrics_list.append(DisplayMetric("Test statistic", format_statistic("t", stat, df=df)))
 
@@ -372,9 +399,11 @@ def adapt_one_sample_t(
 
     compact_text = (
         f"One-sample t-test | N={format_sample_size(sample_size)} | "
-        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')} | "
-        f"d={effect_str} | p={p_str}"
+        f"diff={diff_str} | {ci_label} {ci_str.replace(' to ', '...')}"
     )
+    if effect_val is not None:
+        compact_text += f" | d={format_effect(effect_val, decimals=2)}"
+    compact_text += f" | p={p_str}"
 
     return TerminalView(
         title="One-Sample Mean Comparison",

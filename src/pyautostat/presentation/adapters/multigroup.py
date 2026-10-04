@@ -101,8 +101,8 @@ def _adapt_multigroup(
         DisplayMetric("p-value", p_str, role="result.evidence"),
     ]
 
-    effect_dict = analysis.values.get("effect_size", {})
-    if effect_dict and effect_dict.get("value") is not None:
+    effect_dict = analysis.values.get("effect_size")
+    if isinstance(effect_dict, dict) and effect_dict.get("value") is not None:
         eff_name = effect_dict.get("name", "Effect size")
         eff_val = effect_dict.get("value")
         eff_str = format_effect(eff_val, decimals=3)

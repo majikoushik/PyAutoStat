@@ -251,34 +251,32 @@ def format_confidence_level_label(
     2. Explicit fallback 'confidence_level' (e.g. from analysis specification or metadata).
     3. Neutral fallback label without assuming 95%.
     """
+
+    def _parse_level(val: Any) -> float | None:
+        if isinstance(val, (int, float)) and not isinstance(val, bool) and math.isfinite(val):
+            if 0 < val < 1:
+                return float(val)
+            return None
+        elif isinstance(val, str):
+            s = val.strip().rstrip("%").strip()
+            try:
+                num = float(s)
+                if 0 < num < 1:
+                    return num
+                if 1 < num < 100:
+                    return num / 100.0
+            except ValueError:
+                return None
+        return None
+
     level: float | None = None
     if isinstance(ci, dict):
-        candidate = ci.get("level")
-        if (
-            isinstance(candidate, (int, float))
-            and not isinstance(candidate, bool)
-            and math.isfinite(candidate)
-            and 0 < candidate < 1
-        ):
-            level = float(candidate)
+        level = _parse_level(ci.get("level"))
     elif ci is not None:
-        candidate = getattr(ci, "level", None)
-        if (
-            isinstance(candidate, (int, float))
-            and not isinstance(candidate, bool)
-            and math.isfinite(candidate)
-            and 0 < candidate < 1
-        ):
-            level = float(candidate)
+        level = _parse_level(getattr(ci, "level", None))
 
     if level is None and confidence_level is not None:
-        if (
-            isinstance(confidence_level, (int, float))
-            and not isinstance(confidence_level, bool)
-            and math.isfinite(confidence_level)
-            and 0 < confidence_level < 1
-        ):
-            level = float(confidence_level)
+        level = _parse_level(confidence_level)
 
     parts: list[str] = []
     if prefix:
@@ -293,3 +291,24 @@ def format_confidence_level_label(
 
     result = " ".join(parts).strip()
     return result if result else "CI"
+
+
+def confidence_interval_phrase(
+    ci: Any = None,
+    *,
+    confidence_level: float | None = None,
+    plural: bool = False,
+) -> str:
+    """Format a dynamic confidence interval phrase for titles and descriptions.
+
+    Follows precedence:
+    1. Stored 'level' in the interval object/dictionary itself.
+    2. Explicit fallback 'confidence_level' (e.g. from analysis or specification).
+    3. Neutral fallback ("confidence interval" / "confidence intervals") without assuming 95%.
+    """
+    suffix = "confidence intervals" if plural else "confidence interval"
+    return format_confidence_level_label(
+        ci,
+        confidence_level=confidence_level,
+        suffix=suffix,
+    )

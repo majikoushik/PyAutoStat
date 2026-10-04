@@ -57,7 +57,8 @@ def adapt_linear_regression(
         DisplayMetric("Excluded", f"{format_sample_size(excluded_rows)} rows"),
     )
 
-    fit = analysis.values.get("model_fit", {})
+    fit_obj = analysis.values.get("model_fit")
+    fit = fit_obj if isinstance(fit_obj, dict) else {}
     r2 = fit.get("r_squared")
     adj_r2 = fit.get("adjusted_r_squared")
     r2_ci = fit.get("r_squared_confidence_interval")
@@ -213,8 +214,9 @@ def adapt_linear_regression(
     )
 
     metadata = build_metadata_dict(analysis, workflow)
-    metadata["reference_levels"] = analysis.metadata.get("regression_specification", {}).get(
-        "reference_levels"
+    reg_spec_obj = analysis.metadata.get("regression_specification")
+    metadata["reference_levels"] = (
+        reg_spec_obj.get("reference_levels") if isinstance(reg_spec_obj, dict) else None
     )
 
     return TerminalView(
@@ -261,7 +263,8 @@ def adapt_logistic_regression(
         DisplayMetric("Excluded", f"{format_sample_size(excluded_rows)} rows"),
     )
 
-    fit = analysis.values.get("model_fit", {})
+    fit_obj = analysis.values.get("model_fit")
+    fit = fit_obj if isinstance(fit_obj, dict) else {}
     lr_stat = fit.get("lr_statistic")
     lr_df = fit.get("lr_degrees_of_freedom")
     lr_p = fit.get("lr_p_value")
@@ -341,8 +344,9 @@ def adapt_logistic_regression(
     )
 
     metadata = build_metadata_dict(analysis, workflow)
-    metadata["reference_levels"] = analysis.metadata.get("regression_specification", {}).get(
-        "reference_levels"
+    reg_spec_obj = analysis.metadata.get("regression_specification")
+    metadata["reference_levels"] = (
+        reg_spec_obj.get("reference_levels") if isinstance(reg_spec_obj, dict) else None
     )
 
     return TerminalView(
