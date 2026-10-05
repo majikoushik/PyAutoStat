@@ -100,12 +100,12 @@ Where alternative methods exist for an objective:
 
 ## Workflow status contract
 
-`workflow.status` describes the completeness of the full research workflow, not only whether the statistical calculation succeeded. A workflow can contain a valid, fully computed statistical analysis even when the overall workflow status is `partial`.
+`workflow.status` describes the completeness of the full research workflow, not only whether the statistical calculation succeeded. A workflow can contain an executed, fully computed statistical analysis even when the overall workflow status is `partial`.
 
 | Status | Meaning | Analysis state |
 | --- | --- | --- |
 | `completed` | Calculation, interpretation, complete report, and audit completed. | Computed (`workflow.analysis is not None`) |
-| `partial` | Valid findings exist and are accessible, but an optional downstream step was omitted (e.g., `audit=False`) or incomplete. | Computed (`workflow.analysis is not None`) |
+| `partial` | The statistical calculation succeeded and is accessible, but an optional downstream step was omitted (e.g., `audit=False`) or incomplete. | Computed (`workflow.analysis is not None`) |
 | `needs_input` | An essential researcher answer is missing; no test ran. | Not run (`workflow.analysis is None`) |
 | `data_limited` | The selected observations cannot meet the current numerical policy; no test ran. | Not run (`workflow.analysis is None`) |
 | `unsupported` | The stated design, target, or variable combination has no compatible guided method; no substitute ran. | Not run (`workflow.analysis is None`) |
@@ -116,7 +116,7 @@ can have an available analysis and partial interpretation if an optional compone
 
 ### Auditing and partial workflow status
 
-When report auditing is explicitly disabled (`audit=False`), the statistical analysis is fully executed and accessible, but the overall workflow status is `partial` because post-analysis verification was intentionally bypassed:
+When report auditing is explicitly disabled (`audit=False`), the computed statistical result is unchanged and remains available, but the overall workflow status is `partial` because post-analysis audit verification was not performed:
 
 ```python
 workflow = assistant.run(..., audit=False)
@@ -125,7 +125,7 @@ assert workflow.analysis is not None       # Statistical calculation succeeded
 assert workflow.status.value == "partial"  # Workflow is partial because audit was skipped
 ```
 
-Disabling the audit does not invalidate or alter the computed statistical results.
+Disabling the audit does not change the numerical calculation, but the workflow remains partial because audit verification was skipped.
 
 
 ## Supported statistical analyses

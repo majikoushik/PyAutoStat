@@ -10,6 +10,7 @@ provide focused technical and scientific detail organized by research goal.
 - [README](../README.md): Quick start, installation, core workflow, and overview.
 - [Examples Guide](../examples/README.md): Walkthroughs using the bundled realistic 5,000-row customer dataset.
 - [Capabilities](CAPABILITIES.md): Current user paths, workflow statuses, supported analyses, and boundaries.
+- [Usability Audit](USABILITY_AUDIT.md): Systematic usability audit across all 13 supported feature families, input shapes, sample accounting, orientation clarity, and market benchmarks.
 
 ## Analysis workflows
 

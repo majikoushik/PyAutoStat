@@ -190,35 +190,39 @@ Association targets include `linear`, `point_biserial`, `monotonic`, `partial_li
 `categorical_independence`, with unavailable targets retained as
 unsupported rather than replaced.
 
-#### Minimal call shapes by research goal
+#### Analysis cookbook by research goal
 
-Most workflows require only a small subset of parameters. Use this guide to determine what fields matter for your research question:
+Most workflows require only a small subset of parameters. Use this cookbook to identify the right call shape for your research question:
 
-| Research goal | Typical required parameters | Notes |
-| --- | --- | --- |
-| Two independent groups | `objective="compare_groups"`, `outcome`, `predictor`, `estimand`, `design="independent"` | `estimand="mean"` (Welch t) or `"distribution"` (Mann-Whitney) |
-| Paired comparison (2 conditions) | above + `unit_id`, `condition_order=("pre", "post")`, `design="paired"` | Long-format panel; exactly 2 observed conditions |
-| Repeated measures (3+ conditions) | `objective="compare_groups"`, `outcome`, `predictor`, `estimand`, `design="repeated"`, `unit_id`, `condition_order` | `condition_order` has 3+ conditions |
-| Factorial ANOVA (2 factors) | `objective="compare_groups"`, `outcome`, `factor_a`, `factor_b`, `design="independent"`, `estimand="mean"` | Prefer `assistant.two_way_anova(...)` |
-| Bivariate association | `objective="association"`, `outcome`, `predictor`, `estimand`, `design="independent"` | `estimand="linear"`, `"monotonic"`, or `"point_biserial"` |
-| Partial Pearson correlation | `objective="association"`, `outcome`, `predictor`, `controls=[...]`, `estimand="partial_linear"`, `design="independent"` | Quantitative controls in original units |
-| Multiple regression | `objective="regression"`, `outcome`, `predictors=[...]`, `estimand="conditional_mean"`, `design="independent"` | Continuous outcome; multiple predictors |
-| Scale reliability | Prefer `assistant.reliability(items=[...])` | Or `run(objective="reliability", items=[...], estimand="internal_consistency")` |
-| Inter-rater reliability (ICC) | Prefer `assistant.intraclass_correlation(target, rater, value, ...)` | Or `run(objective="reliability", target=..., rater=..., outcome=..., estimand="intraclass_correlation", ...)` |
+| Research goal | Recommended call / Typical parameters | Core estimand | Key design requirements |
+| --- | --- | --- | --- |
+| **One-sample mean vs reference** | `run(objective="compare_reference", outcome=..., reference_value=..., estimand="mean")` | Difference from reference ($\mu - \mu_0$) | Explicit finite `reference_value`; no predictor |
+| **Two independent groups** | `run(objective="compare_groups", outcome=..., predictor=..., estimand="mean"|"distribution", design="independent")` | Mean difference (Welch t) or stochastic superiority (Mann-Whitney) | Binary predictor; Welch t is guided default for means |
+| **Paired comparison (2 conditions)** | `run(objective="compare_groups", outcome=..., predictor=..., design="paired", unit_id=..., condition_order=("pre", "post"), estimand="mean"|"distribution"|"proportion")` | Mean paired difference, Wilcoxon rank sum, or McNemar proportion | Long-format panel; explicit `unit_id` and `condition_order` |
+| **3+ independent groups** | `run(objective="compare_groups", outcome=..., predictor=..., estimand="mean"|"distribution", design="independent")` | Omnibus equality of means (Welch ANOVA) or rank distributions | Predictor with $\ge 3$ groups; Games-Howell or Dunn-Holm follow-up |
+| **Repeated measures (3+ conditions)** | `run(objective="compare_groups", outcome=..., predictor=..., design="repeated", unit_id=..., condition_order=(...), estimand="mean"|"distribution")` | Equality of repeated condition means or distributions | Long-format panel; $\ge 3$ conditions; Mauchly sphericity check |
+| **Two-way factorial ANOVA** | `assistant.two_way_anova(outcome=..., factor_a=..., factor_b=..., sum_of_squares="type2"|"type3")` | Main factor effects and interaction effect | Independent observations; 2 categorical factors; continuous outcome |
+| **Bivariate correlation** | `run(objective="association", outcome=..., predictor=..., estimand="linear"|"monotonic"|"point_biserial", design="independent")` | Pearson $r$, Spearman $\rho$, Kendall $\tau_b$, or point-biserial $r_{pb}$ | Independent paired rows; non-causal association |
+| **Partial Pearson correlation** | `run(objective="association", outcome=..., predictor=..., controls=[...], estimand="partial_linear", design="independent")` | Linear association adjusted for covariates | Quantitative controls in original units; non-causal |
+| **Categorical independence** | `run(objective="association", outcome=..., predictor=..., estimand="categorical_independence", design="independent")` | Categorical independence (Chi-square or Fisher exact) | 2 categorical columns; automated Fisher exact fallback for sparse 2x2 |
+| **Multiple linear regression** | `run(objective="regression", outcome=..., predictors=[...], estimand="conditional_mean", design="independent")` | Conditional mean coefficients ($\beta_j$) and in-sample $R^2$ | Continuous outcome; classical or HC3 robust covariance |
+| **Binary logistic regression** | `run(objective="regression", outcome=..., predictors=[...], event_level=..., estimand="event_probability", design="independent")` | Log-odds coefficients and Odds Ratios ($e^{\beta_j}$) | Binary outcome; explicit `event_level`; McFadden pseudo-$R^2$ |
+| **Scale reliability** | `assistant.reliability(items=[...])` | Sample-variance Cronbach's alpha ($\alpha$) | Scored numeric items; bootstrap CI; item diagnostics |
+| **Inter-rater reliability (ICC)** | `assistant.intraclass_correlation(target=..., rater=..., value=..., model=..., definition=..., unit=...)` | Shrout & Fleiss / McGraw & Wong ICC variant | Crossed target-by-rater panel; explicit model/definition/unit |
 
 #### Understanding workflow status: Analysis success vs. workflow completeness
 
 `workflow.status` (a `WorkflowStatus` enum) describes the completeness of the overall PyAutoStat research workflow, which encompasses analysis, interpretation, reporting, and result auditing, rather than only whether the numerical calculation executed:
 
 - **`completed`**: Both the statistical analysis and all downstream stages (deterministic interpretation, research report, and result audit) executed successfully. No further researcher action is required.
-- **`partial`**: A valid statistical analysis was successfully computed (`workflow.analysis is not None`), but a downstream lifecycle component was intentionally skipped or incomplete. For example, setting `audit=False` skips report auditing:
+- **`partial`**: The statistical calculation was successfully computed and remains available (`workflow.analysis is not None`), but a downstream lifecycle component was intentionally skipped or incomplete. For example, setting `audit=False` skips report auditing:
   ```python
   workflow = assistant.run(..., audit=False)
 
   assert workflow.analysis is not None
   assert workflow.status.value == "partial"
   ```
-  The numerical result is fully valid and accessible; the overall workflow is marked `partial` because scientific audit verification was bypassed.
+  The computed statistical result is unchanged and remains available; the overall workflow is marked `partial` because post-analysis audit verification was not performed.
 - **`needs_input`**: No inferential statistical analysis was run. PyAutoStat requires researcher-supplied design facts (e.g. independence vs. pairing or estimand). Inspect `workflow.missing_information` and resume using `assistant.update_question()`.
 - **`data_limited`**: No inferential test was run because dataset conditions (such as zero variance, empty groups, or rank deficiency) mathematically prevent calculation.
 - **`unsupported`**: No inferential test was run because no validated method in the library matches the declared combination of design and estimand. No substitute method is silently substituted.
