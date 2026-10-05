@@ -85,8 +85,18 @@ A supplied draft or specification cannot be combined with raw question arguments
 Advanced callers can prepare and serialize specifications, request a recommendation, execute a
 validated specification, and invoke supported legacy analyzer methods directly. Explicit access
 does not bypass numerical validation or turn an unsupported guided design into a supported one.
-Student's pooled t-test and standard one-way ANOVA remain explicitly runnable but are not selected
-automatically by the guided workflow.
+
+Where alternative methods exist for an objective:
+- **Two independent groups (mean estimand)**:
+  - *Guided default*: Welch t-test (robust against unequal variances; no equal-variance assumption).
+  - *Explicitly supported alternative*: Student's pooled t-test (requires explicit equal-variance justification; not chosen automatically by the guided workflow).
+- **Three or more independent groups (mean estimand)**:
+  - *Guided default*: Welch one-way ANOVA with Games-Howell pairwise follow-up.
+  - *Explicitly supported alternative*: Classical one-way ANOVA with Tukey-Kramer follow-up (requires explicit equal-variance justification; not chosen automatically).
+- **Parametric vs. rank-based targets**:
+  - *Guided default for mean targets (`estimand="mean"`)*: Welch t-test (2 groups) or Welch ANOVA + Games-Howell (3+ groups).
+  - *Guided default for rank/distribution targets (`estimand="distribution"`)*: Mann-Whitney U (2 groups) or Kruskal-Wallis + Dunn-Holm (3+ groups).
+  - *Estimand preservation*: Diagnostics (such as normality tests) never silently switch a declared mean target to a rank test.
 
 ## Workflow status contract
 
@@ -111,14 +121,14 @@ can have an available analysis and partial interpretation if an optional compone
 | --- | --- | --- | --- | --- | --- |
 | Dataset description | Not applicable | Dataset profile | Guided and direct | Descriptive records; no inferential p-value | Descriptive only |
 | One population mean versus reference | Independent | One-sample t-test | Automatically guided and direct | Observed-minus-reference mean difference, analytical CI, one-sample Cohen's d with exact noncentral-t CI | Explicit finite reference and continuous outcome required; zero variance leaves inferential quantities unavailable |
-| Two-group population means | Independent | Welch t-test | Automatically guided | First-minus-second mean, analytical CI, Cohen's d | At least two usable values per group and representable spread |
-| Pooled two-group population means | Independent | Student t-test | Explicitly runnable and available to sensitivity scenarios | First-minus-second mean, analytical CI, Cohen's d | Requires an explicit equal-variance justification |
-| Two-condition paired population mean difference | Paired with explicit unit ID | Paired t-test | Automatically guided | First-minus-second paired mean, analytical CI, Cohen's dz with exact noncentral-t CI | Unique unit/condition rows, at least two complete pairs, nonzero difference variance |
-| Two-condition paired rank/distribution target | Paired with explicit unit ID | Wilcoxon signed-rank | Automatically guided and direct | Signed-rank statistic, matched-pairs rank-biserial effect, and pair-level bootstrap CI | `wilcox` zero policy; not universally a median test; location-shift reading needs symmetry |
-| Two-group rank distributions | Independent | Mann-Whitney U | Automatically guided | U, rank-biserial effect, optional bootstrap CI | Distribution target; no universal median claim |
-| Multi-group population means | Independent | Welch one-way ANOVA + Games-Howell | Automatically guided | Omnibus Welch F/df/p, group means, every pairwise mean difference with simultaneous CI and adjusted p | Positive finite variance required in every group; no global standardized effect claimed |
-| Standard multi-group population means | Independent | One-way ANOVA + Tukey-Kramer | Explicitly runnable and available to sensitivity scenarios | Omnibus F/eta-squared and every pairwise mean difference with simultaneous CI and adjusted p | Guided selector does not choose it; equal-variance assumptions require justification |
-| Three-or-more rank distributions | Independent | Kruskal-Wallis + Dunn-Holm | Automatically guided | Omnibus H/epsilon-squared and every pairwise mean-rank contrast with adjusted p, rank-biserial effect, and within-group bootstrap CI | At least five usable values per group; pairwise effect CIs are pointwise (multiplicity_adjusted=False) |
+| Two-group population means | Independent | Welch t-test | Guided default | First-minus-second mean, analytical CI, Cohen's d | At least two usable values per group and representable spread |
+| Pooled two-group population means | Independent | Student t-test | Explicitly supported alternative (requires equal-variance justification) | First-minus-second mean, analytical CI, Cohen's d | Requires an explicit equal-variance justification |
+| Two-condition paired population mean difference | Paired with explicit unit ID | Paired t-test | Guided default | First-minus-second paired mean, analytical CI, Cohen's dz with exact noncentral-t CI | Unique unit/condition rows, at least two complete pairs, nonzero difference variance |
+| Two-condition paired rank/distribution target | Paired with explicit unit ID | Wilcoxon signed-rank | Guided default | Signed-rank statistic, matched-pairs rank-biserial effect, and pair-level bootstrap CI | `wilcox` zero policy; not universally a median test; location-shift reading needs symmetry |
+| Two-group rank distributions | Independent | Mann-Whitney U | Guided default (`estimand="distribution"`) | U, rank-biserial effect, optional bootstrap CI | Distribution target; no universal median claim |
+| Multi-group population means | Independent | Welch one-way ANOVA + Games-Howell | Guided default | Omnibus Welch F/df/p, group means, every pairwise mean difference with simultaneous CI and adjusted p | Positive finite variance required in every group; no global standardized effect claimed |
+| Standard multi-group population means | Independent | One-way ANOVA + Tukey-Kramer | Explicitly supported alternative (requires equal-variance justification) | Omnibus F/eta-squared and every pairwise mean difference with simultaneous CI and adjusted p | Guided selector does not choose it; equal-variance assumptions require justification |
+| Three-or-more rank distributions | Independent | Kruskal-Wallis + Dunn-Holm | Guided default (`estimand="distribution"`) | Omnibus H/epsilon-squared and every pairwise mean-rank contrast with adjusted p, rank-biserial effect, and within-group bootstrap CI | At least five usable values per group; pairwise effect CIs are pointwise (multiplicity_adjusted=False) |
 | Linear numerical association | Independent rows | Pearson correlation | Automatically guided | r, p-value, and Fisher-z asymptotic normal CI (for n > 3) | Linear association; CI unavailable for n ≤ 3 |
 | Continuous conditional mean | Independent rows | Ordinary least-squares linear regression | Automatically guided for `objective="regression"` and direct | Coefficients/SE/t/p/CI, model F, R-squared/adjusted R-squared, residual error, continuous-predictor standardized beta, case-resampling bootstrap CI for in-sample R-squared | Additive main effects only; associations are noncausal and fit is not out-of-sample validation |
 | Binary event probability/odds | Independent rows | Binary logistic regression | Guided `objective="regression"` | Likelihood fit, coefficients/SE/z/p/CI, odds ratios/CI, convergence and collinearity diagnostics | Exactly two outcome levels and explicit orientation; no classification metrics or causal claim |
@@ -160,7 +170,7 @@ observed post-hoc power.
 | Statistical analysis plan | JSON-safe plan, method rationale, missing-data rule, sensitivity scenarios, threshold, multiplicity state, reporting settings, and local revision record | Local record is not verified preregistration |
 | Plan adherence | Structured comparison of recorded plan, result, performed sensitivity scenarios, and practical assessment | Makes no misconduct judgment and invents no reason |
 | Reporting completeness | Machine-readable `present`, `missing`, `partial`, and `not_applicable` items | Not a study-quality or publication-readiness score |
-| Research report | Canonical HTML, Markdown, JSON, CSV tables, and safe LaTeX; General, APA-oriented, and IEEE-oriented styles; deterministic HTML executive summary from stored scale, analyses, effect narration, quality, diagnostics, and supplied follow-up assessments | No universal journal-compliance claim; no PDF or DOCX output |
+| Research report | Canonical HTML, Markdown, JSON, CSV tables, and safe LaTeX; General, APA-oriented, and IEEE-oriented styles; deterministic HTML executive summary from stored scale, analyses, effect narration, quality, diagnostics, and supplied follow-up assessments. PDF and DOCX exports are provided through PyAutoStat's presentation/export layer (requiring optional `[pdf]` and `[docx]` extras). | No universal journal-compliance claim; PDF requires Playwright/Chromium and DOCX requires python-docx |
 | Recommendation explanation | On-demand `rationale_text`/`explain()` with method-specific why-this, why-not, and researcher-verification sections while retaining the structured decision trace | Optional diagnostics are narrated only when explicitly supplied; prose does not certify design facts or change method selection |
 | Audit | Canonical report/export consistency checks against captured source records | Checks consistency, not scientific truth |
 | Reproducibility | Runtime metadata, optional dataset fingerprint, metadata-only package, and explicit supplied-data replay | Does not authenticate data and does not automatically replay follow-up scenarios |
@@ -182,9 +192,13 @@ Common blockers remain explicit:
   inference, Fisher extensions beyond 2x2,
   broader multiplicity families, and formal equivalence or noninferiority tests are not
   implemented.
-- Reliability is limited to ordinary covariance-based Cronbach's alpha. Omega, factor analysis,
-  PCA, ordinal/polychoric alpha, split-half, test-retest, inter-rater, and measurement-invariance
+- Scale / internal-consistency reliability is limited to ordinary covariance-based Cronbach's alpha.
+  Omega, factor analysis, PCA, ordinal/polychoric alpha, split-half, and measurement-invariance
   workflows are not implemented.
+- Rater / measurement agreement is limited to the six canonical Shrout & Fleiss / McGraw & Wong
+  Intraclass Correlation Coefficient (ICC) variants on fully crossed, balanced panels. Unbalanced
+  rater designs, missing-rating imputation, and non-quantitative agreement metrics (such as Cohen's
+  kappa or Fleiss' kappa) are not implemented.
 - Numerical backend failure never becomes a successful result. Invalid report metadata or audit
   contradictions remain visible and do not trigger an automatic rerun.
 

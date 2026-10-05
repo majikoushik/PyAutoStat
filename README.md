@@ -14,101 +14,29 @@ It is built for researchers, analysts, students, educators, and scientific progr
 which statistical procedure to run, reconstructing assumption checks, calculating effect sizes,
 writing interpretation logic, and assembling a reproducible report.
 
-PyAutoStat connects those pieces into one structured workflow:
-
-```text
-DataFrame
-   ↓
-Profile the data
-   ↓
-Declare the research question + study design
-   ↓
-Validate what is known — ask for what cannot be inferred safely
-   ↓
-Recommend a supported statistical method
-   ↓
-Run the analysis
-   ↓
-Effect size + confidence interval + diagnostics
-   ↓
-Deterministic interpretation
-   ↓
-Scientific consistency audit
-   ↓
-Reproducible research report
-```
-
-**The goal is not to replace statistical judgment. The goal is to make good statistical practice
-easier to execute consistently.**
+For most analyses, start with `ResearchAssistant`.
 
 ---
 
-## Why PyAutoStat?
+## What PyAutoStat does
 
 Most statistical Python libraries are excellent **calculation engines**. They assume you already
 know the exact procedure, assumptions, estimand, contrast direction, missing-data policy, effect
 size, post-hoc procedure, and reporting requirements you need.
 
-PyAutoStat works one level above that.
+PyAutoStat works one level above that. Instead of hand-assembling an analysis pipeline:
 
-Instead of starting with:
+1. **Profile the data**: Discover distributions, missingness, and data quality cues without modifying the source DataFrame.
+2. **Declare the scientific question**: Specify objective, outcome, predictor, estimand, and study design.
+3. **Ask rather than guess**: If an essential design fact (such as pairing, clustering, or independence) cannot be inferred from the data values alone, PyAutoStat pauses with a structured clarification request rather than guessing.
+4. **Recommend defensible methods**: Selects methods based on declared estimands and designs—never silently switching a mean question to a rank test based on a diagnostic p-value.
+5. **Execute and quantify**: Returns primary estimates, effect sizes, and supported confidence intervals.
+6. **Interpret deterministically**: Produces qualified, rule-based findings without requiring a generative AI model or cloud service.
+7. **Audit for consistency**: Verifies internal coherence across degrees of freedom, sample accounting, and intervals.
+8. **Export reproducible reports**: Outputs self-contained terminal views, HTML, PDF, Word (DOCX), or multi-format research bundles.
 
-```python
-# Which test should I import?
-# Which assumptions matter?
-# Welch or pooled t?
-# Mean comparison or rank comparison?
-# Which effect size?
-# Which confidence interval?
-# What should I report?
-```
-
-you can start with the scientific question:
-
-```python
-workflow = ResearchAssistant(df).run(
-    objective="compare_groups",
-    outcome="score",
-    predictor="treatment",
-    estimand="mean",
-    design="independent",
-    variable_types={"score": "continuous"},
-)
-```
-
-PyAutoStat then keeps the **question, design, method, numerical result, uncertainty, assumptions,
-interpretation, reporting, and audit metadata connected**.
-
-That distinction is the core idea behind the library.
-
----
-
-## Who is PyAutoStat for?
-
-### PyAutoStat is a good fit if you are...
-
-| You are... | PyAutoStat helps you... |
-| --- | --- |
-| **Researcher / scientist** | Move from a declared research question to a reproducible, reportable statistical workflow without rebuilding the analysis pipeline every time. |
-| **Data analyst** | Add design-aware inferential statistics, effect sizes, diagnostics, and structured reporting around pandas workflows. |
-| **Student learning applied statistics** | See not only the result, but why a method was selected, what it estimates, what assumptions matter, and what the result does *not* establish. |
-| **Educator** | Demonstrate complete statistical workflows rather than isolated test functions. |
-| **Python developer building research software** | Use structured, JSON-safe statistical results and session state as a foundation for notebooks, applications, or future GUIs. |
-| **Statistician / advanced analyst** | Use direct APIs when the method is already known while retaining standardized result contracts, uncertainty, reporting, and audit infrastructure. |
-
-### PyAutoStat is probably **not** the right tool if you need...
-
-- a system that guesses study design, independence, pairing, clustering, randomization, or causal meaning from the numbers alone;
-- mixed-effects models, mixed ANOVA, factorial repeated-measures ANOVA, GEE, survival analysis, broad generalized/regularized model families, or arbitrary model construction;
-- automated causal inference;
-- automated feature selection or p-value-driven model search;
-- automatic deletion of outliers;
-- automatic missing-value imputation;
-- a machine-learning AutoML system for maximizing predictive accuracy;
-- a black-box "upload data → publishable conclusion" button;
-- a replacement for a statistician, domain expert, study-design review, or scientific judgment.
-
-**PyAutoStat automates statistical workflow mechanics. It does not automate scientific responsibility.**
+**The goal is not to replace statistical judgment. The goal is to make good statistical practice
+easier to execute consistently.**
 
 ---
 
@@ -116,51 +44,42 @@ That distinction is the core idea behind the library.
 
 PyAutoStat requires **Python 3.10 or newer**.
 
-```bash
-python -m pip install pyautostat
-```
-
-For optional interactive Plotly reporting:
+Install the core package:
 
 ```bash
-python -m pip install "pyautostat[report]"
+pip install pyautostat
 ```
 
-For optional publication-ready PDF export:
+### Optional extras
 
-```bash
-python -m pip install "pyautostat[pdf]"
-python -m playwright install chromium
-```
+PyAutoStat provides optional extras for extended reporting and visualization (configured in `pyproject.toml`):
 
-For figure-enabled PDF export:
+| Need | Installation | Notes |
+| --- | --- | --- |
+| **Core statistics & terminal** | `pip install pyautostat` | Full profiling, all 24 method families, Rich terminal presentation, static HTML, and Markdown |
+| **Interactive Plotly reports** | `pip install "pyautostat[report]"` | Adds interactive Plotly charts (forest plots, CIs) to HTML exports |
+| **Publication-ready PDF** | `pip install "pyautostat[pdf]"`<br>`python -m playwright install chromium` | Generates high-fidelity PDF documents via headless Chromium |
+| **Figure-enabled PDF** | `pip install "pyautostat[report,pdf]"`<br>`python -m playwright install chromium` | Combines interactive figures with headless Chromium PDF generation |
+| **Editable Word (.docx)** | `pip install "pyautostat[docx]"` | Generates native Microsoft Word documents with styled tables and captions |
+| **Static scientific figures** | `pip install "pyautostat[figures]"`<br>`plotly_get_chrome -y` | Exports standalone publication-quality PNG, SVG, or vector figure-PDF files |
 
-```bash
-python -m pip install "pyautostat[report,pdf]"
-python -m playwright install chromium
-```
-
-For optional editable Word (.docx) reports:
-
-```bash
-python -m pip install "pyautostat[docx]"
-```
-
-For development from the repository:
+For local development from the repository:
 
 ```bash
 git clone https://github.com/majikoushik/PyAutoStat.git
 cd PyAutoStat
-python -m pip install -e .
+pip install -e .
 ```
 
 ---
 
 ## Quick start: profile a DataFrame
 
+Start by importing `ResearchAssistant` and `show`, then profile your dataset:
+
 ```python
 import pandas as pd
-from pyautostat import ResearchAssistant
+from pyautostat import ResearchAssistant, show
 
 df = pd.DataFrame(
     {
@@ -171,11 +90,18 @@ df = pd.DataFrame(
 
 assistant = ResearchAssistant(df)
 profile = assistant.profile()
+show(profile)
 ```
+
+`assistant.profile()` returns descriptive statistics, percentiles, distribution summaries, and
+data-quality checks without sampling or mutating the source DataFrame. `show(profile)` renders a
+polished summary directly in your terminal.
 
 ---
 
 ## Guided analysis
+
+Once you understand your data, run a design-aware research workflow:
 
 ```python
 workflow = assistant.run(
@@ -188,13 +114,23 @@ workflow = assistant.run(
 )
 
 show(workflow)
+```
 
-# Programmatic access to the underlying structured result is always preserved:
+Save a self-contained HTML research report:
+
+```python
+from pyautostat import save_html
+
+save_html(workflow, "reports/analysis.html")
+```
+
+Every result also provides direct programmatic access to the underlying statistical values without
+recalculation:
+
+```python
 estimate = workflow.analysis.values["primary_estimate"]
 ci = workflow.analysis.values["confidence_interval"]
 p_value = workflow.analysis.values["p_value"]
-
-html = workflow.report.to_html()
 ```
 
 The important part is not merely that PyAutoStat can execute a t-test. It records **why that method
@@ -204,220 +140,13 @@ result for internal consistency.
 
 ---
 
-## Beautiful terminal results
-
-PyAutoStat includes a Rich-powered terminal presentation layer for inspecting dataset profiles, statistical workflows, and governance records directly in your console:
-
-```python
-from pyautostat import ResearchAssistant, show
-
-assistant = ResearchAssistant(df)
-show(assistant.profile())
-
-# All supported analysis families are Rich-renderable
-workflow = assistant.run(...)
-show(workflow)
-
-# Standalone results, descriptives, and planning
-show(assistant.frequency_table("category"))
-show(assistant.audit(workflow.report, result=workflow.analysis))
-```
-
-- **Universal coverage:** Renders dataset profiles, all 24 statistical method families (mean comparisons, ANOVA, associations, categorical tables, regression, reliability, repeated measures, and ICC), descriptive tables, and governance/planning results.
-- **Clean visual hierarchy:** Panels, formatted metrics, and diagnostic tables without raw dictionary dumps.
-- **Three detail levels:** `detail="compact"` (one-line summaries), `detail="standard"` (default), and `detail="full"` (complete diagnostics and metadata).
-- **Presentation-only:** Consumes existing structured results without altering or recalculating any statistical values.
-- **Terminal-aware:** Adapts to narrow/wide terminal widths and respects non-interactive environments and the `NO_COLOR` standard.
-
----
-
-## Modern HTML and Research Reports
-
-PyAutoStat also provides a self-contained, offline HTML presentation layer (`to_html`, `save_html`) and upgraded `ResearchReport` HTML exports:
-
-```python
-from pyautostat import ResearchAssistant, save_html, to_html
-
-workflow = assistant.run(...)
-
-# Generate standalone HTML string or save to file
-html = to_html(workflow, detail="standard")
-save_html(workflow, "reports/analysis.html", detail="full", overwrite=True)
-
-# Upgraded canonical research report
-report = workflow.report
-report.save_html("reports/research_report.html", style="general", overwrite=True)
-```
-
-- **Unified presentation architecture:** Standalone results and canonical `ResearchReport` exports share the exact same component system, styling, and escaping rules.
-- **Zero recalculation:** Consumes authoritative normalized presentation view models without re-running statistical algorithms.
-- **Offline & self-contained:** Inline CSS with system fonts; no CDN dependencies, no external JavaScript, and no tracking.
-- **Responsive & print-ready:** Responsive metric grids, overflow-wrapped semantic tables, and dedicated `@media print` stylesheets.
-- **Security-hardened:** All user text, variable names, table cells, and group labels are safely HTML-escaped.
-- **Universal coverage:** Complete static HTML rendering for all 24 statistical method families (mean comparisons, ANOVA, associations, categorical tables, regression, reliability, repeated measures, and ICC), dataset profiles, and planning/governance objects. See [`docs/HTML_REPORTING.md`](docs/HTML_REPORTING.md) for details.
-
-### Optional Interactive HTML and Scientific Figures
-
-With the optional `[report]` extra (`pip install "pyautostat[report]"`), PyAutoStat adds interactive Plotly-backed scientific figures (point estimates with CIs, coefficient and odds-ratio forest plots, contingency heatmaps, and cell profile plots) as a progressive enhancement:
-
-```python
-from pyautostat import save_interactive_html, to_interactive_html
-
-# Generate self-contained, offline interactive HTML report
-save_interactive_html(
-    workflow,
-    "reports/analysis_interactive.html",
-    include_figures=True,
-    overwrite=True,
-)
-
-# ResearchReport interactive exports
-report = workflow.report
-report.save_interactive_html("reports/research_report_interactive.html", overwrite=True)
-```
-
-Interactive reports remain completely offline and self-contained, embed Plotly once per document, strictly visualize stored results without recalculation, and never embed raw row-level data by default. Static HTML remains the canonical default.
-
-### Publication-Ready PDF Export
-
-PyAutoStat supports direct, publication-ready PDF export by printing its canonical HTML reports via headless Chromium:
-
-```python
-from pyautostat import save_pdf
-
-# Static publication-ready PDF (A4 portrait)
-save_pdf(
-    workflow,
-    "reports/analysis.pdf",
-    detail="full",
-)
-
-# Optional figure-enabled PDF (reusing existing scientific figures)
-save_pdf(
-    workflow,
-    "reports/analysis_with_figures.pdf",
-    detail="full",
-    include_figures=True,
-)
-```
-
-Install:
-
-```bash
-pip install "pyautostat[pdf]"
-python -m playwright install chromium
-```
-
-For figure-enabled PDFs:
-
-```bash
-pip install "pyautostat[report,pdf]"
-python -m playwright install chromium
-```
-
-PDF exports work 100% offline, block external network requests, support A4/Letter and portrait/landscape, include running page numbers, preserve native selectable text and structured table layout, and enforce zero statistical recalculation. See [`docs/PDF_REPORTING.md`](docs/PDF_REPORTING.md) for full details.
-
-### Editable Word / DOCX Research Reports
-
-PyAutoStat supports editable Microsoft Word (`.docx`) export from the exact same presentation semantics:
-
-```python
-from pyautostat import save_docx
-
-save_docx(
-    workflow,
-    "analysis.docx",
-    detail="full",
-)
-```
-
-Install:
-
-```bash
-pip install "pyautostat[docx]"
-```
-
-DOCX exports generate true OpenXML documents with editable paragraphs and tables, support A4/Letter and portrait/landscape, include dynamic `PAGE` / `NUMPAGES` field codes, repeat table header rows across page breaks, enforce zero statistical recalculation, and ensure no raw row-level data leakage. See [`docs/DOCX_REPORTING.md`](docs/DOCX_REPORTING.md) for full details.
-
-### Publication-Quality Static Scientific Figures
-
-PyAutoStat supports exporting publication-ready static figures (PNG, SVG, and standalone figure-PDF) from authoritative `FigureSpec` models:
-
-```python
-from pyautostat import save_static_figures, to_static_figures
-
-# Render in-memory
-figures = to_static_figures(workflow, format="png", scale=2.0)
-
-# Save directly with collision protection
-save_static_figures(workflow, "figures/", format="svg", overwrite=True)
-```
-
-Install:
-
-```bash
-pip install "pyautostat[figures]"
-plotly_get_chrome
-```
-
-- **Zero recalculation:** Figures strictly visualize stored estimates, confidence intervals, and matrix counts without refitting or p-value ranking.
-- **Privacy-first:** Never accesses raw DataFrame observations or embeds individual participant data points.
-- **Clean vector & high-DPI raster:** Exports crisp PNG (high-DPI scale=2.0 default), clean SVG with injection safeguards, or standalone figure-PDF. See [`docs/STATIC_FIGURES.md`](docs/STATIC_FIGURES.md) for full details.
-
-#### Optional Figures in Editable Word / DOCX Reports
-
-Embed canonical high-resolution PNG figures directly into editable Word documents:
-
-```python
-from pyautostat import save_docx
-
-save_docx(
-    workflow,
-    "analysis_with_figures.docx",
-    include_figures=True,
-    title="Spend Drivers Analysis",
-    style="apa",
-)
-```
-
-- Embeds PNG figures near their relevant semantic sections (`key_results`, `coefficients`, `pairwise`, `contingency`, `cell_summary`).
-- Generates numbered, editable captions styled with `PyAutoStat Figure Caption` (e.g. `Figure 1. ...`).
-- Automatically fits printable page geometry (A4 / Letter, portrait / landscape) while preserving editable OpenXML paragraphs and tables.
-
-### Reproducible Research Export Bundles
-
-PyAutoStat can package canonical, integrity-verifiable research reports and provenance artifacts (including machine-readable records and tabular CSV exports) into an offline ZIP bundle without recalculating statistics or exposing raw participant rows:
-
-```python
-from pyautostat import save_bundle, verify_bundle
-
-save_bundle(
-    workflow,
-    "analysis_bundle.zip",
-    formats=("html", "docx", "json", "csv"),
-    detail="full",
-)
-
-check = verify_bundle("analysis_bundle.zip")
-print(check.valid)
-```
-
-- **Lightweight default:** Packages `html`, `json`, and `csv` tables without requiring heavy PDF or DOCX dependencies.
-- **Cryptographic integrity:** Every member file's SHA-256 digest and exact byte size are recorded in `pyautostat_bundle/manifest.json`. Checksums verify archive integrity against transmission corruption, incomplete writes, or unauthorized file alteration; they do not constitute digital certificates, legal electronic signatures, or identity authentication.
-- **Tamper detection:** `verify_bundle` detects modified bytes, truncated files, deleted members, and unauthorized extra files.
-- **Zero recalculation:** Packages existing authoritative results; statistical engines are never re-invoked.
-- **Data privacy:** Packages derived aggregate reports, summary tables, and recorded execution provenance only; raw dataset observations and participant identifiers are strictly excluded.
-- See [`docs/RESEARCH_BUNDLES.md`](docs/RESEARCH_BUNDLES.md) for full details.
-
----
-
 ## When information is missing
 
 A DataFrame cannot tell you whether observations are truly independent, which measurements belong
 to the same participant, what your scientific estimand is, or which category should represent an
 event.
 
-PyAutoStat does not pretend otherwise.
+PyAutoStat does not pretend otherwise:
 
 ```python
 pending = assistant.run(
@@ -428,42 +157,139 @@ pending = assistant.run(
     variable_types={"score": "continuous"},
 )
 
-print(pending.status)  # needs_input
-print(pending.missing_information)
+print(pending.status)               # "needs_input"
+print(pending.missing_information)  # ["design"]
 ```
 
 Supply the missing design information and continue:
 
 ```python
 revised = assistant.update_question(pending.draft, design="independent")
-result = assistant.run(draft=revised)
+workflow = assistant.run(draft=revised)
+show(workflow)
 ```
 
 This **ask rather than guess** behavior is a deliberate scientific safeguard.
 
 ---
 
-## Core capabilities
+## Choose your task
 
-| Area | Supported capabilities |
-| --- | --- |
-| **Data profiling** | Descriptive statistics, percentiles, categorical frequencies, cross-tabs, missingness, duplicates, distribution summaries, histograms, outlier review cues, correlations, advisory type/role suggestions, resource metadata |
-| **Two independent groups** | Welch t, explicit Student t, Mann-Whitney U |
-| **One sample** | One-sample t with signed difference, CI, Cohen's d and effect-size uncertainty |
-| **Paired two-condition** | Paired t, Wilcoxon signed-rank, explicit unit-ID matching |
-| **Independent 3+ groups** | Welch ANOVA + Games-Howell, classical ANOVA + Tukey-Kramer, Kruskal-Wallis + Dunn-Holm |
-| **Two-factor independent designs** | Two-way factorial ANOVA, Type II/III SS, main effects, interaction, EMMs, simple effects, Holm-adjusted follow-ups |
-| **Repeated 3+ conditions** | One-way repeated-measures ANOVA + sphericity/GG correction; Friedman + Kendall's W; complete pairwise follow-up |
-| **Correlation** | Pearson, Spearman, Kendall tau-b, point-biserial, partial Pearson |
-| **Categorical association** | Pearson chi-square, Fisher exact 2×2, exact McNemar |
-| **Linear regression** | Simple/multiple OLS, categorical coding, classical/HC3 covariance, diagnostics, R² uncertainty |
-| **Binary regression** | Logistic regression, odds ratios, Wald intervals, fit/convergence/design diagnostics |
-| **Scale reliability** | Cronbach's alpha, bootstrap uncertainty, item-total diagnostics, alpha-if-deleted, explicit reverse scoring |
-| **Rater reliability** | ICC(1,1), ICC(1,k), ICC(2,1), ICC(2,k), ICC(3,1), ICC(3,k) |
-| **Research workflow** | Method recommendation, deterministic interpretation, practical significance, sensitivity analysis, analysis plans |
-| **Reproducibility** | Fingerprints, replay metadata, decision ledger, session snapshots |
-| **Reporting** | HTML, Markdown, JSON, CSV tables, safe LaTeX, optional Plotly HTML |
-| **Scientific safeguards** | Method contracts, explicit missingness, effect-size uncertainty, semantic result audit, structured unsupported/unavailable states |
+For most analyses, start with `ResearchAssistant`. Use this guide to select the right entry point for your goal:
+
+| I want to... | Recommended entry point | What it evaluates |
+| --- | --- | --- |
+| **Understand my dataset** | `assistant.profile()` | Summary statistics, percentiles, missingness, and data quality cues |
+| **Inspect categorical distributions** | `assistant.frequency_table("col")`<br>`assistant.cross_tab("row", "col")` | Frequency tables and two-way cross-tabulations with percentage breakdowns |
+| **Compare two independent groups** | `assistant.run(objective="compare_groups", ...)` | Welch t-test (guided default for mean) or Mann-Whitney U (distribution target) |
+| **Compare three or more groups** | `assistant.run(objective="compare_groups", ...)` | Welch ANOVA + Games-Howell (guided default) or Kruskal-Wallis + Dunn-Holm |
+| **Compare paired observations** | `assistant.run(design="paired", ...)` | Paired t-test (mean) or Wilcoxon signed-rank (rank target) with explicit `unit_id` |
+| **Compare repeated measures (3+)** | `assistant.run(design="repeated", ...)` | One-way RM-ANOVA with Mauchly sphericity check or Friedman rank test |
+| **Analyze factorial experiments** | `assistant.two_way_anova(...)` | Two-way ANOVA with Type II/III sums of squares, simple effects, and marginal means |
+| **Study relationships / correlations** | `assistant.run(objective="association", ...)` | Pearson, Spearman, Kendall tau-b, point-biserial, partial Pearson, or Chi-square |
+| **Fit linear or logistic regression** | `assistant.run(objective="regression", ...)` | OLS with classical or HC3 robust errors, or binary logistic regression with odds ratios |
+| **Assess scale reliability** | `assistant.reliability(items=[...])` | Cronbach's alpha with bootstrap CI, item-total correlations, and alpha-if-deleted |
+| **Assess rater agreement** | `assistant.intraclass_correlation(...)` | 6 canonical ICC configurations with ANOVA variance decomposition and F-tests |
+| **Inspect results interactively** | `show(target)` | Polished Rich console presentation for workflows, profiles, and audit records |
+| **Export research reports** | `save_html(...)`, `save_pdf(...)`, `save_docx(...)` | Writes self-contained, publication-ready reports to disk |
+
+---
+
+## Reporting and export
+
+PyAutoStat separates viewing results from saving files through a clear conceptual distinction:
+
+- **`show(...)`**: Renders an interactive, polished Rich presentation directly in your terminal.
+- **`save_*`**: Writes a standalone report file to disk (`save_html`, `save_pdf`, `save_docx`, `save_bundle`).
+- **`to_*`**: Returns an in-memory representation or byte stream (`to_html`, `to_pdf`, `to_docx`, `to_bundle`).
+
+### Terminal inspection
+
+```python
+from pyautostat import show
+
+# Inspect dataset profiles
+show(assistant.profile())
+
+# Inspect workflow results at standard, compact, or full detail
+show(workflow)
+show(workflow, detail="compact")
+show(workflow, detail="full")
+```
+
+### Common file outputs: HTML, PDF, and DOCX
+
+```python
+from pyautostat import save_html, save_pdf, save_docx
+
+# Static self-contained HTML report (offline, no CDN dependencies)
+save_html(workflow, "reports/analysis.html", detail="standard")
+
+# Publication-ready PDF (requires [pdf] extra and Playwright Chromium)
+save_pdf(workflow, "reports/analysis.pdf", detail="full")
+
+# Editable Microsoft Word document (requires [docx] extra)
+save_docx(workflow, "reports/analysis.docx", detail="full")
+```
+
+The canonical `ResearchReport` object also exposes matching save methods:
+
+```python
+report = workflow.report
+report.save_html("reports/research_report.html", style="apa")
+report.save_pdf("reports/research_report.pdf", style="general")
+report.save_docx("reports/research_report.docx", style="ieee")
+```
+
+### Advanced presentation and export formats
+
+For specialized and developer workflows, PyAutoStat provides advanced presentation utilities:
+
+- **In-memory representations (`to_*`)**: `to_html(workflow)` returns an HTML string; `to_pdf(workflow)` and `to_docx(workflow)` return raw bytes for web applications or streaming pipelines.
+- **Interactive Plotly HTML (`save_interactive_html`)**: Adds interactive forest plots, CI charts, and contingency heatmaps (requires `[report]` extra).
+- **Static scientific figures (`save_static_figures`, `to_static_figures`)**: Generates publication-ready standalone vector (SVG, PDF) or high-DPI raster (PNG) figures from authoritative models (requires `[figures]` extra).
+- **Reproducible research bundles (`save_bundle`, `verify_bundle`)**: Packages reports, machine-readable JSON results, tabular CSVs, and cryptographic SHA-256 manifests into an integrity-verifiable ZIP archive.
+
+For details, see the dedicated presentation guides:
+- [Terminal Presentation Guide](docs/TERMINAL_PRESENTATION.md)
+- [HTML Reporting Guide](docs/HTML_REPORTING.md)
+- [PDF Reporting Guide](docs/PDF_REPORTING.md)
+- [DOCX Reporting Guide](docs/DOCX_REPORTING.md)
+- [Static Figures Guide](docs/STATIC_FIGURES.md)
+- [Research Bundles Guide](docs/RESEARCH_BUNDLES.md)
+
+---
+
+## Supported analysis families
+
+PyAutoStat supports 24 inferential method families. Where multiple procedures exist, PyAutoStat
+distinguishes **guided defaults** (recommended and selected automatically when data criteria are
+met) from **explicitly supported alternatives** (available when specified by the researcher):
+
+| Objective | Target & Design | Guided default | Explicitly supported alternative | Effect size & uncertainty |
+| --- | --- | --- | --- | --- |
+| **Two independent groups** | Continuous outcome (mean) | **Welch t-test** (robust to unequal variances) | **Student's pooled t-test** (requires equal-variance justification) | Cohen's d with noncentral-t CI |
+| **Two independent groups** | Rank / distribution target | **Mann-Whitney U** (`estimand="distribution"`) | — | Rank-biserial correlation with bootstrap CI |
+| **One sample** | Continuous vs reference | **One-sample t-test** | — | Mean difference, Cohen's d with noncentral-t CI |
+| **Paired two-condition** | Continuous mean difference | **Paired t-test** (with explicit `unit_id`) | — | Paired mean difference, Cohen's dz with noncentral-t CI |
+| **Paired two-condition** | Rank / distribution target | **Wilcoxon signed-rank** (`estimand="distribution"`) | — | Matched-pairs rank-biserial effect with bootstrap CI |
+| **Multi-group (3+)** | Continuous outcome (mean) | **Welch ANOVA + Games-Howell** | **Classical ANOVA + Tukey-Kramer** (requires equal-variance justification) | Pairwise mean differences with simultaneous CIs |
+| **Multi-group (3+)** | Rank / distribution target | **Kruskal-Wallis + Dunn-Holm** (`estimand="distribution"`) | — | Epsilon-squared; pairwise contrasts with adjusted p |
+| **Two-factor independent** | 2 categorical factors | **Two-way factorial ANOVA** (Type II / III SS) | — | Partial eta-squared with noncentral-F CI, EMMs |
+| **Repeated measures (3+)** | Continuous outcome (mean) | **One-way RM-ANOVA** (Mauchly sphericity & GG correction) | — | Partial eta-squared, Holm-adjusted paired t-tests |
+| **Repeated measures (3+)** | Rank / distribution target | **Friedman test** (with Kendall's W) | — | Kendall's W with bootstrap CI, Holm-adjusted Wilcoxon pairs |
+| **Linear association** | Continuous pairs | **Pearson correlation** | **Partial Pearson** (with explicit quantitative controls) | Pearson r with Fisher-z normal CI |
+| **Monotonic association** | Continuous / ordinal pairs | **Spearman rank correlation** | **Kendall tau-b** (for tied ordinal data) | rho with bootstrap CI |
+| **Categorical association** | 2 categorical variables | **Pearson Chi-square** (contingency tables) | **Fisher's exact test** (for sparse 2×2 tables) | Cramer's V; odds ratio with Wald CI |
+| **Linear regression** | Continuous outcome | **OLS regression** (classical or HC3 robust errors) | — | Standardized betas, coefficient CIs, R² bootstrap CI |
+| **Binary regression** | Binary outcome | **Binary logistic regression** (with explicit event level) | — | Odds ratios with Wald CIs, McFadden pseudo-R² |
+| **Scale reliability** | Researcher-declared items | **Cronbach's alpha** | — | Alpha with bootstrap CI, item-total correlations |
+| **Rater agreement** | Crossed target × rater | **Intraclass Correlation (ICC)** (6 canonical forms) | — | F-tests, exact/Satterthwaite CIs, variance components |
+
+> [!IMPORTANT]
+> **Estimand preservation:** Diagnostics (such as Shapiro-Wilk normality tests or Levene variance
+> tests) never silently switch a declared mean target to a rank test. If normality is rejected,
+> PyAutoStat reports the diagnostic violation while evaluating the declared estimand.
 
 ---
 
@@ -475,7 +301,7 @@ Depending on the method, supported quantities include:
 
 - Cohen's d and Cohen's dz;
 - rank-biserial correlation;
-- Pearson r, Spearman rho and Kendall tau-b;
+- Pearson r, Spearman rho, and Kendall tau-b;
 - Cramér's V;
 - odds ratio;
 - Kendall's W;
@@ -503,22 +329,21 @@ number.
 
 ## Advanced workflows
 
-PyAutoStat supports advanced study designs, regression modeling, scale reliability, and complete research governance.
+PyAutoStat supports advanced study designs, regression modeling, scale reliability, and complete
+research governance.
 
 ### Two-way factorial ANOVA
 
 For independent observations with two categorical factors and a continuous outcome:
 
 ```python
-factorial = ResearchAssistant(df).run(
-    objective="compare_groups",
+two_way = assistant.two_way_anova(
     outcome="score",
     factor_a="teaching_method",
     factor_b="class_size",
-    estimand="mean",
-    design="independent",
     sum_of_squares="type2",  # or "type3"
 )
+show(two_way)
 ```
 
 PyAutoStat evaluates the full `A + B + A×B` model and supports balanced/unbalanced designs, Type II
@@ -528,12 +353,12 @@ difference-of-differences contrasts, Holm multiplicity adjustment, and residual/
 
 ---
 
-## Repeated-measures analysis
+### Repeated-measures analysis
 
 For three or more conditions measured on the same units:
 
 ```python
-repeated = ResearchAssistant(df).run(
+repeated = assistant.run(
     objective="compare_groups",
     outcome="score",
     predictor="visit",
@@ -543,67 +368,80 @@ repeated = ResearchAssistant(df).run(
     condition_order=("baseline", "week4", "week8"),
     variable_types={"score": "continuous", "visit": "ordinal"},
 )
+show(repeated)
 ```
 
 For mean targets, PyAutoStat supports one-way repeated-measures ANOVA with Mauchly's sphericity
-assessment, Greenhouse-Geisser correction where applicable, partial eta-squared and complete
+assessment, Greenhouse-Geisser correction where applicable, partial eta-squared, and complete
 Holm-adjusted paired-t follow-up.
 
 For rank/distribution targets, it supports Friedman inference with Kendall's W and complete
-Holm-adjusted paired Wilcoxon follow-up.
-
-Complete and incomplete repeated panels remain visible in sample accounting.
+Holm-adjusted paired Wilcoxon follow-up. Complete and incomplete repeated panels remain visible in
+sample accounting.
 
 ---
 
-## Linear and logistic regression
+### Linear and logistic regression
 
-OLS regression supports:
+OLS multiple linear regression supports:
 
-- simple and multiple regression;
-- continuous and categorical predictors;
-- explicit reference coding;
-- classical or HC3 covariance;
-- coefficient intervals;
-- R-squared and adjusted R-squared;
-- bootstrap uncertainty for in-sample R-squared;
-- standardized betas for continuous predictors;
-- VIF, residual, heteroscedasticity, condition and influence diagnostics;
-- rank-deficiency safeguards.
+```python
+regression = assistant.run(
+    objective="regression",
+    outcome="score",
+    predictors=["study_hours", "attendance"],
+    covariance_type="HC3",
+)
+show(regression)
+```
+
+Features include simple and multiple regression, continuous and categorical predictors, explicit
+reference coding, classical or HC3 covariance, coefficient intervals, R-squared and adjusted
+R-squared, bootstrap uncertainty for in-sample R-squared, standardized betas for continuous
+predictors, VIF, residual, heteroscedasticity, condition and influence diagnostics, and
+rank-deficiency safeguards.
 
 Binary logistic regression supports:
 
-- explicit event orientation;
-- coefficient and Wald inference;
-- odds ratios with exponentiated Wald intervals;
-- likelihood fit information;
-- McFadden pseudo-R-squared;
-- convergence, separation, VIF and condition safeguards.
+```python
+logistic = assistant.run(
+    objective="regression",
+    outcome="admitted",
+    predictors=["gpa", "test_score"],
+    event_level="admitted",
+)
+show(logistic)
+```
+
+Features include explicit event orientation, coefficient and Wald inference, odds ratios with
+exponentiated Wald intervals, likelihood fit information, McFadden pseudo-R-squared, and
+convergence, separation, VIF, and condition safeguards.
 
 Neither workflow performs automatic variable selection or converts association into a causal claim.
 
 ---
 
-## Reliability: Cronbach's alpha and ICC
+### Reliability: Cronbach's alpha and ICC
 
-### Scale reliability
+#### Scale reliability
 
 ```python
-reliability = ResearchAssistant(df).reliability(
+reliability = assistant.reliability(
     items=["q1", "q2", "q3", "q4"],
 )
+show(reliability)
 ```
 
 The workflow reports Cronbach's alpha, bootstrap uncertainty, corrected item-total correlations,
-alpha-if-item-deleted, inter-item diagnostics, missingness and optional explicit reverse scoring.
+alpha-if-item-deleted, inter-item diagnostics, missingness, and optional explicit reverse scoring.
 
 It does not automatically discover scales, remove items, reverse-score items, or treat alpha as
 proof of validity.
 
-### Inter-rater / test-retest reliability
+#### Inter-rater / test-retest reliability
 
 ```python
-icc = ResearchAssistant(df).intraclass_correlation(
+icc = assistant.intraclass_correlation(
     target="subject_id",
     rater="rater_id",
     value="score",
@@ -611,6 +449,7 @@ icc = ResearchAssistant(df).intraclass_correlation(
     definition="absolute_agreement",
     unit="single",
 )
+show(icc)
 ```
 
 PyAutoStat supports the six canonical ICC configurations and requires model, agreement/consistency,
@@ -623,36 +462,7 @@ than silently clamped to zero.
 
 ---
 
-## Explainable method recommendation
-
-The recommendation layer considers the declared research objective, outcome, predictor/factors,
-variable types, number of groups/conditions, independent/paired/repeated design, unit identity,
-estimand, requested association/model target, and data feasibility.
-
-This is intentionally different from simplistic rules such as:
-
-```text
-normal → t-test
-not normal → Mann-Whitney
-```
-
-A diagnostic result does not silently redefine the scientific question.
-
----
-
-## Deterministic interpretation — no LLM required
-
-PyAutoStat can create qualified human-readable findings from stored statistical results without
-calling a generative AI service.
-
-Interpretation can incorporate direction, statistical decision, effect magnitude, uncertainty,
-sample context, assumptions, limitations, practical significance and sensitivity information.
-
-The structured numerical result remains authoritative.
-
----
-
-## Practical significance
+### Practical significance
 
 Researchers can declare what magnitude would be scientifically meaningful:
 
@@ -661,15 +471,16 @@ from pyautostat import MeaningfulEffectThreshold
 
 threshold = MeaningfulEffectThreshold(
     quantity="mean_difference",
-    minimum_magnitude=5,
+    minimum_magnitude=5.0,
     direction="two_sided",
     unit="points",
 )
 
 practical = assistant.practical_significance(
-    result.analysis,
+    workflow.analysis,
     threshold=threshold,
 )
+show(practical)
 ```
 
 Statistical significance and practical importance remain separate. PyAutoStat does not invent a
@@ -677,30 +488,29 @@ universal threshold for "important."
 
 ---
 
-## Sensitivity analysis
+### Sensitivity analysis
 
 Researchers can declare alternative defensible scenarios and retain every attempted result.
 PyAutoStat records estimand and contrast comparability instead of blindly comparing p-values across
-scientifically different questions.
-
-It does not search across methods for the smallest p-value.
+scientifically different questions. It does not search across methods for the smallest p-value.
 
 ---
 
-## Prospective study planning
+### Prospective study planning
 
 `StudyPlanner` supports prospective power and confidence-interval precision planning for selected
-independent and paired mean designs.
+independent and paired mean designs:
 
 ```python
 from pyautostat import StudyPlanner
 
 plan = StudyPlanner().independent_mean_power(
-    target_difference=5,
-    sd_group1=10,
-    sd_group2=12,
+    target_difference=5.0,
+    sd_group1=10.0,
+    sd_group2=12.0,
     target_power=0.80,
 )
+show(plan)
 ```
 
 Planning inputs are researcher-supplied assumptions. Observed/post-hoc power is intentionally not
@@ -708,7 +518,7 @@ reported.
 
 ---
 
-## Analysis plans and reproducibility
+### Analysis plans and reproducibility
 
 PyAutoStat can keep analytical decisions connected to results through:
 
@@ -726,84 +536,20 @@ formal preregistration system.
 
 ---
 
-## Scientific result auditing
+### Scientific result auditing
 
 PyAutoStat can check its structured results for internal consistency, including p-value bounds,
 confidence-interval ordering, effect-size bounds, sample accounting, degrees-of-freedom identities,
-multiplicity invariants, regression coefficient/odds-ratio consistency, ANOVA identities and ICC
-model consistency.
+multiplicity invariants, regression coefficient/odds-ratio consistency, ANOVA identities, and ICC
+model consistency:
 
-An audit pass means the stored result is internally coherent. It does **not** prove that the study
-design, source data or scientific conclusion is correct.
-
----
-
-## Reporting and export
-
-Supported outputs include:
-
-- HTML;
-- Markdown;
-- JSON;
-- CSV tables;
-- safe LaTeX;
-- optional interactive Plotly HTML.
-
-Presentation styles include General, APA-oriented and IEEE-oriented layouts.
-
-Reporting-completeness checks identify whether expected implemented elements are represented. They
-are not study-quality or publication-readiness scores.
-
----
-
-## Safe by design
-
-PyAutoStat includes safeguards such as:
-
-- HTML and LaTeX escaping;
-- CSV formula protection;
-- strict JSON-safe serialization;
-- no automatic data upload;
-- no automatic file writing from the guided workflow;
-- reports that avoid embedding raw DataFrames and participant identifier values;
-- explicit save operations;
-- profiling that does not silently modify the source DataFrame.
-
-Researchers should still review aggregate outputs for disclosure risk, especially small cells.
-
----
-
-## Scientific contracts, not just functions
-
-Supported inferential methods are designed around explicit contracts:
-
-```text
-scientific question
-→ study design
-→ estimand
-→ null / alternative
-→ primary estimate
-→ effect size
-→ uncertainty
-→ assumptions
-→ diagnostics
-→ missing-data policy
-→ degenerate-data behavior
-→ multiplicity policy
-→ numerical implementation
-→ interpretation limits
-→ audit invariants
-→ validation evidence
+```python
+audit = assistant.audit(workflow.report, result=workflow.analysis)
+show(audit)
 ```
 
-This keeps the **meaning of the result** connected to the computation.
-
-See:
-
-- [`docs/STATISTICAL_METHOD_CONTRACTS.md`](docs/STATISTICAL_METHOD_CONTRACTS.md)
-- [`docs/STATISTICAL_VALIDATION.md`](docs/STATISTICAL_VALIDATION.md)
-- [`docs/SCIENTIFIC_LIMITATIONS.md`](docs/SCIENTIFIC_LIMITATIONS.md)
-- [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md)
+An audit pass means the stored result is internally coherent. It does **not** prove that the study
+design, source data, or scientific conclusion is correct.
 
 ---
 
@@ -818,19 +564,20 @@ Experienced users can use `StatisticalAnalyzer` when the required procedure is a
 from pyautostat import StatisticalAnalyzer
 
 analyzer = StatisticalAnalyzer(df)
+result = analyzer.welch_t_test("score", "group")
 ```
 
 The direct API provides control without changing the scientific contract of the method.
 
 ---
 
-## Design principles
+## Scientific safeguards and design principles
 
 **Ask rather than guess.** Essential design facts that cannot be inferred safely are requested.
 
 **Preserve the estimand.** Diagnostics do not silently turn a mean question into a rank question.
 
-**Never hide missingness.** Analysis-specific exclusions, incomplete pairs and incomplete panels
+**Never hide missingness.** Analysis-specific exclusions, incomplete pairs, and incomplete panels
 remain visible.
 
 **Never delete outliers automatically.** Outliers are review cues, not automatic deletion rules.
@@ -856,7 +603,7 @@ PyAutoStat does **not currently implement**:
 - factorial repeated-measures ANOVA;
 - generalized estimating equations (GEE);
 - survival analysis;
-- broad multinomial, ordinal, count or regularized regression families;
+- broad multinomial, ordinal, count, or regularized regression families;
 - arbitrary model construction outside documented workflows;
 - causal-inference frameworks;
 - automatic imputation;
@@ -879,7 +626,7 @@ The development pipeline includes supported-version/platform CI, scientific regr
 static analysis, package builds, minimum numerical-stack compatibility checks, and installed-wheel
 smoke testing. Alpha status means the public API and capability set may continue to evolve.
 
-For clinical, regulatory, legal, safety-critical or other high-stakes decisions, independent expert
+For clinical, regulatory, legal, safety-critical, or other high-stakes decisions, independent expert
 statistical review is strongly recommended.
 
 ---
@@ -890,7 +637,7 @@ statistical review is strongly recommended.
 - **Primary data interface:** pandas DataFrames
 - **CI platforms:** Ubuntu and Windows
 
-Core numerical dependencies include pandas, NumPy, SciPy and statsmodels. See
+Core numerical dependencies include pandas, NumPy, SciPy, and statsmodels. See
 [`pyproject.toml`](pyproject.toml) for authoritative dependency constraints.
 
 ---
@@ -899,12 +646,21 @@ Core numerical dependencies include pandas, NumPy, SciPy and statsmodels. See
 
 | Resource | Purpose |
 | --- | --- |
+| [`docs/README.md`](docs/README.md) | Documentation index organized by research goal |
 | [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) | Exact supported analysis families and boundaries |
 | [`API_REFERENCE.md`](API_REFERENCE.md) | Public API reference |
 | [`docs/STATISTICAL_METHOD_CONTRACTS.md`](docs/STATISTICAL_METHOD_CONTRACTS.md) | Scientific contracts |
 | [`docs/STATISTICAL_VALIDATION.md`](docs/STATISTICAL_VALIDATION.md) | Numerical/statistical validation policy |
 | [`docs/SCIENTIFIC_LIMITATIONS.md`](docs/SCIENTIFIC_LIMITATIONS.md) | Scientific boundaries |
 | [`docs/ICC_GUIDE.md`](docs/ICC_GUIDE.md) | ICC model and interpretation guide |
+| [`docs/TERMINAL_PRESENTATION.md`](docs/TERMINAL_PRESENTATION.md) | Rich console display guide |
+| [`docs/HTML_REPORTING.md`](docs/HTML_REPORTING.md) | HTML presentation guide |
+| [`docs/PDF_REPORTING.md`](docs/PDF_REPORTING.md) | PDF export guide |
+| [`docs/DOCX_REPORTING.md`](docs/DOCX_REPORTING.md) | Word export guide |
+| [`docs/STATIC_FIGURES.md`](docs/STATIC_FIGURES.md) | Static figure export guide |
+| [`docs/RESEARCH_BUNDLES.md`](docs/RESEARCH_BUNDLES.md) | Research export bundle guide |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture and module boundaries |
+| [`PRODUCT_VISION.md`](PRODUCT_VISION.md) | Enduring product principles |
 | [`ROADMAP.md`](ROADMAP.md) | Forward-looking priorities |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 
@@ -958,7 +714,7 @@ The development pipeline includes:
 - semantic audit corruption tests.
 
 Passing software tests does not by itself establish scientific truth. Numerical validation,
-scientific contracts, explicit limitations and researcher judgment remain separate requirements.
+scientific contracts, explicit limitations, and researcher judgment remain separate requirements.
 
 ---
 
@@ -966,7 +722,7 @@ scientific contracts, explicit limitations and researcher judgment remain separa
 
 Contributions are welcome, particularly for statistical validation, independent reference datasets,
 numerical edge cases, scientific documentation, usability, reproducibility, reporting, performance
-benchmarks and accessibility.
+benchmarks, and accessibility.
 
 For a new statistical method, implementation alone is not enough. The contribution should support:
 
