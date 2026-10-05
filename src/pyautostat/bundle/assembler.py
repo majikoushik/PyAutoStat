@@ -183,6 +183,20 @@ class BundleAssembler:
 
     def _validate_target_compatibility(self) -> None:
         """Validate format support for the given target type."""
+        if (
+            self.target_type == "ResearchWorkflowResult"
+            and hasattr(self.target, "status")
+            and getattr(self.target.status, "value", str(self.target.status))
+            not in ("completed", "partial")
+        ):
+            status_str = getattr(self.target.status, "value", str(self.target.status))
+            raise ReportError(
+                f"Cannot create a research bundle for a '{status_str}' workflow. "
+                "Research bundles require a completed or partial workflow with "
+                "computed statistical results. To inspect workflow status, use "
+                "show(workflow), save_html(workflow), or save_docx(workflow)."
+            )
+
         for fmt in self.formats:
             if fmt in ("csv", "markdown", "latex") and self.report is None:
                 raise ReportError(

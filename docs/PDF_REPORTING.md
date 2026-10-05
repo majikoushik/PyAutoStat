@@ -1,6 +1,6 @@
-# Publication-Ready PDF Export and Print Fidelity
+# Publication-Oriented PDF Export and Print Fidelity
 
-PyAutoStat provides a publication-ready PDF export layer that transforms structured, authoritative statistical results and research workflows into high-fidelity PDF documents.
+PyAutoStat provides a publication-oriented PDF export layer that transforms structured, authoritative statistical results and research workflows into high-fidelity PDF documents.
 
 The PDF export layer is strictly an **export format** of the existing canonical HTML and research report architecture. It never recalculates statistics, selects methods, alters estimands, reverses contrasts, changes alpha, or invents evidence.
 
@@ -21,7 +21,7 @@ Rather than implementing a separate rendering engine (such as ReportLab) that wo
            ↓
     Headless Chromium Print Renderer (Playwright)
            ↓
-    Publication-Ready PDF Bytes or File
+    Publication-Oriented PDF Bytes or File
 ```
 
 ### Core Principles

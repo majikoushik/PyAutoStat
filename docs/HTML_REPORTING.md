@@ -117,7 +117,7 @@ Reports adhere to a restrained, academic visual design system that prioritizes e
 - **Accessibility**:
   - Valid HTML5 with `<html lang="en">` and proper heading hierarchy (`h1` → `h2` → `h3`).
   - Semantic tables with `<thead>`, `<tbody>`, and `<th scope="col">`.
-  - Contrast ratios meeting WCAG AA standards.
+  - Designed with accessible contrast ratios.
   - No color-only meaning: all statuses feature bracketed text labels.
 - **Print stylesheet (`@media print`)**:
   - Automatically activates on print preview or PDF export.
@@ -160,7 +160,7 @@ The HTML presentation architecture covers all 24 PyAutoStat statistical analysis
 | `mcnemar` | Categorical | Paired transition table, discordant pairs, proportion difference, CI |
 | `linear_regression` | Regression | Model fit ($R^2$, adj $R^2$, $F$), OLS coefficient table, HC3 covariance label, Breusch-Pagan / VIF diagnostics |
 | `logistic_regression` | Regression | Modeled event, Odds Ratio (OR) first coefficient table, dynamic CIs |
-| `cronbach_alpha` | Reliability | Raw and standardized $\alpha$, bootstrap CI, item-deleted diagnostic table |
+| `cronbach_alpha` | Reliability | Cronbach's $\alpha$, bootstrap CI, item-deleted diagnostic table |
 | `repeated_measures_anova` | Repeated Measures | Within-subject omnibus $F$, Mauchly sphericity, Greenhouse-Geisser $\epsilon$ correction |
 | `friedman_test` | Repeated Measures | Friedman $\chi^2$, Kendall's $W$ concordance, Wilcoxon-Holm pairwise follow-ups |
 | `two_way_anova` | Factorial | Main effects Factor A, Factor B, interaction term A×B, partial $\eta^2$ |
@@ -328,8 +328,8 @@ Not every method receives a figure. When authoritative numeric inputs or confide
 
 ---
 
-## 16. Publication-Ready PDF Export
+## 16. Publication-Oriented PDF Export
 
-PyAutoStat supports direct, publication-ready PDF export via `pyautostat.to_pdf`, `pyautostat.save_pdf`, `report.to_pdf`, and `report.save_pdf`. PDF generation prints the canonical HTML report via headless Chromium, ensuring complete visual, tabular, and numerical fidelity with zero statistical recalculation. See [`docs/PDF_REPORTING.md`](PDF_REPORTING.md) for full details.
+PyAutoStat supports direct, publication-oriented PDF export via `pyautostat.to_pdf`, `pyautostat.save_pdf`, `report.to_pdf`, and `report.save_pdf`. PDF generation prints the canonical HTML report via headless Chromium, ensuring complete visual, tabular, and numerical fidelity with zero statistical recalculation. See [`docs/PDF_REPORTING.md`](PDF_REPORTING.md) for full details.
 
 

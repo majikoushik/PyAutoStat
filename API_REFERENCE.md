@@ -11,7 +11,7 @@ PyAutoStat is structured into three intentional layers so you can start simple a
 For nearly all exploratory and inferential research workflows on pandas DataFrames, start here:
 - **`ResearchAssistant`**: Coordinates profiling, question intake, method recommendation, assumption diagnostics, effect sizes, uncertainty, interpretation, audit, and reporting.
 - **`show`**: Renders a polished Rich terminal presentation of workflows, profiles, and audit records in your console.
-- **`save_html`**, **`save_pdf`**, **`save_docx`**: Export self-contained, publication-ready research reports to disk without requiring lower-level report object construction.
+- **`save_html`**, **`save_pdf`**, **`save_docx`**, **`save_bundle`**, **`save_static_figures`**: Export self-contained, publication-oriented research reports and archives to disk without requiring lower-level report object construction.
 
 ```python
 from pyautostat import ResearchAssistant, save_html, show
@@ -34,6 +34,21 @@ workflow = assistant.run(
 show(workflow)
 save_html(workflow, "research_report.html")
 ```
+
+### Canonical presentation and export paths
+
+| Goal | Beginner path | In-memory / advanced path | Returns |
+| --- | --- | --- | --- |
+| Inspect result | `show(workflow)` | `adapt(target)` | `None` / `PresentationView` |
+| Save static HTML | `save_html(workflow, "report.html")` | `to_html(target)` | `pathlib.Path` / `str` |
+| Save interactive HTML | `save_interactive_html(workflow, "report.html")` | `to_interactive_html(target)` | `pathlib.Path` / `str` |
+| Save PDF | `save_pdf(workflow, "report.pdf")` | `to_pdf(target)` | `pathlib.Path` / `bytes` |
+| Save DOCX | `save_docx(workflow, "report.docx")` | `to_docx(target)` | `pathlib.Path` / `bytes` |
+| Static figures | `save_static_figures(workflow, "figures_dir")` | `to_static_figures(target)` | `tuple[pathlib.Path, ...]` / `tuple[StaticFigureArtifact, ...]` |
+| Bundle | `save_bundle(workflow, "bundle.zip")` | `to_bundle(target)` | `pathlib.Path` / `bytes` |
+| Verify bundle | `verify_bundle("bundle.zip")` | `verify_bundle(bytes_or_zip)` | `BundleVerificationResult` |
+
+For an in-depth audit of each format's target compatibility, privacy model, and dependency requirements, see the [Reporting Audit](docs/REPORTING_AUDIT.md).
 
 ### Level 2 — Direct statistical and planning API
 
@@ -198,7 +213,7 @@ Most workflows require only a small subset of parameters. Use this cookbook to i
 | --- | --- | --- | --- |
 | **One-sample mean vs reference** | `run(objective="compare_reference", outcome=..., reference_value=..., estimand="mean")` | Difference from reference ($\mu - \mu_0$) | Explicit finite `reference_value`; no predictor |
 | **Two independent groups** | `run(objective="compare_groups", outcome=..., predictor=..., estimand="mean"|"distribution", design="independent")` | Mean difference (Welch t) or stochastic superiority (Mann-Whitney) | Binary predictor; Welch t is guided default for means |
-| **Paired comparison (2 conditions)** | `run(objective="compare_groups", outcome=..., predictor=..., design="paired", unit_id=..., condition_order=("pre", "post"), estimand="mean"|"distribution"|"proportion")` | Mean paired difference, Wilcoxon rank sum, or McNemar proportion | Long-format panel; explicit `unit_id` and `condition_order` |
+| **Paired comparison (2 conditions)** | `run(objective="compare_groups", outcome=..., predictor=..., design="paired", unit_id=..., condition_order=("pre", "post"), estimand="mean"|"distribution"|"proportion")` | Mean paired difference, Wilcoxon signed-rank, or McNemar proportion | Long-format panel; explicit `unit_id` and `condition_order` |
 | **3+ independent groups** | `run(objective="compare_groups", outcome=..., predictor=..., estimand="mean"|"distribution", design="independent")` | Omnibus equality of means (Welch ANOVA) or rank distributions | Predictor with $\ge 3$ groups; Games-Howell or Dunn-Holm follow-up |
 | **Repeated measures (3+ conditions)** | `run(objective="compare_groups", outcome=..., predictor=..., design="repeated", unit_id=..., condition_order=(...), estimand="mean"|"distribution")` | Equality of repeated condition means or distributions | Long-format panel; $\ge 3$ conditions; Mauchly sphericity check |
 | **Two-way factorial ANOVA** | `assistant.two_way_anova(outcome=..., factor_a=..., factor_b=..., sum_of_squares="type2"|"type3")` | Main factor effects and interaction effect | Independent observations; 2 categorical factors; continuous outcome |

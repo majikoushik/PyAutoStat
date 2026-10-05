@@ -26,7 +26,7 @@ PyAutoStat does not aim to duplicate the full algorithmic surface of general-pur
 | Benchmark Ecosystem | Observed Strengths | Observed Usability Gaps | PyAutoStat Value Proposition |
 | --- | --- | --- | --- |
 | **Pingouin** | Concise, method-specific calls; pandas-friendly DataFrame inputs; easy for known methods. | Relies on the user knowing the exact procedure; lacks integrated research question clarification, automatic sample accounting, decision audit trails, and multi-format reporting. | Preserves declared estimands; validates long-format panels; handles missing design facts deterministically; produces audited, reproducible reports. |
-| **Statsmodels** | Deep econometric and generalized linear modeling; rich parameter summaries and residual diagnostics. | Verbose model syntax; requires manual post-estimation for effect-size CIs; no automated design clarification; in-sample $R^2$ easily mistaken for predictive validity without guardrails. | Provides focused, unpenalized regression models with automatic heteroscedasticity diagnostics (HC3), standardized betas, VIF collinearity checks, explicit non-causal warnings, and plain-language interpretation. |
+| **Statsmodels** | Deep econometric and generalized linear modeling; rich parameter summaries and residual diagnostics. | Verbose model syntax; requires manual post-estimation for effect-size CIs; no automated design clarification; in-sample $R^2$ easily mistaken for predictive validity without guardrails. | Provides focused, unpenalized regression models with heteroscedasticity diagnostics (Breusch-Pagan), heteroscedasticity-robust covariance inference (HC3), standardized betas, VIF collinearity checks, explicit non-causal warnings, and plain-language interpretation. |
 | **SciPy (`scipy.stats`)** | Foundational, high-performance numerical routines for arrays. | Low-level arrays only; strips DataFrame metadata; lacks effect sizes, confidence intervals for effects, directional labeling, sample exclusion tracking, and assumption reporting. | Wraps SciPy numerical routines inside design-aware research contracts with analytical/bootstrap effect-size CIs, contrast direction preservation, and complete row accounting. |
 | **JASP / jamovi** | Excellent progressive disclosure; clear presentation tables; assumptions and effect sizes displayed alongside test statistics. | GUI-dependent; difficult to embed in automated data pipelines, CI/CD, or batch scripts. | Brings the progressive disclosure, table clarity, and assumption transparency of JASP/jamovi directly into Python consoles and automated script workflows. |
 | **YData Profiling** | Fast, visual exploratory data analysis (EDA) HTML dashboards. | Focuses on exploratory inspection; disconnected from formal hypothesis testing; does not lead into defensible inferential workflows. | Lightweight, offline dataset profiling that directly informs research question specification and guides defensible inferential method selection. |
@@ -108,7 +108,7 @@ PyAutoStat does not aim to duplicate the full algorithmic surface of general-pur
 - **Diagnostics & Assumptions**: Levene's variance equality test (reported for transparency; does not alter estimand), normality per group. Welch t is the guided default for means; pooled Student t requires explicit equal-variance justification.
 - **Sample Accounting**: Original rows, analyzed rows, excluded rows, group sample sizes ($n_1, n_2$).
 - **Terminal Presentation**: GROUP SUMMARY table ($n_1, n_2$), Contrast metric, Mean difference, Cohen's d, p-value.
-- **Report Presentation**: Comprehensive APA/IEEE style tables with group means and standard deviations.
+- **Report Presentation**: Comprehensive APA-oriented and IEEE-oriented style tables with group means and standard deviations.
 - **Error / Needs Input Experience**: Pauses with `needs_input` if `design` is omitted; rejects predictors with $\ne 2$ levels.
 - **Market Benchmark**: Pingouin requires separate function calls (`ttest` vs `mwu`); PyAutoStat uses a unified, design-first question contract where the estimand dictates the method.
 - **Verdict**: **KEEP** | **Priority**: P1 | **Action**: Maintain estimand stability; Levene p-values never silently convert mean questions to rank tests.
@@ -350,7 +350,7 @@ Ambiguity of sign is eliminated across all families:
 
 ### P0 (Critical Correctness / Contradiction) — Fixed
 - Residual wording overclaims regarding `audit=False` ("completely valid") have been replaced across `README.md`, `API_REFERENCE.md`, and `docs/CAPABILITIES.md` with precise statements: the numerical calculation remains unchanged and available, while the workflow is partial because audit verification was omitted.
-- No remaining P0 contradictions exist between documentation, docstrings, and verified implementation contracts.
+- Verified core statistical workflow contracts and parameter documentation are reconciled against current implementation.
 
 ### P1 (High-Value Usability Polish) — Implemented
 - Created `docs/USABILITY_AUDIT.md` comprehensive feature audit.

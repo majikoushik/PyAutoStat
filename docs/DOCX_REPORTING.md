@@ -92,6 +92,7 @@ report.save_docx("reports/research_report.docx", overwrite=True)
 | `page_size` | `str` | `"A4"` | Standard page dimension: `"A4"` (210 × 297 mm) or `"Letter"` (8.5 × 11 in). |
 | `landscape` | `bool` | `False` | When `True`, swaps section width and height for wide landscape tables. |
 | `page_numbers` | `bool` | `True` | When `True`, inserts dynamic `PAGE` / `NUMPAGES` field codes in the footer. |
+| `include_figures` | `bool` | `False` | When `True`, embeds canonical scientific PNG figures into the document (requires `pyautostat[docx,figures]`). |
 | `overwrite` | `bool` | `False` | Overwrite safety for `save_docx()` (raises `ReportError` if target exists and `overwrite=False`). |
 
 ---
@@ -167,8 +168,17 @@ Primary analysis values in report DOCX exports strictly match standalone DOCX ex
 
 ---
 
-## 9. Current Limitations & Client Expectations
+## 9. Embedded Scientific Figures
 
-- **Figures**: Figures are out of scope for DOCX export in this release. Statistical tables and structured text convey the complete analysis.
-- **Client Rendering & Pagination**: Microsoft Word, LibreOffice Writer, and Google Docs use different layout and font-substitution engines. While document structure, styles, tables, and field codes are strictly compliant OpenXML, exact line breaks and pagination may vary slightly between word processors.
+When `include_figures=True`, PyAutoStat renders canonical static PNG figures using the figure export pipeline (`pyautostat[figures]`) and embeds them directly into the Word document:
+- **Placement**: Figures are automatically positioned alongside their corresponding section (such as contrast intervals or diagnostic distributions) or gathered in a dedicated visual section.
+- **Captions**: Every embedded figure is accompanied by an authoritative caption paragraph styled with `PyAutoStat Subtitle`, stating the visualized estimand, neutral reference lines, and dynamic confidence level.
+- **Requirements**: Embedding figures requires both `python-docx` and the figures extra (`plotly` and `kaleido`): `python -m pip install "pyautostat[docx,figures]"`. If `include_figures=True` is requested without the figure dependencies installed, an actionable `ReportError` is raised.
+
+---
+
+## 10. Current Limitations & Client Expectations
+
+- **Static Figures**: Figure embedding generates static raster (PNG) images via `kaleido`. When `include_figures=False` (default), Word reports focus purely on editable OpenXML tables and narrative sections.
+- **Client Rendering & Pagination**: Microsoft Word, LibreOffice Writer, and Google Docs use different layout and font-substitution engines. While document structure, styles, tables, and field codes are valid OpenXML, exact line breaks and pagination may vary slightly between word processors.
 - **Templates**: Custom third-party `.docx` templates are not supported in this release. All documents use PyAutoStat's canonical semantic styling.

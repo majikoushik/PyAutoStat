@@ -30,12 +30,24 @@ provide focused technical and scientific detail organized by research goal.
 
 - [Terminal presentation](TERMINAL_PRESENTATION.md): Polished, Rich-powered console rendering for workflows, profiles, and governance records via `show(...)`.
 - [HTML reporting](HTML_REPORTING.md): Offline static and interactive HTML presentation layers with zero statistical recalculation.
-- [PDF reporting](PDF_REPORTING.md): Publication-ready PDF export via headless Chromium print fidelity.
+- [PDF reporting](PDF_REPORTING.md): Publication-oriented PDF export via headless Chromium print fidelity.
 - [DOCX reporting](DOCX_REPORTING.md): Editable Microsoft Word export with native OpenXML tables and styled captions.
 - [Static scientific figures](STATIC_FIGURES.md): Publication-quality vector (SVG, PDF) and raster (PNG) figure generation via Kaleido.
 - [Research export bundles](RESEARCH_BUNDLES.md): Multi-format self-contained zip archives with cryptographic SHA-256 tamper verification.
+- [Reporting audit](REPORTING_AUDIT.md): Systematic engineering and usability audit across all presentation media, target compatibilities, and semantic parity contracts.
 - [Research report schema](RESEARCH_REPORT_SCHEMA.md): Canonical report structure, serialization, export protections, and presentation contracts.
 - [Provenance and replay](PROVENANCE_AND_REPLAY.md): Decision ledger, content references, dataset fingerprints, auditing, reproducibility records, and explicit replay.
+
+### Reporting quick guide
+
+| Need | Use |
+| --- | --- |
+| Quick inspection | `show` |
+| Share in browser | `save_html` |
+| Printable fixed report | `save_pdf` |
+| Editable Word report | `save_docx` |
+| Journal/slide figure | `save_static_figures` |
+| Archive/share all artifacts | `save_bundle` |
 
 ## Advanced / developer
 
