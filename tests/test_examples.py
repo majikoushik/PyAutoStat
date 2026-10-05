@@ -199,17 +199,36 @@ def test_complete_research_workflow_runs_and_writes_canonical_exports(tmp_path: 
     ):
         assert heading in result.stdout
 
+    # Verify canonical Rich presentation conveys state without redundant print labels
     for evidence in (
-        "Initial workflow status: needs_input",
-        "Plan created after analysis: False",
-        "comparability: same_estimand",
-        "comparability: different_estimand",
-        "Plan adherence: matched",
-        "Audit: passed",
-        "Same-data replay: reproduced",
+        "Additional Information Required",
+        "Field 'design'",
+        "No (a priori plan)",
+        "Plan Adherence Verification",
+        "Overall Status: MATCHED",
+        "Scientific Consistency Audit",
+        "Outcome: PASSED",
+        "Status=REPRODUCED",
         "Identifier values are used for matching",
     ):
         assert evidence in result.stdout
+
+    # Sensitivity scenario comparability in Rich comparison table and warnings
+    assert "SENSITIVITY SCENARIO COMPARISON" in result.stdout
+    assert "Estimand" in result.stdout
+    assert re.search(r"student_t.*?Same", result.stdout, re.DOTALL)
+    assert re.search(r"mann_whitne.*?Different", result.stdout, re.DOTALL)
+    assert "different estimand" in result.stdout
+
+    # Redundant manual status prints must not be present
+    for redundant_label in (
+        "Initial workflow status:",
+        "Plan created after analysis:",
+        "Plan adherence:",
+        "Audit:",
+        "Same-data replay:",
+    ):
+        assert redundant_label not in result.stdout
 
     for sample_id in SAMPLE_CUSTOMER_IDS:
         assert sample_id not in result.stdout
@@ -286,17 +305,62 @@ def test_bundled_workbook_matches_documented_shape_and_has_unique_pairing_ids() 
 
 
 def test_example_02_signed_contrast_orientation() -> None:
-    """Example 02 must preserve signed contrast orientation without abs() inversion."""
+    """Example 02 must preserve signed contrast orientation without duplicate prose."""
     result = _run_example("02_compare_customer_segments.py")
     assert result.returncode == 0, f"Example 02 failed:\n{result.stderr}"
 
-    # Output must state negative difference: Non-subscribers spend less
+    # Canonical Rich output must state negative difference and preserved contrast
     assert "-$47.70" in result.stdout or "-47.70" in result.stdout
-    assert "[-$56.86, -$38.55]" in result.stdout or "[-56.86, -38.55]" in result.stdout
-    assert "spent approximately $47.70 less per month than subscribers" in result.stdout
+    assert "Contrast  'No' - 'Yes'" in result.stdout or "'No' - 'Yes'" in result.stdout
 
-    # Verify no abs() inversion or reversed bound order
-    assert "abs(" not in (EXAMPLES / "02_compare_customer_segments.py").read_text(encoding="utf-8")
+    # Example 02 must not duplicate numerical results in tutorial prose
+    assert "spent approximately $47.70 less per month than subscribers" not in result.stdout
+
+    # Verify no abs() inversion and source delegates presentation to show()
+    e02_source = (EXAMPLES / "02_compare_customer_segments.py").read_text(encoding="utf-8")
+    assert "abs(" not in e02_source
+    assert 'show(workflow, detail="standard")' in e02_source
+
+    # Verify underlying workflow calculation preserves negative signed contrast
+    sys.path.insert(0, str(EXAMPLES))
+    from _customer_data import DATA_DICTIONARY, load_customer_data
+
+    from pyautostat import AnalysisOptions, ResearchAssistant
+
+    frame = load_customer_data(include_customer_id=False)
+    assistant = ResearchAssistant(frame)
+    workflow = assistant.run(
+        objective="compare_groups",
+        outcome="total_avg_monthly_spend",
+        predictor="news_subscriber",
+        estimand="mean",
+        design="independent",
+        options=AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=42),
+        data_dictionary=DATA_DICTIONARY,
+    )
+    assert workflow.analysis is not None
+    assert workflow.analysis.values["primary_estimate"] < 0
+    ci = workflow.analysis.values["confidence_interval"]
+    assert ci["lower"] < ci["upper"] < 0
+
+
+def test_example_source_clean_of_duplicate_prose_and_labels() -> None:
+    """Ensure examples do not duplicate results or print redundant lifecycle labels."""
+    e02 = (EXAMPLES / "02_compare_customer_segments.py").read_text(encoding="utf-8")
+    for literal in ("$47.70", "56.86", "38.55"):
+        assert literal not in e02, f"Example 02 must not hard-code result literal '{literal}'"
+
+    e09 = (EXAMPLES / "09_complete_research_workflow.py").read_text(encoding="utf-8")
+    for redundant_label in (
+        "Initial workflow status:",
+        "Plan adherence:",
+        "Audit:",
+        "Same-data replay:",
+        "Plan created after analysis:",
+    ):
+        assert redundant_label not in e09, (
+            f"Example 09 must not contain redundant label '{redundant_label}'"
+        )
 
 
 def test_example_05_predictor_leakage_invariants() -> None:

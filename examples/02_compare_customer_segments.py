@@ -61,8 +61,12 @@ def main() -> None:
     # 4. Contextual tutorial takeaways
     section("WHAT THIS MEANS")
     print(
-        "- In this dataset, non-subscribers spent approximately $47.70 less per month "
-        "than subscribers (95% CI [-$56.86, -$38.55])."
+        "- Interpret the signed contrast according to the declared group order shown "
+        "in the Rich result above."
+    )
+    print(
+        "- Consider the estimated mean difference together with its confidence interval "
+        "and effect size, not from the p-value alone."
     )
     print(
         "- Welch independent-samples t-test was selected because it preserves the declared "

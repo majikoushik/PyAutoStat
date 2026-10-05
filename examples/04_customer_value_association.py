@@ -65,10 +65,10 @@ def main() -> None:
         "- The Pearson chi-square test of independence evaluates whether segment membership "
         "is statistically independent of home-ownership status."
     )
+    print("- Cramer's V represents association magnitude separately from statistical significance.")
     print(
-        "- Although the association is statistically detectable due to high statistical power "
-        "(N = 5,000), the Cramer's V effect size indicates that the magnitude of association "
-        "is negligible in practice."
+        "- With large samples, small associations can produce small p-values, so effect magnitude "
+        "remains essential for interpretation."
     )
 
     section("WHAT THIS DOES NOT MEAN")

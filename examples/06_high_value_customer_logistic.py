@@ -113,13 +113,12 @@ def main() -> None:
         "as a linear function of non-leakage customer characteristics."
     )
     print(
-        "- Odds Ratios (OR = exp(beta)) represent multiplicative factors on the odds of being "
-        "a high-value customer for a one-unit change in the predictor, holding other variables "
-        "constant."
+        "- Odds ratios quantify conditional multiplicative changes in odds while holding "
+        "the other included predictors constant."
     )
     print(
-        "- Even after rigorously excluding spend leakage, education years and brand tenure are "
-        "strongly associated with high-value segment membership."
+        "- Use the coefficient/odds-ratio table above to identify which predictors show "
+        "stronger or weaker evidence in the fitted model."
     )
 
     section("WHAT THIS DOES NOT MEAN")

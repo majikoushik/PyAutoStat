@@ -66,9 +66,14 @@ def main() -> None:
         "along with their potential interaction on monthly spending."
     )
     print(
-        "- Both main effects are statistically significant, whereas the interaction term "
-        "is not statistically detectable."
+        "- The main-effect rows evaluate average associations for each factor while accounting "
+        "for the other factor."
     )
+    print(
+        "- The interaction row evaluates whether the association of one factor differs across "
+        "levels of the other."
+    )
+    print("- Interpret evidence for those effects directly from the Rich ANOVA table above.")
     print(
         "- Cell Sample Sizes and Means show an approximately additive pattern across "
         "customer subgroups without strong non-parallel profile lines."

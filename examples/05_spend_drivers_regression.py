@@ -9,8 +9,8 @@ Scientific Focus:
     (Product A/B/C) and direct structural flags (Streaming, Wireless) are excluded.
     HC3 heteroscedasticity-consistent covariance estimates reduce reliance on the equal-variance
     assumption without altering point estimates. Model diagnostics (VIF, Breusch-Pagan) inform
-    Canonical Rich presentation renders model fit, coefficient tables, diagnostics,
-    and interpretation.
+    interpretation without triggering post-hoc variable selection or row deletion. Canonical Rich
+    presentation renders model fit, coefficient tables, diagnostics, and interpretation.
 
     Note: "Spend drivers" is business shorthand only; the fitted OLS model estimates
     conditional associations, not causal drivers.

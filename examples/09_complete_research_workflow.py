@@ -92,7 +92,6 @@ def run_independent_workflow(
         ),
         data_dictionary=DATA_DICTIONARY,
     )
-    print("Initial workflow status:", incomplete.status.value)
     show(incomplete)
 
     # Caller explicitly declares the design
@@ -143,7 +142,6 @@ def run_independent_workflow(
         report_style="apa",
     )
     show(plan, detail="standard")
-    print("Plan created after analysis:", plan.created_after_analysis)
 
     section("3. EXECUTE ONCE AND INTERPRET RECORDED VALUES")
     workflow = assistant.run(draft=draft)
@@ -155,14 +153,6 @@ def run_independent_workflow(
     section("4. COMPARE DECLARED SENSITIVITY SCENARIOS")
     sensitivity = assistant.sensitivity_analysis(result, scenarios=[pooled, ranks])
     show(sensitivity, detail="standard")
-    for scenario in sensitivity.scenario_results:
-        print(
-            scenario.name,
-            "| status:",
-            scenario.status.value,
-            "| comparability:",
-            scenario.comparability.value,
-        )
 
     section("5. KEEP PRACTICAL IMPORTANCE SEPARATE FROM THE P-VALUE")
     practical = assistant.practical_significance(result, threshold=threshold)
@@ -175,10 +165,6 @@ def run_independent_workflow(
         practical_significance=practical,
     )
     show(adherence, detail="standard")
-    adherence_st = (
-        adherence.status.value if hasattr(adherence.status, "value") else str(adherence.status)
-    )
-    print("Plan adherence:", adherence_st)
 
     section("6. REPORT, AUDIT, REPLAY, AND SERIALIZE THE SESSION")
     report = assistant.report(
@@ -195,8 +181,6 @@ def run_independent_workflow(
         practical_significance=practical,
     )
     show(audit, detail="standard")
-    audit_st = audit.status.value if hasattr(audit.status, "value") else str(audit.status)
-    print("Audit:", audit_st)
 
     record = assistant.reproducibility_record(
         result,
@@ -206,8 +190,6 @@ def run_independent_workflow(
     replay = reproduce(record, data=frame)
     show(record, detail="compact")
     show(replay, detail="compact")
-    replay_st = replay.status.value if hasattr(replay.status, "value") else str(replay.status)
-    print("Same-data replay:", replay_st)
 
     completeness = assistant.reporting_completeness(report, style="apa")
     show(completeness, detail="compact")
