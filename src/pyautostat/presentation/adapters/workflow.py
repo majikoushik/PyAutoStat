@@ -10,6 +10,7 @@ from ...workflow import ResearchWorkflowResult, WorkflowStatus
 from ..models import (
     DisplayDiagnostic,
     DisplayMetric,
+    PresentationView,
     TerminalView,
 )
 from .association import (
@@ -99,7 +100,55 @@ def adapt_workflow(
     method_id = workflow.analysis.method_id
     adapter_fn = METHOD_ADAPTERS.get(method_id)
     if adapter_fn is not None:
-        return adapter_fn(workflow, detail)
+        view = adapter_fn(workflow, detail)
+        updated_metadata = dict(view.metadata)
+        updated_metadata["workflow_status"] = workflow.status.value
+        updated_metadata["analysis_status"] = "completed"
+        if workflow.audit is not None:
+            updated_metadata["audit_status"] = workflow.audit.status
+        else:
+            updated_metadata["audit_status"] = "omitted"
+
+        diagnostics = list(view.diagnostics)
+        if workflow.status is WorkflowStatus.PARTIAL:
+            if workflow.audit is None:
+                reason = "Report auditing was disabled; no audit was performed."
+            elif workflow.audit.status == "incomplete":
+                reason = "The report audit was incomplete; inspect its skipped checks."
+            elif (
+                workflow.interpretation is not None
+                and workflow.interpretation.status.value == "partial"
+            ):
+                reason = "Statistical interpretation was partial."
+            elif workflow.report is not None and workflow.report.status == "partial":
+                reason = "Report assembly was partial."
+            else:
+                reason = "Workflow lifecycle component was omitted or incomplete."
+
+            diagnostics.insert(
+                0,
+                DisplayDiagnostic(
+                    label="Workflow",
+                    status="Partial",
+                    detail=f"Analysis completed. {reason}",
+                    severity="warning",
+                ),
+            )
+
+        return PresentationView(
+            title=view.title,
+            subtitle=view.subtitle,
+            family=view.family,
+            design_metrics=view.design_metrics,
+            key_metrics=view.key_metrics,
+            tables=view.tables,
+            diagnostics=tuple(diagnostics),
+            interpretation=view.interpretation,
+            limitations=view.limitations,
+            warnings=view.warnings,
+            metadata=updated_metadata,
+            compact_text=view.compact_text,
+        )
 
     raise UnsupportedPresentationError(
         f"Method '{method_id}' is not supported by the presentation layer."
@@ -204,6 +253,23 @@ def adapt_workflow_status(
             )
         compact_text = f"Workflow: Failed | {workflow.blockers[0] if workflow.blockers else ''}"
 
+    analysis_status = (
+        "completed"
+        if status is WorkflowStatus.FAILED
+        and workflow.analysis is not None
+        and workflow.analysis.status.value == "available"
+        else "failed"
+        if status is WorkflowStatus.FAILED
+        else "not_run"
+    )
+    status_metadata = {
+        "workflow_status": status.value,
+        "analysis_status": analysis_status,
+        "draft": draft.to_dict() if draft else None,
+    }
+    if workflow.audit is not None:
+        status_metadata["audit_status"] = workflow.audit.status
+
     return TerminalView(
         title=title,
         subtitle=subtitle,
@@ -215,6 +281,6 @@ def adapt_workflow_status(
         interpretation=None,
         limitations=(),
         warnings=workflow.warnings,
-        metadata={"workflow_status": status.value, "draft": draft.to_dict()},
+        metadata=status_metadata,
         compact_text=compact_text,
     )

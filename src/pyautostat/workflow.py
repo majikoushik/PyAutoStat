@@ -156,6 +156,44 @@ class ResearchWorkflowResult:
         lines.append(f" ANALYSIS RESULT | {method_label}")
         lines.append(sep)
         lines.append(f" Status    : {status_val}")
+
+        if self.status in {WorkflowStatus.COMPLETED, WorkflowStatus.PARTIAL}:
+            analysis_status_label = "Completed"
+            workflow_status_label = (
+                "Completed" if self.status is WorkflowStatus.COMPLETED else "Partial"
+            )
+        elif self.status is WorkflowStatus.FAILED:
+            if self.analysis is not None and self.analysis.status.value == "available":
+                analysis_status_label = "Completed"
+            else:
+                analysis_status_label = "Failed"
+            workflow_status_label = "Failed"
+        else:
+            analysis_status_label = "Not run"
+            workflow_status_label = {
+                WorkflowStatus.NEEDS_INPUT: "Needs input",
+                WorkflowStatus.DATA_LIMITED: "Data limited",
+                WorkflowStatus.UNSUPPORTED: "Unsupported",
+            }.get(self.status, self.status.value.replace("_", " ").title())
+
+        lines.append(f" Analysis  : {analysis_status_label}")
+        lines.append(f" Workflow  : {workflow_status_label}")
+
+        if self.status is WorkflowStatus.PARTIAL:
+            if self.audit is None:
+                note = "Report auditing was disabled; no audit was performed."
+            elif self.audit.status == "incomplete":
+                note = "The report audit was incomplete; inspect its skipped checks."
+            elif self.interpretation is not None and self.interpretation.status.value == "partial":
+                note = "Statistical interpretation was partial."
+            elif self.report is not None and self.report.status == "partial":
+                note = "Report assembly was partial."
+            else:
+                note = "A workflow lifecycle component was omitted or incomplete."
+            lines.append(f" Note      : {note}")
+        elif self.status is WorkflowStatus.UNSUPPORTED:
+            lines.append(" Note      : No substitute statistical method was run.")
+
         is_reliability = spec.question.objective is not None and (
             spec.question.objective.value == "reliability"
         )
@@ -173,6 +211,53 @@ class ResearchWorkflowResult:
                 lines.append(f" Predictor : {predictor}")
         if spec.question.reference_value is not None:
             lines.append(f" Reference : {spec.question.reference_value}")
+
+        if self.blockers:
+            lines.append(thin)
+            lines.append(" BLOCKED")
+            for blocker in self.blockers:
+                lines.append(f"   BLOCKER: {blocker}")
+
+        if self.missing_information:
+            lines.append(thin)
+            lines.append(" MISSING INFORMATION - the analysis cannot run yet")
+            questions: dict[str, Any] = {item.field: item for item in self.draft.questions}
+            if self.recommendation is not None:
+                questions.update(
+                    {
+                        item["field"]: item
+                        for item in self.recommendation.questions
+                        if isinstance(item, dict) and isinstance(item.get("field"), str)
+                    }
+                )
+            for item in self.missing_information:
+                question = questions.get(item.field)
+                lines.append(f"   Field '{item.field}': {item.message}")
+                if question is not None:
+                    explanation = (
+                        question.get("explanation")
+                        if isinstance(question, dict)
+                        else question.explanation
+                    )
+                    options = (
+                        tuple(
+                            (option.get("value"), option.get("label"))
+                            for option in question.get("options", ())
+                            if isinstance(option, dict)
+                        )
+                        if isinstance(question, dict)
+                        else question.options
+                    )
+                    if explanation:
+                        lines.append(f"     Why: {explanation}")
+                    if options:
+                        choices = ", ".join(f"{value!r} ({label})" for value, label in options)
+                        lines.append(f"     Choices: {choices}")
+            fix_args = ", ".join(f"{item.field}=<your value>" for item in self.missing_information)
+            lines.append(
+                f"   Next step: revised = assistant.update_question(workflow.draft, {fix_args})"
+            )
+            lines.append("              workflow = assistant.run(draft=revised)")
         if self.analysis is not None:
             group_order = self.analysis.metadata.get("group_order")
             if isinstance(group_order, (list, tuple)) and group_order:
@@ -488,55 +573,6 @@ class ResearchWorkflowResult:
                             f"raw p={pw.get('raw_p_value')}; "
                             f"Holm p={pw.get('adjusted_p_value')}"
                         )
-
-        # ── Needs-input / blocked ────────────────────────────────────────────
-        if self.missing_information:
-            lines.append(thin)
-            lines.append(" MISSING INFORMATION - the analysis cannot run yet")
-            questions: dict[str, Any] = {item.field: item for item in self.draft.questions}
-            if self.recommendation is not None:
-                questions.update(
-                    {
-                        item["field"]: item
-                        for item in self.recommendation.questions
-                        if isinstance(item, dict) and isinstance(item.get("field"), str)
-                    }
-                )
-            for item in self.missing_information:
-                question = questions.get(item.field)
-                lines.append(f"   Field '{item.field}': {item.message}")
-                if question is not None:
-                    explanation = (
-                        question.get("explanation")
-                        if isinstance(question, dict)
-                        else question.explanation
-                    )
-                    options = (
-                        tuple(
-                            (option.get("value"), option.get("label"))
-                            for option in question.get("options", ())
-                            if isinstance(option, dict)
-                        )
-                        if isinstance(question, dict)
-                        else question.options
-                    )
-                    if explanation:
-                        lines.append(f"     Why: {explanation}")
-                    if options:
-                        choices = ", ".join(f"{value!r} ({label})" for value, label in options)
-                        lines.append(f"     Choices: {choices}")
-            fix_args = ", ".join(f"{item.field}=<value>" for item in self.missing_information)
-            lines.append(f"   Fix directly: assistant.run(..., {fix_args})")
-            lines.append(
-                "   Or update the draft: revised = assistant.update_question(result.draft, ...)"
-            )
-            lines.append("                        assistant.run(draft=revised)")
-
-        if self.blockers:
-            lines.append(thin)
-            lines.append(" BLOCKED")
-            for blocker in self.blockers:
-                lines.append(f"   BLOCKER: {blocker}")
 
         if self.recommendation is not None and self.recommendation.status.value == "ready":
             lines.append(thin)

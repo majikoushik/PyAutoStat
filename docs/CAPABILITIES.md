@@ -100,20 +100,33 @@ Where alternative methods exist for an objective:
 
 ## Workflow status contract
 
-`ResearchWorkflowResult` uses these statuses:
+`workflow.status` describes the completeness of the full research workflow, not only whether the statistical calculation succeeded. A workflow can contain a valid, fully computed statistical analysis even when the overall workflow status is `partial`.
 
-| Status | Meaning |
-| --- | --- |
-| `completed` | Calculation, interpretation, complete report, and audit completed. |
-| `partial` | Valid findings remain, but interpretation, reporting, or audit is incomplete, or audit was explicitly disabled. |
-| `needs_input` | An essential researcher answer is missing; no test ran. |
-| `data_limited` | The selected observations cannot meet the current numerical policy; no test ran. |
-| `unsupported` | The stated design, target, or variable combination has no compatible guided method; no substitute ran. |
-| `failed` | A selected calculation was unusable, interpretation/reporting was unavailable, or audit found a contradiction. |
+| Status | Meaning | Analysis state |
+| --- | --- | --- |
+| `completed` | Calculation, interpretation, complete report, and audit completed. | Computed (`workflow.analysis is not None`) |
+| `partial` | Valid findings exist and are accessible, but an optional downstream step was omitted (e.g., `audit=False`) or incomplete. | Computed (`workflow.analysis is not None`) |
+| `needs_input` | An essential researcher answer is missing; no test ran. | Not run (`workflow.analysis is None`) |
+| `data_limited` | The selected observations cannot meet the current numerical policy; no test ran. | Not run (`workflow.analysis is None`) |
+| `unsupported` | The stated design, target, or variable combination has no compatible guided method; no substitute ran. | Not run (`workflow.analysis is None`) |
+| `failed` | A selected calculation was unusable, interpretation/reporting was unavailable, or audit found an internal contradiction. | Failed / unusable |
 
 Component records retain their own documented status vocabulary. For example, a method
 can have an available analysis and partial interpretation if an optional component is unavailable.
-`audit=False` also makes an otherwise successful workflow partial.
+
+### Auditing and partial workflow status
+
+When report auditing is explicitly disabled (`audit=False`), the statistical analysis is fully executed and accessible, but the overall workflow status is `partial` because post-analysis verification was intentionally bypassed:
+
+```python
+workflow = assistant.run(..., audit=False)
+
+assert workflow.analysis is not None       # Statistical calculation succeeded
+assert workflow.status.value == "partial"  # Workflow is partial because audit was skipped
+```
+
+Disabling the audit does not invalidate or alter the computed statistical results.
+
 
 ## Supported statistical analyses
 

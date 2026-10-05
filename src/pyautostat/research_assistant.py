@@ -340,8 +340,9 @@ class ResearchAssistant:
         """Estimate multi-item internal consistency using Cronbach's alpha.
 
         Focused convenience method for psychometric scale reliability. Computes
-        unstandardized and standardized Cronbach's alpha, item-total correlations,
-        alpha-if-item-deleted diagnostics, and bootstrap confidence intervals.
+        sample-variance Cronbach's alpha, respondent-row bootstrap confidence intervals,
+        corrected item-total correlations, alpha-if-item-deleted diagnostics,
+        inter-item correlations, mean inter-item correlation, and explicit reverse scoring.
 
         Use this method instead of ``run(objective="reliability", ...)`` when
         evaluating a multi-item survey or questionnaire scale.
@@ -490,11 +491,14 @@ class ResearchAssistant:
         value : str
             Continuous measurement or score column.
         model : {"one_way_random", "two_way_random", "two_way_mixed"}, optional
-            Rater effect structure. If None, all applicable models are reported.
-        definition : {"agreement", "consistency"}, optional
+            Rater effect structure. Explicit choice is required; unresolved choices
+            yield a structured needs_input workflow status.
+        definition : {"absolute_agreement", "consistency"}, optional
             Whether absolute systematic differences between raters count as disagreement.
+            Required for two-way models.
         unit : {"single", "average"}, optional
             Whether the measurement of interest is a single rating or the mean of k ratings.
+            Explicit choice is required.
         alpha : float, default 0.05
             Significance threshold for F-tests.
         confidence_level : float, default 0.95
@@ -578,8 +582,8 @@ class ResearchAssistant:
         Returns
         -------
         StudyPlanner
-            A planner instance supporting two-sample t-tests, one-way ANOVA, paired
-            comparisons, and correlation sample size calculations.
+            A planner instance supporting prospective independent-mean and paired-mean
+            statistical power and sample-size precision planning.
         """
 
         def record(result: StudyPlanningResult) -> None:
@@ -649,17 +653,24 @@ class ResearchAssistant:
         ``run()`` pauses execution with a structured ``needs_input`` status rather than
         silently choosing a default.
 
+        Most workflows use only ``objective``, ``outcome``, ``predictor``, ``estimand``,
+        and ``design``. The remaining parameters are workflow-specific and can be
+        safely omitted unless your analysis requires them.
+
         Common question parameters
         --------------------------
         objective : str or Objective, optional
-            Research objective: ``"compare_groups"`` (or ``Objective.COMPARE_GROUPS``),
-            ``"association"``, ``"regression"``, or ``"reliability"``.
+            Research objective: ``"descriptive"``, ``"compare_groups"``,
+            ``"compare_reference"``, ``"association"``, ``"regression"``, or
+            ``"reliability"`` (or corresponding :class:`Objective` enum values).
         outcome : str, optional
             Primary outcome variable column name. For two-variable association, the first
             variable.
         predictor : str, optional
             Single grouping variable, condition variable, or explanatory variable column name.
             In simple regression, the single predictor. For multiple regression, use `predictors`.
+            When both `predictor` and `predictors` are supplied, they must be consistent
+            (e.g., ``predictors=(predictor,)``); conflicting values are rejected.
         estimand : str, optional
             Scientific target of interest (e.g. ``"mean"``, ``"distribution"``,
             ``"internal_consistency"``, ``"linear"``, ``"rank"``, ``"categorical_independence"``).
@@ -682,12 +693,15 @@ class ResearchAssistant:
         predictors : sequence of str, optional
             Ordered collection of predictor column names for multiple regression
             (``objective="regression"``). Use `predictor` for a single explanatory variable
-            or `predictors` for multiple regression; combining conflicting inputs raises an error.
+            or `predictors` for the complete ordered predictor set. When both are supplied,
+            they must represent the same single predictor; conflicting values are rejected.
         controls : sequence of str, optional
-            Covariates or control variables included in multiple regression.
-        covariance_type : {"classical", "HC0", "HC1", "HC2", "HC3"}, optional
-            Covariance matrix estimator for OLS regression. HC3 is recommended when
-            heteroscedasticity is suspected.
+            Ordered sequence of quantitative control variable column names for controlled
+            linear association (``objective="association"``, ``estimand="partial_linear"``).
+            Not used for regression; multiple regression predictors must be passed via `predictors`.
+        covariance_type : {"classical", "HC3"}, optional
+            Covariance matrix estimator for OLS regression (default: ``"classical"``).
+            HC3 is recommended when heteroscedasticity is suspected.
         reference_levels : dict[str, Any], optional
             Baseline reference categories for categorical predictors in regression models.
         event_level : Any, optional
@@ -714,8 +728,10 @@ class ResearchAssistant:
             Second categorical factor for two-way factorial ANOVA.
         factors : sequence of str, optional
             Alternative structured parameter accepting an ordered 2-element sequence
-            ``(factor_a, factor_b)``. Supplying both `factors` and `factor_a`/`factor_b`
-            is rejected. For a dedicated interface, prefer :meth:`two_way_anova`.
+            ``(factor_a, factor_b)``. When both `factors` and `factor_a`/`factor_b` are
+            supplied, they must be consistent (``factors == (factor_a, factor_b)``);
+            conflicting values are rejected. For a dedicated interface, prefer
+            :meth:`two_way_anova`.
         sum_of_squares : {"type2", "type3"}, optional
             Sum of squares formulation for factorial models (default: "type2").
 
@@ -732,7 +748,7 @@ class ResearchAssistant:
             Measurement score column for ICC. Mapped to `outcome` if `outcome` is omitted.
         model : {"one_way_random", "two_way_random", "two_way_mixed"}, optional
             ICC rater model specification.
-        definition : {"agreement", "consistency"}, optional
+        definition : {"absolute_agreement", "consistency"}, optional
             ICC definition: absolute agreement or consistency.
         unit : {"single", "average"}, optional
             ICC unit: single measurement or average of k ratings.
@@ -778,7 +794,9 @@ class ResearchAssistant:
               empty subsets, zero variance, or constant columns) prevent execution.
             - ``WorkflowStatus.UNSUPPORTED`` (``"unsupported"``): The declared combination of
               design, estimand, and data structure has no validated method in the library.
-            - ``WorkflowStatus.FAILED`` (``"failed"``): An unexpected computational error occurred.
+            - ``WorkflowStatus.FAILED`` (``"failed"``): The workflow encountered a fatal issue,
+              such as an unusable numerical result, interpretation/report unavailability,
+              or an audit contradiction. Inspect ``result.blockers``.
 
         Behavioral notes
         ----------------
@@ -815,7 +833,11 @@ class ResearchAssistant:
             if not isinstance(value_check, bool):
                 raise InvalidDataError(f"{name} must be a Boolean.")
         if draft is not None and specification is not None:
-            raise InvalidDataError("Provide either draft or specification, not both.")
+            raise InvalidDataError(
+                "Pass either draft or specification, not both. Supply draft to resume "
+                "a guided question workflow, or specification for a pre-built analysis "
+                "specification."
+            )
         if value is not None and outcome is None:
             outcome = value
         raw_values = (
@@ -854,7 +876,9 @@ class ResearchAssistant:
         ):
             raise InvalidDataError(
                 "A supplied draft or specification cannot be combined with raw question "
-                "arguments. Update the draft explicitly before running it."
+                "parameters. To refine a workflow, update the draft via "
+                "assistant.update_question(workflow.draft, ...) before passing "
+                "draft=revised to run()."
             )
         if draft is not None:
             if not isinstance(draft, QuestionDraft):

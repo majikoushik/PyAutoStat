@@ -54,12 +54,16 @@ class MissingInformation:
         Example::
 
             str(item)
-            # "Field 'design' requires your input: What was your study design?
-            #  → Fix: assistant.run(..., design=<value>)"
+            # "Field 'design' requires your input: Study design is required.
+            #   Next step: revised = assistant.update_question(workflow.draft, design=<your value>)
+            #              workflow = assistant.run(draft=revised)"
         """
         return (
             f"Field '{self.field}' requires your input: {self.message}\n"
-            f"   Fix: assistant.run(..., {self.field}=<value>)"
+            f"   Next step: revised = assistant.update_question(\n"
+            f"       workflow.draft, {self.field}=<your value>\n"
+            f"   )\n"
+            f"   workflow = assistant.run(draft=revised)"
         )
 
     def to_dict(self) -> dict[str, str]:

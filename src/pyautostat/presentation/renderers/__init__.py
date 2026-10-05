@@ -87,7 +87,10 @@ def get_renderer(view: TerminalView, console: Console, detail: str = "standard")
     if view.family == "family.descriptive":
         return DescriptiveTableRenderer(view, console, detail=detail)
 
-    if "workflow_status" in view.metadata:
+    if view.family in {"family.status", "status.error"} or (
+        "workflow_status" in view.metadata
+        and view.metadata["workflow_status"] not in {"completed", "partial"}
+    ):
         return WorkflowStatusRenderer(view, console, detail=detail)
 
     # Governance and planning result types

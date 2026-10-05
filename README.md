@@ -171,6 +171,28 @@ show(workflow)
 
 This **ask rather than guess** behavior is a deliberate scientific safeguard.
 
+### Understanding workflow status: Analysis success vs. workflow completeness
+
+`workflow.status` describes the completeness of the full research workflow, not only whether the statistical calculation succeeded:
+
+- **`completed`**: Statistical calculation ran successfully, and downstream interpretation, reporting, and audit verification completed.
+- **`partial`**: Statistical analysis is valid and available via `workflow.analysis`, but an optional downstream step was intentionally omitted (e.g., `audit=False`) or incomplete.
+- **`needs_input`**: Analysis did not run because required design information (such as independence, pairing, or rater model) is missing.
+- **`data_limited`**: Analysis did not run because observed data violated basic mathematical requirements (such as constant values or zero variance).
+- **`unsupported`**: Analysis did not run because the declared design combination has no valid implementation; no substitute method was run.
+- **`failed`**: The workflow stopped due to an internal error or unresolved audit contradiction.
+
+For example, when report auditing is explicitly disabled:
+
+```python
+workflow = assistant.run(..., audit=False)
+
+assert workflow.analysis is not None  # Analysis succeeded
+assert workflow.status.value == "partial"  # Workflow is partial because audit was skipped
+```
+
+The statistical analysis is completely valid; only the post-analysis audit verification was bypassed.
+
 ---
 
 ## Choose your task

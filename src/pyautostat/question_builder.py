@@ -304,7 +304,11 @@ def prepare_question(
             "model, definition, and unit options are supported only for objective='reliability'."
         )
     if question.objective != Objective.ASSOCIATION and question.controls is not None:
-        raise InvalidDataError("controls is supported only for objective='association'.")
+        raise InvalidDataError(
+            "controls is supported only for objective='association' (partial linear correlation "
+            "with estimand='partial_linear'). For multiple regression, pass all explanatory "
+            "variables using predictors=..."
+        )
     if question.objective != Objective.ASSOCIATION and question.association_measure is not None:
         raise InvalidDataError("association_measure is supported only for objective='association'.")
     if question.objective != Objective.REGRESSION and (

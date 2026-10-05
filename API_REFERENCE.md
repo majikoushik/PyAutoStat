@@ -190,6 +190,40 @@ Association targets include `linear`, `point_biserial`, `monotonic`, `partial_li
 `categorical_independence`, with unavailable targets retained as
 unsupported rather than replaced.
 
+#### Minimal call shapes by research goal
+
+Most workflows require only a small subset of parameters. Use this guide to determine what fields matter for your research question:
+
+| Research goal | Typical required parameters | Notes |
+| --- | --- | --- |
+| Two independent groups | `objective="compare_groups"`, `outcome`, `predictor`, `estimand`, `design="independent"` | `estimand="mean"` (Welch t) or `"distribution"` (Mann-Whitney) |
+| Paired comparison (2 conditions) | above + `unit_id`, `condition_order=("pre", "post")`, `design="paired"` | Long-format panel; exactly 2 observed conditions |
+| Repeated measures (3+ conditions) | `objective="compare_groups"`, `outcome`, `predictor`, `estimand`, `design="repeated"`, `unit_id`, `condition_order` | `condition_order` has 3+ conditions |
+| Factorial ANOVA (2 factors) | `objective="compare_groups"`, `outcome`, `factor_a`, `factor_b`, `design="independent"`, `estimand="mean"` | Prefer `assistant.two_way_anova(...)` |
+| Bivariate association | `objective="association"`, `outcome`, `predictor`, `estimand`, `design="independent"` | `estimand="linear"`, `"monotonic"`, or `"point_biserial"` |
+| Partial Pearson correlation | `objective="association"`, `outcome`, `predictor`, `controls=[...]`, `estimand="partial_linear"`, `design="independent"` | Quantitative controls in original units |
+| Multiple regression | `objective="regression"`, `outcome`, `predictors=[...]`, `estimand="conditional_mean"`, `design="independent"` | Continuous outcome; multiple predictors |
+| Scale reliability | Prefer `assistant.reliability(items=[...])` | Or `run(objective="reliability", items=[...], estimand="internal_consistency")` |
+| Inter-rater reliability (ICC) | Prefer `assistant.intraclass_correlation(target, rater, value, ...)` | Or `run(objective="reliability", target=..., rater=..., outcome=..., estimand="intraclass_correlation", ...)` |
+
+#### Understanding workflow status: Analysis success vs. workflow completeness
+
+`workflow.status` (a `WorkflowStatus` enum) describes the completeness of the overall PyAutoStat research workflow, which encompasses analysis, interpretation, reporting, and result auditing, rather than only whether the numerical calculation executed:
+
+- **`completed`**: Both the statistical analysis and all downstream stages (deterministic interpretation, research report, and result audit) executed successfully. No further researcher action is required.
+- **`partial`**: A valid statistical analysis was successfully computed (`workflow.analysis is not None`), but a downstream lifecycle component was intentionally skipped or incomplete. For example, setting `audit=False` skips report auditing:
+  ```python
+  workflow = assistant.run(..., audit=False)
+
+  assert workflow.analysis is not None
+  assert workflow.status.value == "partial"
+  ```
+  The numerical result is fully valid and accessible; the overall workflow is marked `partial` because scientific audit verification was bypassed.
+- **`needs_input`**: No inferential statistical analysis was run. PyAutoStat requires researcher-supplied design facts (e.g. independence vs. pairing or estimand). Inspect `workflow.missing_information` and resume using `assistant.update_question()`.
+- **`data_limited`**: No inferential test was run because dataset conditions (such as zero variance, empty groups, or rank deficiency) mathematically prevent calculation.
+- **`unsupported`**: No inferential test was run because no validated method in the library matches the declared combination of design and estimand. No substitute method is silently substituted.
+- **`failed`**: The workflow encountered an execution blocker, such as an unusable numerical result, interpretation/report unavailability, or an audit contradiction. Inspect `workflow.blockers`.
+
 `ResearchWorkflowResult` exposes `status`, `specification`, `draft`, `recommendation`, `analysis`,
 `interpretation`, `report`, `audit`, `reproducibility`, optional `profile`,
 `missing_information`, `blockers`, and `warnings`. Statuses are `completed`, `partial`,
@@ -240,11 +274,16 @@ workflow = assistant.run(
 
 **`predictor` vs `predictors`**:
 - Use `predictor="col"` for a single grouping/explanatory variable in comparisons or simple linear regression. When provided alone for regression, it is accepted as a 1-item predictor list.
-- Use `predictors=["col1", "col2", ...]` for multiple regression. Supplying both `predictor` and `predictors`, or supplying `predictors` for non-regression objectives, raises an `InvalidDataError`.
+- Use `predictors=["col1", "col2", ...]` for multiple regression. Supplying `predictors` for non-regression objectives raises an `InvalidDataError`.
+- When both `predictor` and `predictors` are supplied, they must be consistent (e.g., `predictors == (predictor,)`); conflicting values are rejected.
 - A predictor cannot also be the outcome; duplicate predictors are invalid. Supported predictors are continuous or
 discrete numerical, Boolean, nominal, and ordinal. Numerical terms stay in original units.
 Boolean, nominal, and ordinal terms use treatment coding with `k-1` indicator terms; ordinal
 categories are not assigned equal spacing.
+
+**`factor_a` / `factor_b` vs `factors`**:
+- For two-way factorial ANOVA, specify factors as separate `factor_a` and `factor_b` arguments, or as an ordered 2-element sequence `factors=(factor_a, factor_b)`.
+- When both forms are supplied, they must be consistent (`factors == (factor_a, factor_b)`); conflicting values are rejected. Prefer `assistant.two_way_anova(...)` for the dedicated focused interface.
 
 `reference_levels` maps categorical predictor names to observed scalar levels. Explicit values
 take priority, then declared data-dictionary order, pandas categorical order, and first-observed
@@ -358,9 +397,14 @@ Canonical reports add `reliability_summary`, `reliability_items`, and
 
 ### Intraclass correlation coefficient (ICC) workflow
 
-`ResearchAssistant.intraclass_correlation(target, rater, outcome=None, *, value=None, model="two_way_random", definition="absolute_agreement", unit="single", confidence_level=0.95, alpha=0.05, include_all_variants=True, data_dictionary=None, title=None, audit=True, fingerprint=True)` is the canonical public method for inter-rater and test-retest reliability and agreement.
+`ResearchAssistant.intraclass_correlation(target, rater, value, *, model=None, definition=None, unit=None, alpha=0.05, confidence_level=0.95, title=None, audit=True, fingerprint=True)` is the canonical public method for inter-rater and test-retest reliability and agreement.
 
 `ResearchAssistant.icc(...)` is provided as an identical convenience alias.
+
+When `model`, `unit`, or (for two-way models) `definition` are omitted (`None`), the workflow returns `WorkflowStatus.NEEDS_INPUT` asking the researcher to explicitly supply the required design choices. PyAutoStat does not silently infer the study design or default to a model. Valid options are:
+- `model`: `"one_way_random"`, `"two_way_random"`, or `"two_way_mixed"`
+- `definition`: `"absolute_agreement"` or `"consistency"` (required for two-way models; not applicable to one-way)
+- `unit`: `"single"` or `"average"`
 
 The equivalent integrated request uses:
 ```python

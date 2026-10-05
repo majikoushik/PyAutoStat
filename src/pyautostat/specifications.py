@@ -130,7 +130,9 @@ class ResearchQuestion:
             expected = (self.factor_a, self.factor_b)
             if self.factors is not None and self.factors != expected:
                 raise InvalidDataError(
-                    "factor_a/factor_b and factors cannot specify conflicting values."
+                    f"Conflicting factor inputs: factor_a/factor_b="
+                    f"{(self.factor_a, self.factor_b)!r} but factors={self.factors!r}. "
+                    "Use factor_a and factor_b, or factors=(factor_a, factor_b)."
                 )
             object.__setattr__(self, "factors", expected)
         elif self.factors is not None:
@@ -186,7 +188,10 @@ class ResearchQuestion:
         if self.predictor is not None and self.predictors is not None:
             if self.predictors != (self.predictor,):
                 raise InvalidDataError(
-                    "predictor and predictors cannot specify conflicting values."
+                    f"Cannot specify conflicting predictor and predictors: "
+                    f"predictor={self.predictor!r} but predictors={self.predictors!r}. "
+                    "Use predictor for a single explanatory variable, or predictors "
+                    "for the complete ordered predictor set."
                 )
         if self.reference_value is not None:
             value = self.reference_value
@@ -426,13 +431,19 @@ class AnalysisSpecification:
                     )
             object.__setattr__(self, "condition_order", checked)
         if self.condition_order is not None and self.unit_id is None:
-            raise InvalidDataError("condition_order requires an explicit unit_id.")
+            raise InvalidDataError(
+                "condition_order requires an explicit unit_id identifying the "
+                "paired or repeated units."
+            )
         if self.unit_id is not None and self.design not in {
             StudyDesign.PAIRED,
             StudyDesign.REPEATED,
         }:
             raise InvalidDataError(
-                "unit_id is supported only for design='paired' or design='repeated'."
+                f"unit_id is supported only for design='paired' or design='repeated', "
+                f"got design={self.design.value!r}. "
+                "Set design='paired' or design='repeated', or omit unit_id for "
+                "independent designs."
             )
         if self.analytical_variable_types is not None:
             if not isinstance(self.analytical_variable_types, dict) or any(
