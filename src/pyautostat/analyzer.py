@@ -1,5 +1,8 @@
-"""
-Core Statistical Analyzer - Performs comprehensive statistical analysis
+"""Direct statistical calculations and dataset profiling for pandas DataFrames.
+
+Provides the underlying calculation engine used across PyAutoStat and serves as
+the direct API for users who already know the specific statistical operation
+they want to perform.
 """
 
 from __future__ import annotations
@@ -130,17 +133,24 @@ def _coefficient_of_variation(values, mean, std):
 
 
 class StatisticalAnalyzer:
-    """
-    Comprehensive statistical analyzer for academic research data.
+    """Direct statistical and profiling API for pandas DataFrames.
 
-    Features:
-    - Descriptive statistics
-    - Distribution analysis (normality tests)
-    - Correlation analysis (multiple methods)
-    - Hypothesis testing (parametric & non-parametric)
-    - Outlier detection (multiple methods)
-    - Missing data analysis
-    - Data quality metrics
+    Use `StatisticalAnalyzer` when you already know the specific calculation or
+    profiling operation you want to run and do not need question intake, study-design
+    clarification, automated method recommendation, decision auditing, or full research
+    report assembly.
+
+    For integrated, design-aware research workflows that connect question specification,
+    defensible method recommendation, assumption checking, interpretation, audit, and
+    reproducible reporting, use `ResearchAssistant` instead.
+
+    Capabilities:
+    - Univariate profiling, percentiles, and distribution diagnostics
+    - Direct hypothesis testing (t-tests, Mann-Whitney, Welch ANOVA, Games-Howell)
+    - Factorial ANOVA and repeated-measures tests
+    - Correlation matrices and categorical association
+    - Ordinary least squares regression with HC3 robust covariance
+    - Reliability analysis and Intraclass Correlation Coefficients (ICC)
     """
 
     def __init__(self, df):

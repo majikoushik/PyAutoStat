@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pyautostat"
 dynamic = ["version"]
-description = "Automated statistical analysis for research data: normality, hypothesis testing, correlation, outliers, and actionable insights."
+description = "Design-aware statistical analysis for pandas with method selection, effect sizes, uncertainty, interpretation, reproducibility, audit, and research reporting."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -15,10 +15,13 @@ authors = [
 ]
 keywords = [
     "statistics",
-    "data-analysis",
-    "hypothesis-testing",
-    "eda",
+    "pandas",
     "research",
+    "reproducibility",
+    "statistical-analysis",
+    "hypothesis-testing",
+    "effect-size",
+    "research-reporting",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

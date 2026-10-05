@@ -2,47 +2,88 @@
 
 This page describes the public API in `pyautostat`. The [README](README.md) has a short start-to-finish example; the [examples guide](examples/README.md) covers profiling, estimand-aware tests, and the complete research lifecycle.
 
-## Imports
+## Which API should I use?
+
+PyAutoStat is structured into three intentional layers so you can start simple and adopt advanced controls only when your research design requires them.
+
+### Level 1 — Recommended for most users
+
+For nearly all exploratory and inferential research workflows on pandas DataFrames, start here:
+- **`ResearchAssistant`**: Coordinates profiling, question intake, method recommendation, assumption diagnostics, effect sizes, uncertainty, interpretation, audit, and reporting.
+- **`show`**: Renders a polished Rich terminal presentation of workflows, profiles, and audit records in your console.
+- **`save_html`**, **`save_pdf`**, **`save_docx`**: Export self-contained, publication-ready research reports to disk without requiring lower-level report object construction.
+
+```python
+from pyautostat import ResearchAssistant, save_html, show
+
+assistant = ResearchAssistant(df)
+
+# Profile data quality and distributions
+show(assistant.profile())
+
+# Execute a design-aware research workflow
+workflow = assistant.run(
+    objective="compare_groups",
+    outcome="score",
+    predictor="treatment",
+    estimand="mean",
+    design="independent",
+)
+
+# Inspect results in terminal and export publication report
+show(workflow)
+save_html(workflow, "research_report.html")
+```
+
+### Level 2 — Direct statistical and planning API
+
+Intended for researchers and data scientists who:
+- Already know the exact statistical procedure and do not need guided question intake or recommendation.
+- Need direct calculations, correlation matrices, or specific post-hoc contrasts.
+- Require prospective study planning (sample size / power calculation), sensitivity scenarios, or researcher-defined practical significance thresholds.
+
+Key interfaces:
+- **`StatisticalAnalyzer`**: The direct statistical calculation and profiling engine behind PyAutoStat. Provides direct access to t-tests, Mann-Whitney U, Welch ANOVA, Games-Howell, factorial ANOVA, repeated measures, OLS regression, and ICC.
+- **`StudyPlanner`**: Prospective power analysis and sample size planning prior to data collection.
+- **`StatisticalAnalysisPlan`**: Pre-analysis plan specifications and adherence comparison (`compare_plan_to_result`).
+- **`SensitivitySpecification`**: Evaluation of same-estimand and different-estimand sensitivity scenarios.
+- **`MeaningfulEffectThreshold`**: Evaluation of empirical effect sizes against researcher-declared practical thresholds.
 
 ```python
 from pyautostat import (
-    AnalysisOptions,
-    AnalysisResult,
-    AnalysisSpecification,
-    AnalysisStatus,
-    InsightEngine,
     MeaningfulEffectThreshold,
-    Objective,
-    QuestionDraft,
-    Recommendation,
-    RecommendationStatus,
-    ReportGenerator,
-    ResearchAssistant,
-    ResearchWorkflowResult,
-    ResearchQuestion,
-    StatisticalAnalyzer,
-    StatisticalAnalysisPlan,
-    StudyPlanner,
-    ReportingCompletenessResult,
-    ResearchSessionSnapshot,
-    StudyDesign,
     SensitivitySpecification,
-    WorkflowStatus,
-    coefficient_of_variation_narrative,
-    column_story,
-    crosstab_narrative,
-    dataset_opening,
-    detect_column_types,
-    executive_summary,
-    frequency_narrative,
-    insight_narrative,
-    percentile_narrative,
-    recommendation_rationale,
-    suggest_column_roles,
+    StatisticalAnalysisPlan,
+    StatisticalAnalyzer,
+    StudyPlanner,
 )
 ```
 
-All documented exception classes are also exported from `pyautostat`.
+### Level 3 — Framework, integration, and governance API
+
+Intended for application developers, automated pipelines, audit systems, and platform integrators who need:
+- Typed, immutable, JSON-serializable specification and result contracts.
+- Independent result auditing without rerunning computations.
+- Cryptographic reproducibility packages, decision ledgers, and UI-independent session snapshots.
+- Custom presentation formatting and multi-format research bundles.
+
+Key objects:
+- **Specifications & Results**: `AnalysisSpecification`, `ResearchQuestion`, `AnalysisOptions`, `ResearchWorkflowResult`, `AnalysisResult`, `Recommendation`, `WorkflowStatus`.
+- **Audit & Governance**: `DecisionLedger`, `StatisticalResultAuditor`, `AuditResult`, `ReproducibilityRecord`, `ReportingCompletenessResult`.
+- **Presentation & Bundles**: `PresentationView`, `ResearchReport`, `BundleOptions`, `save_bundle`, `verify_bundle`.
+
+```python
+from pyautostat import (
+    AnalysisResult,
+    AnalysisSpecification,
+    AuditResult,
+    DecisionLedger,
+    ReproducibilityRecord,
+    ResearchWorkflowResult,
+    StatisticalResultAuditor,
+    WorkflowStatus,
+)
+```
 
 ## `ResearchAssistant` common workflows
 
@@ -195,9 +236,12 @@ workflow = assistant.run(
 ```
 
 `objective="regression"` requires a continuous numerical outcome, an ordered nonempty
-`predictors` list, `estimand="conditional_mean"`, and `design="independent"`. For simple
-regression, the singular `predictor=` spelling is accepted as a one-item list. A predictor cannot
-also be the outcome; duplicate predictors are invalid. Supported predictors are continuous or
+`predictors` list, `estimand="conditional_mean"`, and `design="independent"`.
+
+**`predictor` vs `predictors`**:
+- Use `predictor="col"` for a single grouping/explanatory variable in comparisons or simple linear regression. When provided alone for regression, it is accepted as a 1-item predictor list.
+- Use `predictors=["col1", "col2", ...]` for multiple regression. Supplying both `predictor` and `predictors`, or supplying `predictors` for non-regression objectives, raises an `InvalidDataError`.
+- A predictor cannot also be the outcome; duplicate predictors are invalid. Supported predictors are continuous or
 discrete numerical, Boolean, nominal, and ordinal. Numerical terms stay in original units.
 Boolean, nominal, and ordinal terms use treatment coding with `k-1` indicator terms; ordinal
 categories are not assigned equal spacing.
@@ -314,7 +358,9 @@ Canonical reports add `reliability_summary`, `reliability_items`, and
 
 ### Intraclass correlation coefficient (ICC) workflow
 
-`ResearchAssistant.intraclass_correlation(target, rater, outcome=None, *, value=None, model="two_way_random", definition="absolute_agreement", unit="single", confidence_level=0.95, alpha=0.05, include_all_variants=True, data_dictionary=None, title=None, audit=True, fingerprint=True)` (with alias `.icc(...)`) is the dedicated entry point for inter-rater and test-retest reliability and agreement.
+`ResearchAssistant.intraclass_correlation(target, rater, outcome=None, *, value=None, model="two_way_random", definition="absolute_agreement", unit="single", confidence_level=0.95, alpha=0.05, include_all_variants=True, data_dictionary=None, title=None, audit=True, fingerprint=True)` is the canonical public method for inter-rater and test-retest reliability and agreement.
+
+`ResearchAssistant.icc(...)` is provided as an identical convenience alias.
 
 The equivalent integrated request uses:
 ```python
@@ -400,18 +446,29 @@ return the same validated schemas. Two-condition paired designs continue to rout
 For two categorical factors on a continuous outcome under independent sampling:
 
 ```python
-workflow = ResearchAssistant(df).run(
+# Recommended focused helper for most users:
+workflow = assistant.two_way_anova(
+    outcome="score",
+    factor_a="treatment",
+    factor_b="dosage",
+    sum_of_squares="type2",  # or "type3"
+)
+
+# Or via the integrated run() workflow:
+workflow = assistant.run(
     objective="compare_groups",
     outcome="score",
     factor_a="treatment",
     factor_b="dosage",
     estimand="mean",
     design="independent",
-    sum_of_squares="type2",  # or "type3"
+    sum_of_squares="type2",
 )
-# or via direct assistant helper:
-workflow = ResearchAssistant(df).two_way_anova("score", "treatment", "dosage", sum_of_squares="type2")
 ```
+
+**Factor parameters**:
+- In `two_way_anova(...)`, provide `outcome`, `factor_a`, and `factor_b` directly.
+- In `run(...)`, specify either `factor_a` + `factor_b` or `factors=("treatment", "dosage")`. Supplying both `factors` and `factor_a`/`factor_b` simultaneously raises `InvalidDataError`.
 
 The model fits the full factorial specification with interaction:
 $$Y = \mu + A + B + A \times B + \epsilon$$
@@ -826,7 +883,57 @@ roles. See [the architecture document](docs/ARCHITECTURE.md) for migration detai
 `pyautostat.results` exposes the serializable result records. Question preparation manufactures
 no recommendation, inferential result, or report.
 
-## `StatisticalAnalyzer`
+## Viewing and saving results
+
+PyAutoStat separates terminal inspection from file creation through a clear, layered model:
+
+- **Terminal inspection (`show`)**: Formats results, workflow summaries, or profiles directly in your console using Rich.
+- **Exporting to disk (`save_*`)**: Generates standalone, self-contained files on disk (`save_html`, `save_pdf`, `save_docx`).
+- **In-memory rendering (`to_*`)**: Returns formatted strings or byte buffers without disk writes (`to_html`, `to_pdf`, `to_docx`).
+
+### Terminal presentation: `show`
+
+```python
+from pyautostat import show
+
+# Inspect a workflow result, dataset profile, or audit record:
+show(workflow)
+show(workflow, detail="compact")  # or "full"
+```
+
+- **`show(target, *, detail="standard", console=None)`**: Renders a styled terminal presentation to the active console.
+  - `target`: Any supported result (e.g., `ResearchWorkflowResult`, profile dictionary, `AuditResult`).
+  - `detail`: `"compact"`, `"standard"` (default), or `"full"`.
+  - `console`: Optional custom Rich `Console` instance.
+
+### File exports: `save_html`, `save_pdf`, `save_docx`
+
+```python
+from pyautostat import save_docx, save_html, save_pdf
+
+# Save directly from a workflow result or research report:
+save_html(workflow, "report.html", style="apa")
+save_pdf(workflow, "report.pdf", style="apa")
+save_docx(workflow, "report.docx", style="apa")
+```
+
+- **`save_html(target, path, *, detail="standard", title=None, style="general", overwrite=False)`**: Saves a standalone, self-contained HTML5 report.
+- **`save_pdf(target, path, *, detail="standard", title=None, style="general", overwrite=False)`**: Saves a PDF report (requires Playwright).
+- **`save_docx(target, path, *, detail="standard", title=None, style="general", overwrite=False)`**: Saves a Microsoft Word `.docx` report (requires python-docx).
+
+In-memory equivalents:
+- `to_html(target, *, detail="standard", title=None, style="general") -> str`
+- `to_pdf(target, *, detail="standard", title=None, style="general") -> bytes`
+- `to_docx(target, *, detail="standard", title=None, style="general") -> bytes`
+
+## `StatisticalAnalyzer` — Direct statistical calculations
+
+`StatisticalAnalyzer` is the direct statistical and profiling engine behind PyAutoStat. Use it when you already know the specific statistical calculation or profiling operation you want to execute and do not require question intake, design-aware method recommendation, assumption-guided routing, audit records, or full research report generation.
+
+| Interface | Workflow model | When to use |
+|---|---|---|
+| **`ResearchAssistant`** | Integrated research lifecycle | Recommended for most users. Connects questions &rarr; recommendations &rarr; calculations &rarr; effect sizes &rarr; interpretation &rarr; audit &rarr; exportable report. |
+| **`StatisticalAnalyzer`** | Direct calculation engine | For users who know the exact statistical procedure and need immediate calculation dictionaries or raw profiling matrices. |
 
 ### Construction and full analysis
 

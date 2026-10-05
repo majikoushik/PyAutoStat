@@ -62,10 +62,27 @@ from .workflow import ResearchWorkflowResult, WorkflowStatus
 
 
 class ResearchAssistant:
-    """Coordinate profiling, question intake, and deterministic recommendations.
+    """Recommended high-level entry point for statistical research workflows.
 
-    Construction uses StatisticalAnalyzer's validation and private DataFrame copy.
-    It does not run the profiling calculations until :meth:`profile` is called.
+    Coordinates dataset profiling, question intake, design-aware method
+    recommendation, validated execution, deterministic interpretation,
+    audit, reproducibility records, and research reporting for pandas DataFrames.
+
+    Key principles:
+    - **DataFrame safety**: Validates the input DataFrame, preserves source data
+      without modification, and uses a private copy for internal operations.
+    - **No scientific guessing**: Never infers missing study designs, pairing,
+      or estimands from raw values. Unresolved design facts pause the workflow
+      with structured clarification requests (``needs_input``).
+    - **No side effects**: Running analyses does not write files to disk. File
+      export is explicit through functions such as :func:`pyautostat.save_html`
+      or :func:`pyautostat.save_pdf`.
+    - **Dual workflow support**: Provides both the integrated, guided :meth:`run`
+      entry point and focused convenience methods (:meth:`profile`,
+      :meth:`summarize`, :meth:`reliability`, :meth:`two_way_anova`,
+      :meth:`intraclass_correlation`).
+    - **Layered architecture**: Underlying direct calculation and profiling
+      operations remain accessible through :class:`pyautostat.StatisticalAnalyzer`.
     """
 
     def __init__(self, df: pd.DataFrame) -> None:
@@ -117,7 +134,30 @@ class ResearchAssistant:
         include_row_positions: bool = False,
         quantiles=(0.05, 0.25, 0.5, 0.75, 0.95),
     ) -> dict:
-        """Profile a DataFrame; optional declarations never mutate source values."""
+        """Profile the dataset structure, missingness, distributions, and data quality.
+
+        Use `profile()` as the introductory, dataset-only entry point to inspect
+        univariate distributions, skewness, normality tests, correlation pairs,
+        and data-quality cues before specifying an inferential research question.
+
+        Parameters
+        ----------
+        data_dictionary : dict, optional
+            Variable definitions or domain notes. Optional declarations never mutate source values.
+        histogram_bins : int, default 20
+            Number of bins for numeric histogram profiles.
+        include_row_positions : bool, default False
+            Whether to include row index positions for missing values and anomalies.
+        quantiles : tuple of float, default (0.05, 0.25, 0.5, 0.75, 0.95)
+            Quantile cutoff positions to compute for numeric columns.
+
+        Returns
+        -------
+        dict
+            Structured profiling dictionary with keys for overview, distributions,
+            missing_data, normality, correlation, data_quality, and analysis_warnings.
+            Does not write files to disk.
+        """
         result = self._analyzer.analyze_all(
             data_dictionary=data_dictionary,
             histogram_bins=histogram_bins,
@@ -297,7 +337,42 @@ class ResearchAssistant:
         audit: bool = True,
         fingerprint: bool = True,
     ) -> ResearchWorkflowResult:
-        """Estimate multi-item internal consistency with Cronbach's alpha."""
+        """Estimate multi-item internal consistency using Cronbach's alpha.
+
+        Focused convenience method for psychometric scale reliability. Computes
+        unstandardized and standardized Cronbach's alpha, item-total correlations,
+        alpha-if-item-deleted diagnostics, and bootstrap confidence intervals.
+
+        Use this method instead of ``run(objective="reliability", ...)`` when
+        evaluating a multi-item survey or questionnaire scale.
+
+        Parameters
+        ----------
+        items : sequence of str
+            Scored numeric column names belonging to the scale.
+        confidence_level : float, default 0.95
+            Coverage for the bootstrap confidence interval.
+        bootstrap_samples : int, default 499
+            Number of bootstrap resamples for the alpha confidence interval.
+        random_state : int or None, default 0
+            Seed for reproducible bootstrap resampling.
+        reverse_scoring : dict, optional
+            Mapping of column names to (min, max) bounds for negatively keyed items.
+        data_dictionary : dict, optional
+            Optional metadata dictionary for item descriptions.
+        title : str, optional
+            Title for generated workflow reports.
+        audit : bool, default True
+            Whether to run result audits. Setting False results in a partial workflow status.
+        fingerprint : bool, default True
+            Whether to compute a SHA-256 fingerprint of the analyzed columns.
+
+        Returns
+        -------
+        ResearchWorkflowResult
+            Integrated workflow result containing analysis values, interpretation,
+            audit, and report. Does not write files to disk.
+        """
         return self.run(
             objective=Objective.RELIABILITY,
             items=items,
@@ -327,8 +402,43 @@ class ResearchAssistant:
         audit: bool = True,
         fingerprint: bool = True,
     ) -> ResearchWorkflowResult:
-        """Run two-way factorial ANOVA for independent observations with main effects
-        and interaction.
+        """Run two-way factorial ANOVA for independent groups with interaction.
+
+        Focused convenience method for evaluating two categorical grouping factors
+        and their interaction on a continuous outcome. Computes main effects,
+        interaction F-tests, partial eta-squared effect sizes with exact confidence
+        intervals, and unweighted estimated marginal means.
+
+        Use this method instead of ``run(objective="compare_groups", factor_a=..., factor_b=...)``
+        when conducting a 2-factor between-subjects design.
+
+        Parameters
+        ----------
+        outcome : str
+            Continuous dependent variable column.
+        factor_a : str
+            First categorical grouping factor column.
+        factor_b : str
+            Second categorical grouping factor column.
+        sum_of_squares : {"type2", "type3"}, default "type2"
+            Sum of squares formulation. Type II is recommended for unbalanced
+            designs without strong interaction hypotheses.
+        alpha : float, default 0.05
+            Significance threshold for hypothesis tests.
+        confidence_level : float, default 0.95
+            Coverage for partial eta-squared confidence intervals.
+        title : str, optional
+            Title for generated workflow reports.
+        audit : bool, default True
+            Whether to run result audits. Setting False results in a partial workflow status.
+        fingerprint : bool, default True
+            Whether to compute a SHA-256 fingerprint of the analyzed columns.
+
+        Returns
+        -------
+        ResearchWorkflowResult
+            Integrated workflow result containing ANOVA tables, effect sizes,
+            interpretation, audit, and report. Does not write files to disk.
         """
         return self.run(
             objective=Objective.COMPARE_GROUPS,
@@ -363,7 +473,45 @@ class ResearchAssistant:
         audit: bool = True,
         fingerprint: bool = True,
     ) -> ResearchWorkflowResult:
-        """Estimate Intraclass Correlation Coefficient (ICC) for reliability/agreement."""
+        """Estimate Intraclass Correlation Coefficients (ICC) for rater agreement/reliability.
+
+        This is the canonical explicit method for ICC estimation. Supports Shrout & Fleiss
+        (1979) and McGraw & Wong (1996) models: ICC(1,1), ICC(2,1), ICC(3,1), ICC(1,k),
+        ICC(2,k), and ICC(3,k), computing variance components, F-tests, and confidence intervals.
+
+        For a convenience shorthand, :meth:`icc` is an identical alias.
+
+        Parameters
+        ----------
+        target : str
+            Column identifying the subject, patient, or item being evaluated.
+        rater : str
+            Column identifying the observer, rater, or measurement device.
+        value : str
+            Continuous measurement or score column.
+        model : {"one_way_random", "two_way_random", "two_way_mixed"}, optional
+            Rater effect structure. If None, all applicable models are reported.
+        definition : {"agreement", "consistency"}, optional
+            Whether absolute systematic differences between raters count as disagreement.
+        unit : {"single", "average"}, optional
+            Whether the measurement of interest is a single rating or the mean of k ratings.
+        alpha : float, default 0.05
+            Significance threshold for F-tests.
+        confidence_level : float, default 0.95
+            Coverage for ICC confidence intervals.
+        title : str, optional
+            Title for generated workflow reports.
+        audit : bool, default True
+            Whether to run result audits. Setting False results in a partial workflow status.
+        fingerprint : bool, default True
+            Whether to compute a SHA-256 fingerprint of the analyzed columns.
+
+        Returns
+        -------
+        ResearchWorkflowResult
+            Integrated workflow result containing ICC estimates, ANOVA decomposition,
+            interpretation, audit, and report. Does not write files to disk.
+        """
         return self.run(
             objective=Objective.RELIABILITY,
             target=target,
@@ -400,7 +548,11 @@ class ResearchAssistant:
         audit: bool = True,
         fingerprint: bool = True,
     ) -> ResearchWorkflowResult:
-        """Convenience alias for intraclass_correlation."""
+        """Convenience alias for :meth:`intraclass_correlation`.
+
+        Accepts identical arguments and returns identical results. In documentation
+        and public APIs, :meth:`intraclass_correlation` is the canonical name.
+        """
         return self.intraclass_correlation(
             target=target,
             rater=rater,
@@ -416,7 +568,19 @@ class ResearchAssistant:
         )
 
     def study_planner(self) -> StudyPlanner:
-        """Return a prospective planner that does not inspect this assistant's data."""
+        """Return a prospective study planner for sample size, power, and effect calculation.
+
+        Creates an independent :class:`pyautostat.StudyPlanner` instance. Study planning is
+        strictly prospective and does not inspect or depend on the assistant's DataFrame.
+        When a decision ledger is active, completed planning calculations are recorded
+        to the ledger for scientific provenance.
+
+        Returns
+        -------
+        StudyPlanner
+            A planner instance supporting two-sample t-tests, one-way ANOVA, paired
+            comparisons, and correlation sample size calculations.
+        """
 
         def record(result: StudyPlanningResult) -> None:
             if self._ledger is not None:
@@ -474,54 +638,173 @@ class ResearchAssistant:
         title: str | None = None,
         include_figures: bool = False,
     ) -> ResearchWorkflowResult:
-        """Run one supported workflow or return the exact information needed next.
+        """Execute a design-aware research workflow or return structured requests for missing facts.
 
-        Scientific design facts are never inferred. Supplying a draft or specification
-        is mutually exclusive with raw question arguments. No files are written and no
-        reproduction is attempted.
+        Coordinates question intake, candidate method recommendation, assumption
+        validation, statistical execution, deterministic interpretation, decision auditing,
+        and report assembly into a single :class:`pyautostat.ResearchWorkflowResult`.
 
-        Parameters
-        ----------
+        Scientific design facts (such as independence vs. pairing or collection intent)
+        are never guessed from data values. If essential design information is missing,
+        ``run()`` pauses execution with a structured ``needs_input`` status rather than
+        silently choosing a default.
+
+        Common question parameters
+        --------------------------
         objective : str or Objective, optional
-            Research objective. Descriptive workflows profile data, group comparisons
-            compare an outcome across groups or paired conditions, and association
-            workflows study a stated relationship.
+            Research objective: ``"compare_groups"`` (or ``Objective.COMPARE_GROUPS``),
+            ``"association"``, ``"regression"``, or ``"reliability"``.
         outcome : str, optional
-            Outcome or first analysis variable column.
+            Primary outcome variable column name. For two-variable association, the first
+            variable.
         predictor : str, optional
-            Group, condition, or second analysis variable column.
-        items : sequence of str, optional
-            Ordered scored columns for a researcher-declared reliability scale.
-        design : {"independent", "paired", "repeated", "clustered", "unknown"}, optional
-            Researcher-declared study design. The current inferential engine supports
-            independent observations and explicit two-condition paired data. Other
-            accepted design values remain visible as unsupported rather than being
-            silently reinterpreted.
+            Single grouping variable, condition variable, or explanatory variable column name.
+            In simple regression, the single predictor. For multiple regression, use `predictors`.
         estimand : str, optional
-            Scientific target. Supported targets depend on the objective: ``mean`` or
-            ``distribution`` for group comparison; ``linear``, ``monotonic``, or
-            ``categorical_independence`` for association. Some targets are recorded but
-            unavailable when the package has no matching inferential method.
+            Scientific target of interest (e.g. ``"mean"``, ``"distribution"``,
+            ``"internal_consistency"``, ``"linear"``, ``"rank"``, ``"categorical_independence"``).
+            Method selection respects the declared estimand; diagnostic tests never silently
+            change a mean question into a rank test.
+        design : {"independent", "paired", "repeated", "clustered", "unknown"}, optional
+            Researcher-declared study design (or StudyDesign enum). Supports independent groups,
+            two-condition paired data, and multi-condition repeated-measures designs. Clustered
+            designs are visible as unsupported rather than being silently reinterpreted.
         variable_types : dict[str, str], optional
-            Explicit analytical types using ``continuous``, ``discrete``, ``nominal``,
-            ``ordinal``, or ``identifier``. Supply these when values alone cannot resolve
-            their scientific role.
+            Explicit measurement types for columns: ``"continuous"``, ``"discrete"``,
+            ``"nominal"``, ``"ordinal"``, or ``"identifier"``.
+        data_dictionary : dict, optional
+            Domain definitions, value labels, or notes for variables.
+        description : str, optional
+            Free-text description of the scientific research question.
+
+        Regression and association parameters
+        -------------------------------------
+        predictors : sequence of str, optional
+            Ordered collection of predictor column names for multiple regression
+            (``objective="regression"``). Use `predictor` for a single explanatory variable
+            or `predictors` for multiple regression; combining conflicting inputs raises an error.
+        controls : sequence of str, optional
+            Covariates or control variables included in multiple regression.
+        covariance_type : {"classical", "HC0", "HC1", "HC2", "HC3"}, optional
+            Covariance matrix estimator for OLS regression. HC3 is recommended when
+            heteroscedasticity is suspected.
+        reference_levels : dict[str, Any], optional
+            Baseline reference categories for categorical predictors in regression models.
+        event_level : Any, optional
+            Target outcome category for binary logistic regression (the event being modeled).
+        association_measure : str, optional
+            Specific association metric when objective is association.
+        reference_value : float, optional
+            Hypothesized population value for one-sample comparison tests.
+
+        Paired and repeated-measures parameters
+        ---------------------------------------
         unit_id : str, optional
-            Unit identifier required for paired long-format analyses.
-        condition_order : tuple, optional
-            Ordered pair defining the signed paired contrast: first condition minus second.
+            Unit, subject, or participant identifier column required for long-format
+            paired and repeated-measures analyses.
+        condition_order : tuple of Any, optional
+            Ordered 2-tuple specifying the signed contrast direction (first minus second)
+            in paired comparisons.
+
+        Factorial-analysis parameters
+        -----------------------------
+        factor_a : str, optional
+            First categorical factor for two-way factorial ANOVA.
+        factor_b : str, optional
+            Second categorical factor for two-way factorial ANOVA.
+        factors : sequence of str, optional
+            Alternative structured parameter accepting an ordered 2-element sequence
+            ``(factor_a, factor_b)``. Supplying both `factors` and `factor_a`/`factor_b`
+            is rejected. For a dedicated interface, prefer :meth:`two_way_anova`.
+        sum_of_squares : {"type2", "type3"}, optional
+            Sum of squares formulation for factorial models (default: "type2").
+
+        Reliability and ICC parameters
+        ------------------------------
+        items : sequence of str, optional
+            Ordered scored column names for psychometric scale reliability (Cronbach's alpha).
+            For a dedicated interface, prefer :meth:`reliability`.
+        target : str, optional
+            Subject, patient, or item identifier for Intraclass Correlation (ICC).
+        rater : str, optional
+            Observer, judge, or device identifier for Intraclass Correlation (ICC).
+        value : str, optional
+            Measurement score column for ICC. Mapped to `outcome` if `outcome` is omitted.
+        model : {"one_way_random", "two_way_random", "two_way_mixed"}, optional
+            ICC rater model specification.
+        definition : {"agreement", "consistency"}, optional
+            ICC definition: absolute agreement or consistency.
+        unit : {"single", "average"}, optional
+            ICC unit: single measurement or average of k ratings.
+            For a dedicated interface, prefer :meth:`intraclass_correlation`.
+
+        Workflow-control parameters
+        ---------------------------
         draft : QuestionDraft, optional
-            A previously returned draft, usually after ``update_question()``.
+            A previously returned draft from a `needs_input` workflow, updated with
+            additional facts via :meth:`update_question`. Mutually exclusive with raw
+            question arguments.
         specification : AnalysisSpecification, optional
-            A complete structured request. Do not combine it with raw question arguments.
+            A pre-built, structured analysis specification. Mutually exclusive with raw
+            question arguments.
+        options : AnalysisOptions, optional
+            Computational options such as significance level `alpha`, `confidence_level`,
+            and `random_seed`.
+        include_profile : bool, default False
+            Whether to attach a full dataset profile to the returned workflow result.
+        audit : bool, default True
+            Whether to run result audits. Setting `audit=False` succeeds in analysis
+            execution but marks the overall workflow status as ``partial`` because
+            auditing was omitted.
+        fingerprint : bool, default True
+            Whether to calculate a SHA-256 fingerprint of the analyzed columns for provenance.
+        title : str, optional
+            Custom title for generated report and presentation views.
+        include_figures : bool, default False
+            Whether to embed static visual figure artifacts in the generated report.
 
         Returns
         -------
         ResearchWorkflowResult
-            A completed result or a structured ``needs_input``, ``data_limited``, or
-            ``unsupported`` result. For ``needs_input``, either call ``run()`` again with
-            the requested fields or update ``result.draft`` with ``update_question()`` and
-            pass the revised draft back to ``run(draft=...)``.
+            A structured result container. Check ``result.status`` (a :class:`WorkflowStatus` enum)
+            to determine next actions:
+            - ``WorkflowStatus.COMPLETED`` (``"completed"``): Analysis, interpretation,
+              audit, and report were successfully executed.
+            - ``WorkflowStatus.PARTIAL`` (``"partial"``): Analysis succeeded, but a secondary
+              lifecycle component was omitted or incomplete (e.g., when ``audit=False``).
+            - ``WorkflowStatus.NEEDS_INPUT`` (``"needs_input"``): Required scientific facts
+              (such as design or estimand) are missing. Inspect ``result.missing_information``.
+            - ``WorkflowStatus.DATA_LIMITED`` (``"data_limited"``): Data conditions (such as
+              empty subsets, zero variance, or constant columns) prevent execution.
+            - ``WorkflowStatus.UNSUPPORTED`` (``"unsupported"``): The declared combination of
+              design, estimand, and data structure has no validated method in the library.
+            - ``WorkflowStatus.FAILED`` (``"failed"``): An unexpected computational error occurred.
+
+        Behavioral notes
+        ----------------
+        - **No file side effects**: Calling ``run()`` never writes files to disk. Use
+          :func:`pyautostat.save_html`, :func:`pyautostat.save_pdf`, or
+          :func:`pyautostat.save_docx` to export reports explicitly.
+        - **Mutual exclusivity**: Supplying `draft` or `specification` is mutually exclusive
+          with supplying raw question parameters (`objective`, `outcome`, etc.).
+        - **Explicit designs**: Repeated measures, paired comparisons, and factorial designs
+          are supported when explicitly declared. Unresolved designs yield ``needs_input``.
+        - **Audit status**: Setting ``audit=False`` causes an otherwise successful workflow
+          to return overall status ``WorkflowStatus.PARTIAL`` because scientific verification
+          was bypassed.
+
+        Examples
+        --------
+        >>> assistant = ResearchAssistant(df)
+        >>> workflow = assistant.run(
+        ...     objective="compare_groups",
+        ...     outcome="score",
+        ...     predictor="group",
+        ...     estimand="mean",
+        ...     design="independent",
+        ... )
+        >>> workflow.status.value
+        'completed'
         """
         for name, value_check in (
             ("include_profile", include_profile),
@@ -1639,7 +1922,34 @@ class ResearchAssistant:
         title: str | None = None,
         include_figures: bool = False,
     ) -> ResearchReport:
-        """Assemble a general research report from recorded analysis and interpretation."""
+        """Assemble a structured ResearchReport object from recorded analysis results.
+
+        Use this method when you need programmatic access to the report object,
+        custom metadata, or direct export methods on the report. For exporting a
+        completed workflow result directly to disk, prefer the top-level functions:
+        :func:`pyautostat.save_html`, :func:`pyautostat.save_pdf`, or :func:`pyautostat.save_docx`.
+
+        Parameters
+        ----------
+        result : AnalysisResult
+            Executed statistical analysis result to report.
+        interpretation : InterpretationResult, optional
+            Deterministic interpretation findings.
+        sensitivity : SensitivityResult, optional
+            Sensitivity analysis scenario comparisons.
+        practical_significance : PracticalSignificanceResult, optional
+            Evaluation against researcher-defined practical thresholds.
+        title : str, optional
+            Custom report title.
+        include_figures : bool, default False
+            Whether to embed static visual figure artifacts in the report.
+
+        Returns
+        -------
+        ResearchReport
+            Structured, serializable report object. Does not write files to disk
+            until an export method (e.g. ``save_html``) is called on it.
+        """
         report = build_research_report(
             result,
             interpretation=interpretation,
@@ -1682,7 +1992,30 @@ class ResearchAssistant:
         practical_significance: PracticalSignificanceResult | None = None,
         exports: dict[str, Any] | None = None,
     ) -> AuditResult:
-        """Check recorded analysis, report and supplied exports without rerunning tests."""
+        """Audit recorded analysis, report, and export consistency without rerunning tests.
+
+        Uses :class:`pyautostat.StatisticalResultAuditor` to independently verify that
+        reported numbers, degrees of freedom, p-values, effect sizes, and export artifacts
+        are consistent with the primary analysis values.
+
+        Parameters
+        ----------
+        report : ResearchReport
+            The research report to audit.
+        result : AnalysisResult, optional
+            Primary analysis result to verify against.
+        sensitivity : SensitivityResult, optional
+            Sensitivity result to verify against.
+        practical_significance : PracticalSignificanceResult, optional
+            Practical significance result to verify against.
+        exports : dict, optional
+            Exported text or structure dictionaries to audit for consistency.
+
+        Returns
+        -------
+        AuditResult
+            Audit record with passed/warning/failed findings. Does not write files to disk.
+        """
         audit = StatisticalResultAuditor().audit(
             report,
             result=result,
@@ -1709,7 +2042,28 @@ class ResearchAssistant:
         sensitivity: SensitivityResult | None = None,
         practical_significance: PracticalSignificanceResult | None = None,
     ) -> ReproducibilityRecord:
-        """Capture replay metadata for the assistant's current data, on request."""
+        """Capture replay metadata and provenance for the current analysis and data.
+
+        Constructs a :class:`pyautostat.ReproducibilityRecord` containing the exact
+        specification, execution environment, package versions, random seeds, and
+        optional SHA-256 dataset fingerprint needed to verify or replay the analysis.
+
+        Parameters
+        ----------
+        result : AnalysisResult
+            The completed analysis result to capture provenance for.
+        fingerprint : bool, default True
+            Whether to compute a SHA-256 fingerprint of the analyzed columns.
+        sensitivity : SensitivityResult, optional
+            Sensitivity scenario records to attach to the reproducibility record.
+        practical_significance : PracticalSignificanceResult, optional
+            Practical threshold records to attach to the reproducibility record.
+
+        Returns
+        -------
+        ReproducibilityRecord
+            Structured reproducibility record. Does not write files to disk.
+        """
         return ReproducibilityRecord.from_result(
             result,
             data=self._analyzer.df,

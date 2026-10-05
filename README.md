@@ -157,8 +157,8 @@ pending = assistant.run(
     variable_types={"score": "continuous"},
 )
 
-print(pending.status)               # "needs_input"
-print(pending.missing_information)  # ["design"]
+print(pending.status.value)                               # "needs_input"
+print([item.field for item in pending.missing_information])  # ["design"]
 ```
 
 Supply the missing design information and continue:
@@ -190,7 +190,7 @@ For most analyses, start with `ResearchAssistant`. Use this guide to select the 
 | **Fit linear or logistic regression** | `assistant.run(objective="regression", ...)` | OLS with classical or HC3 robust errors, or binary logistic regression with odds ratios |
 | **Assess scale reliability** | `assistant.reliability(items=[...])` | Cronbach's alpha with bootstrap CI, item-total correlations, and alpha-if-deleted |
 | **Assess rater agreement** | `assistant.intraclass_correlation(...)` | 6 canonical ICC configurations with ANOVA variance decomposition and F-tests |
-| **Inspect results interactively** | `show(target)` | Polished Rich console presentation for workflows, profiles, and audit records |
+| **Inspect results in terminal** | `show(target)` | Polished Rich console presentation for workflows, profiles, and audit records |
 | **Export research reports** | `save_html(...)`, `save_pdf(...)`, `save_docx(...)` | Writes self-contained, publication-ready reports to disk |
 
 ---
@@ -199,7 +199,7 @@ For most analyses, start with `ResearchAssistant`. Use this guide to select the 
 
 PyAutoStat separates viewing results from saving files through a clear conceptual distinction:
 
-- **`show(...)`**: Renders an interactive, polished Rich presentation directly in your terminal.
+- **`show(...)`**: Renders a polished Rich terminal presentation directly in your console.
 - **`save_*`**: Writes a standalone report file to disk (`save_html`, `save_pdf`, `save_docx`, `save_bundle`).
 - **`to_*`**: Returns an in-memory representation or byte stream (`to_html`, `to_pdf`, `to_docx`, `to_bundle`).
 

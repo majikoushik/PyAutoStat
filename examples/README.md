@@ -156,7 +156,7 @@ The same workflow applies to any pandas DataFrame:
 
 ```python
 import pandas as pd
-from pyautostat import ResearchAssistant, show
+from pyautostat import ResearchAssistant, save_html, show
 
 df = pd.read_csv("your_data.csv")
 assistant = ResearchAssistant(df)
@@ -174,14 +174,13 @@ workflow = assistant.run(
     variable_types={"revenue": "continuous", "campaign_tier": "nominal"},
 )
 
-# 3. Canonical Rich presentation and export
+# 3. Terminal presentation and export
 show(workflow)
+save_html(workflow, "research_report.html", style="apa")
 
-# Programmatic access is always available:
+# Programmatic access and direct report objects are also available:
 # estimate = workflow.analysis.values["primary_estimate"]
-
-report = assistant.report(workflow.analysis)
-report.save_html("research_report.html", style="apa")
+# report = assistant.report(workflow.analysis)
 ```
 
 For complete API signatures and configuration options, see the [API reference](../API_REFERENCE.md).
