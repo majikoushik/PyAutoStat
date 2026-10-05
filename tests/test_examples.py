@@ -48,6 +48,7 @@ def _run_example(filename: str, *arguments: str) -> subprocess.CompletedProcess[
     environment["PYTHONUTF8"] = "1"
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     environment["PYAUTOSTAT_FAST_TEST"] = "1"
+    environment["COLUMNS"] = "120"
     return subprocess.run(
         [sys.executable, str(EXAMPLES / filename), *arguments],
         cwd=ROOT,
@@ -216,8 +217,8 @@ def test_complete_research_workflow_runs_and_writes_canonical_exports(tmp_path: 
     # Sensitivity scenario comparability in Rich comparison table and warnings
     assert "SENSITIVITY SCENARIO COMPARISON" in result.stdout
     assert "Estimand" in result.stdout
-    assert re.search(r"student_t.*?Same", result.stdout, re.DOTALL)
-    assert re.search(r"mann_whitne.*?Different", result.stdout, re.DOTALL)
+    assert "Same estimand" in result.stdout
+    assert "Different estimand" in result.stdout
     assert "different estimand" in result.stdout
 
     # Redundant manual status prints must not be present
@@ -361,6 +362,69 @@ def test_example_source_clean_of_duplicate_prose_and_labels() -> None:
         assert redundant_label not in e09, (
             f"Example 09 must not contain redundant label '{redundant_label}'"
         )
+
+
+def test_example_09_sensitivity_analysis_contract() -> None:
+    """Example 09 sensitivity analysis must record exact comparability contracts."""
+    sys.path.insert(0, str(EXAMPLES))
+    from dataclasses import replace
+
+    from _customer_data import DATA_DICTIONARY, load_customer_data
+
+    from pyautostat import AnalysisOptions, ResearchAssistant, SensitivitySpecification
+
+    frame = load_customer_data(include_customer_id=False)
+    assistant = ResearchAssistant(frame)
+    options = AnalysisOptions(alpha=0.05, confidence_level=0.95, random_seed=42)
+
+    workflow = assistant.run(
+        objective="compare_groups",
+        outcome="total_avg_monthly_spend",
+        predictor="news_subscriber",
+        estimand="mean",
+        design="independent",
+        options=options,
+        data_dictionary=DATA_DICTIONARY,
+    )
+    assert workflow.analysis is not None
+    assert workflow.draft is not None
+    result = workflow.analysis
+    draft = workflow.draft
+
+    pooled = SensitivitySpecification(
+        name="Pooled-variance mean comparison",
+        specification=draft.specification,
+        method_id="student_t",
+        rationale="Assess sensitivity of the mean contrast to an equal-variance assumption.",
+        planning_status="planned",
+        assumptions=("Equal population variances",),
+    )
+    distribution_specification = replace(
+        draft.specification,
+        question=replace(draft.specification.question, estimand="distribution"),
+    )
+    ranks = SensitivitySpecification(
+        name="Supplementary rank-distribution comparison",
+        specification=distribution_specification,
+        method_id="mann_whitney_u",
+        rationale=(
+            "Ask a supplementary distribution question. This changes the estimand "
+            "and cannot confirm robustness of the mean difference."
+        ),
+        planning_status="exploratory",
+    )
+
+    sensitivity = assistant.sensitivity_analysis(result, scenarios=[pooled, ranks])
+    scenario_by_method = {scenario.method_id: scenario for scenario in sensitivity.scenario_results}
+
+    assert "student_t" in scenario_by_method
+    assert "mann_whitney_u" in scenario_by_method
+
+    pooled_result = scenario_by_method["student_t"]
+    rank_result = scenario_by_method["mann_whitney_u"]
+
+    assert pooled_result.comparability.value == "same_estimand"
+    assert rank_result.comparability.value == "different_estimand"
 
 
 def test_example_05_predictor_leakage_invariants() -> None:
