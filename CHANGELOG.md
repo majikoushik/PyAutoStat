@@ -76,9 +76,9 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 -   Narrowed figure-wait exception handling in PDF backend to distinguish `PlaywrightTimeoutError` from general `PlaywrightError`.
 -   Corrected PDF documentation to state "native selectable text and structured table layout" rather than claiming formally tagged semantic PDF tables.
 
--   Implemented optional publication-ready PDF export and print fidelity layer (`pyautostat.to_pdf`, `pyautostat.save_pdf`, and `ResearchReport.to_pdf` / `ResearchReport.save_pdf`):
+-   Implemented optional publication-oriented PDF export and print fidelity layer (`pyautostat.to_pdf`, `pyautostat.save_pdf`, and `ResearchReport.to_pdf` / `ResearchReport.save_pdf`):
     -   Introduced modern public PDF export APIs: `to_pdf(target, *, detail="standard", title=None, style="general", include_figures=False, page_size="A4", landscape=False, page_numbers=True)` and `save_pdf(target, path, *, detail="standard", title=None, style="general", include_figures=False, page_size="A4", landscape=False, page_numbers=True, overwrite=False)`.
-    -   Implemented browser-print architecture reusing canonical HTML reports via headless Chromium and Playwright, guaranteeing identical numerical, tabular, and visual presentation with zero statistical recalculation.
+    -   Implemented browser-print architecture reusing canonical HTML reports via headless Chromium and Playwright, preserving the same canonical stored statistical values, tabular content, and scientific meaning as the HTML presentation without recalculating statistics (pagination and print layout may differ under Chromium rendering).
     -   Enforced 100% offline generation: browser execution context aborts all external network requests (`http://`, `https://`, fonts, trackers).
     -   Provided flexible page formatting: supports standard paper sizes (`A4`, `Letter`) and portrait or landscape orientation for wide tables.
     -   Added running page numbers in the print footer (`"Page <current> of <total>"`) via Chromium print templates.

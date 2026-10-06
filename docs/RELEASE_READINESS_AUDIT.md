@@ -89,7 +89,7 @@ The public API is organized into three intentional layers. All 74 symbols export
 
 ## 5. Statistical Capability Inventory (24 Methods)
 
-PyAutoStat supports 24 registered statistical method IDs across 8 distinct analysis families:
+PyAutoStat supports 24 registered statistical method IDs across 9 distinct analysis families:
 
 1. **Two-Group Independent Means:**
    - Welch independent t-test (`welch_t`) — default mean comparison without assuming equal variance
@@ -105,7 +105,7 @@ PyAutoStat supports 24 registered statistical method IDs across 8 distinct analy
    - Classical one-way ANOVA (`one_way_anova`) — equal-variance omnibus mean test with Tukey-Kramer contrasts
    - Kruskal-Wallis (`kruskal_wallis`) — omnibus rank test with Dunn-Holm contrasts
 5. **Factorial ANOVA:**
-   - Two-way factorial ANOVA (`two_way_anova`) — Type II sum of squares for unbalanced designs, partial eta-squared CIs, interaction tests
+   - Two-way factorial ANOVA (`two_way_anova`) — independent-observation factorial ANOVA supporting Type II (default) or Type III (explicit) sums of squares, interaction tests, and partial eta-squared confidence intervals
 6. **Repeated Measures (3+ Conditions):**
    - Repeated-measures ANOVA (`repeated_measures_anova`) — omnibus within-subject mean test with Greenhouse-Geisser sphericity correction
    - Friedman test (`friedman_test`) — non-parametric within-subject rank test with Holm-adjusted Wilcoxon pairs
@@ -120,7 +120,7 @@ PyAutoStat supports 24 registered statistical method IDs across 8 distinct analy
    - Partial Pearson correlation (`partial_pearson_correlation`) — linear association controlling for continuous covariates
    - Pearson chi-square (`pearson_chi_square`) — contingency test of independence with Cramer's V
    - Fisher's exact test (`fisher_exact`) — 2x2 contingency test for sparse expected counts
-   - McNemar test (`mcnemar`) — paired binary contingency test with continuity correction
+   - McNemar test (`mcnemar`) — exact two-sided paired-binary test using binomial inference on discordant pairs
 9. **Reliability & Agreement:**
    - Cronbach's alpha (`cronbach_alpha`) — internal consistency scale reliability with bootstrap CIs
    - Intraclass Correlation Coefficient (`intraclass_correlation`) — quantitative rater reliability across all 6 Shrout & Fleiss / McGraw & Wong models: ICC(1,1), ICC(2,1), ICC(3,1), ICC(1,k), ICC(2,k), ICC(3,k)
