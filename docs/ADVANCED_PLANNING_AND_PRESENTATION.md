@@ -148,7 +148,7 @@ power_plan = planner.independent_mean_power(
 )
 show(power_plan)
 
-# 3. Formulate research question draft and freeze Statistical Analysis Plan
+# 3. Formulate research question draft and record Statistical Analysis Plan
 draft = assistant.prepare_question(
     objective="compare_groups",
     outcome="score",
@@ -242,8 +242,10 @@ snapshot = assistant.session_snapshot(
 )
 show(snapshot)
 
-# 12. Package multi-format research bundle (HTML, PDF, DOCX, CSV, JSON, manifest)
-save_bundle(workflow, "exports/research_bundle.zip", overwrite=True)
+# 12. Package research bundle containing the enriched report with SHA-256 manifest
+# Uses default lightweight formats ("html", "json", "csv"); pass formats=("html", "pdf", "docx", ...)
+# to include optional PDF (requires Chromium) and DOCX (requires python-docx) exports.
+save_bundle(report, "exports/research_bundle.zip", formats=("html", "json", "csv"), overwrite=True)
 ```
 
 See [the capabilities and support matrix](CAPABILITIES.md),

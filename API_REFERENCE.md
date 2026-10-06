@@ -79,8 +79,8 @@ from pyautostat import (
 Intended for application developers, automated pipelines, audit systems, and platform integrators who need:
 - Typed, immutable, JSON-serializable specification and result contracts.
 - Independent result auditing without rerunning computations.
-- Cryptographic reproducibility packages, decision ledgers, and UI-independent session snapshots.
-- Custom presentation formatting and multi-format research bundles.
+- Content-linked reproducibility metadata packages, decision ledgers, and UI-independent session snapshots.
+- Custom presentation formatting and multi-format research bundles with SHA-256 integrity verification.
 
 Key objects:
 - **Specifications & Results**: `AnalysisSpecification`, `ResearchQuestion`, `AnalysisOptions`, `ResearchWorkflowResult`, `AnalysisResult`, `Recommendation`, `WorkflowStatus`.
@@ -108,16 +108,16 @@ When moving beyond standard exploratory profiling and single inferential runs, P
 | --- | --- | --- | --- |
 | Record subsequent decisions in this Python session | `assistant.enable_tracking()` | `DecisionLedger` | Before starting analysis to log local actions and reasons |
 | Declare whether work is planned/exploratory | `assistant.declare_planning(...)` | `None` (updates assistant) | To record local study intent ("planned", "exploratory", "unknown") |
-| Freeze a pre-analysis plan | `assistant.analysis_plan(...)` | `StatisticalAnalysisPlan` | Before analysis (or retrospectively) to record planned estimands and rules |
+| Record an immutable pre-analysis plan snapshot | `assistant.analysis_plan(...)` | `StatisticalAnalysisPlan` | Before analysis (or retrospectively) to record planned estimands and rules |
 | Compare execution against a recorded plan | `assistant.plan_adherence(...)` | `PlanAdherenceResult` | Post-analysis to audit fidelity without judging research conduct |
 | Plan sample size before data collection | `assistant.study_planner()` / `StudyPlanner` | `StudyPlanner` / `StudyPlanningResult` | Prospective planning for two-group or paired means without raw data |
-| Test explicitly chosen alternative assumptions/methods | `assistant.sensitivity_analysis(...)` | `SensitivityResult` | Post-analysis to evaluate explicit alternative methods or exclusions |
+| Test explicitly chosen alternative assumptions/methods | `assistant.sensitivity_analysis(...)` | `SensitivityResult` | Post-analysis to evaluate explicit alternative methods/specifications |
 | Compare an effect to my own meaningful threshold | `assistant.practical_significance(...)` | `PracticalSignificanceResult` | Post-analysis to contextualize point and interval estimates against a threshold |
 | Check whether report elements are present | `assistant.reporting_completeness(...)` | `ReportingCompletenessResult` | On a `ResearchReport` to verify structural reporting completeness |
-| Check internal consistency of result/report/export records | `assistant.audit(...)` | `AuditResult` | On a `ResearchReport` to verify internal calculation and export consistency |
+| Check internal consistency of result/report/export records | `assistant.audit(...)` | `AuditResult` | On a `ResearchReport` to verify internal result/report/export consistency without rerunning the analysis |
 | Create replay metadata | `assistant.reproducibility_record(...)` | `ReproducibilityRecord` | To capture configuration, runtime environment, seeds, and dataset fingerprint |
 | Explicitly rerun with supplied data | `reproduce(record, data=...)` | `ReproductionOutcome` | Explicit execution rerun using a record and separately provided dataset |
-| Package reproducibility metadata | `record.save_package(...)` | `pathlib.Path` | Export JSON/script reproducibility metadata archive |
+| Package reproducibility metadata | `record.save_package(...)` | `pathlib.Path` | Export metadata-only reproducibility ZIP archive |
 | Capture UI-independent current session state | `assistant.session_snapshot(...)` | `ResearchSessionSnapshot` | To serialize current workflow and governance state for UI adapters |
 | Package completed research artifacts | `save_bundle(...)` / `to_bundle(...)` | `pathlib.Path` / `bytes` | Multi-format report zip archive with SHA-256 integrity manifest |
 

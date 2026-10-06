@@ -17,7 +17,7 @@ The complete research lifecycle proceeds as:
     optional planning declaration ("planned" | "exploratory" | "unknown")
            │
            ▼
-    optional StatisticalAnalysisPlan (protocol freezing)
+    optional StatisticalAnalysisPlan (immutable plan snapshot)
            │
            ▼
     statistical analysis execution (single statistical engine)
@@ -97,8 +97,8 @@ To protect scientific integrity and avoid overclaiming, PyAutoStat enforces stri
 | :--- | :--- | :--- |
 | Record subsequent workflow decisions in this Python session | `assistant.enable_tracking(clock=...)` | `DecisionLedger` |
 | Declare whether an upcoming analysis is planned or exploratory | `assistant.declare_planning("planned" \| "exploratory" \| "unknown")` | `None` (updates assistant) |
-| Freeze an explicit pre-analysis plan before or after execution | `assistant.analysis_plan(draft, ...)` | `StatisticalAnalysisPlan` |
-| Compare an executed analysis against a frozen plan | `assistant.plan_adherence(plan, result, ...)` | `PlanAdherenceResult` |
+| Record an immutable pre-analysis plan snapshot before or after execution | `assistant.analysis_plan(draft, ...)` | `StatisticalAnalysisPlan` |
+| Compare an executed analysis against a recorded plan | `assistant.plan_adherence(plan, result, ...)` | `PlanAdherenceResult` |
 | Prospective sample size or precision planning before data collection | `assistant.study_planner()` / `StudyPlanner()` | `StudyPlanningResult` |
 | Evaluate stability under explicit alternative specifications | `assistant.sensitivity_analysis(result, scenarios=[...])` | `SensitivityResult` |
 | Compare an observed effect against my domain meaningful threshold | `assistant.practical_significance(result, threshold=...)` | `PracticalSignificanceResult` |
@@ -127,7 +127,7 @@ To protect scientific integrity and avoid overclaiming, PyAutoStat enforces stri
 | `PracticalSignificanceResult` | `complete`, `partial`, `unsupported`, `unavailable` | Threshold relation assessment | No | Supply missing CI or valid threshold |
 | `ReportingCompletenessResult` | `complete`, `acceptable`, `partial`, `incomplete` | Overall checklist assessment | No | Add missing fields if incomplete |
 | `AuditResult` | `passed`, `failed`, `incomplete` | Internal consistency outcome | In-memory verification | Inspect findings if failed/incomplete |
-| `ReproductionOutcome` | `exact_match`, `discrepancy`, `unavailable`, `mismatch` | Replay execution agreement | Yes (on supplied data) | Review differences if discrepancy |
+| `ReproductionOutcome` | `reproduced`, `mismatch`, `unavailable` (`data_status`: `same_data`, `changed_data`, `fingerprint_unavailable`) | Replay execution agreement | Yes (on supplied data) | Review differing fields if mismatch |
 | `BundleVerificationResult` | `valid: True` / `valid: False` | SHA-256 archive checksum validity | Archive verification | Re-export bundle if invalid |
 
 ---
@@ -175,7 +175,7 @@ To protect scientific integrity and avoid overclaiming, PyAutoStat enforces stri
 - **Proposed Action**: Enforce clear documentation that planning declarations are local self-reports, not external registry attestations.
 
 ### 5.3 StatisticalAnalysisPlan Creation and Revision
-- **User Goal**: Freeze a structured, serializable protocol of planned methods, estimands, exclusions, outlier rules, multiplicity policies, report styles, and planned follow-ups before or after execution.
+- **User Goal**: Record an immutable, structured analysis plan snapshot of planned methods, estimands, exclusions, outlier rules, multiplicity policies, report styles, and planned follow-ups before or after execution.
 - **When to Use**: Before running an analysis to define analytical constraints; or retrospectively to record intended protocol with transparent retrospective disclosure.
 - **When NOT to Use**: Do not use as a mechanism to execute tests or automatically submit a study protocol to an external trial registry.
 - **Recommended Entry Point**: `assistant.analysis_plan(draft, ...)` or `StatisticalAnalysisPlan(...)`.
@@ -356,7 +356,7 @@ To protect scientific integrity and avoid overclaiming, PyAutoStat enforces stri
 
 ### 5.12 ReproducibilityRecord
 - **User Goal**: Capture complete configuration, expected projections, runtime environment, package versions, random seeds, and optional dataset fingerprint for subsequent explicit replay.
-- **When to Use**: At the completion of an analysis to freeze replay metadata for distribution or archival.
+- **When to Use**: At the completion of an analysis to record replay metadata for distribution or archival.
 - **When NOT to Use**: Do not use expecting it to contain the raw DataFrame.
 - **Recommended Entry Point**: `assistant.reproducibility_record(result, ...)` or `ReproducibilityRecord.from_result(...)`.
 - **Required Input**: Completed `AnalysisResult`, optional DataFrame, optional sensitivity and practical significance results.
@@ -381,7 +381,7 @@ To protect scientific integrity and avoid overclaiming, PyAutoStat enforces stri
 - **Recommended Entry Point**: `pyautostat.reproduce(record, data=df, allow_changed_data=False)`.
 - **Required Input**: `ReproducibilityRecord`, `pd.DataFrame`, optional `allow_changed_data: bool`.
 - **Returned Object**: `ReproductionOutcome`.
-- **Status Vocabulary**: Overall `status`: `exact_match`, `discrepancy`, `unavailable`, `mismatch`. `data_status`: `same_data`, `changed_data`, `fingerprint_unavailable`.
+- **Status Vocabulary**: Overall `status`: `reproduced`, `mismatch`, `unavailable`. `data_status`: `same_data`, `changed_data`, `fingerprint_unavailable`. (Note: `reproduced` indicates same-data numerical agreement within tolerances; `mismatch` indicates differing numerical fields or changed-data reruns; `unavailable` indicates fingerprint was unavailable or the method could not run).
 - **Runs Statistics**: Yes, re-runs the recommended analysis on the supplied DataFrame.
 - **Writes Files**: No.
 - **Accesses Raw Data**: Yes.

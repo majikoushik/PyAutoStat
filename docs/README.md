@@ -64,7 +64,7 @@ PyAutoStat supports an end-to-end governance and research lifecycle connecting p
 | Need | Use |
 | --- | --- |
 | Prospective sample-size planning | `StudyPlanner` / `assistant.study_planner()` |
-| Freeze an analysis plan | `StatisticalAnalysisPlan` / `assistant.analysis_plan(...)` |
+| Record an immutable analysis plan snapshot | `StatisticalAnalysisPlan` / `assistant.analysis_plan(...)` |
 | Check plan vs execution | `plan_adherence` / `assistant.plan_adherence(...)` |
 | Explicit sensitivity scenarios | `sensitivity_analysis` / `assistant.sensitivity_analysis(...)` |
 | Researcher-defined meaningful threshold | `practical_significance` / `assistant.practical_significance(...)` |
