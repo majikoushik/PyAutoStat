@@ -100,6 +100,29 @@ from pyautostat import (
 )
 ```
 
+### Which advanced feature do I need?
+
+When moving beyond standard exploratory profiling and single inferential runs, PyAutoStat provides advanced research-lifecycle controls:
+
+| I want to... | Entry point / class | Returned object | When to use |
+| --- | --- | --- | --- |
+| Record subsequent decisions in this Python session | `assistant.enable_tracking()` | `DecisionLedger` | Before starting analysis to log local actions and reasons |
+| Declare whether work is planned/exploratory | `assistant.declare_planning(...)` | `None` (updates assistant) | To record local study intent ("planned", "exploratory", "unknown") |
+| Freeze a pre-analysis plan | `assistant.analysis_plan(...)` | `StatisticalAnalysisPlan` | Before analysis (or retrospectively) to record planned estimands and rules |
+| Compare execution against a recorded plan | `assistant.plan_adherence(...)` | `PlanAdherenceResult` | Post-analysis to audit fidelity without judging research conduct |
+| Plan sample size before data collection | `assistant.study_planner()` / `StudyPlanner` | `StudyPlanner` / `StudyPlanningResult` | Prospective planning for two-group or paired means without raw data |
+| Test explicitly chosen alternative assumptions/methods | `assistant.sensitivity_analysis(...)` | `SensitivityResult` | Post-analysis to evaluate explicit alternative methods or exclusions |
+| Compare an effect to my own meaningful threshold | `assistant.practical_significance(...)` | `PracticalSignificanceResult` | Post-analysis to contextualize point and interval estimates against a threshold |
+| Check whether report elements are present | `assistant.reporting_completeness(...)` | `ReportingCompletenessResult` | On a `ResearchReport` to verify structural reporting completeness |
+| Check internal consistency of result/report/export records | `assistant.audit(...)` | `AuditResult` | On a `ResearchReport` to verify internal calculation and export consistency |
+| Create replay metadata | `assistant.reproducibility_record(...)` | `ReproducibilityRecord` | To capture configuration, runtime environment, seeds, and dataset fingerprint |
+| Explicitly rerun with supplied data | `reproduce(record, data=...)` | `ReproductionOutcome` | Explicit execution rerun using a record and separately provided dataset |
+| Package reproducibility metadata | `record.save_package(...)` | `pathlib.Path` | Export JSON/script reproducibility metadata archive |
+| Capture UI-independent current session state | `assistant.session_snapshot(...)` | `ResearchSessionSnapshot` | To serialize current workflow and governance state for UI adapters |
+| Package completed research artifacts | `save_bundle(...)` / `to_bundle(...)` | `pathlib.Path` / `bytes` | Multi-format report zip archive with SHA-256 integrity manifest |
+
+For the complete governance usability audit, status vocabularies, and lifecycle boundaries, see the [Governance Usability Audit](docs/GOVERNANCE_USABILITY_AUDIT.md).
+
 ## `ResearchAssistant` common workflows
 
 ```python

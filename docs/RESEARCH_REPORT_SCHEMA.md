@@ -86,4 +86,5 @@ name may be stated in Methods, but identifier values are omitted.
 
 `ReportingCompletenessResult` schema version 1 is separate from the report. It labels applicable
 items `present`, `missing`, `partial`, or `not_applicable`, including the distinction between an
-omitted available interval and a backend-unavailable Pearson interval. It has no quality score.
+omitted available interval and an inherently unavailable interval (such as small-sample Pearson $n \le 3$
+where Fisher-z transformation is mathematically unavailable). It has no quality score.

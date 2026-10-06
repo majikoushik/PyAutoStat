@@ -28,7 +28,7 @@ Rather than implementing a separate rendering engine (such as ReportLab) that wo
 
 1. **Single Source of Presentation Truth**: The PDF document displays the exact same tables, KPI cards, diagnostic statuses, and executive summaries as the HTML report.
 2. **Zero Statistical Recalculation**: Generating a PDF never re-runs hypothesis tests, model fittings, bootstrap algorithms, or sensitivity analyses.
-3. **No Raw Data Leakage**: In accordance with PyAutoStat privacy guarantees, raw row-level observations are never serialized or embedded in generated PDFs.
+3. **No Raw Data Leakage**: In accordance with PyAutoStat privacy guarantees, raw source DataFrame rows and participant identifiers are never serialized or embedded in generated PDFs. Aggregate statistics, summaries, and diagnostic indicators are presented.
 4. **100% Offline & Network-Blocked**: The browser context strictly aborts external network requests (`http://`, `https://`, fonts, trackers). No internet connection is needed or used during PDF generation.
 5. **Native Selectable Text**: PDFs contain native selectable text and structured table layout—never rasterized full-page screenshots.
 

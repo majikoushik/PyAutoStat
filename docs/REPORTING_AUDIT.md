@@ -10,11 +10,11 @@ The matrix below benchmarks all twelve presentation and export channels in PyAut
 
 | Channel / Medium | Public Entry Point | Accepted Targets | In-Memory Return Type | File-Writing Function | Return Type (File) | Optional Extra | Detail Modes | Style Modes | Figure Support | Status Support | Verdict | Priority |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Terminal View** | `show(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, profile `dict`, `ResearchSessionSnapshot`, planning objects, `PresentationView` | `None` (stdout/Rich) | N/A | N/A | None (core uses `rich`) | compact, standard, full | Preserved via Rich tokens | None (text/tables) | Full (`completed`, `partial`, `needs_input`, `data_limited`, `unsupported`, `failed`) | KEEP | P1 |
-| **Static HTML** | `to_html(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView` | `str` (HTML5) | `save_html(target, path, ...)` | `Path` | None (pure Python) | compact, standard, full | general, apa, ieee | Supplementary only (no inline canvas) | Full (clean status report on blocked) | KEEP | P1 |
-| **Interactive HTML** | `to_interactive_html(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView` | `str` (HTML5 + Plotly JS) | `save_interactive_html(target, path, ...)` | `Path` | `[report]` (`plotly>=5`) | compact, standard, full | general, apa, ieee | Interactive Plotly charts (offline embedded) | Full (falls back to static status if blocked) | KEEP | P1 |
-| **PDF Document** | `to_pdf(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView` | `bytes` (`%PDF`) | `save_pdf(target, path, ...)` | `Path` | `[pdf]` (`playwright>=1.40`, Chromium) | compact, standard, full | general, apa, ieee | Optional (`include_figures=True`) | Full (prints canonical HTML status) | KEEP | P1 |
-| **Microsoft Word (DOCX)** | `to_docx(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView` | `bytes` (OpenXML) | `save_docx(target, path, ...)` | `Path` | `[docx]` (`python-docx>=1.2`), `[figures]` if embedding images | compact, standard, full | general, apa, ieee | Optional (`include_figures=True`, embeds PNGs + captions) | Full (clean status OpenXML report) | KEEP | P1 |
+| **Terminal View** | `show(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, profile / freq / crosstab `dict`, governance & planning objects, `ResearchReport`, `PresentationView` | `None` (stdout/Rich) | N/A | N/A | None (core uses `rich`) | compact, standard, full | Preserved via Rich tokens | None (text/tables) | Full (`completed`, `partial`, `needs_input`, `data_limited`, `unsupported`, `failed`) | KEEP | P1 |
+| **Static HTML** | `to_html(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects, `PresentationView` | `str` (HTML5) | `save_html(target, path, ...)` | `Path` | None (pure Python) | compact, standard, full | general, apa, ieee | Supplementary only (no inline canvas) | Full (clean status report on blocked) | KEEP | P1 |
+| **Interactive HTML** | `to_interactive_html(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects, `PresentationView` | `str` (HTML5 + Plotly JS) | `save_interactive_html(target, path, ...)` | `Path` | `[report]` (`plotly>=5`) | compact, standard, full | general, apa, ieee | Interactive Plotly charts (offline embedded) | Full (falls back to static status if blocked) | KEEP | P1 |
+| **PDF Document** | `to_pdf(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects, `PresentationView` | `bytes` (`%PDF`) | `save_pdf(target, path, ...)` | `Path` | `[pdf]` (`playwright>=1.40`, Chromium) | compact, standard, full | general, apa, ieee | Optional (`include_figures=True`) | Full (prints canonical HTML status) | KEEP | P1 |
+| **Microsoft Word (DOCX)** | `to_docx(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects, `PresentationView` | `bytes` (OpenXML) | `save_docx(target, path, ...)` | `Path` | `[docx]` (`python-docx>=1.2`), `[figures]` if embedding images | compact, standard, full | general, apa, ieee | Optional (`include_figures=True`, embeds PNGs + captions) | Full (clean status OpenXML report) | KEEP | P1 |
 | **Static Figures** | `to_static_figures(target, ...)` | `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport` | `tuple[StaticFigureArtifact, ...]` | `save_static_figures(target, dir, ...)` | `tuple[Path, ...]` | `[figures]` (`plotly>=6.1`, `kaleido>=1,<2`) | compact, standard, full | Neutral typography | Standalone PNG, SVG, or vector PDF | Returns empty tuple `()` when uncomputable | KEEP | P1 |
 | **ResearchReport Native** | `report.to_*()` | `ResearchReport` instance | `dict`, `str`, `dict[str, str]`, `bytes` | `report.save_*()` | `Path` | Matching format extras | compact, standard, full | general, apa, ieee | Format-dependent | Full (reflects report status) | KEEP | P1 |
 | **Research Bundle** | `to_bundle(target, ...)` | `ResearchWorkflowResult`, `ResearchReport`, `AnalysisResult`, `PresentationView` | `bytes` (ZIP) | `save_bundle(target, path, ...)` | `Path` | Dependent on requested formats | compact, standard, full | general, apa, ieee | Optional standalone and/or embedded | Validates completed/partial results | KEEP / POLISH | P1 |
@@ -63,12 +63,12 @@ To protect scientific integrity, PyAutoStat enforces a strict semantic parity co
   - `standard`: Outputs the full primary result card, key metrics grid, group summaries, diagnostic indicators, and plain-language interpretation.
   - `full`: Adds deeper component tables, methodology rationale, formula documentation, and audit trail metadata.
 - **Workflow Status**: Blocked workflows (`needs_input`, `data_limited`, `unsupported`, `failed`) render a dedicated status card showing exact missing input fields or diagnostic blockers.
-- **Privacy Model**: Pure aggregate presentation; zero raw row-level records are displayed.
+- **Privacy Model**: Pure aggregate presentation by default; zero raw source DataFrame rows or participant identifiers are displayed. (If profiling was explicitly configured with `include_row_positions=True`, integer row index offsets are included in the profile dictionary for diagnostic navigation, but raw row contents are never displayed).
 - **Verdict**: **KEEP** | **Priority**: P1.
 
 ### 3.2 Static HTML Export
 - **Public Entry Point**: `pyautostat.to_html(target, ...)`, `pyautostat.save_html(target, path, ...)`
-- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView`.
+- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects (`StatisticalAnalysisPlan`, `PlanAdherenceResult`, `StudyPlanningResult`, `SensitivityResult`, `PracticalSignificanceResult`, `ReportingCompletenessResult`, `AuditResult`, `ReproducibilityRecord`, `ReproductionOutcome`, `DecisionLedger`, `ResearchSessionSnapshot`), `PresentationView`.
 - **Return Types**: `to_html` returns `str`; `save_html` returns `pathlib.Path`.
 - **Dependencies**: Zero external dependencies. Operates purely with Python standard library.
 - **Styling**: Modern, responsive CSS with accessible contrast ratios, print stylesheet (`@media print`), and semantic markup (`<html lang="en">`, `<th>`, `<section>`).
@@ -79,7 +79,7 @@ To protect scientific integrity, PyAutoStat enforces a strict semantic parity co
 
 ### 3.3 Interactive HTML Export
 - **Public Entry Point**: `pyautostat.to_interactive_html(target, ...)`, `pyautostat.save_interactive_html(target, path, ...)`
-- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView`.
+- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects, `PresentationView`.
 - **Return Types**: `to_interactive_html` returns `str`; `save_interactive_html` returns `pathlib.Path`.
 - **Dependencies**: `plotly>=5` (`pyautostat[report]`). If `include_figures=True` is requested on a target with no visual specifications (e.g. table-only method), falls back cleanly without requiring Plotly.
 - **Self-Contained & Offline**: Embeds Plotly JS inline (`include_plotlyjs=True`) ensuring complete offline functionality without external CDN requests.
@@ -88,10 +88,10 @@ To protect scientific integrity, PyAutoStat enforces a strict semantic parity co
 
 ### 3.4 PDF Export
 - **Public Entry Point**: `pyautostat.to_pdf(target, ...)`, `pyautostat.save_pdf(target, path, ...)`
-- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView`.
+- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects, `PresentationView`.
 - **Return Types**: `to_pdf` returns `bytes`; `save_pdf` returns `pathlib.Path`.
 - **Dependencies**: `playwright>=1.40` (`pyautostat[pdf]`) with headless Chromium. Raises actionable `ReportError` if missing.
-- **Fidelity**: Prints the canonical HTML presentation via Chromium's printing engine. Guarantees 100% tabular, typographical, and numerical parity with HTML.
+- **Fidelity**: Prints the canonical HTML presentation via Chromium's printing engine. Uses the same canonical HTML content and stored statistical values (zero recalculation); pagination and print layout may differ according to Chromium's print rendering.
 - **Page Setup**: Configurable page sizes (`"A4"`, `"Letter"`), landscape orientation (`landscape=True`), and running page numbers in footers (`page_numbers=True`).
 - **Privacy & Security**: External network access is blocked during PDF generation (`networkidle` wait with isolated local page context). Raw data rows are never serialized.
 - **Blocked Workflows**: Prints the canonical status report cleanly to PDF.
@@ -99,7 +99,7 @@ To protect scientific integrity, PyAutoStat enforces a strict semantic parity co
 
 ### 3.5 Microsoft Word Export (DOCX)
 - **Public Entry Point**: `pyautostat.to_docx(target, ...)`, `pyautostat.save_docx(target, path, ...)`
-- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, `PresentationView`.
+- **Accepted Targets**: `ResearchWorkflowResult`, `AnalysisResult`, `ResearchReport`, profile / freq / crosstab `dict`, governance & planning objects, `PresentationView`.
 - **Return Types**: `to_docx` returns `bytes`; `save_docx` returns `pathlib.Path`.
 - **Dependencies**: `python-docx>=1.2` (`pyautostat[docx]`). If `include_figures=True`, also requires `pyautostat[figures]`.
 - **Editable Structure**: Real Word documents with native OpenXML headings, paragraphs, and tables (`w:tbl`). Never embeds rasterized text or HTML approximations.

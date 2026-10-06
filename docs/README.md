@@ -49,9 +49,36 @@ provide focused technical and scientific detail organized by research goal.
 | Journal/slide figure | `save_static_figures` |
 | Archive/share all artifacts | `save_bundle` |
 
+## Advanced research lifecycle
+
+PyAutoStat supports an end-to-end governance and research lifecycle connecting prospective planning, execution, sensitivity, practical significance, reporting completeness, auditing, reproducibility records, and explicit replay:
+
+- [Governance usability audit](GOVERNANCE_USABILITY_AUDIT.md): Systematic audit across all 16 lifecycle feature families, language contracts, status vocabularies, and scientific boundaries.
+- [Advanced planning and presentation](ADVANCED_PLANNING_AND_PRESENTATION.md): Analysis plans (`StatisticalAnalysisPlan`), plan adherence (`plan_adherence`), prospective study planning (`StudyPlanner`), reporting completeness (`reporting_completeness`), and session snapshots (`session_snapshot`), including an end-to-end lifecycle script.
+- [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md): Same-estimand vs different-estimand sensitivity scenarios (`sensitivity_analysis`) and researcher-defined meaningful-effect thresholds (`practical_significance`).
+- [Provenance and replay](PROVENANCE_AND_REPLAY.md): Decision tracking (`DecisionLedger`), dataset fingerprints (`dataset_fingerprint`), deterministic content references, report consistency audits (`audit`), reproducibility records (`ReproducibilityRecord`), and explicit re-execution (`reproduce`).
+- [Research export bundles](RESEARCH_BUNDLES.md): Multi-format self-contained zip archives with cryptographic SHA-256 tamper verification.
+
+### Advanced lifecycle quick guide
+
+| Need | Use |
+| --- | --- |
+| Prospective sample-size planning | `StudyPlanner` / `assistant.study_planner()` |
+| Freeze an analysis plan | `StatisticalAnalysisPlan` / `assistant.analysis_plan(...)` |
+| Check plan vs execution | `plan_adherence` / `assistant.plan_adherence(...)` |
+| Explicit sensitivity scenarios | `sensitivity_analysis` / `assistant.sensitivity_analysis(...)` |
+| Researcher-defined meaningful threshold | `practical_significance` / `assistant.practical_significance(...)` |
+| Report-element completeness | `reporting_completeness` / `assistant.reporting_completeness(...)` |
+| Record local decisions | `DecisionLedger` / `assistant.enable_tracking()` |
+| Check record/report consistency | `audit` / `assistant.audit(...)` |
+| Capture replay metadata | `reproducibility_record` / `assistant.reproducibility_record(...)` |
+| Explicitly rerun | `reproduce(record, data=...)` |
+| Snapshot current application state | `session_snapshot` / `assistant.session_snapshot(...)` |
+
 ## Advanced / developer
 
 - [Architecture](ARCHITECTURE.md): Module boundaries, public workflow, typed contracts, scientific safeguards, data ownership, and compatibility policy.
 - [API Reference](../API_REFERENCE.md): Comprehensive public API documentation with parameter specifications and return types.
 - [Product Vision](../PRODUCT_VISION.md): Enduring product principles, estimand preservation, and scientific philosophy.
 - [Roadmap](../ROADMAP.md): Forward-looking development roadmap and planned capabilities.
+

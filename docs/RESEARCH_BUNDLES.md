@@ -22,7 +22,7 @@ PyAutoStat research export bundles provide a reproducible, integrity-verifiable 
 
 1. **Zero Statistical Recalculation**: Bundles package already-authoritative outputs. They never rerun, refit, or reinterpret statistical computations.
 2. **Reuse Canonical Exporters**: All formats are generated through PyAutoStat's canonical renderers (`to_html`, `to_pdf`, `to_docx`, `to_json`, `to_csv_tables`, etc.). Each requested format is rendered exactly once during bundle assembly.
-3. **No Raw Data (Hard Safeguard)**: The bundle contains derived presentation artifacts, summary tables, and recorded execution provenance. Raw dataset observations, participant identifiers, and row-level data are strictly excluded.
+3. **No Raw Data (Hard Safeguard)**: The bundle contains derived presentation artifacts, aggregate summary tables, and recorded execution provenance. Raw dataset observations, participant identifiers, and raw data rows are strictly excluded. (If dataset profiling was separately executed with `include_row_positions=True`, integer row index offsets remain confined to that profile diagnostic dictionary and are never converted into raw row records in bundles).
 4. **Integrity Verification vs. Digital Signatures**: Cryptographic SHA-256 checksums verify archive integrity against transmission corruption, incomplete writes, or unauthorized file alteration. Checksums are **not** digital certificates, legal electronic signatures, or identity authentication.
 
 ---
@@ -106,12 +106,14 @@ PyAutoStat supports multiple analysis target objects:
 
 | Target Type | Supported Formats | Included Provenance |
 | :--- | :--- | :--- |
-| `ResearchWorkflowResult` | All 8 formats | `analysis.json`, `audit.json`, `reproducibility.json` |
+| `ResearchWorkflowResult` (`completed` or `partial`) | All 8 formats | `analysis.json`, `audit.json`, `reproducibility.json` |
 | `ResearchReport` | All 8 formats | `analysis.json` (+ session/audit if attached) |
 | `AnalysisResult` | `html`, `pdf`, `docx`, `json` | `analysis.json` |
 | `PresentationView` | `html`, `pdf`, `docx` | None (presentation-only) |
 
-*Attempting to request report-semantic formats (such as `csv`, `markdown`, or `latex`) for an `AnalysisResult` or `PresentationView` raises an explanatory `ReportError`.*
+*Notes on Target Compatibility:*
+- **Workflow Status Requirement**: Research bundles require a computed `completed` or `partial` workflow with statistical results. Attempting to create a bundle from a workflow in a blocked, pending, or failed state (`needs_input`, `data_limited`, `unsupported`, `failed`) raises an explanatory `ReportError`. To inspect or share blocked workflows without full multi-format bundle packaging, use `show(workflow)`, `save_html(workflow, ...)`, or `save_docx(workflow, ...)`.
+- **Presentation-Only Targets**: Attempting to request report-semantic formats (such as `csv`, `markdown`, or `latex`) for an `AnalysisResult` or `PresentationView` raises an explanatory `ReportError`.
 
 ---
 

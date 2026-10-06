@@ -27,7 +27,7 @@ Rather than round-tripping through HTML or embedding rasterized pages, PyAutoSta
 1. **Native OpenXML Documents**: Output is real Microsoft Word `.docx` containing editable paragraphs, headings, bullet lists, and tables—never images, rasterized pages, or HTML approximations.
 2. **Single Source of Presentation Truth**: The Word document renders the exact same tables, KPI grids, diagnostic statuses, and executive summaries produced by terminal, HTML, and PDF presentation layers.
 3. **Zero Statistical Recalculation**: Generating a DOCX report never re-runs hypothesis tests, model fittings, bootstrap algorithms, or sensitivity analyses.
-4. **No Raw Data Leakage**: In accordance with PyAutoStat privacy safeguards, raw row-level observations are never serialized or embedded in generated `.docx` files.
+4. **No Raw Data Leakage**: In accordance with PyAutoStat privacy safeguards, raw source DataFrame rows and participant identifiers are never serialized or embedded in generated `.docx` files. Reports present aggregate metrics and diagnostic indicators.
 5. **No External Service or Office Dependency**: Documents are built completely in Python using standard OpenXML schemas. No running instance of Microsoft Word or LibreOffice is required.
 
 ---

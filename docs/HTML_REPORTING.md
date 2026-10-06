@@ -232,7 +232,7 @@ PyAutoStat provides an **optional**, scientifically responsible interactive HTML
 1. **No scientific conclusion exists only in a figure**: Every interactive figure is strictly supplementary to the authoritative textual and tabular presentation.
 2. **Canonical static HTML remains default**: Default `to_html(...)` and `ResearchReport.to_html(...)` remain 100% static, JavaScript-free, and Plotly-free.
 3. **Zero inferential recalculation**: Figures visualize stored estimates, stored confidence intervals, stored coefficient records, stored pairwise comparisons, stored contingency counts, and stored cell summaries only. No new CIs, effect sizes, p-values, or model refits are ever calculated during figure rendering.
-4. **Raw-data privacy by default**: Interactive HTML files never embed raw row-level observations, raw scatterplots, raw jitter plots, or row-level hover clouds. This ensures shared self-contained HTML files do not leak sensitive or participant-level data.
+4. **Raw-data privacy by default**: Interactive HTML files never embed raw row-level observations, raw scatterplots, raw jitter plots, or row-level hover clouds. This ensures shared self-contained HTML files do not leak sensitive or participant-level data. (Note: in dataset profiling, if `include_row_positions=True` is explicitly requested, integer row index offsets are stored in the profile dictionary for diagnostic navigation, but raw row data contents are never copied).
 5. **No significance traffic-light coloring**: Color is used strictly for series identification and visual distinction—never to encode green/red statistical significance thresholds.
 
 ---

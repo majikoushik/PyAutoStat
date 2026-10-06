@@ -87,10 +87,12 @@ pair counts and the unit-ID column name are reported; identifier values are not 
 
 `assistant.reporting_completeness(report, style=...)` returns a deterministic, machine-readable
 checklist. Item statuses are `present`, `missing`, `partial`, and `not_applicable`. For example, a
-missing report field whose canonical analysis contains a value is a reporting defect, while the
-currently unavailable Pearson interval is a backend limitation (`partial`). No numerical quality
-score is produced. Completeness does not assess sampling, design truth, bias, or publication
-quality.
+missing report field whose canonical analysis contains a value is a reporting defect, while an
+inherently unavailable interval (such as small-sample Pearson correlation with $n \le 3$, where the
+asymptotic Fisher-z transformation is mathematically unavailable) is a backend limitation (`partial`).
+For $n > 3$, Pearson correlation reports an analytical Fisher-z asymptotic normal confidence interval.
+No numerical quality score is produced. Completeness does not assess sampling, design truth, bias,
+or publication quality.
 
 `ResearchReport.to_html()`, `to_markdown()`, and `to_latex()` accept `style="general"`, `"apa"`,
 or `"ieee"`. The style changes headings and concise presentation only. The report's JSON payload,
@@ -115,5 +117,135 @@ planning, sensitivity, practical-significance, completeness, report, audit, and 
 records. It contains no DataFrame, participant IDs, callables, credentials, or environment
 variables. A future interface must still submit choices to the core validators.
 
-See [the capabilities and support matrix](CAPABILITIES.md) and
-[scientific limitations](SCIENTIFIC_LIMITATIONS.md).
+## End-to-end advanced research lifecycle example
+
+Below is a complete, coherent example illustrating how all advanced lifecycle components connect in Python.
+All steps beyond `assistant.run(...)` are optional progressive disclosures:
+
+```python
+import pandas as pd
+from pyautostat import (
+    MeaningfulEffectThreshold,
+    ResearchAssistant,
+    SensitivitySpecification,
+    reproduce,
+    save_bundle,
+    show,
+)
+
+# 1. Initialize assistant and optionally enable local decision tracking
+assistant = ResearchAssistant(df)
+assistant.enable_tracking()
+assistant.declare_planning("planned", reason="Protocol pre-specified before analysis")
+
+# 2. Prospective study planning (sample size / precision before data collection)
+planner = assistant.study_planner()
+power_plan = planner.independent_mean_power(
+    target_difference=2.5,
+    sd_group1=3.0,
+    sd_group2=3.0,
+    target_power=0.80,
+)
+show(power_plan)
+
+# 3. Formulate research question draft and freeze Statistical Analysis Plan
+draft = assistant.prepare_question(
+    objective="compare_groups",
+    outcome="score",
+    predictor="treatment",
+    design="independent",
+    estimand="mean",
+)
+threshold = MeaningfulEffectThreshold(
+    quantity="mean_difference",
+    minimum_magnitude=1.5,
+    unit="points",
+    rationale="Clinical minimum clinically important difference",
+    planning_status="planned",
+)
+scenario = SensitivitySpecification(
+    name="equal_variance_student_t",
+    specification=draft.specification,
+    method_id="student_t",
+    rationale="Compare Welch t against equal-variance Student t assumption",
+    assumptions=("equal population variance",),
+    planning_status="planned",
+)
+plan = assistant.analysis_plan(
+    draft,
+    sensitivity_scenarios=[scenario],
+    meaningful_threshold=threshold,
+    multiplicity_policy="none_planned",
+    report_style="apa",
+)
+show(plan)
+
+# 4. Execute guided research workflow
+workflow = assistant.run(draft=draft)
+show(workflow)
+
+# 5. Evaluate plan adherence
+adherence = assistant.plan_adherence(plan, workflow.analysis)
+show(adherence)
+
+# 6. Run explicit sensitivity analysis
+sensitivity = assistant.sensitivity_analysis(
+    workflow.analysis,
+    scenarios=[scenario],
+)
+show(sensitivity)
+
+# 7. Evaluate practical significance against declared threshold
+practical = assistant.practical_significance(
+    workflow.analysis,
+    threshold=threshold,
+)
+show(practical)
+
+# 8. Assemble canonical research report with attached follow-ups
+report = assistant.report(
+    workflow.analysis,
+    sensitivity=sensitivity,
+    practical_significance=practical,
+)
+
+# 9. Verify reporting completeness and audit internal consistency
+completeness = assistant.reporting_completeness(report, style="apa")
+show(completeness)
+
+audit = assistant.audit(report)
+show(audit)
+
+# 10. Capture reproducibility record, test explicit replay, and export package
+record = assistant.reproducibility_record(
+    workflow.analysis,
+    sensitivity=sensitivity,
+    practical_significance=practical,
+)
+show(record)
+
+# Explicit replay with supplied data (zero automatic replay)
+outcome = reproduce(record, data=df)
+show(outcome)
+
+# Optional reproducibility metadata package (replay metadata only; no raw data)
+record.save_package("exports/reproducibility_package.zip", overwrite=True)
+
+# 11. Capture UI-independent session snapshot
+snapshot = assistant.session_snapshot(
+    workflow,
+    analysis_plan=plan,
+    study_planning=power_plan,
+    sensitivity=sensitivity,
+    practical_significance=practical,
+    reporting_completeness=completeness,
+)
+show(snapshot)
+
+# 12. Package multi-format research bundle (HTML, PDF, DOCX, CSV, JSON, manifest)
+save_bundle(workflow, "exports/research_bundle.zip", overwrite=True)
+```
+
+See [the capabilities and support matrix](CAPABILITIES.md),
+[governance usability audit](GOVERNANCE_USABILITY_AUDIT.md),
+and [scientific limitations](SCIENTIFIC_LIMITATIONS.md).

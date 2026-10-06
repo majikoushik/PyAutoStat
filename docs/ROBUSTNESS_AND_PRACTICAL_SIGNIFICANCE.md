@@ -134,7 +134,9 @@ follow-up configurations were recorded but were not automatically replayed.
 
 - Sensitivity results describe only the scenarios supplied by the researcher.
 - Different-estimand scenarios are supplementary analyses, not direct replications.
-- Pearson uncertainty remains partial because the current backend has no Pearson interval.
+- Pearson correlation reports an analytical Fisher-z asymptotic normal confidence interval when
+  $n > 3$; for small samples ($n \le 3$) or nonfinite pairs, the interval is unavailable and
+  uncertainty reporting remains partial with an explicit small-sample limitation.
 - Changed-data sensitivity and cross-design paired/independent substitutions are not implemented.
   Paired t versus Wilcoxon and Pearson versus Spearman retain different estimand identities;
   chi-square versus Fisher retains the categorical target but different primary effect quantities.
