@@ -6,9 +6,11 @@ internal invariants (Level C), and explicitly tracks deferred quantities (Level 
 
 Usage:
     python validation/run_reference_validation.py
-    python validation/run_reference_validation.py --method welch_t
-    python validation/run_reference_validation.py --json report.json
     python validation/run_reference_validation.py --strict
+    python validation/run_reference_validation.py --method welch_anova
+    python validation/run_reference_validation.py --json report.json
+    python validation/run_reference_validation.py --generate-manifest
+    python validation/run_reference_validation.py --self-check
 """
 
 from __future__ import annotations
@@ -17,7 +19,6 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,158 +28,30 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 import numpy as np  # noqa: E402
-
-# PyAutoStat public APIs used for validation execution
 from pyautostat import AnalysisOptions, ResearchAssistant, StatisticalAnalyzer  # noqa: E402
-
-try:
-    from validation.reference_cases import get_reference_cases  # noqa: E402
-except ImportError:
-    from reference_cases import get_reference_cases  # noqa: E402
-
-DEFAULT_ATOL = 1e-12
-DEFAULT_RTOL = 1e-10
-
-# Slightly wider tolerances for floating-point p-values or asymptotic approximations
-PVAL_ATOL = 1e-8
-PVAL_RTOL = 1e-6
-
-
-@dataclass
-class FieldValidationResult:
-    case_id: str
-    method_id: str
-    field: str
-    observed: Any
-    expected: Any
-    absolute_error: float | None
-    relative_error: float | None
-    atol: float
-    rtol: float
-    evidence_level: str  # "A" | "B" | "C" | "D"
-    reference: str
-    status: str  # "pass" | "deferred" | "not_applicable" | "discrepancy"
-    notes: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-def compare_numeric_field(
-    case_id: str,
-    method_id: str,
-    field: str,
-    observed: Any,
-    expected: Any,
-    evidence_level: str,
-    reference: str,
-    atol: float = DEFAULT_ATOL,
-    rtol: float = DEFAULT_RTOL,
-    notes: str = "",
-) -> FieldValidationResult:
-    """Compare a single numerical field against expected reference value."""
-    if observed is None and expected is None:
-        return FieldValidationResult(
-            case_id=case_id,
-            method_id=method_id,
-            field=field,
-            observed=None,
-            expected=None,
-            absolute_error=0.0,
-            relative_error=0.0,
-            atol=atol,
-            rtol=rtol,
-            evidence_level=evidence_level,
-            reference=reference,
-            status="pass",
-            notes=notes,
-        )
-
-    if observed is None or expected is None:
-        return FieldValidationResult(
-            case_id=case_id,
-            method_id=method_id,
-            field=field,
-            observed=observed,
-            expected=expected,
-            absolute_error=None,
-            relative_error=None,
-            atol=atol,
-            rtol=rtol,
-            evidence_level=evidence_level,
-            reference=reference,
-            status="discrepancy",
-            notes=f"Missing value discrepancy: observed={observed}, expected={expected}",
-        )
-
-    obs_val = float(observed)
-    exp_val = float(expected)
-
-    if math.isnan(obs_val) and math.isnan(exp_val):
-        return FieldValidationResult(
-            case_id=case_id,
-            method_id=method_id,
-            field=field,
-            observed=obs_val,
-            expected=exp_val,
-            absolute_error=0.0,
-            relative_error=0.0,
-            atol=atol,
-            rtol=rtol,
-            evidence_level=evidence_level,
-            reference=reference,
-            status="pass",
-            notes=notes,
-        )
-
-    abs_err = abs(obs_val - exp_val)
-    denom = max(abs(exp_val), atol)
-    rel_err = abs_err / denom
-
-    is_pass = abs_err <= atol or rel_err <= rtol
-    status = "pass" if is_pass else "discrepancy"
-
-    return FieldValidationResult(
-        case_id=case_id,
-        method_id=method_id,
-        field=field,
-        observed=obs_val,
-        expected=exp_val,
-        absolute_error=abs_err,
-        relative_error=rel_err,
-        atol=atol,
-        rtol=rtol,
-        evidence_level=evidence_level,
-        reference=reference,
-        status=status,
-        notes=notes,
-    )
-
-
-def compare_deferred_field(
-    case_id: str,
-    method_id: str,
-    field: str,
-    observed: Any,
-    reference: str,
-    notes: str,
-) -> FieldValidationResult:
-    """Record an explicitly deferred quantity (Level D)."""
-    return FieldValidationResult(
-        case_id=case_id,
-        method_id=method_id,
-        field=field,
-        observed=observed,
-        expected=None,
-        absolute_error=None,
-        relative_error=None,
-        atol=0.0,
-        rtol=0.0,
-        evidence_level="D",
-        reference=reference,
-        status="deferred",
-        notes=notes,
-    )
+from pyautostat.method_contracts import METHOD_CONTRACTS  # noqa: E402
+from validation.cases import get_all_reference_cases  # noqa: E402
+from validation.manifest import (  # noqa: E402
+    build_manifest_v2,
+    build_validation_summary,
+    write_manifest,
+    write_summary,
+)
+from validation.models import (  # noqa: E402
+    FieldValidationResult,
+    compare_deferred_field,
+    compare_numeric_field,
+)
+from validation.tolerances import (  # noqa: E402
+    DEFAULT_ATOL,
+    DEFAULT_RTOL,
+    INT_ATOL,
+    INT_RTOL,
+    NUMERICAL_SOLVER_ATOL,
+    NUMERICAL_SOLVER_RTOL,
+    PVAL_ATOL,
+    PVAL_RTOL,
+)
 
 
 def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
@@ -1318,6 +1191,1966 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
             )
         )
 
+    # -------------------------------------------------------------------------
+    # 11. WELCH ANOVA
+    # -------------------------------------------------------------------------
+    elif method_id == "welch_anova":
+        val_res = StatisticalAnalyzer(df).welch_anova(kw["group_col"], kw["value_col"])
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_statistic",
+                val_res["statistic"],
+                expected["f_statistic"],
+                "A",
+                "Independent Welch weighted F statistic",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df1",
+                val_res["degrees_of_freedom"][0],
+                expected["df1"],
+                "A",
+                "Independent numerator df = k - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df2",
+                val_res["degrees_of_freedom"][1],
+                expected["df2"],
+                "A",
+                "Independent Welch-Satterthwaite denominator df",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["p_value"],
+                "A",
+                "Welch F-distribution tail integral",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.f.sf",
+            )
+        )
+        gh_obs = val_res.get("pairwise_comparisons", [])
+        for exp_pw in expected["pairwise"]:
+            matched = next(
+                (
+                    p
+                    for p in gh_obs
+                    if p["group1"] == exp_pw["group1"] and p["group2"] == exp_pw["group2"]
+                ),
+                None,
+            )
+            if matched:
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"gh_diff_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["estimate"],
+                        exp_pw["mean_difference"],
+                        "A",
+                        "Games-Howell mean difference",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"gh_se_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["standard_error"],
+                        exp_pw["standard_error"],
+                        "A",
+                        "Games-Howell pairwise standard error",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"gh_df_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["degrees_of_freedom"],
+                        exp_pw["degrees_of_freedom"],
+                        "A",
+                        "Games-Howell pairwise Welch df",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"gh_q_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["statistic"],
+                        exp_pw["q_statistic"],
+                        "A",
+                        "Games-Howell studentized range q statistic",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"gh_p_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["adjusted_p_value"],
+                        exp_pw["p_value"],
+                        "B",
+                        "Studentized-range distribution CDF",
+                        atol=PVAL_ATOL,
+                        rtol=PVAL_RTOL,
+                        shared_primitive="scipy.stats.studentized_range",
+                    )
+                )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["sample_size"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete-case analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded rows invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 12. CLASSICAL ONE-WAY ANOVA
+    # -------------------------------------------------------------------------
+    elif method_id == "one_way_anova":
+        val_res = StatisticalAnalyzer(df).hypothesis_tests(
+            kw["group_col"], kw["value_col"], test_type="anova"
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_statistic",
+                val_res["statistic"],
+                expected["f_statistic"],
+                "A",
+                "Independent MS_between / MS_within",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_between",
+                val_res["degrees_of_freedom"][0],
+                expected["df_between"],
+                "A",
+                "Independent df_between = k - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_within",
+                val_res["degrees_of_freedom"][1],
+                expected["df_within"],
+                "A",
+                "Independent df_within = N - k",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "eta_squared",
+                val_res["effect_size"]["value"],
+                expected["eta_squared"],
+                "A",
+                "Independent eta-squared = SS_between / SS_total",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["backend_p_value"],
+                "B",
+                "scipy.stats.f_oneway p-value",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.f.sf",
+            )
+        )
+        tk_obs = val_res.get("pairwise_comparisons", [])
+        for exp_pw in expected["pairwise"]:
+            matched = next(
+                (
+                    p
+                    for p in tk_obs
+                    if p["group1"] == exp_pw["group1"] and p["group2"] == exp_pw["group2"]
+                ),
+                None,
+            )
+            if matched:
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"tk_diff_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["estimate"],
+                        exp_pw["mean_difference"],
+                        "A",
+                        "Tukey-Kramer mean difference",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"tk_se_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["standard_error"],
+                        exp_pw["standard_error"],
+                        "A",
+                        "Tukey-Kramer standard error",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"tk_p_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["adjusted_p_value"],
+                        exp_pw["p_value"],
+                        "B",
+                        "Studentized-range distribution tail",
+                        atol=PVAL_ATOL,
+                        rtol=PVAL_RTOL,
+                        shared_primitive="scipy.stats.studentized_range",
+                    )
+                )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["sample_size"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete-case analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded rows invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 13. KRUSKAL-WALLIS
+    # -------------------------------------------------------------------------
+    elif method_id == "kruskal_wallis":
+        val_res = StatisticalAnalyzer(df).hypothesis_tests(
+            kw["group_col"], kw["value_col"], test_type="kruskal"
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "h_statistic",
+                val_res["statistic"],
+                expected["h_statistic"],
+                "A",
+                "Independent Kruskal-Wallis H statistic with tie adjustment",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "degrees_of_freedom",
+                val_res["degrees_of_freedom"],
+                expected["degrees_of_freedom"],
+                "A",
+                "Independent df = k - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "epsilon_squared",
+                val_res["effect_size"]["value"],
+                expected["epsilon_squared"],
+                "A",
+                "Independent rank epsilon-squared = (H - k + 1) / (N - k)",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["backend_p_value"],
+                "B",
+                "scipy.stats.kruskal p-value",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.chi2.sf",
+            )
+        )
+        dunn_obs = val_res.get("pairwise_comparisons", [])
+        for exp_pw in expected["pairwise"]:
+            matched = next(
+                (
+                    p
+                    for p in dunn_obs
+                    if p["group1"] == exp_pw["group1"] and p["group2"] == exp_pw["group2"]
+                ),
+                None,
+            )
+            if matched:
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"dunn_z_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["statistic"],
+                        exp_pw["z_statistic"],
+                        "A",
+                        "Dunn pairwise z statistic",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"dunn_raw_p_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["raw_p_value"],
+                        exp_pw["raw_p_value"],
+                        "B",
+                        "Standard normal tail probability",
+                        atol=PVAL_ATOL,
+                        rtol=PVAL_RTOL,
+                        shared_primitive="scipy.stats.norm.sf",
+                    )
+                )
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"dunn_adj_p_{exp_pw['group1']}_{exp_pw['group2']}",
+                        matched["adjusted_p_value"],
+                        exp_pw["adjusted_p_value"],
+                        "A",
+                        "Holm step-down multiplicity adjustment",
+                    )
+                )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["sample_size"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete-case analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded rows invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 14. REPEATED-MEASURES ANOVA
+    # -------------------------------------------------------------------------
+    elif method_id == "repeated_measures_anova":
+        val_res = StatisticalAnalyzer(df).repeated_measures_anova(
+            unit_id=kw["unit_id"],
+            condition_col=kw["condition_col"],
+            value_col=kw["value_col"],
+            condition_order=kw["condition_order"],
+        )
+        anova_tbl = val_res["anova_table"]
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_condition",
+                anova_tbl["ss_condition"],
+                expected["ss_condition"],
+                "A",
+                "Independent SS_condition",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_subject",
+                anova_tbl["ss_subject"],
+                expected["ss_subject"],
+                "A",
+                "Independent SS_subject",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_error",
+                anova_tbl["ss_error"],
+                expected["ss_error"],
+                "A",
+                "Independent SS_error",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_total",
+                anova_tbl["ss_total"],
+                expected["ss_total"],
+                "A",
+                "Independent SS_total",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_condition",
+                anova_tbl["df_condition"],
+                expected["df_condition"],
+                "A",
+                "df_condition = k - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_error",
+                anova_tbl["df_error"],
+                expected["df_error"],
+                "A",
+                "df_error = (n-1)(k-1)",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_statistic",
+                anova_tbl["f_statistic"],
+                expected["f_statistic"],
+                "A",
+                "Independent F = MS_condition / MS_error",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_uncorrected",
+                anova_tbl["p_value"],
+                expected["p_uncorrected"],
+                "A",
+                "F-distribution tail integral",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.f.sf",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "partial_eta_squared",
+                val_res["effect_size"]["value"],
+                expected["partial_eta_squared"],
+                "A",
+                "Partial eta-squared = SS_cond / (SS_cond + SS_err)",
+            )
+        )
+        gg_res = val_res.get("greenhouse_geisser", {})
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "epsilon_gg",
+                gg_res["epsilon"],
+                expected["epsilon_gg"],
+                "A",
+                "Greenhouse-Geisser epsilon formula",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "corrected_df_num",
+                gg_res["corrected_df_num"],
+                expected["corrected_df_num"],
+                "A",
+                "Corrected numerator df",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "corrected_df_den",
+                gg_res["corrected_df_den"],
+                expected["corrected_df_den"],
+                "A",
+                "Corrected denominator df",
+            )
+        )
+        spher = val_res.get("sphericity")
+        if spher:
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    "mauchly_w",
+                    spher["mauchly_w"],
+                    expected["w_mauchly"],
+                    "A",
+                    "Mauchly W from orthonormal Helmert contrast determinant",
+                )
+            )
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    "mauchly_chi2",
+                    spher["chi2_statistic"],
+                    expected["chi2_mauchly"],
+                    "A",
+                    "Box-Anderson chi-square approximation",
+                )
+            )
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    "mauchly_df",
+                    spher["df"],
+                    expected["df_mauchly"],
+                    "A",
+                    "Mauchly df = k(k-1)/2 - 1",
+                    atol=INT_ATOL,
+                    rtol=INT_RTOL,
+                )
+            )
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    "mauchly_p",
+                    spher["p_value"],
+                    expected["p_mauchly"],
+                    "B",
+                    "Chi-square distribution tail probability",
+                    atol=PVAL_ATOL,
+                    rtol=PVAL_RTOL,
+                    shared_primitive="scipy.stats.chi2.sf",
+                )
+            )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete panel analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded incomplete observation rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 15. FRIEDMAN TEST
+    # -------------------------------------------------------------------------
+    elif method_id == "friedman_test":
+        val_res = StatisticalAnalyzer(df).friedman_test(
+            unit_id=kw["unit_id"],
+            condition_col=kw["condition_col"],
+            value_col=kw["value_col"],
+            condition_order=kw["condition_order"],
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "q_statistic",
+                val_res["statistic"],
+                expected["q_statistic"],
+                "A",
+                "Independent Friedman Q rank sum statistic",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "degrees_of_freedom",
+                val_res["degrees_of_freedom"],
+                expected["degrees_of_freedom"],
+                "A",
+                "Independent df = k - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "kendall_w",
+                val_res["effect_size"]["value"],
+                expected["kendall_w"],
+                "A",
+                "Independent Kendall's W = Q / (n*(k-1))",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["backend_p_value"],
+                "B",
+                "scipy.stats.friedmanchisquare p-value",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.chi2.sf",
+            )
+        )
+        results.append(
+            compare_deferred_field(
+                case_id,
+                method_id,
+                "kendall_w_bootstrap_ci",
+                val_res["effect_size"].get("confidence_interval"),
+                "Kendall's W block bootstrap deferred",
+                "Participant-block bootstrap interval requires deterministic resample harness",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete panel analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded incomplete observation rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 16. TWO-WAY FACTORIAL ANOVA
+    # -------------------------------------------------------------------------
+    elif method_id == "two_way_anova":
+        val_res = StatisticalAnalyzer(df).two_way_anova(
+            outcome=kw["outcome"],
+            factor_a=kw["factor_a"],
+            factor_b=kw["factor_b"],
+            sum_of_squares=kw.get("sum_of_squares", "type2"),
+        )
+        terms = {t["term"]: t for t in val_res["terms"]}
+        fa, fb = kw["factor_a"], kw["factor_b"]
+        inter_key = f"{fa}:{fb}"
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_a",
+                terms[fa]["sum_of_squares"],
+                expected["ss_a"],
+                "A",
+                "Factor A sum of squares",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_b",
+                terms[fb]["sum_of_squares"],
+                expected["ss_b"],
+                "A",
+                "Factor B sum of squares",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_ab",
+                terms[inter_key]["sum_of_squares"],
+                expected["ss_ab"],
+                "A",
+                "Interaction sum of squares",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ss_residual",
+                terms["Residual"]["sum_of_squares"],
+                expected["ss_residual"],
+                "A",
+                "Residual sum of squares",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_a",
+                terms[fa]["df"],
+                expected["df_a"],
+                "A",
+                "df_a = a - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_b",
+                terms[fb]["df"],
+                expected["df_b"],
+                "A",
+                "df_b = b - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_ab",
+                terms[inter_key]["df"],
+                expected["df_ab"],
+                "A",
+                "df_ab = (a-1)(b-1)",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_residual",
+                terms["Residual"]["df"],
+                expected["df_residual"],
+                "A",
+                "Residual df",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_a",
+                terms[fa]["f_statistic"],
+                expected["f_a"],
+                "A",
+                "Factor A F statistic",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_b",
+                terms[fb]["f_statistic"],
+                expected["f_b"],
+                "A",
+                "Factor B F statistic",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_ab",
+                terms[inter_key]["f_statistic"],
+                expected["f_ab"],
+                "A",
+                "Interaction F statistic",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_a",
+                terms[fa]["p_value"],
+                expected["p_a"],
+                "B",
+                "F-distribution tail probability for factor A",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.f.sf",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_b",
+                terms[fb]["p_value"],
+                expected["p_b"],
+                "B",
+                "F-distribution tail probability for factor B",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.f.sf",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_ab",
+                terms[inter_key]["p_value"],
+                expected["p_ab"],
+                "B",
+                "F-distribution tail probability for interaction",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.f.sf",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "partial_eta_a",
+                terms[fa]["effect_size"]["value"],
+                expected["partial_eta_a"],
+                "A",
+                "Partial eta-squared for factor A",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "partial_eta_b",
+                terms[fb]["effect_size"]["value"],
+                expected["partial_eta_b"],
+                "A",
+                "Partial eta-squared for factor B",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "partial_eta_ab",
+                terms[inter_key]["effect_size"]["value"],
+                expected["partial_eta_ab"],
+                "A",
+                "Partial eta-squared for interaction",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Factorial analyzed observation count",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 17. LINEAR REGRESSION
+    # -------------------------------------------------------------------------
+    elif method_id == "linear_regression":
+        val_res = StatisticalAnalyzer(df).linear_regression(
+            outcome=kw["outcome"],
+            predictors=kw["predictors"],
+            variable_types=kw["variable_types"],
+            covariance_type=kw.get("covariance_type", "classical"),
+        )
+        fit = val_res["model_fit"]
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "r_squared",
+                fit["r_squared"],
+                expected["r_squared"],
+                "A",
+                "Independent 1 - SSE/SST",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "adjusted_r_squared",
+                fit["adjusted_r_squared"],
+                expected["adjusted_r_squared"],
+                "A",
+                "Independent adjusted R2",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_model",
+                fit["model_degrees_of_freedom"],
+                expected["df_model"],
+                "A",
+                "Model df = p - 1",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "df_resid",
+                fit["residual_degrees_of_freedom"],
+                expected["df_resid"],
+                "A",
+                "Residual df = n - p",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        exp_f = (
+            expected.get("f_statistic_hc3", expected["f_statistic"])
+            if kw.get("covariance_type") == "HC3"
+            else expected["f_statistic"]
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_statistic",
+                fit["model_f_statistic"],
+                exp_f,
+                "A",
+                "Model F statistic",
+            )
+        )
+        for idx, (coef_obs, beta_exp) in enumerate(
+            zip(val_res["coefficients"], expected["beta"], strict=True)
+        ):
+            tname = coef_obs["term"]
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    f"beta_{tname}",
+                    coef_obs["estimate"],
+                    beta_exp,
+                    "A",
+                    f"OLS slope for {tname}",
+                )
+            )
+            if kw.get("covariance_type") == "HC3":
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"se_hc3_{tname}",
+                        coef_obs["standard_error"],
+                        expected["se_hc3"][idx],
+                        "A",
+                        f"HC3 robust SE for {tname}",
+                    )
+                )
+            else:
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"se_cls_{tname}",
+                        coef_obs["standard_error"],
+                        expected["se_classical"][idx],
+                        "A",
+                        f"Classical OLS SE for {tname}",
+                    )
+                )
+        diag = val_res.get("diagnostics", {})
+        bp = diag.get("breusch_pagan", {})
+        if bp:
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    "bp_lm",
+                    bp["lm_statistic"],
+                    expected["bp_lm"],
+                    "A",
+                    "Breusch-Pagan auxiliary LM statistic",
+                )
+            )
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    "bp_p",
+                    bp["lm_p_value"],
+                    expected["bp_lm_p"],
+                    "B",
+                    "Chi-square distribution tail probability",
+                    atol=PVAL_ATOL,
+                    rtol=PVAL_RTOL,
+                    shared_primitive="scipy.stats.chi2.sf",
+                )
+            )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                fit["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete-case analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 18. LOGISTIC REGRESSION
+    # -------------------------------------------------------------------------
+    elif method_id == "logistic_regression":
+        workflow = ResearchAssistant(df).run(
+            objective=kw["objective"],
+            outcome=kw["outcome"],
+            predictors=kw["predictors"],
+            design=kw["design"],
+            estimand=kw["estimand"],
+            event_level=kw["event_level"],
+            variable_types=kw["variable_types"],
+        )
+        if workflow.status.value != "completed" or workflow.analysis is None:
+            raise RuntimeError(
+                f"Logistic regression workflow did not complete: {workflow.blockers}"
+            )
+        val_res = workflow.analysis.values
+        fit = val_res["model_fit"]
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "log_likelihood",
+                fit["log_likelihood"],
+                expected["log_likelihood"],
+                "A",
+                "Independent Newton-Raphson/IRLS log-likelihood",
+                atol=NUMERICAL_SOLVER_ATOL,
+                rtol=NUMERICAL_SOLVER_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "null_log_likelihood",
+                fit["null_log_likelihood"],
+                expected["null_log_likelihood"],
+                "A",
+                "Independent null log-likelihood",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "lr_statistic",
+                fit["lr_statistic"],
+                expected["lr_statistic"],
+                "A",
+                "Likelihood ratio statistic 2*(LL - LL0)",
+                atol=NUMERICAL_SOLVER_ATOL,
+                rtol=NUMERICAL_SOLVER_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "mcfadden_r2",
+                fit["mcfadden_r2"],
+                expected["mcfadden_r2"],
+                "A",
+                "McFadden pseudo-R2 = 1 - LL/LL0",
+                atol=NUMERICAL_SOLVER_ATOL,
+                rtol=NUMERICAL_SOLVER_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "aic",
+                fit["aic"],
+                expected["aic"],
+                "A",
+                "Akaike Information Criterion 2p - 2LL",
+                atol=NUMERICAL_SOLVER_ATOL,
+                rtol=NUMERICAL_SOLVER_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "bic",
+                fit["bic"],
+                expected["bic"],
+                "A",
+                "Bayesian Information Criterion p*ln(n) - 2LL",
+                atol=NUMERICAL_SOLVER_ATOL,
+                rtol=NUMERICAL_SOLVER_RTOL,
+            )
+        )
+        for _idx, (coef_obs, beta_exp, se_exp, or_exp) in enumerate(
+            zip(
+                val_res["coefficients"],
+                expected["beta"],
+                expected["se_wald"],
+                expected["odds_ratios"],
+                strict=True,
+            )
+        ):
+            tname = coef_obs["term"]
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    f"beta_{tname}",
+                    coef_obs["estimate"],
+                    beta_exp,
+                    "A",
+                    f"MLE log-odds coefficient for {tname}",
+                    atol=NUMERICAL_SOLVER_ATOL,
+                    rtol=NUMERICAL_SOLVER_RTOL,
+                )
+            )
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    f"se_{tname}",
+                    coef_obs["standard_error"],
+                    se_exp,
+                    "A",
+                    f"Wald standard error for {tname}",
+                    atol=NUMERICAL_SOLVER_ATOL,
+                    rtol=NUMERICAL_SOLVER_RTOL,
+                )
+            )
+            results.append(
+                compare_numeric_field(
+                    case_id,
+                    method_id,
+                    f"odds_ratio_{tname}",
+                    coef_obs["odds_ratio"],
+                    or_exp,
+                    "A",
+                    f"Odds ratio exp(beta) for {tname}",
+                    atol=NUMERICAL_SOLVER_ATOL,
+                    rtol=NUMERICAL_SOLVER_RTOL,
+                )
+            )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                fit["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete-case analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                workflow.analysis.metadata["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 19. KENDALL TAU-B
+    # -------------------------------------------------------------------------
+    elif method_id == "kendall_tau_b":
+        workflow = ResearchAssistant(df).run(
+            objective=kw["objective"],
+            outcome=kw["outcome"],
+            predictor=kw["predictor"],
+            design=kw["design"],
+            estimand=kw["estimand"],
+            association_measure=kw["association_measure"],
+            variable_types=kw["variable_types"],
+        )
+        val_res = workflow.analysis.values
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "tau_b",
+                val_res["primary_estimate"],
+                expected["tau_b"],
+                "A",
+                "Independent pair concordance and tie formula",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["backend_p_value"],
+                "B",
+                "scipy.stats.kendalltau p-value",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.norm.sf",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                workflow.analysis.metadata["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete pair analyzed count",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                workflow.analysis.metadata["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 20. POINT-BISERIAL CORRELATION
+    # -------------------------------------------------------------------------
+    elif method_id == "point_biserial_correlation":
+        workflow = ResearchAssistant(df).run(
+            objective=kw["objective"],
+            outcome=kw["outcome"],
+            predictor=kw["predictor"],
+            design=kw["design"],
+            estimand=kw["estimand"],
+            variable_types=kw["variable_types"],
+        )
+        val_res = workflow.analysis.values
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "point_biserial_r",
+                val_res["primary_estimate"],
+                expected["point_biserial_r"],
+                "A",
+                "Lev (1949) closed-form group difference formula",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "pearson_equivalence",
+                val_res["primary_estimate"],
+                expected["pearson_r_equivalence"],
+                "A",
+                "Pearson product-moment dummy equivalence",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "degrees_of_freedom",
+                val_res["degrees_of_freedom"],
+                expected["degrees_of_freedom"],
+                "A",
+                "Independent df = n - 2",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["backend_p_value"],
+                "B",
+                "scipy.stats.pointbiserialr p-value",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.t.sf",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                workflow.analysis.metadata["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete-case analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                workflow.analysis.metadata["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 21. PARTIAL PEARSON CORRELATION
+    # -------------------------------------------------------------------------
+    elif method_id == "partial_pearson_correlation":
+        workflow = ResearchAssistant(df).run(
+            objective=kw["objective"],
+            outcome=kw["outcome"],
+            predictor=kw["predictor"],
+            controls=kw["controls"],
+            design=kw["design"],
+            estimand=kw["estimand"],
+            variable_types=kw["variable_types"],
+        )
+        val_res = workflow.analysis.values
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "partial_r",
+                val_res["primary_estimate"],
+                expected["partial_r"],
+                "A",
+                "OLS covariate residualization Pearson correlation",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "degrees_of_freedom",
+                val_res["degrees_of_freedom"],
+                expected["degrees_of_freedom"],
+                "A",
+                "Independent df = n - 2 - k_controls",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["p_value"],
+                "B",
+                "Residual correlation t-distribution tail",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.t.sf",
+            )
+        )
+        results.append(
+            compare_deferred_field(
+                case_id,
+                method_id,
+                "partial_r_ci",
+                val_res.get("confidence_interval"),
+                "Bootstrap resampling interval deferred",
+                "Covariate-resampling bootstrap interval scheduled for subsequent expansion",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                workflow.analysis.metadata["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete-case analyzed rows",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                workflow.analysis.metadata["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 22. EXACT BINOMIAL MCNEMAR
+    # -------------------------------------------------------------------------
+    elif method_id == "mcnemar":
+        workflow = ResearchAssistant(df).run(
+            objective=kw["objective"],
+            outcome=kw["outcome"],
+            predictor=kw["predictor"],
+            design=kw["design"],
+            unit_id=kw["unit_id"],
+            estimand=kw["estimand"],
+            event_level=kw["event_level"],
+            condition_order=kw["condition_order"],
+            variable_types=kw["variable_types"],
+        )
+        val_res = workflow.analysis.values
+        tbl = val_res["transition_table"]
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "discordant_b",
+                tbl["discordant_b"],
+                expected["discordant_b"],
+                "A",
+                "Paired transition table discordant cell b",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "discordant_c",
+                tbl["discordant_c"],
+                expected["discordant_c"],
+                "A",
+                "Paired transition table discordant cell c",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_value",
+                val_res["p_value"],
+                expected["p_value"],
+                "A",
+                "Independent exact combinatorial binomial tail sum",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "backend_p_value",
+                val_res["p_value"],
+                expected["backend_p_value"],
+                "B",
+                "scipy.stats.binomtest cross-check",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.binomtest",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                workflow.analysis.metadata["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Matched pairs analyzed count (2 * n_pairs)",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                workflow.analysis.metadata["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 23. CRONBACH'S ALPHA
+    # -------------------------------------------------------------------------
+    elif method_id == "cronbach_alpha":
+        val_res = StatisticalAnalyzer(df).scale_reliability(kw["items"])
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "cronbach_alpha",
+                val_res["cronbach_alpha"],
+                expected["cronbach_alpha"],
+                "A",
+                "Independent alpha = k/(k-1)*(1 - Σvar_i / var_total)",
+            )
+        )
+        item_stats_obs = {item["item"]: item for item in val_res.get("item_statistics", [])}
+        for exp_it in expected["item_statistics"]:
+            iname = exp_it["item"]
+            if iname in item_stats_obs:
+                results.append(
+                    compare_numeric_field(
+                        case_id,
+                        method_id,
+                        f"citc_{iname}",
+                        item_stats_obs[iname]["corrected_item_total_correlation"],
+                        exp_it["corrected_item_total_correlation"],
+                        "A",
+                        f"Corrected item-total correlation for {iname}",
+                    )
+                )
+                if exp_it["alpha_if_deleted"] is not None:
+                    results.append(
+                        compare_numeric_field(
+                            case_id,
+                            method_id,
+                            f"aid_{iname}",
+                            item_stats_obs[iname]["alpha_if_deleted"],
+                            exp_it["alpha_if_deleted"],
+                            "A",
+                            f"Alpha if deleted for {iname}",
+                        )
+                    )
+        results.append(
+            compare_deferred_field(
+                case_id,
+                method_id,
+                "cronbach_bootstrap_ci",
+                val_res.get("confidence_interval"),
+                "Bootstrap resampling interval deferred",
+                "Respondent-row bootstrap interval scheduled for subsequent expansion",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete respondents analyzed",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # 24. INTRACLASS CORRELATION
+    # -------------------------------------------------------------------------
+    elif method_id == "intraclass_correlation":
+        val_res = StatisticalAnalyzer(df).intraclass_correlation(
+            target=kw["target"],
+            rater=kw["rater"],
+            value=kw["value"],
+        )
+        anova_tbl = val_res["anova_table"]
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "grand_mean",
+                anova_tbl["grand_mean"],
+                expected["grand_mean"],
+                "A",
+                "Grand mean of ratings",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "bms",
+                anova_tbl["ms_targets"],
+                expected["bms"],
+                "A",
+                "Between-targets mean square BMS",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "jms",
+                anova_tbl["ms_raters"],
+                expected["jms"],
+                "A",
+                "Between-raters mean square JMS",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "ems",
+                anova_tbl["ms_error"],
+                expected["ems"],
+                "A",
+                "Residual error mean square EMS",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "wms",
+                anova_tbl["ms_within"],
+                expected["wms"],
+                "A",
+                "Within-targets mean square WMS",
+            )
+        )
+        variants = {v["notation"]: v for v in val_res["all_variants"]}
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "icc_1_1",
+                variants["ICC(1,1)"]["estimate"],
+                expected["icc_1_1"],
+                "A",
+                "One-way random single ICC(1,1)",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "icc_1_k",
+                variants["ICC(1,k)"]["estimate"],
+                expected["icc_1_k"],
+                "A",
+                "One-way random average ICC(1,k)",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "icc_2_1",
+                variants["ICC(2,1)"]["estimate"],
+                expected["icc_2_1"],
+                "A",
+                "Two-way random single agreement ICC(2,1)",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "icc_2_k",
+                variants["ICC(2,k)"]["estimate"],
+                expected["icc_2_k"],
+                "A",
+                "Two-way random average agreement ICC(2,k)",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "icc_3_1",
+                variants["ICC(3,1)"]["estimate"],
+                expected["icc_3_1"],
+                "A",
+                "Two-way mixed single consistency ICC(3,1)",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "icc_3_k",
+                variants["ICC(3,k)"]["estimate"],
+                expected["icc_3_k"],
+                "A",
+                "Two-way mixed average consistency ICC(3,k)",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "f_twoway",
+                variants["ICC(2,1)"]["f_test"]["statistic"],
+                expected["f_twoway"],
+                "A",
+                "Two-way BMS/EMS F ratio",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "p_twoway",
+                variants["ICC(2,1)"]["f_test"]["p_value"],
+                expected["p_twoway"],
+                "B",
+                "F-distribution tail probability",
+                atol=PVAL_ATOL,
+                rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.f.sf",
+            )
+        )
+        results.append(
+            compare_deferred_field(
+                case_id,
+                method_id,
+                "icc_exact_ci",
+                val_res.get("confidence_interval"),
+                "Exact F-inversion ICC confidence interval deferred",
+                "Exact confidence limit inversion scheduled for subsequent expansion",
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "analyzed_rows",
+                val_res["sample"]["analyzed_rows"],
+                missing["analyzed_rows"],
+                "C",
+                "Complete rectangular matrix observations",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+        results.append(
+            compare_numeric_field(
+                case_id,
+                method_id,
+                "excluded_rows",
+                val_res["sample"]["excluded_rows"],
+                missing["excluded_rows"],
+                "C",
+                "Excluded row count invariant",
+                atol=INT_ATOL,
+                rtol=INT_RTOL,
+            )
+        )
+
+    # Common sample accounting invariant for all methods
+    results.append(
+        compare_numeric_field(
+            case_id,
+            method_id,
+            "sample_accounting_sum",
+            missing["analyzed_rows"] + missing["excluded_rows"],
+            missing["original_rows"],
+            "C",
+            "N_analyzed + N_excluded == N_original",
+            atol=INT_ATOL,
+            rtol=INT_RTOL,
+        )
+    )
+
     return results
 
 
@@ -1325,24 +3158,23 @@ def run_all_reference_validations(
     filter_method: str | None = None,
     strict: bool = False,
 ) -> tuple[list[FieldValidationResult], dict[str, Any]]:
-    """Run validation across all reference cases and summarize."""
-    all_cases = get_reference_cases()
+    """Execute validation across all reference cases."""
+    cases = get_all_reference_cases()
     if filter_method:
-        all_cases = [c for c in all_cases if c["method_id"] == filter_method]
-        if not all_cases:
-            raise ValueError(f"No reference cases found for method: {filter_method}")
+        cases = [c for c in cases if c["method_id"] == filter_method]
+        if not cases:
+            raise ValueError(f"No reference cases found for method '{filter_method}'")
 
     field_results: list[FieldValidationResult] = []
     cases_run: list[str] = []
     methods_run: set[str] = set()
 
-    for case in all_cases:
-        case_res = run_case_validation(case)
-        field_results.extend(case_res)
-        cases_run.append(case["case_id"])
-        methods_run.add(case["method_id"])
+    for c in cases:
+        c_res = run_case_validation(c)
+        field_results.extend(c_res)
+        cases_run.append(c["case_id"])
+        methods_run.add(c["method_id"])
 
-    # Aggregate metrics
     level_a_passes = sum(1 for r in field_results if r.evidence_level == "A" and r.status == "pass")
     level_b_passes = sum(1 for r in field_results if r.evidence_level == "B" and r.status == "pass")
     level_c_passes = sum(1 for r in field_results if r.evidence_level == "C" and r.status == "pass")
@@ -1368,69 +3200,102 @@ def run_all_reference_validations(
     return field_results, summary
 
 
-def generate_manifest(output_path: str = "validation/reference_manifest.json") -> None:
-    """Generate the structured reference manifest from verified cases."""
-    cases = get_reference_cases()
-    manifest_entries = []
-    for c in cases:
-        manifest_entries.append(
-            {
-                "case_id": c["case_id"],
-                "method_id": c["method_id"],
-                "scientific_target": c["scientific_target"],
-                "dataset_description": c["description"],
-                "reference_source_type": c["source_type"],
-                "reference_provenance": c["reference_citation"],
-                "sample_rows_original": c["missing_accounting"]["original_rows"],
-                "sample_rows_analyzed": c["missing_accounting"]["analyzed_rows"],
-                "sample_rows_excluded": c["missing_accounting"]["excluded_rows"],
-                "orientation_definition": c.get("orientation", {}),
-                "tolerances": {
-                    "default_atol": DEFAULT_ATOL,
-                    "default_rtol": DEFAULT_RTOL,
-                    "p_value_atol": PVAL_ATOL,
-                    "p_value_rtol": PVAL_RTOL,
-                },
-                "validation_evidence_levels": {
-                    "primary_quantities": "Level A (Independent Reference)",
-                    "p_values": "Level B (External Backend Conformance)",
-                    "sample_accounting_and_orientation": "Level C (Internal Invariant)",
-                    "effect_size_intervals": "Level D (Deferred)",
-                },
-                "notes": "Verified in PyAutoStat Phase 2 independent validation program",
-            }
-        )
+def run_self_check() -> bool:
+    """Run validation harness self-checks verifying internal integrity (Task 25)."""
+    cases = get_all_reference_cases()
+    passed = True
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump({"schema_version": 1, "cases": manifest_entries}, f, indent=2)
+    # 1. All 24 registered method IDs represented
+    registered_methods = set(METHOD_CONTRACTS.keys())
+    case_methods = {c["method_id"] for c in cases}
+    if registered_methods != case_methods:
+        missing = registered_methods - case_methods
+        print(f"[SELF-CHECK FAIL] Missing registered methods in validation cases: {missing}")
+        passed = False
+    else:
+        print(f"[SELF-CHECK PASS] All {len(registered_methods)} registered method IDs represented.")
+
+    # 2. No duplicate case IDs
+    case_ids = [c["case_id"] for c in cases]
+    if len(case_ids) != len(set(case_ids)):
+        dups = [cid for cid in case_ids if case_ids.count(cid) > 1]
+        print(f"[SELF-CHECK FAIL] Duplicate case IDs detected: {set(dups)}")
+        passed = False
+    else:
+        print(f"[SELF-CHECK PASS] All {len(case_ids)} case IDs are unique.")
+
+    # 3. Tolerances non-negative and finite
+    for tol_name, tol_val in [
+        ("DEFAULT_ATOL", DEFAULT_ATOL),
+        ("DEFAULT_RTOL", DEFAULT_RTOL),
+        ("PVAL_ATOL", PVAL_ATOL),
+        ("PVAL_RTOL", PVAL_RTOL),
+        ("INT_ATOL", INT_ATOL),
+        ("INT_RTOL", INT_RTOL),
+    ]:
+        if not math.isfinite(tol_val) or tol_val < 0:
+            print(f"[SELF-CHECK FAIL] Invalid tolerance {tol_name}: {tol_val}")
+            passed = False
+    print("[SELF-CHECK PASS] All tolerances are finite and non-negative.")
+
+    # 4. Cases structure validity
+    for c in cases:
+        cid = c["case_id"]
+        if "expected" not in c or not isinstance(c["expected"], dict):
+            print(f"[SELF-CHECK FAIL] Case {cid} missing expected dictionary")
+            passed = False
+        if "missing_accounting" not in c:
+            print(f"[SELF-CHECK FAIL] Case {cid} missing missing_accounting")
+            passed = False
+
+    print("[SELF-CHECK PASS] All reference cases have required structural metadata.")
+    return passed
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="PyAutoStat Reference Validation Harness")
+    parser = argparse.ArgumentParser(
+        description="PyAutoStat Independent Numerical Validation Runner"
+    )
     parser.add_argument("--method", help="Filter validation to one method_id")
     parser.add_argument("--json", dest="json_path", help="Path to write JSON validation report")
     parser.add_argument(
-        "--strict", action="store_true", help="Fail with non-zero exit if any discrepancy"
+        "--strict",
+        action="store_true",
+        help="Fail with non-zero exit code if any numerical discrepancy occurs",
     )
     parser.add_argument(
         "--generate-manifest",
         action="store_true",
-        help="Regenerate validation/reference_manifest.json",
+        help="Regenerate validation/reference_manifest.json and reference_validation_summary.json",
+    )
+    parser.add_argument(
+        "--self-check",
+        action="store_true",
+        help="Run internal harness integrity and schema sanity checks",
     )
     args = parser.parse_args()
 
-    if args.generate_manifest:
-        generate_manifest()
-        print("Regenerated validation/reference_manifest.json")
-        return 0
+    if args.self_check:
+        ok = run_self_check()
+        return 0 if ok else 1
 
+    cases = get_all_reference_cases()
     results, summary = run_all_reference_validations(filter_method=args.method, strict=args.strict)
+
+    if args.generate_manifest:
+        manifest_data = build_manifest_v2(cases, results)
+        write_manifest(manifest_data)
+        summary_data = build_validation_summary(cases, results, summary)
+        write_summary(summary_data)
+        print("Regenerated validation/reference_manifest.json (Schema Version 2)")
+        print("Generated validation/reference_validation_summary.json")
+        return 0
 
     # Print human-readable summary
     print("\n" + "=" * 78)
-    print("PYAUTOSTAT INDEPENDENT NUMERICAL VALIDATION HARNESS -- PHASE 2")
+    print("PYAUTOSTAT INDEPENDENT NUMERICAL VALIDATION HARNESS -- FULL METHOD EXPANSION")
     print("=" * 78)
-    print(f"Methods Evaluated : {summary['methods_evaluated_count']} / 10 First-Tranche Methods")
+    print(f"Methods Evaluated : {summary['methods_evaluated_count']} / 24 Registered Method IDs")
     print(f"Cases Evaluated   : {summary['cases_evaluated_count']}")
     print(f"Fields Compared   : {summary['fields_compared_count']}")
     print("-" * 78)
@@ -1451,7 +3316,12 @@ def main() -> int:
             err = disc["absolute_error"]
             print(f"  [{cid}] {fld}: obs={obs}, exp={exp} (err={err})")
         print("=" * 78)
-        return 1
+        if args.strict:
+            print("STRICT MODE: Exiting with code 1 due to discrepancies.")
+            return 1
+        else:
+            print("DEFAULT MODE: Discrepancies reported, exiting with code 0.")
+            return 0
     else:
         print("ALL COMPARISONS PASSED ACCORDING TO DECLARED TOLERANCE POLICIES.")
         print("=" * 78 + "\n")

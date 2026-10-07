@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "package": {
+    "name": "pyautostat",
+    "version": "0.5.0",
+    "numerical_source_baseline_sha": "817bb9c5454c266462a457690f3673099546b49f",
+    "validation_framework_baseline_sha": "8fce4e9087236446eb4238387ffc04a9e33930c4",
+    "source_code_invariant": true
+  },
+  "environment": {
+    "python_version": "3.12.7",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "numpy_version": "2.2.6",
+    "scipy_version": "1.13.0",
+    "pandas_version": "3.0.6",
+    "statsmodels_version": "0.15.0"
+  },
+  "totals": {
+    "methods_count": 24,
+    "cases_count": 49,
+    "fields_compared_count": 592,
+    "level_a_passes": 332,
+    "level_b_passes": 69,
+    "level_c_passes": 167,
+    "deferred_count": 24,
+    "discrepancies_count": 0,
+    "strict_mode": false,
+    "overall_status": "pass"
+  },
+  "per_method_summary": {
+    "cronbach_alpha": {
+      "cases_count": 2,
+      "fields_compared_count": 26,
+      "level_a_passes": 18,
+      "level_b_passes": 0,
+      "level_c_passes": 6,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "fisher_exact": {
+      "cases_count": 2,
+      "fields_compared_count": 12,
+      "level_a_passes": 2,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "friedman_test": {
+      "cases_count": 2,
+      "fields_compared_count": 16,
+      "level_a_passes": 6,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "intraclass_correlation": {
+      "cases_count": 2,
+      "fields_compared_count": 34,
+      "level_a_passes": 24,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "kendall_tau_b": {
+      "cases_count": 2,
+      "fields_compared_count": 10,
+      "level_a_passes": 2,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "kruskal_wallis": {
+      "cases_count": 2,
+      "fields_compared_count": 32,
+      "level_a_passes": 18,
+      "level_b_passes": 8,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "linear_regression": {
+      "cases_count": 2,
+      "fields_compared_count": 30,
+      "level_a_passes": 22,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "logistic_regression": {
+      "cases_count": 2,
+      "fields_compared_count": 30,
+      "level_a_passes": 24,
+      "level_b_passes": 0,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "mann_whitney_u": {
+      "cases_count": 2,
+      "fields_compared_count": 14,
+      "level_a_passes": 4,
+      "level_b_passes": 2,
+      "level_c_passes": 8,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "mcnemar": {
+      "cases_count": 2,
+      "fields_compared_count": 14,
+      "level_a_passes": 6,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "one_sample_t": {
+      "cases_count": 2,
+      "fields_compared_count": 26,
+      "level_a_passes": 14,
+      "level_b_passes": 2,
+      "level_c_passes": 8,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "one_way_anova": {
+      "cases_count": 2,
+      "fields_compared_count": 34,
+      "level_a_passes": 20,
+      "level_b_passes": 8,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "paired_t": {
+      "cases_count": 2,
+      "fields_compared_count": 26,
+      "level_a_passes": 12,
+      "level_b_passes": 2,
+      "level_c_passes": 10,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "partial_pearson_correlation": {
+      "cases_count": 2,
+      "fields_compared_count": 14,
+      "level_a_passes": 4,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "pearson_chi_square": {
+      "cases_count": 2,
+      "fields_compared_count": 18,
+      "level_a_passes": 8,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "pearson_correlation": {
+      "cases_count": 2,
+      "fields_compared_count": 16,
+      "level_a_passes": 6,
+      "level_b_passes": 2,
+      "level_c_passes": 8,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "point_biserial_correlation": {
+      "cases_count": 2,
+      "fields_compared_count": 14,
+      "level_a_passes": 6,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "repeated_measures_anova": {
+      "cases_count": 2,
+      "fields_compared_count": 38,
+      "level_a_passes": 30,
+      "level_b_passes": 2,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "spearman_correlation": {
+      "cases_count": 2,
+      "fields_compared_count": 14,
+      "level_a_passes": 2,
+      "level_b_passes": 2,
+      "level_c_passes": 8,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "student_t": {
+      "cases_count": 2,
+      "fields_compared_count": 24,
+      "level_a_passes": 12,
+      "level_b_passes": 2,
+      "level_c_passes": 8,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "two_way_anova": {
+      "cases_count": 3,
+      "fields_compared_count": 60,
+      "level_a_passes": 42,
+      "level_b_passes": 9,
+      "level_c_passes": 9,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "welch_anova": {
+      "cases_count": 2,
+      "fields_compared_count": 44,
+      "level_a_passes": 32,
+      "level_b_passes": 6,
+      "level_c_passes": 6,
+      "level_d_deferred": 0,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "welch_t": {
+      "cases_count": 2,
+      "fields_compared_count": 24,
+      "level_a_passes": 12,
+      "level_b_passes": 2,
+      "level_c_passes": 8,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    },
+    "wilcoxon_signed_rank": {
+      "cases_count": 2,
+      "fields_compared_count": 22,
+      "level_a_passes": 6,
+      "level_b_passes": 4,
+      "level_c_passes": 10,
+      "level_d_deferred": 2,
+      "discrepancies_count": 0,
+      "status": "passed"
+    }
+  },
+  "deferred_quantities": [
+    {
+      "method_id": "one_sample_t",
+      "field": "effect_size_ci",
+      "evidence_level": "D",
+      "reason": "Effect size CI calculation deferred in Phase 2"
+    },
+    {
+      "method_id": "student_t",
+      "field": "effect_size_ci",
+      "evidence_level": "D",
+      "reason": "Effect size bootstrap CI deferred in Phase 2"
+    },
+    {
+      "method_id": "welch_t",
+      "field": "effect_size_ci",
+      "evidence_level": "D",
+      "reason": "Effect size bootstrap CI deferred in Phase 2"
+    },
+    {
+      "method_id": "paired_t",
+      "field": "effect_size_ci",
+      "evidence_level": "D",
+      "reason": "Cohen's dz exact noncentral-t CI deferred in Phase 2"
+    },
+    {
+      "method_id": "wilcoxon_signed_rank",
+      "field": "effect_size_ci",
+      "evidence_level": "D",
+      "reason": "Matched-pairs rank-biserial bootstrap CI deferred in Phase 2"
+    },
+    {
+      "method_id": "spearman_correlation",
+      "field": "confidence_interval",
+      "evidence_level": "D",
+      "reason": "Spearman paired bootstrap CI deferred in Phase 2"
+    },
+    {
+      "method_id": "pearson_chi_square",
+      "field": "effect_size_ci",
+      "evidence_level": "D",
+      "reason": "Cramer's V bootstrap interval deferred in Phase 2"
+    },
+    {
+      "method_id": "fisher_exact",
+      "field": "confidence_interval",
+      "evidence_level": "D",
+      "reason": "Odds ratio confidence interval deferred in Phase 2"
+    },
+    {
+      "method_id": "friedman_test",
+      "field": "kendall_w_bootstrap_ci",
+      "evidence_level": "D",
+      "reason": "Participant-block bootstrap interval requires deterministic resample harness"
+    },
+    {
+      "method_id": "partial_pearson_correlation",
+      "field": "partial_r_ci",
+      "evidence_level": "D",
+      "reason": "Covariate-resampling bootstrap interval scheduled for subsequent expansion"
+    },
+    {
+      "method_id": "cronbach_alpha",
+      "field": "cronbach_bootstrap_ci",
+      "evidence_level": "D",
+      "reason": "Respondent-row bootstrap interval scheduled for subsequent expansion"
+    },
+    {
+      "method_id": "intraclass_correlation",
+      "field": "icc_exact_ci",
+      "evidence_level": "D",
+      "reason": "Exact confidence limit inversion scheduled for subsequent expansion"
+    }
+  ]
+}
