@@ -8,6 +8,9 @@ provide focused technical and scientific detail organized by research goal.
 ## Getting started
 
 - [README](../README.md): Quick start, installation, core workflow, and overview.
+- [Migration Guide](MIGRATING_FROM_0_1.md): Transitioning from legacy 0.1.x composition APIs to the canonical `ResearchAssistant` workflow.
+- [Release Notes 0.5.0](RELEASE_NOTES_0_5_0.md): User-facing changes, capabilities, and guidance for the 0.5.0 release.
+- [Release Readiness Audit](RELEASE_READINESS_AUDIT.md): Comprehensive pre-release audit covering API consistency, packaging, and test verification.
 - [Examples Guide](../examples/README.md): Walkthroughs using the bundled realistic 5,000-row customer dataset.
 - [Capabilities](CAPABILITIES.md): Current user paths, workflow statuses, supported analyses, and boundaries.
 - [Usability Audit](USABILITY_AUDIT.md): Systematic usability audit across all 13 supported feature families, input shapes, sample accounting, orientation clarity, and market benchmarks.
@@ -79,6 +82,8 @@ PyAutoStat supports an end-to-end governance and research lifecycle connecting p
 
 - [Architecture](ARCHITECTURE.md): Module boundaries, public workflow, typed contracts, scientific safeguards, data ownership, and compatibility policy.
 - [API Reference](../API_REFERENCE.md): Comprehensive public API documentation with parameter specifications and return types.
+- [API Stability Policy](API_STABILITY.md): Stability tiers, SemVer policies, and deprecation process.
 - [Product Vision](../PRODUCT_VISION.md): Enduring product principles, estimand preservation, and scientific philosophy.
 - [Roadmap](../ROADMAP.md): Forward-looking development roadmap and planned capabilities.
+- [Citation Metadata](../CITATION.cff): Machine-readable academic citation metadata (CFF format).
 

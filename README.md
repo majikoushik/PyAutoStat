@@ -719,6 +719,22 @@ Explore the full gallery and business scenarios in the [Examples Guide](examples
 
 ---
 
+## Compatibility and migration from 0.1.x
+
+PyAutoStat maintains backwards compatibility for existing pipelines built with the 0.1.x composition classes:
+- **`ResearchAssistant`**: Recommended canonical API for exploratory profiling and inferential research workflows.
+- **`StatisticalAnalyzer`**: Direct advanced calculation engine for pre-specified tests, prospective planning, and sensitivity analysis.
+- **`InsightEngine`** and **`ReportGenerator`**: Legacy standalone engines preserved for backwards compatibility with 0.1.x pipelines.
+
+All legacy classes remain importable directly from `pyautostat`, no runtime deprecation warnings are emitted, and no public APIs have been removed.
+
+> [!NOTE]
+> Modern `ResearchAssistant` workflows provide design safeguards, estimand preservation, and Welch defaults. They do not necessarily produce identical output to legacy or unconstrained pipelines; migrating analyses should review study design and estimand declarations.
+
+See the [0.1.x to 0.5.x Migration Guide](docs/MIGRATING_FROM_0_1.md) and [API Stability Policy](docs/API_STABILITY.md) for full details.
+
+---
+
 ## Quality and validation
 
 The development pipeline includes:
@@ -767,14 +783,22 @@ contract and scope can be discussed first.
 
 ## Citation
 
-If you use PyAutoStat in academic work, record the exact package version and analysis environment.
+If you use PyAutoStat in academic research or teaching, please cite it using the metadata in [`CITATION.cff`](CITATION.cff):
 
-A formal project citation file may be added as the project matures. Until then, cite at minimum:
+```bibtex
+@software{pyautostat2026,
+  author = {Maji, Koushik Chandra},
+  title = {PyAutoStat},
+  version = {0.5.0},
+  url = {https://github.com/majikoushik/pyautostat},
+  year = {2026}
+}
+```
 
-- PyAutoStat;
-- the exact package version;
-- the project repository;
-- the version/date of the analysis environment.
+Or record at minimum:
+- PyAutoStat (version 0.5.0);
+- Repository: `https://github.com/majikoushik/pyautostat`;
+- Exact package version and analysis environment details (Python, pandas, SciPy versions).
 
 ---
 

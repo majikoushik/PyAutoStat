@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "PyAutoStat"
+type: software
+authors:
+  - family-names: "Maji"
+    given-names: "Koushik Chandra"
+    email: "koushiknsec34@gmail.com"
+repository-code: "https://github.com/majikoushik/pyautostat"
+url: "https://github.com/majikoushik/pyautostat"
+license: "MIT"
+version: "0.5.0"
+abstract: "Design-aware statistical analysis assistant for pandas DataFrames with method recommendation, effect sizes, uncertainty estimation, deterministic interpretation, reproducibility, audit, and research reporting."
+keywords:
+  - "statistics"
+  - "pandas"
+  - "research"
+  - "reproducibility"
+  - "hypothesis-testing"
+  - "effect-size"
+  - "research-reporting"

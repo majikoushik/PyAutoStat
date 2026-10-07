@@ -4,9 +4,16 @@ This page describes the public API in `pyautostat`. The [README](README.md) has 
 
 ## Which API should I use?
 
-PyAutoStat is structured into three intentional layers so you can start simple and adopt advanced controls only when your research design requires them.
+For most analyses, start with `ResearchAssistant`.
 
-### Level 1 — Recommended for most users
+PyAutoStat is structured into intentional layers so you can start simply and adopt lower-level or advanced controls only when your research design requires them:
+
+- **Recommended integrated API**: `ResearchAssistant` — coordinates profiling, question intake, method recommendation, execution, interpretation, reporting, and audit.
+- **Direct advanced API**: `StatisticalAnalyzer` — underlying computation engine for pre-specified tests, prospective planning (`StudyPlanner`), and sensitivity analysis.
+- **Framework and governance API**: typed contracts, audit engines, and export presentation models.
+- **Legacy compatibility APIs**: `InsightEngine` and `ReportGenerator` — standalone engines preserved for backwards compatibility with 0.1.x pipelines.
+
+### Level 1 — Recommended integrated API (`ResearchAssistant`)
 
 For nearly all exploratory and inferential research workflows on pandas DataFrames, start here:
 - **`ResearchAssistant`**: Coordinates profiling, question intake, method recommendation, assumption diagnostics, effect sizes, uncertainty, interpretation, audit, and reporting.
@@ -19,7 +26,8 @@ from pyautostat import ResearchAssistant, save_html, show
 assistant = ResearchAssistant(df)
 
 # Profile data quality and distributions
-show(assistant.profile())
+profile = assistant.profile()
+show(profile)
 
 # Execute a design-aware research workflow
 workflow = assistant.run(
@@ -32,7 +40,7 @@ workflow = assistant.run(
 
 # Inspect results in terminal and export publication report
 show(workflow)
-save_html(workflow, "research_report.html")
+save_html(workflow, "analysis.html")
 ```
 
 ### Canonical presentation and export paths
@@ -99,6 +107,20 @@ from pyautostat import (
     WorkflowStatus,
 )
 ```
+
+### Legacy compatibility APIs — `InsightEngine` and `ReportGenerator`
+
+PyAutoStat maintains full backwards compatibility with the standalone composition classes originally introduced in version 0.1.x:
+- **`InsightEngine`**: Standalone heuristic generation over `StatisticalAnalyzer.analyze_all()` output dictionaries.
+- **`ReportGenerator`**: Standalone multi-format reporting over analysis dictionaries and insights.
+
+**Compatibility status**:
+- Both classes remain fully importable from top-level `pyautostat` and supported for 0.1.x-style analysis pipelines.
+- Existing users are not forced to migrate immediately.
+- New users should normally start with `ResearchAssistant`, which integrates profiling, recommendation, execution, interpretation, reporting, and audit in a single design-aware workflow.
+- No removals or runtime deprecation warnings occur in this release.
+
+For step-by-step guidance on transitioning to modern workflows, see the [0.1.x to 0.5.x Migration Guide](docs/MIGRATING_FROM_0_1.md). For stability tier definitions, see the [API Stability Policy](docs/API_STABILITY.md).
 
 ### Which advanced feature do I need?
 
@@ -1224,7 +1246,9 @@ roles = suggest_column_roles(df)
 
 `suggest_column_roles()` returns `role`, `reason` and `suggested_action` for each column. Roles include identifier, target, datetime, economic, measurement and unknown. Both helpers are advisory: they do not transform data or select test columns.
 
-## `InsightEngine`
+## `InsightEngine` (Legacy Compatibility)
+
+`InsightEngine` is a standalone heuristic generation engine preserved for backwards compatibility with 0.1.x pipelines. It remains supported, but new workflows should normally use `ResearchAssistant`, which provides integrated deterministic interpretation. See the [0.1.x Migration Guide](docs/MIGRATING_FROM_0_1.md).
 
 ```python
 engine = InsightEngine(analysis)
@@ -1238,7 +1262,9 @@ legacy `columns` alias. Recommendations identify relevant columns but do not swi
 delete outliers, or impute values automatically. `get_summary()` generates findings if needed and
 returns `total_insights`, `high_severity`, `medium_severity`, `low_severity` and `insights`.
 
-## `ReportGenerator`
+## `ReportGenerator` (Legacy Compatibility)
+
+`ReportGenerator` is a standalone reporting engine preserved for backwards compatibility with 0.1.x pipelines. It remains supported, but modern workflows should use `show(...)`, `save_html(...)`, `save_pdf(...)`, `save_docx(...)`, or `save_bundle(...)` directly on workflows and reports. See the [0.1.x Migration Guide](docs/MIGRATING_FROM_0_1.md).
 
 ```python
 report = ReportGenerator(
