@@ -9,7 +9,7 @@ For most analyses, start with `ResearchAssistant`.
 PyAutoStat is structured into intentional layers so you can start simply and adopt lower-level or advanced controls only when your research design requires them:
 
 - **Recommended integrated API**: `ResearchAssistant` — coordinates profiling, question intake, method recommendation, execution, interpretation, reporting, and audit.
-- **Direct advanced API**: `StatisticalAnalyzer` — underlying computation engine for pre-specified tests, prospective planning (`StudyPlanner`), and sensitivity analysis.
+- **Direct advanced API**: `StatisticalAnalyzer` — underlying computation engine for pre-specified tests (accompanied by `StudyPlanner` for prospective planning and dedicated sensitivity workflow APIs).
 - **Framework and governance API**: typed contracts, audit engines, and export presentation models.
 - **Legacy compatibility APIs**: `InsightEngine` and `ReportGenerator` — standalone engines preserved for backwards compatibility with 0.1.x pipelines.
 
@@ -57,6 +57,7 @@ save_html(workflow, "analysis.html")
 | Verify bundle | `verify_bundle("bundle.zip")` | `verify_bundle(bytes_or_zip)` | `BundleVerificationResult` |
 
 For an in-depth audit of each format's target compatibility, privacy model, and dependency requirements, see the [Reporting Audit](docs/REPORTING_AUDIT.md).
+For independent mathematical validation evidence levels (A–D), tolerance policies, and first-tranche reference results, see the [Numerical Validation Foundation Guide](docs/NUMERICAL_VALIDATION.md).
 
 ### Level 2 — Direct statistical and planning API
 

@@ -1,0 +1,545 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "OST_01_BASIC_POS",
+      "method_id": "one_sample_t",
+      "scientific_target": "One-sample mean comparison against reference (positive difference)",
+      "dataset_description": "8 observations tested against reference value 10.0 (sample mean 15.5 > 10.0)",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Student (1908); independent manual formulas",
+      "sample_rows_original": 8,
+      "sample_rows_analyzed": 8,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "sample_mean_minus_reference": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "OST_02_MISSING_NEG",
+      "method_id": "one_sample_t",
+      "scientific_target": "One-sample mean comparison with missing data (negative difference)",
+      "dataset_description": "9 rows (2 missing) tested against reference value 8.0 (sample mean ~4.57 < 8.0)",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Student (1908); complete-case sample accounting",
+      "sample_rows_original": 9,
+      "sample_rows_analyzed": 7,
+      "sample_rows_excluded": 2,
+      "orientation_definition": {
+        "sample_mean_minus_reference": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "STT_01_EQUAL_VAR_POS",
+      "method_id": "student_t",
+      "scientific_target": "Two-sample Student's t-test with equal variance (positive difference)",
+      "dataset_description": "Two balanced groups (n1=6, n2=6) with equal spread; group A mean > group B mean",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Student (1908); pooled variance formula",
+      "sample_rows_original": 12,
+      "sample_rows_analyzed": 12,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "first_minus_second": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "STT_02_MISSING_NEG",
+      "method_id": "student_t",
+      "scientific_target": "Two-sample Student's t-test with missing data (negative difference)",
+      "dataset_description": "Unbalanced groups with missing values (n1=5, n2=6 analyzed; 2 excluded); T1 < T2",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Student (1908); pooled variance with complete-case filtering",
+      "sample_rows_original": 13,
+      "sample_rows_analyzed": 11,
+      "sample_rows_excluded": 2,
+      "orientation_definition": {
+        "first_minus_second": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "WEL_01_UNEQUAL_VAR_POS",
+      "method_id": "welch_t",
+      "scientific_target": "Welch's t-test with unequal variances (positive difference)",
+      "dataset_description": "Heteroscedastic groups (n1=7 with large variance, n2=5 with small variance); G1 > G2",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Welch (1947); Welch-Satterthwaite approximation",
+      "sample_rows_original": 12,
+      "sample_rows_analyzed": 12,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "first_minus_second": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "WEL_02_MISSING_NEG",
+      "method_id": "welch_t",
+      "scientific_target": "Welch's t-test with missing data (negative difference)",
+      "dataset_description": "Unbalanced heteroscedastic groups with missing rows (n1=5, n2=6 analyzed); A < B",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Welch (1947); complete-case Welch-Satterthwaite",
+      "sample_rows_original": 13,
+      "sample_rows_analyzed": 11,
+      "sample_rows_excluded": 2,
+      "orientation_definition": {
+        "first_minus_second": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "PAI_01_COMPLETE_POS",
+      "method_id": "paired_t",
+      "scientific_target": "Paired t-test on complete pairs (positive paired difference Pre - Post)",
+      "dataset_description": "7 complete pairs, Pre minus Post is consistently positive (mean diff > 0)",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Fisher (1925); paired difference mean and SE",
+      "sample_rows_original": 14,
+      "sample_rows_analyzed": 14,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "first_condition_minus_second": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "PAI_02_INCOMPLETE_NEG",
+      "method_id": "paired_t",
+      "scientific_target": "Paired t-test with incomplete units (negative difference Base - Treat)",
+      "dataset_description": "8 units total (6 complete pairs, 2 incomplete excluded); Base - Treat < 0",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Fisher (1925); paired unit-matching exclusion rule",
+      "sample_rows_original": 14,
+      "sample_rows_analyzed": 12,
+      "sample_rows_excluded": 2,
+      "orientation_definition": {
+        "first_condition_minus_second": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "MWU_01_NO_TIES_POS",
+      "method_id": "mann_whitney_u",
+      "scientific_target": "Mann-Whitney U with continuous distinct values (no ties, positive correlation)",
+      "dataset_description": "Two groups of 5 with no tied observations; group A values tend to exceed group B",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Mann & Whitney (1947); independent rank-sum formula",
+      "sample_rows_original": 10,
+      "sample_rows_analyzed": 10,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "rank_biserial": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "MWU_02_TIED_RANKS_NEG",
+      "method_id": "mann_whitney_u",
+      "scientific_target": "Mann-Whitney U with tied values and missing row (negative rank-biserial)",
+      "dataset_description": "Tied observations at 12.0, 15.0, 18.0; 1 missing row excluded; Low < High",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Mann & Whitney (1947); average rank assignment for ties",
+      "sample_rows_original": 12,
+      "sample_rows_analyzed": 11,
+      "sample_rows_excluded": 1,
+      "orientation_definition": {
+        "rank_biserial": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "WSR_01_NO_ZEROS_POS",
+      "method_id": "wilcoxon_signed_rank",
+      "scientific_target": "Wilcoxon signed-rank test without zero differences (positive effect)",
+      "dataset_description": "6 matched pairs where A > B across all pairs; no zero differences",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Wilcoxon (1945); signed-rank sum and rank-biserial",
+      "sample_rows_original": 12,
+      "sample_rows_analyzed": 12,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "rank_biserial": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "WSR_02_ZEROS_AND_TIES",
+      "method_id": "wilcoxon_signed_rank",
+      "scientific_target": "Wilcoxon signed-rank test with zero differences and ties (wilcox policy)",
+      "dataset_description": "8 pairs: 2 zero differences omitted from ranking; 5 ties at |d|=4; Pre < Post overall",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Wilcoxon (1945); wilcox zero-difference exclusion policy",
+      "sample_rows_original": 16,
+      "sample_rows_analyzed": 16,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "rank_biserial": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "PC_01_POSITIVE_LINEAR",
+      "method_id": "pearson_correlation",
+      "scientific_target": "Pearson correlation coefficient (positive linear association)",
+      "dataset_description": "8 paired points with strong positive linear association; Fisher-z CI",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Pearson (1895); Fisher (1921) z-transformation",
+      "sample_rows_original": 8,
+      "sample_rows_analyzed": 8,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "pearson_r": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "PC_02_NEGATIVE_MISSING",
+      "method_id": "pearson_correlation",
+      "scientific_target": "Pearson correlation with missing pairs (negative linear association)",
+      "dataset_description": "9 rows (2 missing pairs excluded, 7 complete); negative linear slope",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Pearson (1895); complete-pair filtering",
+      "sample_rows_original": 9,
+      "sample_rows_analyzed": 7,
+      "sample_rows_excluded": 2,
+      "orientation_definition": {
+        "pearson_r": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "SC_01_MONOTONIC_NO_TIES",
+      "method_id": "spearman_correlation",
+      "scientific_target": "Spearman rank correlation for strictly monotonic nonlinear relationship",
+      "dataset_description": "7 points with perfect monotonic order (rho = 1.0); no ties",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Spearman (1904); Pearson correlation of ranks",
+      "sample_rows_original": 7,
+      "sample_rows_analyzed": 7,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "spearman_rho": "positive"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "SC_02_TIED_NEGATIVE_MISSING",
+      "method_id": "spearman_correlation",
+      "scientific_target": "Spearman rank correlation with tied ranks and missing pair",
+      "dataset_description": "8 rows (1 missing pair, 7 analyzed); ties at 15.0 and 45.0; negative rank correlation",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Spearman (1904); average rank assignment for ties",
+      "sample_rows_original": 8,
+      "sample_rows_analyzed": 7,
+      "sample_rows_excluded": 1,
+      "orientation_definition": {
+        "spearman_rho": "negative"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "CHI_01_2X2_TABLE",
+      "method_id": "pearson_chi_square",
+      "scientific_target": "Pearson chi-square test of independence (2x2 table, all expected >= 5)",
+      "dataset_description": "80 observations in a 2x2 table; expected counts = 20.0 in all cells",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Pearson (1900); uncorrected chi-square and Cramer's V",
+      "sample_rows_original": 80,
+      "sample_rows_analyzed": 80,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "contingency_dimension": "2x2"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "CHI_02_3X2_RXC_MISSING",
+      "method_id": "pearson_chi_square",
+      "scientific_target": "Pearson chi-square test for RxC contingency table with missing rows",
+      "dataset_description": "92 rows (2 missing excluded, 90 analyzed); 3x2 table; all expected = 15.0 >= 5",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Pearson (1900); df = (r-1)(c-1) = 2",
+      "sample_rows_original": 92,
+      "sample_rows_analyzed": 90,
+      "sample_rows_excluded": 2,
+      "orientation_definition": {
+        "contingency_dimension": "3x2"
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "FET_01_STANDARD_2X2",
+      "method_id": "fisher_exact",
+      "scientific_target": "Fisher's exact test for 2x2 table (unconditional odds ratio)",
+      "dataset_description": "30 observations across 2x2 table with large odds ratio (OR = 11.0)",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Fisher (1935); cross-product sample odds ratio",
+      "sample_rows_original": 30,
+      "sample_rows_analyzed": 30,
+      "sample_rows_excluded": 0,
+      "orientation_definition": {
+        "odds_ratio": 11.0
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    },
+    {
+      "case_id": "FET_02_MISSING_OR_LT1",
+      "method_id": "fisher_exact",
+      "scientific_target": "Fisher's exact test with missing values (odds ratio < 1.0)",
+      "dataset_description": "26 rows (2 missing excluded, 24 analyzed); OR = 12/72 = 1/6 (~0.167)",
+      "reference_source_type": "manual_formula",
+      "reference_provenance": "Fisher (1935); complete-case sample odds ratio",
+      "sample_rows_original": 26,
+      "sample_rows_analyzed": 24,
+      "sample_rows_excluded": 2,
+      "orientation_definition": {
+        "odds_ratio": 0.16666666666666666
+      },
+      "tolerances": {
+        "default_atol": 1e-12,
+        "default_rtol": 1e-10,
+        "p_value_atol": 1e-08,
+        "p_value_rtol": 1e-06
+      },
+      "validation_evidence_levels": {
+        "primary_quantities": "Level A (Independent Reference)",
+        "p_values": "Level B (External Backend Conformance)",
+        "sample_accounting_and_orientation": "Level C (Internal Invariant)",
+        "effect_size_intervals": "Level D (Deferred)"
+      },
+      "notes": "Verified in PyAutoStat Phase 2 independent validation program"
+    }
+  ]
+}

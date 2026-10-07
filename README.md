@@ -58,7 +58,7 @@ PyAutoStat provides optional extras for extended reporting and visualization (co
 | --- | --- | --- |
 | **Core statistics & terminal** | `pip install pyautostat` | Full profiling, all 24 method families, Rich terminal presentation, static HTML, and Markdown |
 | **Interactive Plotly reports** | `pip install "pyautostat[report]"` | Adds interactive Plotly charts (forest plots, CIs) to HTML exports |
-| **Publication-ready PDF** | `pip install "pyautostat[pdf]"`<br>`python -m playwright install chromium` | Generates high-fidelity PDF documents via headless Chromium |
+| **Publication-oriented PDF** | `pip install "pyautostat[pdf]"`<br>`python -m playwright install chromium` | Generates high-fidelity PDF documents via headless Chromium |
 | **Figure-enabled PDF** | `pip install "pyautostat[report,pdf]"`<br>`python -m playwright install chromium` | Combines interactive figures with headless Chromium PDF generation |
 | **Editable Word (.docx)** | `pip install "pyautostat[docx]"` | Generates native Microsoft Word documents with styled tables and captions |
 | **Static scientific figures** | `pip install "pyautostat[figures]"`<br>`plotly_get_chrome -y` | Exports standalone publication-quality PNG, SVG, or vector figure-PDF files |
@@ -213,7 +213,7 @@ For most analyses, start with `ResearchAssistant`. Use this guide to select the 
 | **Assess scale reliability** | `assistant.reliability(items=[...])` | Cronbach's alpha with bootstrap CI, item-total correlations, and alpha-if-deleted |
 | **Assess rater agreement** | `assistant.intraclass_correlation(...)` | 6 canonical ICC configurations with ANOVA variance decomposition and F-tests |
 | **Inspect results in terminal** | `show(target)` | Polished Rich console presentation for workflows, profiles, and audit records |
-| **Export research reports** | `save_html(...)`, `save_pdf(...)`, `save_docx(...)` | Writes self-contained, publication-ready reports to disk |
+| **Export research reports** | `save_html(...)`, `save_pdf(...)`, `save_docx(...)` | Writes self-contained, publication-oriented reports to disk |
 
 ---
 
@@ -247,7 +247,7 @@ from pyautostat import save_html, save_pdf, save_docx
 # Static self-contained HTML report (offline, no CDN dependencies)
 save_html(workflow, "reports/analysis.html", detail="standard")
 
-# Publication-ready PDF (requires [pdf] extra and Playwright Chromium)
+# Publication-oriented PDF (requires [pdf] extra and Playwright Chromium)
 save_pdf(workflow, "reports/analysis.pdf", detail="full")
 
 # Editable Microsoft Word document (requires [docx] extra)
@@ -269,7 +269,7 @@ For specialized and developer workflows, PyAutoStat provides advanced presentati
 
 - **In-memory representations (`to_*`)**: `to_html(workflow)` returns an HTML string; `to_pdf(workflow)` and `to_docx(workflow)` return raw bytes for web applications or streaming pipelines.
 - **Interactive Plotly HTML (`save_interactive_html`)**: Adds interactive forest plots, CI charts, and contingency heatmaps (requires `[report]` extra).
-- **Static scientific figures (`save_static_figures`, `to_static_figures`)**: Generates publication-ready standalone vector (SVG, PDF) or high-DPI raster (PNG) figures from authoritative models (requires `[figures]` extra).
+- **Static scientific figures (`save_static_figures`, `to_static_figures`)**: Generates publication-quality standalone vector (SVG, PDF) or high-DPI raster (PNG) figures from authoritative models (requires `[figures]` extra).
 - **Reproducible research bundles (`save_bundle`, `verify_bundle`)**: Packages reports, machine-readable JSON results, tabular CSVs, and cryptographic SHA-256 manifests into an integrity-verifiable ZIP archive.
 
 For details, see the dedicated presentation guides:
@@ -723,7 +723,7 @@ Explore the full gallery and business scenarios in the [Examples Guide](examples
 
 PyAutoStat maintains backwards compatibility for existing pipelines built with the 0.1.x composition classes:
 - **`ResearchAssistant`**: Recommended canonical API for exploratory profiling and inferential research workflows.
-- **`StatisticalAnalyzer`**: Direct advanced calculation engine for pre-specified tests, prospective planning, and sensitivity analysis.
+- **`StatisticalAnalyzer`**: Direct advanced calculation engine for pre-specified tests (accompanied by `StudyPlanner` for prospective planning and dedicated sensitivity analysis APIs).
 - **`InsightEngine`** and **`ReportGenerator`**: Legacy standalone engines preserved for backwards compatibility with 0.1.x pipelines.
 
 All legacy classes remain importable directly from `pyautostat`, no runtime deprecation warnings are emitted, and no public APIs have been removed.
@@ -753,6 +753,8 @@ The development pipeline includes:
 
 Passing software tests does not by itself establish scientific truth. Numerical validation,
 scientific contracts, explicit limitations, and researcher judgment remain separate requirements.
+See the [Independent Numerical Validation Guide](docs/NUMERICAL_VALIDATION.md) for PyAutoStat's
+evidence hierarchy (Levels A–D), tolerance policies, and first-tranche reference results.
 
 ---
 

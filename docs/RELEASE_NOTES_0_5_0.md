@@ -20,7 +20,7 @@ In version 0.5.0:
 - The statistical capability expands from 4 basic checks to **24 registered statistical method IDs**
   across 9 distinct analysis families.
 - Multi-format presentation and export support is introduced, including Rich terminal rendering,
-  offline static and interactive HTML, publication PDF, editable Microsoft Word (.docx), static
+  offline static and interactive HTML, publication-oriented PDF, editable Microsoft Word (.docx), static
   scientific figures, and multi-format research bundles with SHA-256 integrity verification.
 - Advanced governance tools provide prospective study planning, pre-analysis plans, sensitivity
   scenarios, practical-significance threshold evaluations, and replayable execution records.
@@ -82,49 +82,47 @@ save_html(workflow, "reports/analysis.html")
 
 PyAutoStat supports 24 registered statistical method IDs across 9 analytical families:
 
-1. **Two-Group Independent Comparisons**:
+1. **Two-Group Independent Means**:
    - Welch independent-samples t-test (`welch_t`) — default mean comparison without assuming equal
      variance
    - Student independent-samples t-test (`student_t`) — explicit equal-variance mean comparison
    - Mann-Whitney U test (`mann_whitney_u`) — rank-distribution comparison
-2. **One-Sample Comparison**:
+2. **One-Sample & Reference Comparison**:
    - One-sample t-test (`one_sample_t`) — mean comparison against a reference threshold
 3. **Paired & Two-Condition Comparisons**:
-   - Paired-samples t-test (`paired_t`) — mean difference across paired conditions with explicit unit
-     tracking
-   - Wilcoxon signed-rank test (`paired_wilcoxon`) — paired rank comparison with matched-pairs
-     rank-biserial correlation
-   - McNemar test (`mcnemar`) — exact two-sided test of paired binary proportions
-4. **Multigroup Comparisons (3+ Groups)**:
+   - Paired-samples t-test (`paired_t`) — within-unit mean difference with unit ID tracking
+   - Wilcoxon signed-rank test (`wilcoxon_signed_rank`) — within-unit rank-distribution comparison with
+     matched-pairs rank-biserial correlation
+4. **Multi-Group Comparisons (3+ Groups)**:
    - Welch one-way ANOVA (`welch_anova`) with Games-Howell pairwise post-hoc contrasts
-   - Classical one-way ANOVA (`classical_anova`) with Tukey-Kramer pairwise post-hoc contrasts
+   - Classical one-way ANOVA (`one_way_anova`) with Tukey-Kramer pairwise post-hoc contrasts
    - Kruskal-Wallis rank test (`kruskal_wallis`) with Dunn-Holm pairwise post-hoc contrasts
-5. **Factorial Experiments**:
-   - Two-way factorial ANOVA (`two_way_anova`) with Type II and Type III sums of squares, simple main
-     effects, and marginal means
-6. **Regression**:
+5. **Factorial ANOVA**:
+   - Two-way factorial ANOVA (`two_way_anova`) with Type II (default) and Type III sums of squares, simple
+     main effects, and marginal means
+6. **Repeated Measures (3+ Conditions)**:
+   - One-way repeated-measures ANOVA (`repeated_measures_anova`) with Mauchly sphericity test,
+     Greenhouse-Geisser correction, partial eta-squared, and paired t follow-ups
+   - Friedman rank test (`friedman_test`) with Kendall's W concordance and Wilcoxon follow-ups
+7. **Regression**:
    - Ordinary least-squares regression (`linear_regression`) with classical or HC3 robust standard
      errors, VIF, Breusch-Pagan, and standardized coefficients
    - Binary logistic regression (`logistic_regression`) with odds ratios, Wald confidence intervals,
      and McFadden pseudo-R-squared
-7. **Association Measures**:
-   - Pearson correlation (`pearson_r`)
-   - Spearman rank correlation (`spearman_rho`)
-   - Kendall's tau-b (`kendall_tau_b`)
-   - Point-biserial correlation (`point_biserial`)
-   - Partial Pearson correlation (`partial_pearson`) with declared quantitative controls
-   - Pearson chi-square test of independence (`chi_square_independence`)
-   - Fisher's exact test (`fisher_exact`)
-8. **Scale Reliability**:
-   - Cronbach's alpha (`cronbach_alpha`) with respondent-row bootstrap confidence intervals,
+8. **Bivariate Association & Categorical**:
+   - Pearson correlation (`pearson_correlation`) — linear association with Fisher-z confidence intervals ($n > 3$)
+   - Spearman rank correlation (`spearman_correlation`) — monotonic association
+   - Kendall's tau-b (`kendall_tau_b`) — rank concordance with tie handling
+   - Point-biserial correlation (`point_biserial_correlation`) — continuous outcome with binary predictor
+   - Partial Pearson correlation (`partial_pearson_correlation`) with declared quantitative controls
+   - Pearson chi-square test of independence (`pearson_chi_square`) with Cramer's V
+   - Fisher's exact test (`fisher_exact`) — 2x2 contingency test for sparse expected counts
+   - McNemar test (`mcnemar`) — exact two-sided test of paired binary proportions using binomial inference on discordant pairs
+9. **Reliability & Agreement**:
+   - Cronbach's alpha (`cronbach_alpha`) — internal consistency scale reliability with respondent-row bootstrap confidence intervals,
      corrected item-total correlations, alpha-if-deleted, and optional explicit reverse scoring
-9. **Rater Reliability & Agreement (ICC)**:
-   - Intraclass Correlation Coefficients across all 6 canonical Shrout & Fleiss / McGraw & Wong
-     models: `icc_1_1`, `icc_1_k`, `icc_2_1`, `icc_2_k`, `icc_3_1`, `icc_3_k`
-10. **Repeated-Measures (3+ Conditions)**:
-    - One-way repeated-measures ANOVA (`repeated_measures_anova`) with Mauchly sphericity test,
-      Greenhouse-Geisser correction, partial eta-squared, and paired t follow-ups
-    - Friedman rank test (`friedman_test`) with Kendall's W concordance and Wilcoxon follow-ups
+   - Intraclass Correlation Coefficient (`intraclass_correlation`) — quantitative rater reliability across all 6 canonical Shrout & Fleiss / McGraw & Wong
+     models: ICC(1,1), ICC(1,k), ICC(2,1), ICC(2,k), ICC(3,1), ICC(3,k)
 
 ---
 
@@ -139,7 +137,7 @@ guarantee** and **data privacy contract**:
   structured tables and XSS protection, requiring no JavaScript runtime.
 - **Interactive HTML**: `save_interactive_html(...)` generates Plotly-powered interactive charts
   (forest plots, difference intervals, contingency heatmaps) bundled offline without CDN calls.
-- **Publication PDF**: `save_pdf(...)` / `to_pdf(...)` produces print-fidelity PDF documents via
+- **Publication-Oriented PDF**: `save_pdf(...)` / `to_pdf(...)` produces print-fidelity PDF documents via
   headless Chromium.
 - **Editable Word Documents**: `save_docx(...)` / `to_docx(...)` exports native Microsoft Word (.docx)
   files with structured OpenXML tables, headings, and optional embedded figures.
@@ -200,7 +198,7 @@ pip install pyautostat
 
 # Optional extras:
 pip install "pyautostat[report]"   # Interactive Plotly HTML reports
-pip install "pyautostat[pdf]"      # Publication PDF export (requires playwright)
+pip install "pyautostat[pdf]"      # Publication-oriented PDF export (requires playwright)
 pip install "pyautostat[docx]"     # Microsoft Word (.docx) export
 pip install "pyautostat[figures]"  # Standalone static PNG/SVG/PDF figures (requires kaleido)
 pip install "pyautostat[dev]"      # Developer tools, linters, test runner

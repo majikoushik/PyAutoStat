@@ -104,7 +104,8 @@ graph TD
 **Stability Intent**:
 - Public and fully supported when exported and documented.
 - Designed for tool builders, platform integrators, automated pipelines, and compliance systems.
-- Data structures and schemas are versioned (e.g. `BUNDLE_SCHEMA_VERSION = 1`). While schemas may
+- Dedicated serialized schemas are explicitly versioned (e.g. research bundle schema `BUNDLE_SCHEMA_VERSION = 1`
+  and session snapshot schema `SNAPSHOT_SCHEMA_VERSION = 1`). While data structures and dataclasses may
   gain optional fields or structural refinements prior to `1.0.0`, all changes will be explicitly
   documented in `CHANGELOG.md`.
 
@@ -133,17 +134,17 @@ graph TD
 
 ---
 
-## 4. Scientific Stability Invariants
+## 4. Core Scientific Design Principles and Intended Invariants
 
-Beyond Python signatures, PyAutoStat maintains fundamental scientific invariants that do not change
-across releases:
+Beyond Python signatures, PyAutoStat adheres to core scientific design principles across releases (unless
+a bug fix or security correction is strictly required for statistical validity or execution safety):
 
 1. **Estimand preservation**: Diagnostic test outcomes (such as Shapiro-Wilk or Levene's tests) will
    never silently alter the scientific question or substitute a different estimand.
 2. **Explicit design**: Unknown design facts (independence, pairing, clustering, event definitions)
    will never be guessed from numerical values.
 3. **Zero recalculation**: Presentation, reporting, and export layers consume authoritative stored
-   statistical results and will never re-execute statistical models or alter numerical values.
+   statistical results and do not re-execute statistical models or alter numerical values.
 4. **Data preservation**: Input DataFrames are treated as read-only. Profiling and analysis will
    never mutate, sample, truncate, or impute user data.
 5. **No automated p-hacking**: The library does not perform automated feature selection, stepwise

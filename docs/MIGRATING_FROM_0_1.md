@@ -137,7 +137,7 @@ PyAutoStat 0.5.x introduces a clear conceptual separation between viewing and sa
 | **Terminal view** | `print(analyzer.summarize())` | `show(workflow)` or `show(profile)` | None (included in core) |
 | **Static HTML** | `ReportGenerator(...).to_html("r.html")` | `save_html(workflow, "r.html")` | None (included in core) |
 | **Interactive HTML**| `ReportGenerator(...).to_interactive_html("r.html")` | `save_interactive_html(workflow, "r.html")` | `pyautostat[report]` |
-| **Publication PDF** | Not available | `save_pdf(workflow, "r.pdf")` | `pyautostat[pdf]` |
+| **Publication-oriented PDF** | Not available | `save_pdf(workflow, "r.pdf")` | `pyautostat[pdf]` |
 | **Word (.docx)** | Not available | `save_docx(workflow, "r.docx")` | `pyautostat[docx]` |
 | **Static Figures** | Not available | `save_static_figures(workflow, "dir")`| `pyautostat[figures]` |
 | **Research Bundle** | Not available | `save_bundle(workflow, "bundle.zip")` | None (core) |
@@ -167,43 +167,64 @@ All 0.5.x export layers strictly enforce:
 
 ## 7. Major capability additions since 0.1.x
 
-PyAutoStat has expanded from 4 basic statistical checks in 0.1.0 to 24 registered statistical method
-IDs across 9 distinct analysis families:
+PyAutoStat has expanded from 4 basic statistical checks in 0.1.0 to **24 registered statistical method
+IDs** across **9 distinct analytical families**:
 
-1. **Two-group independent comparisons**: Welch independent t-test (default for means without
-   assuming equal variance), Student t-test (explicit equal variance), Mann-Whitney U test.
-2. **One-sample comparisons**: One-sample t-test against reference threshold.
-3. **Paired and two-condition comparisons**: Paired t-test, Wilcoxon signed-rank test, exact McNemar
-   test with explicit unit ID tracking.
-4. **Multigroup comparisons (3+ groups)**: Welch one-way ANOVA with Games-Howell post-hoc contrasts,
-   classical ANOVA with Tukey-Kramer post-hoc contrasts, Kruskal-Wallis with Dunn-Holm post-hoc
-   contrasts.
-5. **Two-way factorial ANOVA**: Type II and Type III sums of squares, simple main effects, and
-   marginal means for factorial experiments.
-6. **Linear and logistic regression**: OLS regression with classical or HC3 robust standard errors,
-   VIF, Breusch-Pagan, and standardized coefficients; binary logistic regression with odds ratios and
-   intervals.
-7. **Association measures**: Pearson correlation, Spearman rank correlation, Kendall tau-b,
-   point-biserial correlation, partial Pearson correlation with declared quantitative controls,
-   Pearson chi-square test of independence, Fisher exact test.
-8. **Scale reliability**: Cronbach's alpha with respondent-row bootstrap confidence intervals,
-   corrected item-total correlations, alpha-if-deleted, and explicit reverse scoring.
-9. **Rater reliability & agreement**: Intraclass Correlation Coefficients (ICC) across all 6 canonical
-   Shrout & Fleiss / McGraw & Wong configurations: ICC(1,1), ICC(1,k), ICC(2,1), ICC(2,k), ICC(3,1),
-   ICC(3,k).
-10. **Repeated measures (3+ conditions)**: One-way RM-ANOVA with Mauchly sphericity test,
-    Greenhouse-Geisser correction, and paired t follow-ups; Friedman rank test with Kendall's W and
-    Wilcoxon follow-ups.
-11. **Prospective study planning**: `StudyPlanner` for sample-size and power/precision planning prior
-    to data collection.
-12. **Statistical Analysis Plans**: `StatisticalAnalysisPlan` snapshots and adherence comparison
-    (`compare_plan_to_result`).
-13. **Sensitivity analysis**: `SensitivitySpecification` for evaluating same-estimand and
-    different-estimand alternative scenarios.
-14. **Practical significance**: `MeaningfulEffectThreshold` for evaluating empirical effects against
-    researcher-defined practical thresholds.
-15. **Audit & Replay**: `StatisticalResultAuditor` for verifying internal consistency, and
-    `ReproducibilityRecord` with `reproduce()` for explicit execution replay.
+1. **Two-Group Independent Means**:
+   - Welch independent t-test (`welch_t`) — default mean comparison without assuming equal variance
+   - Student independent t-test (`student_t`) — explicit equal-variance mean comparison
+   - Mann-Whitney U test (`mann_whitney_u`) — rank-distribution comparison
+2. **One-Sample & Reference Comparison**:
+   - One-sample t-test (`one_sample_t`) — single-group mean against reference threshold
+3. **Paired & Two-Condition Comparisons**:
+   - Paired-samples t-test (`paired_t`) — within-unit mean difference with unit ID tracking
+   - Wilcoxon signed-rank test (`wilcoxon_signed_rank`) — within-unit rank-distribution comparison with
+     matched-pairs rank-biserial correlation
+4. **Multi-Group Comparisons (3+ Groups)**:
+   - Welch one-way ANOVA (`welch_anova`) with Games-Howell post-hoc contrasts
+   - Classical one-way ANOVA (`one_way_anova`) with Tukey-Kramer post-hoc contrasts
+   - Kruskal-Wallis rank test (`kruskal_wallis`) with Dunn-Holm post-hoc contrasts
+5. **Factorial ANOVA**:
+   - Two-way factorial ANOVA (`two_way_anova`) with Type II (default) and Type III sums of squares, simple
+     main effects, and marginal means
+6. **Repeated Measures (3+ Conditions)**:
+   - One-way repeated-measures ANOVA (`repeated_measures_anova`) with Mauchly sphericity test,
+     Greenhouse-Geisser correction, and paired t follow-ups
+   - Friedman rank test (`friedman_test`) with Kendall's W concordance and Wilcoxon follow-ups
+7. **Regression**:
+   - OLS linear regression (`linear_regression`) with classical or HC3 robust standard errors, VIF,
+     Breusch-Pagan, and standardized coefficients
+   - Binary logistic regression (`logistic_regression`) with odds ratios, Wald confidence intervals,
+     and McFadden pseudo-R-squared
+8. **Bivariate Association & Categorical**:
+   - Pearson correlation (`pearson_correlation`) with Fisher-z confidence intervals ($n > 3$)
+   - Spearman rank correlation (`spearman_correlation`) — monotonic association
+   - Kendall's tau-b (`kendall_tau_b`) — rank concordance with tie handling
+   - Point-biserial correlation (`point_biserial_correlation`) — continuous outcome with binary predictor
+   - Partial Pearson correlation (`partial_pearson_correlation`) with declared quantitative controls
+   - Pearson chi-square test of independence (`pearson_chi_square`) with Cramer's V
+   - Fisher's exact test (`fisher_exact`) — 2x2 contingency test for sparse expected counts
+   - McNemar test (`mcnemar`) — exact two-sided test of paired binary proportions using binomial inference
+9. **Reliability & Agreement**:
+   - Cronbach's alpha (`cronbach_alpha`) with respondent-row bootstrap confidence intervals,
+     corrected item-total correlations, alpha-if-deleted, and optional explicit reverse scoring
+   - Intraclass Correlation Coefficient (`intraclass_correlation`) across all 6 canonical Shrout & Fleiss /
+     McGraw & Wong models: ICC(1,1), ICC(1,k), ICC(2,1), ICC(2,k), ICC(3,1), ICC(3,k)
+
+### Additional Research Lifecycle & Governance Capabilities
+
+Beyond inferential methods, PyAutoStat provides integrated research lifecycle capabilities:
+
+- **Prospective study planning**: `StudyPlanner` for sample-size and power/precision planning prior
+  to data collection.
+- **Statistical Analysis Plans**: `StatisticalAnalysisPlan` snapshots and adherence comparison
+  (`compare_plan_to_result`).
+- **Sensitivity analysis**: `SensitivitySpecification` for evaluating same-estimand and
+  different-estimand alternative scenarios.
+- **Practical significance**: `MeaningfulEffectThreshold` for evaluating empirical effects against
+  researcher-defined practical thresholds.
+- **Audit & Replay**: `StatisticalResultAuditor` for verifying internal consistency, and
+  `ReproducibilityRecord` with `reproduce()` for explicit execution replay.
 
 ---
 
