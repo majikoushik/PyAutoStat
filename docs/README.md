@@ -1,26 +1,35 @@
-# PyAutoStat Documentation
+# PyAutoStat documentation
 
-The root [README](../README.md) is the beginner introduction, the [API reference](../API_REFERENCE.md)
-documents public calls and return contracts, [Product Vision](../PRODUCT_VISION.md) contains core
-principles, and the [roadmap](../ROADMAP.md) lists future improvement priorities. The documents here
-provide focused technical and scientific detail organized by research goal.
+Use this page as the documentation home. Begin with a research task; move to reference and
+governance material only when you need it.
 
-## Getting started
+## Start here
 
-- [README](../README.md): Quick start, installation, core workflow, and overview.
-- [Migration Guide](MIGRATING_FROM_0_1.md): Transitioning from legacy 0.1.x composition APIs to the canonical `ResearchAssistant` workflow.
-- [Release Notes 0.5.0](RELEASE_NOTES_0_5_0.md): User-facing changes, capabilities, and guidance for the 0.5.0 release.
-- [Release Readiness Audit](RELEASE_READINESS_AUDIT.md): Comprehensive pre-release audit covering API consistency, packaging, and test verification.
-- [Examples Guide](../examples/README.md): Walkthroughs using the bundled realistic 5,000-row customer dataset.
-- [Capabilities](CAPABILITIES.md): Current user paths, workflow statuses, supported analyses, and boundaries.
-- [Usability Audit](USABILITY_AUDIT.md): Systematic usability audit across all 13 supported feature families, input shapes, sample accounting, orientation clarity, and market benchmarks.
+- [Getting Started](GETTING_STARTED.md): install the package and run independent, paired, and
+  correlation examples.
+- [Task Guides](task_guides/README.md): choose a workflow by research question.
+- [README](../README.md): one-minute project introduction and exact quickstart output.
+- [Examples Guide](../examples/README.md): longer examples using the bundled customer dataset.
 
-## Analysis workflows
+| Research task | Guide |
+| --- | --- |
+| Independent, paired, distribution, or reference comparisons | [Mean comparisons](task_guides/mean_comparisons.md) |
+| Pearson, Spearman, Kendall, partial, point-biserial, or categorical association | [Associations](task_guides/associations.md) |
+| 3+ groups, repeated conditions, or two factors | [Multigroup, repeated & factorial](task_guides/multigroup_repeated_factorial.md) |
+| Conditional means or binary event odds | [Regression](task_guides/regression.md) |
+| Scale internal consistency or rater agreement | [Reliability & agreement](task_guides/reliability_agreement.md) |
 
-- [Capabilities](CAPABILITIES.md): Exact supported analysis families, guided defaults, and explicit alternatives.
-- [Statistical method contracts](STATISTICAL_METHOD_CONTRACTS.md): Authoritative scientific contracts, estimands, null hypotheses, uncertainty classifications, assumptions, degenerate data policies, and validation sources for every shipped inferential method.
-- [ICC Guide](ICC_GUIDE.md): Dedicated guide to Intraclass Correlation Coefficients for quantitative inter-rater and test-retest reliability and agreement across the 6 canonical Shrout & Fleiss / McGraw & Wong configurations.
-- [Advanced planning and presentation](ADVANCED_PLANNING_AND_PRESENTATION.md): Analysis plans, prospective study planning, explicit two-condition paired analysis, reporting completeness, and session snapshots.
+## Statistical capabilities
+
+- [Capabilities](CAPABILITIES.md): user paths, workflow statuses, supported analyses, and explicit
+  boundaries.
+- [Statistical Method Contracts](STATISTICAL_METHOD_CONTRACTS.md): estimands, inputs, assumptions,
+  exclusions, numerical backends, effects, intervals, and limits for every registered method.
+- [Statistical Validation](STATISTICAL_VALIDATION.md): cross-method numerical and interpretive
+  policies.
+- [Numerical Validation](NUMERICAL_VALIDATION.md): reference cases, tolerances, and evidence levels.
+- [Scientific Limitations](SCIENTIFIC_LIMITATIONS.md): boundaries on designs and claims.
+- [ICC Guide](ICC_GUIDE.md): focused selection and interpretation for agreement/reliability.
 
 ## Understanding results
 
@@ -33,7 +42,7 @@ provide focused technical and scientific detail organized by research goal.
 - [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md): Sensitivity scenario comparability and researcher-defined meaningful-effect thresholds.
 - [Scientific limitations](SCIENTIFIC_LIMITATIONS.md): Unsupported claims, design responsibilities, privacy limits, resource caveats, and dependency boundaries.
 
-## Reporting and reproducibility
+## Reporting
 
 - [Terminal presentation](TERMINAL_PRESENTATION.md): Polished, Rich-powered console rendering for workflows, profiles, and governance records via `show(...)`.
 - [HTML reporting](HTML_REPORTING.md): Offline static and interactive HTML presentation layers with zero statistical recalculation.
@@ -43,7 +52,6 @@ provide focused technical and scientific detail organized by research goal.
 - [Research export bundles](RESEARCH_BUNDLES.md): Multi-format self-contained zip archives with cryptographic SHA-256 tamper verification.
 - [Reporting audit](REPORTING_AUDIT.md): Systematic engineering and usability audit across all presentation media, target compatibilities, and semantic parity contracts.
 - [Research report schema](RESEARCH_REPORT_SCHEMA.md): Canonical report structure, serialization, export protections, and presentation contracts.
-- [Provenance and replay](PROVENANCE_AND_REPLAY.md): Decision ledger, content references, dataset fingerprints, auditing, reproducibility records, and explicit replay.
 
 ### Reporting quick guide
 
@@ -56,9 +64,15 @@ provide focused technical and scientific detail organized by research goal.
 | Journal/slide figure | `save_static_figures` |
 | Archive/share all artifacts | `save_bundle` |
 
-## Advanced research lifecycle
+Core installation provides terminal, static HTML, Markdown, JSON, CSV tables, and safe LaTeX.
+Plotly, Playwright/Chromium, python-docx, and Kaleido/Chrome are optional and documented in their
+respective guides.
 
-PyAutoStat supports an end-to-end governance and research lifecycle connecting prospective planning, execution, sensitivity, practical significance, reporting completeness, auditing, reproducibility records, and explicit replay:
+## Advanced and reproducibility
+
+Start with [Advanced Workflows](ADVANCED_WORKFLOWS.md), which routes planning, practical
+significance, sensitivity, reporting completeness, audit, fingerprints, replay, research bundles,
+governance, and direct APIs.
 
 - [Governance usability audit](GOVERNANCE_USABILITY_AUDIT.md): Systematic audit across all 16 lifecycle feature families, language contracts, status vocabularies, and scientific boundaries.
 - [Advanced planning and presentation](ADVANCED_PLANNING_AND_PRESENTATION.md): Analysis plans (`StatisticalAnalysisPlan`), plan adherence (`plan_adherence`), prospective study planning (`StudyPlanner`), reporting completeness (`reporting_completeness`), and session snapshots (`session_snapshot`), including an end-to-end lifecycle script.
@@ -82,11 +96,18 @@ PyAutoStat supports an end-to-end governance and research lifecycle connecting p
 | Explicitly rerun | `reproduce(record, data=...)` |
 | Snapshot current application state | `session_snapshot` / `assistant.session_snapshot(...)` |
 
-## Advanced / developer
+These records preserve and compare recorded evidence. They do not authenticate data, prove
+preregistration, certify study quality, or establish causality.
+
+## Developer and reference
 
 - [Architecture](ARCHITECTURE.md): Module boundaries, public workflow, typed contracts, scientific safeguards, data ownership, and compatibility policy.
 - [API Reference](../API_REFERENCE.md): Comprehensive public API documentation with parameter specifications and return types.
 - [API Stability Policy](API_STABILITY.md): Stability tiers, SemVer policies, and deprecation process.
+- [Migration Guide](MIGRATING_FROM_0_1.md): Transition from legacy 0.1.x composition APIs.
+- [Release Notes 0.5.0](RELEASE_NOTES_0_5_0.md): Published 0.5.0 capabilities and guidance.
+- [Release Readiness Audit](RELEASE_READINESS_AUDIT.md): Release-scope evidence and limitations.
+- [Usability Audit](USABILITY_AUDIT.md): Historical usability review.
 - [Product Vision](../PRODUCT_VISION.md): Enduring product principles, estimand preservation, and scientific philosophy.
 - [Roadmap](../ROADMAP.md): Forward-looking development roadmap and planned capabilities.
 - [Citation Metadata](../CITATION.cff): Machine-readable academic citation metadata (CFF format).

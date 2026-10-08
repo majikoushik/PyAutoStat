@@ -84,10 +84,12 @@ def test_readme_presents_beginner_workflow_before_advanced_topics():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     sections = [
         "## Installation",
-        "## Quick start: profile a DataFrame",
-        "## Guided analysis",
-        "## When information is missing",
-        "## Advanced workflows",
+        "## 60-second quickstart",
+        "## Choose your task",
+        "## Scientific safeguards and what happens under the hood",
+        "## Result views",
+        "## Supported methods and capabilities",
+        "## Advanced reproducibility and governance",
     ]
     positions = [readme.index(section) for section in sections]
     assert positions == sorted(positions)

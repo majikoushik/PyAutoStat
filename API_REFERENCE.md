@@ -1,6 +1,47 @@
 # PyAutoStat API reference
 
-This page describes the public API in `pyautostat`. The [README](README.md) has a short start-to-finish example; the [examples guide](examples/README.md) covers profiling, estimand-aware tests, and the complete research lifecycle.
+This page is the authoritative public signature and contract reference for `pyautostat`. Start
+with [Getting Started](docs/GETTING_STARTED.md) for a runnable tutorial or the
+[task guides](docs/task_guides/README.md) for research-task walkthroughs.
+
+## Task-based navigation
+
+1. **Beginner front door:** [beginner methods](#beginner-front-door)
+2. **Dataset profiling:** [common workflows](#researchassistant-common-workflows)
+3. **Mean comparisons:** [task guide](docs/task_guides/mean_comparisons.md) and
+   [independent group contracts](#independent-group-comparisons)
+4. **Associations:** [task guide](docs/task_guides/associations.md) and
+   [categorical association contract](#categorical-association)
+5. **Multigroup / repeated / factorial:** [task guide](docs/task_guides/multigroup_repeated_factorial.md),
+   [repeated measures](#repeated-measures-analysis-3-conditions), and
+   [two-way factorial ANOVA](#two-way-factorial-anova)
+6. **Regression:** [task guide](docs/task_guides/regression.md),
+   [OLS](#ols-regression-workflow), and
+   [binary logistic regression](#binary-logistic-regression-and-extended-association)
+7. **Reliability / ICC:** [task guide](docs/task_guides/reliability_agreement.md),
+   [scale reliability](#scale-reliability-workflow), and
+   [ICC](#intraclass-correlation-coefficient-icc-workflow)
+8. **Result reading:** [result ergonomics and statements](#result-ergonomics-primary-views-and-apa-oriented-statements)
+9. **Reporting / export:** [viewing and saving results](#viewing-and-saving-results)
+10. **Planning / sensitivity / reproducibility:** [advanced feature routing](#which-advanced-feature-do-i-need)
+    and [Advanced Workflows](docs/ADVANCED_WORKFLOWS.md)
+11. **Low-level APIs:** [StatisticalAnalyzer](#statisticalanalyzer--direct-statistical-calculations)
+    and [legacy compatibility APIs](#legacy-compatibility-apis--insightengine-and-reportgenerator)
+
+Tutorial prose lives in the task guides; this reference retains exact signatures, status behavior,
+stored fields, constraints, and compatibility contracts.
+
+## Beginner front door
+
+For ordinary mean comparisons and correlations, begin with
+`ResearchAssistant.compare_means(...)`, `ResearchAssistant.correlate(..., method=...)`, and
+`ResearchWorkflowResult.brief()`. These are thin routes into the same validated workflow as
+`run()`; they do not alter calculations or result schemas. Profiling with `profile()` is useful
+but not mandatory before analysis.
+
+Use `run()` for explicit advanced estimands, reference comparisons, multigroup, repeated,
+factorial, regression, reliability, and specialized association designs. Use
+`StatisticalAnalyzer` when the exact low-level calculation has already been selected.
 
 ## Which API should I use?
 

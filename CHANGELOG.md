@@ -9,6 +9,8 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Added a beginner-first README front door with a verified 60-second `compare_means()` example, actual `brief()` output, early task routing, consistent result-view hierarchy, and concise scope boundaries.
+-   Added `docs/GETTING_STARTED.md`, five focused task guides, a task-guide index, and `docs/ADVANCED_WORKFLOWS.md` to separate runnable tutorials from API contracts and advanced governance navigation.
 -   Added `ResearchWorkflowResult.type_guidance()`, a deterministic, non-serialized view of stored variable-type declarations and advisory hints, including existing ambiguity and public `variable_types` override guidance without re-profiling or statistical calculation.
 -   Added `ResearchWorkflowResult.brief(include_warnings=True)`, a deterministic single-paragraph result view with method-specific summaries for all 24 registered methods, explicit workflow-status handling, stored sample/orientation context, and optional bounded warning display. The convenience performs no statistical recalculation and does not change serialized workflow schemas.
 -   Added `ResearchAssistant.compare_means(...)` and `ResearchAssistant.correlate(..., method=...)` as thin beginner conveniences over the existing design-aware `run()` workflow, without adding methods or changing statistical calculations.
@@ -21,7 +23,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 -   Made integrated column, declaration-key, event/reference-level, condition-order, and frequent argument-conflict diagnostics actionable, with at most one credible typo suggestion and bounded original-order column/level displays; no suggested value is applied automatically.
 -   Corrected Fisher exact documentation to distinguish its exact two-sided p-value from the asymptotic log-Wald interval for SciPy's unconditional sample odds-ratio estimator, including zero-cell interval unavailability.
--   Corrected README wording from 24 statistical method families to 24 registered statistical methods.
+-   Corrected README method-count wording to identify 24 registered statistical methods rather than treating method IDs as analysis families.
 -   Hardened result ergonomics convenience accessors in `pyautostat.result_access`:
     -   Corrected repeated-measures ANOVA statement formatting to read authoritative integrated schema `values["greenhouse_geisser"]["epsilon"]` and `values["greenhouse_geisser"]["applied"]`, preventing epsilon from displaying as unavailable when stored.
     -   Corrected `result.effect_size_confidence_interval` lookup to read authoritative nested `values["effect_size"]["confidence_interval"]`.
@@ -41,6 +43,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+-   Reorganized the API reference and documentation home by research task and reader goal while retaining authoritative signatures, scientific constraints, reporting setup, and advanced reproducibility material.
 -   Modernized the example suite to use the canonical Rich `show()` presentation for statistical, planning, governance, and workflow results.
 -   Removed redundant hand-built terminal tables and duplicated statistical formatting from tutorial examples.
 -   Aligned example terminal framing with the current presentation system while preserving business/research teaching commentary.
@@ -90,7 +93,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
     -   Added real dynamic Word footer field codes (`PAGE` and `NUMPAGES`) rendering `Page X of Y` when `page_numbers=True`.
     -   Created clean semantic named styles (`PyAutoStat Title`, `PyAutoStat Subtitle`, `PyAutoStat Body`, `PyAutoStat Metric Label`, `PyAutoStat Metric Value`, `PyAutoStat Table Header`, `PyAutoStat Diagnostic`, `PyAutoStat Warning`) with typographic style presets (`general`, `apa`, `ieee`).
     -   Structured OpenXML tables: converts statistical metrics and displays to true Word tables, applies `w:tblHeader` to repeat header rows across pages, applies `w:cantSplit` to individual rows to prevent awkward page splits, and right-aligns numerical estimates.
-    -   Validated universal presentation coverage: renders all 24 registered statistical method families and all 14 non-analysis governance/planning objects without statistical adapters.
+    -   Validated universal presentation coverage: renders all 24 registered statistical methods and all 14 non-analysis governance/planning objects without statistical adapters.
     -   Preserved research report fidelity: structured sections (Executive Summary, Research Question, Dataset, Methods, Results, Diagnostics, Interpretation, Practical Significance, Sensitivity Analysis, Limitations, Warnings, Analysis Record) matching standalone export values.
     -   Enforced zero-recalculation guarantee and privacy protections: never re-executes statistical models or leaks raw row-level data.
     -   Added actionable missing-dependency error handling when `python-docx` is not installed, preserving clean base imports.
