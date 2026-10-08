@@ -728,3 +728,12 @@ class ResearchWorkflowResult:
     def __str__(self) -> str:
         """Delegate to :meth:`explain` for natural ``print()`` behaviour."""
         return self.explain()
+
+    def apa_statement(self) -> str:
+        """Generate a deterministic APA-oriented statistical statement from the completed workflow.
+
+        Delegates to the computed AnalysisResult statement formatter without recalculation.
+        """
+        from .result_access import generate_workflow_statement
+
+        return generate_workflow_statement(self)

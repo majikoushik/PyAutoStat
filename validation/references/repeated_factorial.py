@@ -12,7 +12,6 @@ import math
 from typing import Any
 
 import numpy as np
-import statsmodels.api as sm
 from scipy import stats
 from validation.references.foundational import compute_ranks
 from validation.references.multigroup import adjust_holm
@@ -371,10 +370,18 @@ def reference_two_way_anova_model(
     x_a = np.hstack([const, xa])
     x_b = np.hstack([const, xb])
 
-    # OLS fits
-    m_full = sm.OLS(y, x_full).fit()
+    # Independent OLS linear algebra: solve(X'X, X'y)
+    def _ols_fit(x_mat: np.ndarray) -> tuple[np.ndarray, float]:
+        xtx = x_mat.T @ x_mat
+        xty = x_mat.T @ y
+        b_coef = np.linalg.solve(xtx, xty)
+        fitted = x_mat @ b_coef
+        res = y - fitted
+        return b_coef, float(np.sum(res**2))
+
+    b_full, sse_full = _ols_fit(x_full)
     df_residual = n - x_full.shape[1]
-    ss_residual = float(m_full.ssr)
+    ss_residual = sse_full
     ms_residual = ss_residual / df_residual
 
     df_a = len(a_levels) - 1
@@ -382,13 +389,14 @@ def reference_two_way_anova_model(
     df_ab = df_a * df_b
 
     if sum_of_squares == "type2":
-        m_add = sm.OLS(y, x_add).fit()
-        m_a = sm.OLS(y, x_a).fit()
-        m_b = sm.OLS(y, x_b).fit()
+        # Type II: hierarchical reduced model SSE comparisons
+        _, sse_add = _ols_fit(x_add)
+        _, sse_a = _ols_fit(x_a)
+        _, sse_b = _ols_fit(x_b)
 
-        ss_a = max(0.0, float(m_b.ssr - m_add.ssr))
-        ss_b = max(0.0, float(m_a.ssr - m_add.ssr))
-        ss_ab = max(0.0, float(m_add.ssr - m_full.ssr))
+        ss_a = max(0.0, float(sse_b - sse_add))
+        ss_b = max(0.0, float(sse_a - sse_add))
+        ss_ab = max(0.0, float(sse_add - sse_full))
 
         f_a = (ss_a / df_a) / ms_residual
         f_b = (ss_b / df_b) / ms_residual
@@ -399,19 +407,24 @@ def reference_two_way_anova_model(
         p_ab = float(stats.f.sf(f_ab, df_ab, df_residual))
 
     else:  # type3
-        p = x_full.shape[1]
+        # Type III: Wald test of linear contrast restrictions L * beta = 0
+        p_cols = x_full.shape[1]
+        xtx_inv = np.linalg.inv(x_full.T @ x_full)
         idx_a = list(range(1, 1 + xa.shape[1]))
         idx_b = list(range(1 + xa.shape[1], 1 + xa.shape[1] + xb.shape[1]))
-        idx_ab = list(range(1 + xa.shape[1] + xb.shape[1], p))
+        idx_ab = list(range(1 + xa.shape[1] + xb.shape[1], p_cols))
 
         def _wald(indices: list[int]) -> tuple[float, float, float]:
-            L = np.zeros((len(indices), p), dtype=float)
+            L = np.zeros((len(indices), p_cols), dtype=float)
             for r, idx in enumerate(indices):
                 L[r, idx] = 1.0
-            test = m_full.f_test(L)
-            f_val = max(0.0, float(test.fvalue))
-            p_val = float(test.pvalue)
-            ss_val = max(0.0, f_val * float(test.df_num) * ms_residual)
+            l_beta = L @ b_full
+            l_cov = L @ xtx_inv @ L.T
+            wald_quad = float(l_beta.T @ np.linalg.inv(l_cov) @ l_beta)
+            q_df = len(indices)
+            f_val = max(0.0, wald_quad / (q_df * ms_residual))
+            p_val = float(stats.f.sf(f_val, q_df, df_residual))
+            ss_val = max(0.0, wald_quad)
             return ss_val, f_val, p_val
 
         ss_a, f_a, p_a = _wald(idx_a)

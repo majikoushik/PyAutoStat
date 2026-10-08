@@ -1,4 +1,4 @@
-"""Independent reference mathematical formulas for PyAutoStat Phase 2 validation.
+"""Independent reference mathematical formulas for PyAutoStat foundational validation.
 
 CRITICAL SCIENTIFIC PRINCIPLE:
 This module does NOT import or reuse PyAutoStat internal calculation helpers.

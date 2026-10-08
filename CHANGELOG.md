@@ -7,6 +7,23 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+-   Implemented result ergonomics layer and deterministic APA-oriented statistical statement formatting (`pyautostat.result_access`):
+    -   Added non-serialized read-only convenience accessors to `AnalysisResult`: `test_name`, `statistic`, `p_value`, `degrees_of_freedom`, `estimate`, `confidence_interval`, `effect_size`, `effect_size_confidence_interval`, and `sample_accounting`.
+    -   Implemented ambiguity safeguards: scalar `statistic` and `p_value` safely return `None` when multiple inferential tests exist (such as factorial ANOVA or linear/logistic regression) or when no inferential p-value is defined (such as Cronbach's alpha), preventing arbitrary single-number extraction.
+    -   Added `result.primary_result()` returning a deterministic mapping of primary test quantities or structured sections (`model_fit`, `terms`, `coefficients`, `comparisons`), returning defensive deep copies.
+    -   Added `result.to_dataframe(section="primary")` returning a 1-row pandas DataFrame for tabular presentation across supported sections (`primary`, `coefficients`, `terms`, `comparisons`).
+    -   Added deterministic APA-oriented statement generation via `result.apa_statement()`, `result.statement(style="apa"|"plain")`, and `workflow.apa_statement()`, reading stored results with zero statistical recalculation and qualified scientific wording.
+    -   Documented complete ergonomics and statement guide in `docs/RESULT_ERGONOMICS_AND_STATEMENTS.md`.
+
+-   Strengthened numerical-validation evidence framework (`validation/`):
+    -   Replaced statsmodels dependency in reference ANOVA with pure NumPy linear algebra implementations for both Type II (hierarchical reduced model comparison) and Type III (Wald quadratic form) ANOVA models, establishing genuine Level-A independent reference evidence.
+    -   Added dynamic Git metadata detection (`numerical_source_baseline_sha`, `validation_framework_revision_sha`, `git_worktree_dirty`, `source_code_invariance_status`) replacing hard-coded invariance flags.
+    -   Enforced `--strict` validation exit semantics during artifact generation (`--generate-manifest --strict`).
+    -   Strengthened standalone self-checks (`--self-check`) covering manifest schema v2, case counts, tolerance positivity, Level A/B/C/D evidence rules, shared numerical primitive disclosures, and summary equality.
+    -   Cleaned machine-readable artifacts of roadmap phase language and regenerated reference manifest and summary under strict validation.
+
 ### Changed
 
 -   Modernized the example suite to use the canonical Rich `show()` presentation for statistical, planning, governance, and workflow results.

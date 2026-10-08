@@ -226,14 +226,15 @@ The validation foundation was verified under the following authoritative environ
 - **Package Version**: `0.5.0`
 - **Numerical Implementation Baseline Commit**: `817bb9c5454c266462a457690f3673099546b49f` (head commit establishing authoritative statistical calculation source)
 - **Validation Framework Baseline Commit**: `8fce4e9087236446eb4238387ffc04a9e33930c4` (initial validation foundation head)
-- **Source Code Invariance**: Core statistical calculation files in `src/pyautostat/` remain byte-for-byte identical to the numerical implementation baseline commit.
+- **Validation Framework Current Revision**: `2113a7e6a0bc589ce2b3c51d922238bc354eb702` (head commit of expanded validation framework)
+- **Source Code Invariance Status**: Evaluated dynamically via Git worktree inspection against `numerical_source_baseline_sha`; confirmed `unchanged` across all 13 statistical runtime source files.
 - **Python Version**: `3.12.7` (64-bit AMD64)
 - **NumPy Version**: `2.2.6`
 - **pandas Version**: `3.0.6`
 - **SciPy Version**: `1.13.0`
 - **statsmodels Version**: `0.15.0`
 - **External Packages**: `rpy2` (Not installed), `pingouin` (Not installed)
-- **Verification Date**: `2026-10-07`
+- **Verification Date**: `2026-10-08`
 
 ---
 
@@ -255,16 +256,16 @@ python validation/run_reference_validation.py --method intraclass_correlation
 # Export full machine-readable JSON report
 python validation/run_reference_validation.py --json validation_report.json
 
-# Regenerate machine-readable case manifest (Schema v2) and summary artifact
-python validation/run_reference_validation.py --generate-manifest
+# Regenerate machine-readable case manifest (Schema v2) and summary artifact under strict validation
+python validation/run_reference_validation.py --generate-manifest --strict
 
-# Run harness self-checks (verifies registry integrity, unique IDs, finite tolerances)
+# Run harness self-checks (verifies registry integrity, unique IDs, tolerances, shared primitives)
 python validation/run_reference_validation.py --self-check
 ```
 
 ### CLI Strict-Mode Policy
 - **Default Mode (`python validation/run_reference_validation.py`)**: Executes all reference cases, displays detailed comparison diagnostics, and exits with code 0 even if discrepancies exist. This enables exploratory use and interactive inspection.
-- **Strict Mode (`python validation/run_reference_validation.py --strict`)**: Returns non-zero exit code if one or more numerical discrepancies are encountered.
+- **Strict Mode (`python validation/run_reference_validation.py --strict` or `--generate-manifest --strict`)**: Returns non-zero exit code if one or more numerical discrepancies are encountered. Manifest generation writes artifacts and JSON output before exit so discrepancy evidence is preserved.
 
 ---
 

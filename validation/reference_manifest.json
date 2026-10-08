@@ -58,7 +58,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent analytical t interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -67,7 +67,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent analytical t interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_d",
@@ -85,7 +85,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_1samp backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -118,7 +118,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Effect size CI calculation deferred in Phase 2"
+          "reason": "Effect size CI calculation deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -188,7 +188,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent analytical t interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -197,7 +197,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent analytical t interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_d",
@@ -215,7 +215,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_1samp backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -248,7 +248,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Effect size CI calculation deferred in Phase 2"
+          "reason": "Effect size CI calculation deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -309,7 +309,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent pooled t interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -318,7 +318,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent pooled t interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_d",
@@ -336,7 +336,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_ind(equal_var=True) backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -369,7 +369,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Effect size bootstrap CI deferred in Phase 2"
+          "reason": "Effect size bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -430,7 +430,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent pooled t interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -439,7 +439,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent pooled t interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_d",
@@ -457,7 +457,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_ind(equal_var=True) backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -490,7 +490,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Effect size bootstrap CI deferred in Phase 2"
+          "reason": "Effect size bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -551,7 +551,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Welch t interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -560,7 +560,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Welch t interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_d",
@@ -578,7 +578,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_ind(equal_var=False) backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -611,7 +611,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Effect size bootstrap CI deferred in Phase 2"
+          "reason": "Effect size bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -672,7 +672,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Welch t interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -681,7 +681,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Welch t interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_d",
@@ -699,7 +699,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_ind(equal_var=False) backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -732,7 +732,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Effect size bootstrap CI deferred in Phase 2"
+          "reason": "Effect size bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -794,7 +794,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent paired analytical interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -803,7 +803,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent paired analytical interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_dz",
@@ -821,7 +821,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_rel backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "complete_pairs",
@@ -863,7 +863,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Cohen's dz exact noncentral-t CI deferred in Phase 2"
+          "reason": "Cohen's dz exact noncentral-t CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -926,7 +926,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent paired analytical interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "ci_upper",
@@ -935,7 +935,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent paired analytical interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.ppf"
         },
         {
           "field": "cohens_dz",
@@ -953,7 +953,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy ttest_rel backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "complete_pairs",
@@ -995,7 +995,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Cohen's dz exact noncentral-t CI deferred in Phase 2"
+          "reason": "Cohen's dz exact noncentral-t CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -1047,7 +1047,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy mannwhitneyu backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.mannwhitneyu"
         },
         {
           "field": "analyzed_rows",
@@ -1126,7 +1126,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy mannwhitneyu backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.mannwhitneyu"
         },
         {
           "field": "analyzed_rows",
@@ -1224,7 +1224,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy wilcoxon p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.wilcoxon"
         },
         {
           "field": "complete_pairs",
@@ -1266,7 +1266,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Matched-pairs rank-biserial bootstrap CI deferred in Phase 2"
+          "reason": "Matched-pairs rank-biserial bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -1338,7 +1338,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy wilcoxon p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.wilcoxon"
         },
         {
           "field": "complete_pairs",
@@ -1380,7 +1380,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Matched-pairs rank-biserial bootstrap CI deferred in Phase 2"
+          "reason": "Matched-pairs rank-biserial bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -1423,7 +1423,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Fisher-z interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.norm.ppf"
         },
         {
           "field": "ci_upper",
@@ -1432,7 +1432,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Fisher-z interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.norm.ppf"
         },
         {
           "field": "p_value",
@@ -1441,7 +1441,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy pearsonr p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -1511,7 +1511,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Fisher-z interval lower",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.norm.ppf"
         },
         {
           "field": "ci_upper",
@@ -1520,7 +1520,7 @@
           "rtol": 1e-10,
           "evidence_level": "A",
           "reference": "Independent Fisher-z interval upper",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.norm.ppf"
         },
         {
           "field": "p_value",
@@ -1529,7 +1529,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy pearsonr p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.t.sf"
         },
         {
           "field": "analyzed_rows",
@@ -1599,7 +1599,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy spearmanr p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.spearmanr"
         },
         {
           "field": "analyzed_rows",
@@ -1632,7 +1632,7 @@
           "field": "confidence_interval",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Spearman paired bootstrap CI deferred in Phase 2"
+          "reason": "Spearman paired bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -1675,7 +1675,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy spearmanr p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.spearmanr"
         },
         {
           "field": "analyzed_rows",
@@ -1708,7 +1708,7 @@
           "field": "confidence_interval",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Spearman paired bootstrap CI deferred in Phase 2"
+          "reason": "Spearman paired bootstrap CI deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -1787,7 +1787,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy chi2_contingency backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.chi2.sf"
         },
         {
           "field": "analyzed_rows",
@@ -1811,7 +1811,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Cramer's V bootstrap interval deferred in Phase 2"
+          "reason": "Cramer's V bootstrap interval deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -1894,7 +1894,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy chi2_contingency backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.chi2.sf"
         },
         {
           "field": "analyzed_rows",
@@ -1918,7 +1918,7 @@
           "field": "effect_size_ci",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Cramer's V bootstrap interval deferred in Phase 2"
+          "reason": "Cramer's V bootstrap interval deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -1961,7 +1961,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy fisher_exact two-sided p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.fisher_exact"
         },
         {
           "field": "analyzed_rows",
@@ -1985,7 +1985,7 @@
           "field": "confidence_interval",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Odds ratio confidence interval deferred in Phase 2"
+          "reason": "Odds ratio confidence interval deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -2028,7 +2028,7 @@
           "rtol": 1e-06,
           "evidence_level": "B",
           "reference": "SciPy fisher_exact two-sided p-value backend conformance",
-          "shared_primitive": null
+          "shared_primitive": "scipy.stats.fisher_exact"
         },
         {
           "field": "analyzed_rows",
@@ -2052,7 +2052,7 @@
           "field": "confidence_interval",
           "status": "deferred",
           "evidence_level": "D",
-          "reason": "Odds ratio confidence interval deferred in Phase 2"
+          "reason": "Odds ratio confidence interval deferred in the current validation framework"
         },
         {
           "field": "sample_accounting_sum",
@@ -3907,7 +3907,7 @@
       "fields": [
         {
           "field": "ss_a",
-          "expected": 854.4185528756957,
+          "expected": 854.4185528756958,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -3925,7 +3925,7 @@
         },
         {
           "field": "ss_ab",
-          "expected": 45.56326530612249,
+          "expected": 45.563265306122474,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -3934,7 +3934,7 @@
         },
         {
           "field": "ss_residual",
-          "expected": 30.200000000000003,
+          "expected": 30.2,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -3979,7 +3979,7 @@
         },
         {
           "field": "f_a",
-          "expected": 452.672080993746,
+          "expected": 452.67208099374614,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -3997,7 +3997,7 @@
         },
         {
           "field": "f_ab",
-          "expected": 24.13947830787946,
+          "expected": 24.139478307879457,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4006,7 +4006,7 @@
         },
         {
           "field": "p_a",
-          "expected": 3.6795893482040336e-13,
+          "expected": 3.679589348204022e-13,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4051,7 +4051,7 @@
         },
         {
           "field": "partial_eta_ab",
-          "expected": 0.6013899364292643,
+          "expected": 0.6013899364292642,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4103,7 +4103,7 @@
       "fields": [
         {
           "field": "ss_a",
-          "expected": 675.9999999999998,
+          "expected": 676.0,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4112,7 +4112,7 @@
         },
         {
           "field": "ss_b",
-          "expected": 324.0000000000002,
+          "expected": 324.0,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4121,7 +4121,7 @@
         },
         {
           "field": "ss_ab",
-          "expected": 35.99999999999988,
+          "expected": 36.0,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4175,7 +4175,7 @@
         },
         {
           "field": "f_a",
-          "expected": 1013.9999999999997,
+          "expected": 1014.0,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4184,7 +4184,7 @@
         },
         {
           "field": "f_b",
-          "expected": 486.00000000000034,
+          "expected": 486.0,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4193,7 +4193,7 @@
         },
         {
           "field": "f_ab",
-          "expected": 53.99999999999982,
+          "expected": 54.0,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -4202,7 +4202,7 @@
         },
         {
           "field": "p_a",
-          "expected": 5.803681653922521e-13,
+          "expected": 5.803681653922503e-13,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4211,7 +4211,7 @@
         },
         {
           "field": "p_b",
-          "expected": 4.462280639030894e-11,
+          "expected": 4.462280639030914e-11,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4220,7 +4220,7 @@
         },
         {
           "field": "p_ab",
-          "expected": 8.872319257631798e-06,
+          "expected": 8.872319257631657e-06,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4247,7 +4247,7 @@
         },
         {
           "field": "partial_eta_ab",
-          "expected": 0.8181818181818177,
+          "expected": 0.8181818181818182,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",

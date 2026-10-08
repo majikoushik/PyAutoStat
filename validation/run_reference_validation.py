@@ -127,6 +127,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_lower"],
                 "A",
                 "Independent analytical t interval lower",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -138,6 +139,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_upper"],
                 "A",
                 "Independent analytical t interval upper",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -163,6 +165,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy ttest_1samp backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.t.sf",
             )
         )
         # Level C: Sample accounting & orientation invariant
@@ -209,7 +212,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "effect_size_ci",
                 val_res["effect_size"].get("confidence_interval"),
                 "PyAutoStat noncentral-t inversion",
-                "Effect size CI calculation deferred in Phase 2",
+                "Effect size CI calculation deferred in the current validation framework",
             )
         )
 
@@ -266,6 +269,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_lower"],
                 "A",
                 "Independent pooled t interval lower",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -277,6 +281,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_upper"],
                 "A",
                 "Independent pooled t interval upper",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -301,6 +306,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy ttest_ind(equal_var=True) backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.t.sf",
             )
         )
         results.append(
@@ -345,7 +351,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "effect_size_ci",
                 val_res["effect_size"].get("confidence_interval"),
                 "Bootstrap resampling",
-                "Effect size bootstrap CI deferred in Phase 2",
+                "Effect size bootstrap CI deferred in the current validation framework",
             )
         )
 
@@ -402,6 +408,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_lower"],
                 "A",
                 "Independent Welch t interval lower",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -413,6 +420,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_upper"],
                 "A",
                 "Independent Welch t interval upper",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -437,6 +445,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy ttest_ind(equal_var=False) backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.t.sf",
             )
         )
         results.append(
@@ -481,7 +490,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "effect_size_ci",
                 val_res["effect_size"].get("confidence_interval"),
                 "Bootstrap resampling",
-                "Effect size bootstrap CI deferred in Phase 2",
+                "Effect size bootstrap CI deferred in the current validation framework",
             )
         )
 
@@ -548,6 +557,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_lower"],
                 "A",
                 "Independent paired analytical interval lower",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -559,6 +569,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_upper"],
                 "A",
                 "Independent paired analytical interval upper",
+                shared_primitive="scipy.stats.t.ppf",
             )
         )
         results.append(
@@ -583,6 +594,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy ttest_rel backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.t.sf",
             )
         )
         results.append(
@@ -638,7 +650,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "effect_size_ci",
                 val_res["effect_size"].get("confidence_interval"),
                 "Noncentral-t inversion",
-                "Cohen's dz exact noncentral-t CI deferred in Phase 2",
+                "Cohen's dz exact noncentral-t CI deferred in the current validation framework",
             )
         )
 
@@ -682,6 +694,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy mannwhitneyu backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.mannwhitneyu",
             )
         )
         results.append(
@@ -785,6 +798,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy wilcoxon p-value backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.wilcoxon",
             )
         )
         results.append(
@@ -840,7 +854,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "effect_size_ci",
                 val_res["effect_size"].get("confidence_interval"),
                 "Bootstrap resampling",
-                "Matched-pairs rank-biserial bootstrap CI deferred in Phase 2",
+                "Matched-pairs rank-biserial bootstrap CI deferred in the current validation framework",
             )
         )
 
@@ -882,6 +896,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_lower"],
                 "A",
                 "Independent Fisher-z interval lower",
+                shared_primitive="scipy.stats.norm.ppf",
             )
         )
         results.append(
@@ -893,6 +908,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 expected["ci_upper"],
                 "A",
                 "Independent Fisher-z interval upper",
+                shared_primitive="scipy.stats.norm.ppf",
             )
         )
         results.append(
@@ -906,6 +922,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy pearsonr p-value backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.t.sf",
             )
         )
         results.append(
@@ -973,6 +990,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy spearmanr p-value backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.spearmanr",
             )
         )
         results.append(
@@ -1017,7 +1035,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "confidence_interval",
                 val_res.get("confidence_interval"),
                 "Bootstrap resampling",
-                "Spearman paired bootstrap CI deferred in Phase 2",
+                "Spearman paired bootstrap CI deferred in the current validation framework",
             )
         )
 
@@ -1092,6 +1110,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy chi2_contingency backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.chi2.sf",
             )
         )
         results.append(
@@ -1123,7 +1142,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "effect_size_ci",
                 val_res["effect_size"].get("confidence_interval"),
                 "Bootstrap resampling",
-                "Cramer's V bootstrap interval deferred in Phase 2",
+                "Cramer's V bootstrap interval deferred in the current validation framework",
             )
         )
 
@@ -1156,6 +1175,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "SciPy fisher_exact two-sided p-value backend conformance",
                 atol=PVAL_ATOL,
                 rtol=PVAL_RTOL,
+                shared_primitive="scipy.stats.fisher_exact",
             )
         )
         results.append(
@@ -1187,7 +1207,7 @@ def run_case_validation(case: dict[str, Any]) -> list[FieldValidationResult]:
                 "confidence_interval",
                 val_res.get("confidence_interval"),
                 "Woolf / conditional OR CI",
-                "Odds ratio confidence interval deferred in Phase 2",
+                "Odds ratio confidence interval deferred in the current validation framework",
             )
         )
 
@@ -3201,11 +3221,138 @@ def run_all_reference_validations(
 
 
 def run_self_check() -> bool:
-    """Run validation harness self-checks verifying internal integrity (Task 25)."""
+    """Run validation harness self-checks verifying internal integrity (Task 0D)."""
     cases = get_all_reference_cases()
     passed = True
 
-    # 1. All 24 registered method IDs represented
+    # 1. Manifest schema version & case count if manifest exists
+    manifest_path = Path("validation/reference_manifest.json")
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest_data = json.load(f)
+            s_ver = manifest_data.get("schema_version")
+            if s_ver not in (1, 2):
+                print(f"[SELF-CHECK FAIL] Unsupported manifest schema version: {s_ver}")
+                passed = False
+            else:
+                print(f"[SELF-CHECK PASS] Manifest schema version {s_ver} is supported.")
+
+            m_cases = manifest_data.get("cases", [])
+            if len(m_cases) != len(cases):
+                print(f"[SELF-CHECK FAIL] Manifest case count ({len(m_cases)}) != runtime case count ({len(cases)})")
+                passed = False
+            else:
+                print(f"[SELF-CHECK PASS] Manifest case count ({len(m_cases)}) matches runtime case count.")
+
+            # Scan manifest for nonfinite JSON values
+            def _has_nonfinite(obj: Any) -> bool:
+                if isinstance(obj, float):
+                    return not math.isfinite(obj)
+                if isinstance(obj, dict):
+                    return any(_has_nonfinite(v) for v in obj.values())
+                if isinstance(obj, (list, tuple)):
+                    return any(_has_nonfinite(v) for v in obj)
+                return False
+
+            if _has_nonfinite(manifest_data):
+                print("[SELF-CHECK FAIL] Manifest contains nonfinite float values (NaN or Inf).")
+                passed = False
+            else:
+                print("[SELF-CHECK PASS] Manifest contains no nonfinite values.")
+
+            # Verify fields in manifest
+            for mc in m_cases:
+                mc_id = mc.get("case_id", "UNKNOWN")
+                for fld in mc.get("fields", []):
+                    fn = fld.get("field", "UNKNOWN")
+                    ev_lvl = fld.get("evidence_level")
+                    if ev_lvl not in ("A", "B", "C", "D"):
+                        print(f"[SELF-CHECK FAIL] Case {mc_id} field {fn} has invalid evidence_level: {ev_lvl}")
+                        passed = False
+                    if ev_lvl == "A":
+                        prov = fld.get("reference") or mc.get("reference_provenance")
+                        if not prov:
+                            print(f"[SELF-CHECK FAIL] Level A field {mc_id}.{fn} missing reference provenance.")
+                            passed = False
+                    elif ev_lvl == "B":
+                        ref = fld.get("reference", "")
+                        if not ref:
+                            print(f"[SELF-CHECK FAIL] Level B field {mc_id}.{fn} missing reference backend.")
+                            passed = False
+                    elif ev_lvl == "D":
+                        reason = fld.get("reason", "")
+                        if not reason:
+                            print(f"[SELF-CHECK FAIL] Level D field {mc_id}.{fn} missing explicit reason.")
+                            passed = False
+
+                    if fld.get("status") != "deferred":
+                        if "expected" not in fld or fld["expected"] is None:
+                            print(f"[SELF-CHECK FAIL] Non-deferred field {mc_id}.{fn} missing expected value.")
+                            passed = False
+                        atol = fld.get("atol")
+                        rtol = fld.get("rtol")
+                        if atol is not None and (not math.isfinite(atol) or atol < 0):
+                            print(f"[SELF-CHECK FAIL] Field {mc_id}.{fn} has invalid atol: {atol}")
+                            passed = False
+                        if rtol is not None and (not math.isfinite(rtol) or rtol < 0):
+                            print(f"[SELF-CHECK FAIL] Field {mc_id}.{fn} has invalid rtol: {rtol}")
+                            passed = False
+                    # Check shared primitive disclosure
+                    sp = fld.get("shared_primitive")
+                    if sp is not None and not isinstance(sp, str):
+                        print(f"[SELF-CHECK FAIL] Field {mc_id}.{fn} invalid shared_primitive: {sp}")
+                        passed = False
+
+            print("[SELF-CHECK PASS] Manifest fields comply with integrity rules (A/B/C/D, tolerances, non-deferred expected, shared primitives).")
+
+        except Exception as exc:
+            print(f"[SELF-CHECK FAIL] Exception reading manifest: {exc}")
+            passed = False
+
+    # Summary integrity if summary exists
+    summary_path = Path("validation/reference_validation_summary.json")
+    if summary_path.exists():
+        try:
+            with open(summary_path, "r", encoding="utf-8") as f:
+                s_data = json.load(f)
+            totals = s_data.get("totals", {})
+            per_method = s_data.get("per_method_summary", {})
+            expected_mids = set(METHOD_CONTRACTS.keys())
+            actual_mids = set(per_method.keys())
+            if expected_mids != actual_mids:
+                print(f"[SELF-CHECK FAIL] Summary methods do not match METHOD_CONTRACTS: diff={expected_mids ^ actual_mids}")
+                passed = False
+            else:
+                print(f"[SELF-CHECK PASS] Summary method IDs match all {len(expected_mids)} METHOD_CONTRACTS.")
+
+            rec_cases = sum(m["cases_count"] for m in per_method.values())
+            rec_fields = sum(m["fields_compared_count"] for m in per_method.values())
+            rec_a = sum(m["level_a_passes"] for m in per_method.values())
+            rec_b = sum(m["level_b_passes"] for m in per_method.values())
+            rec_c = sum(m["level_c_passes"] for m in per_method.values())
+            rec_d = sum(m["level_d_deferred"] for m in per_method.values())
+            rec_disc = sum(m["discrepancies_count"] for m in per_method.values())
+
+            if (
+                totals.get("cases_count") != rec_cases
+                or totals.get("fields_compared_count") != rec_fields
+                or totals.get("level_a_passes") != rec_a
+                or totals.get("level_b_passes") != rec_b
+                or totals.get("level_c_passes") != rec_c
+                or totals.get("deferred_count") != rec_d
+                or totals.get("discrepancies_count") != rec_disc
+            ):
+                print("[SELF-CHECK FAIL] Summary totals do not equal recomputed totals from per_method_summary.")
+                passed = False
+            else:
+                print("[SELF-CHECK PASS] Summary totals equal recomputed totals from field results.")
+
+        except Exception as exc:
+            print(f"[SELF-CHECK FAIL] Exception reading summary: {exc}")
+            passed = False
+
+    # 2. All 24 registered method IDs represented
     registered_methods = set(METHOD_CONTRACTS.keys())
     case_methods = {c["method_id"] for c in cases}
     if registered_methods != case_methods:
@@ -3213,18 +3360,18 @@ def run_self_check() -> bool:
         print(f"[SELF-CHECK FAIL] Missing registered methods in validation cases: {missing}")
         passed = False
     else:
-        print(f"[SELF-CHECK PASS] All {len(registered_methods)} registered method IDs represented.")
+        print(f"[SELF-CHECK PASS] All {len(registered_methods)} registered method IDs represented in runtime cases.")
 
-    # 2. No duplicate case IDs
+    # 3. No duplicate case IDs
     case_ids = [c["case_id"] for c in cases]
     if len(case_ids) != len(set(case_ids)):
         dups = [cid for cid in case_ids if case_ids.count(cid) > 1]
         print(f"[SELF-CHECK FAIL] Duplicate case IDs detected: {set(dups)}")
         passed = False
     else:
-        print(f"[SELF-CHECK PASS] All {len(case_ids)} case IDs are unique.")
+        print(f"[SELF-CHECK PASS] All {len(case_ids)} runtime case IDs are unique.")
 
-    # 3. Tolerances non-negative and finite
+    # 4. Tolerances non-negative and finite
     for tol_name, tol_val in [
         ("DEFAULT_ATOL", DEFAULT_ATOL),
         ("DEFAULT_RTOL", DEFAULT_RTOL),
@@ -3238,7 +3385,7 @@ def run_self_check() -> bool:
             passed = False
     print("[SELF-CHECK PASS] All tolerances are finite and non-negative.")
 
-    # 4. Cases structure validity
+    # 5. Cases structure validity
     for c in cases:
         cid = c["case_id"]
         if "expected" not in c or not isinstance(c["expected"], dict):
@@ -3289,7 +3436,18 @@ def main() -> int:
         write_summary(summary_data)
         print("Regenerated validation/reference_manifest.json (Schema Version 2)")
         print("Generated validation/reference_validation_summary.json")
-        return 0
+
+    if args.json_path:
+        with open(args.json_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "summary": summary,
+                    "field_results": [r.to_dict() for r in results],
+                },
+                f,
+                indent=2,
+            )
+        print(f"JSON validation report written to {args.json_path}")
 
     # Print human-readable summary
     print("\n" + "=" * 78)
@@ -3325,20 +3483,7 @@ def main() -> int:
     else:
         print("ALL COMPARISONS PASSED ACCORDING TO DECLARED TOLERANCE POLICIES.")
         print("=" * 78 + "\n")
-
-    if args.json_path:
-        with open(args.json_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "summary": summary,
-                    "field_results": [r.to_dict() for r in results],
-                },
-                f,
-                indent=2,
-            )
-        print(f"JSON validation report written to {args.json_path}")
-
-    return 0
+        return 0
 
 
 if __name__ == "__main__":

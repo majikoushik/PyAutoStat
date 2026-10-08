@@ -261,3 +261,116 @@ class AnalysisResult:
             metadata_name = self.metadata.get("method_name")
             fallback = metadata_name if isinstance(metadata_name, str) else None
         return _method_label(self.method_id, fallback)
+
+    @property
+    def test_name(self) -> str:
+        """Human-readable test name for the executed statistical method."""
+        return self.method_label
+
+    @property
+    def statistic(self) -> float | None:
+        """Primary scalar test statistic, or None if scientifically ambiguous.
+
+        For single-hypothesis methods (e.g. t-tests, one-way ANOVA, correlations),
+        returns the scalar test statistic. For complex models with multiple inferential
+        tests (e.g. two-way factorial ANOVA, linear regression, logistic regression) or
+        metrics without a significance test (Cronbach's alpha), returns None.
+        """
+        from .result_access import get_statistic
+
+        return get_statistic(self)
+
+    @property
+    def p_value(self) -> float | None:
+        """Primary scalar p-value, or None if scientifically ambiguous.
+
+        For single-hypothesis methods, returns the canonical inferential p-value.
+        For models with multiple hypothesis tests (e.g. factorial ANOVA, multiple
+        regression, logistic regression) or metrics without a significance test
+        (Cronbach's alpha), returns None.
+        """
+        from .result_access import get_p_value
+
+        return get_p_value(self)
+
+    @property
+    def degrees_of_freedom(self) -> int | float | tuple[Any, ...] | None:
+        """Degrees of freedom for the primary test, or None if not applicable."""
+        from .result_access import get_degrees_of_freedom
+
+        return get_degrees_of_freedom(self)
+
+    @property
+    def estimate(self) -> float | None:
+        """Primary scalar effect estimate, or None if ambiguous or not applicable."""
+        from .result_access import get_estimate
+
+        return get_estimate(self)
+
+    @property
+    def confidence_interval(self) -> dict[str, Any] | None:
+        """Confidence interval dictionary for the primary estimate, or None."""
+        from .result_access import get_confidence_interval
+
+        return get_confidence_interval(self)
+
+    @property
+    def effect_size(self) -> dict[str, Any] | None:
+        """Standardized or canonical effect size record, or None."""
+        from .result_access import get_effect_size
+
+        return get_effect_size(self)
+
+    @property
+    def effect_size_confidence_interval(self) -> dict[str, Any] | None:
+        """Confidence interval dictionary for the effect size, or None."""
+        from .result_access import get_effect_size_ci
+
+        return get_effect_size_ci(self)
+
+    @property
+    def sample_accounting(self) -> dict[str, Any]:
+        """Summary of analyzed, excluded, and group row counts."""
+        from .result_access import get_sample_accounting
+
+        return get_sample_accounting(self)
+
+    def primary_result(self) -> dict[str, Any]:
+        """Return a deterministic, non-serialized convenience summary mapping.
+
+        Preserves exact stored floats without recalculation. For complex models,
+        includes structured sections (model_fit, terms, coefficients, comparisons)
+        rather than fabricating misleading single numbers.
+        """
+        from .result_access import get_primary_result
+
+        return get_primary_result(self)
+
+    def to_dataframe(self, section: str = "primary") -> Any:
+        """Convert a section of this result to a pandas DataFrame without recalculation.
+
+        Parameters
+        ----------
+        section : str, default "primary"
+            Supported sections: "primary", "coefficients" (regression), "terms" (factorial ANOVA),
+            "comparisons" (pairwise).
+        """
+        from .result_access import result_to_dataframe
+
+        return result_to_dataframe(self, section=section)
+
+    def apa_statement(self) -> str:
+        """Generate a deterministic APA-oriented statistical statement from stored results."""
+        return self.statement(style="apa")
+
+    def statement(self, style: str = "apa") -> str:
+        """Generate a deterministic statistical statement from already-stored results.
+
+        Parameters
+        ----------
+        style : str, default "apa"
+            Statement formatting style. Defaults to "apa" (APA-oriented).
+        """
+        from .result_access import generate_statement
+
+        return generate_statement(self, style=style)

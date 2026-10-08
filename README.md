@@ -124,14 +124,27 @@ from pyautostat import save_html
 save_html(workflow, "reports/analysis.html")
 ```
 
-Every result also provides direct programmatic access to the underlying statistical values without
-recalculation:
+Every result provides direct ergonomic access to underlying values, structured primary views,
+and deterministic APA-oriented statistical statements without recalculating statistics:
 
 ```python
-estimate = workflow.analysis.values["primary_estimate"]
-ci = workflow.analysis.values["confidence_interval"]
-p_value = workflow.analysis.values["p_value"]
+result = workflow.analysis
+
+# Direct ergonomic accessors
+print(result.test_name)  # "Welch independent-samples t-test"
+print(result.statistic)  # 2.81
+print(result.p_value)  # 0.008
+print(result.effect_size)  # {"name": "cohens_d", "value": 0.84}
+
+# Concise primary result dictionary or deterministic statement
+print(result.primary_result())
+print(result.apa_statement())
+# "The first group had a higher mean than the second, Welch's t(37.4) = 2.81, p = .008, Cohen's d = 0.84, 95% CI for the mean difference [1.12, 6.88]."
 ```
+
+For multi-test designs (such as factorial ANOVA or multiple regression), scalar `statistic` and
+`p_value` safely return `None` to prevent ambiguous single-number extraction; use `primary_result()`
+or structured statement generators instead. See [Result Ergonomics and Statements](docs/RESULT_ERGONOMICS_AND_STATEMENTS.md).
 
 The important part is not merely that PyAutoStat can execute a t-test. It records **why that method
 matches the declared question**, preserves the contrast direction and sample accounting, returns

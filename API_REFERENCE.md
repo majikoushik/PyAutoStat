@@ -302,6 +302,7 @@ sample accounting before the hypothesis, effect, interval, assumption, and limit
 unsupported sections are omitted rather than manufactured. The method does not rerun profiling,
 diagnostics, or statistics, does not mutate or extend the serialized workflow, and requires no
 network or generative service.
+`workflow.apa_statement() -> str` returns a deterministic APA-oriented statistical statement formatted directly from the stored numerical analysis without recalculation.
 `str(workflow)` delegates to this view. `analysis.method_label` and
 `recommendation.method_label` expose human display names while `method_id` remains the stable
 machine identifier. `workflow.interpretation.findings_plain` numbers the existing finding messages
@@ -857,6 +858,26 @@ the central Holm adjustment helper. All preserve first-observed group order and 
 nonfinite, or unsupported variance cases explicitly.
 
 Group and categorical effect intervals use the existing 499-resample bootstrap with effective seed 0 when no seed was specified; this default and any explicit seed are recorded in metadata and diagnostics. The specification's alpha and confidence level remain available through `result.specification.options`; alpha is not used to alter the numerical p-value. No missing rows are imputed, no outliers are removed, and declared missing codes still block execution until normalized externally. JSON export is `json.dumps(result.to_dict(), allow_nan=False)`.
+
+### Result ergonomics, primary views, and APA-oriented statements
+
+`AnalysisResult` provides non-serialized, read-only convenience accessors and statement generators that read stored result records directly without statistical recalculation:
+
+- **`result.test_name -> str`**: Human-readable test name matching `method_label`.
+- **`result.statistic -> float | None`**: Canonical test statistic (e.g. Welch's $t$, omnibus ANOVA $F$, Pearson's $r$, Kruskal-Wallis $H$, $\chi^2$, Mann-Whitney $U$). Returns `None` when multiple inferential tests exist (such as factorial ANOVA or regression models) to protect against ambiguous scalar selection.
+- **`result.p_value -> float | None`**: Canonical primary $p$-value. Returns `None` when multiple tests exist or when the method has no inferential $p$-value (e.g., Cronbach's alpha).
+- **`result.degrees_of_freedom -> float | int | tuple[Any, ...] | None`**: Degrees of freedom (scalar or tuple, e.g. $(df_1, df_2)$ for ANOVA omnibus).
+- **`result.estimate -> float | None`**: Primary point estimate (e.g. mean difference, correlation coefficient $r$, Cronbach's $\alpha$, ICC).
+- **`result.confidence_interval -> dict[str, Any] | None`**: Primary point estimate confidence interval dictionary containing `lower`, `upper`, `level`, and `method`. Returns a defensive copy.
+- **`result.effect_size -> dict[str, Any] | None`**: Standardized effect size dictionary containing `name` and `value` (e.g. Cohen's $d$, $\eta^2$, $\epsilon^2$, Cramér's $V$). Returns a defensive copy.
+- **`result.effect_size_confidence_interval -> dict[str, Any] | None`**: Standardized effect size confidence interval dictionary. Returns a defensive copy.
+- **`result.sample_accounting -> dict[str, Any]`**: Defensive copy of stored sample accounting metadata (original, analyzed, excluded rows, group sizes, pairs, raters).
+- **`result.primary_result() -> dict[str, Any]`**: Deterministic mapping of primary test quantities or structured sections (`model_fit`, `terms`, `coefficients`, `comparisons`). Returns defensive deep copies.
+- **`result.to_dataframe(section="primary") -> pd.DataFrame`**: Tabular presentation of result sections (`"primary"`, `"coefficients"`, `"terms"`, `"comparisons"`). Raises descriptive `ValueError` if an unsupported section is requested.
+- **`result.apa_statement(style="apa") -> str`**: Deterministic APA-oriented statistical statement formatted directly from stored values.
+- **`result.statement(style="apa") -> str`**: Statement generator supporting `style="apa"` and `style="plain"`.
+
+For comprehensive guidance and examples across all 24 method families, see [`docs/RESULT_ERGONOMICS_AND_STATEMENTS.md`](docs/RESULT_ERGONOMICS_AND_STATEMENTS.md).
 
 ### Deterministic interpretation
 

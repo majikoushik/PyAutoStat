@@ -5,7 +5,9 @@
     "version": "0.5.0",
     "numerical_source_baseline_sha": "817bb9c5454c266462a457690f3673099546b49f",
     "validation_framework_baseline_sha": "8fce4e9087236446eb4238387ffc04a9e33930c4",
-    "source_code_invariant": true
+    "validation_framework_revision_sha": "2113a7e6a0bc589ce2b3c51d922238bc354eb702",
+    "git_worktree_dirty": true,
+    "source_code_invariance_status": "unchanged"
   },
   "environment": {
     "python_version": "3.12.7",
@@ -24,7 +26,7 @@
     "level_c_passes": 167,
     "deferred_count": 24,
     "discrepancies_count": 0,
-    "strict_mode": false,
+    "strict_mode": true,
     "overall_status": "pass"
   },
   "per_method_summary": {
@@ -274,49 +276,49 @@
       "method_id": "one_sample_t",
       "field": "effect_size_ci",
       "evidence_level": "D",
-      "reason": "Effect size CI calculation deferred in Phase 2"
+      "reason": "Effect size CI calculation deferred in the current validation framework"
     },
     {
       "method_id": "student_t",
       "field": "effect_size_ci",
       "evidence_level": "D",
-      "reason": "Effect size bootstrap CI deferred in Phase 2"
+      "reason": "Effect size bootstrap CI deferred in the current validation framework"
     },
     {
       "method_id": "welch_t",
       "field": "effect_size_ci",
       "evidence_level": "D",
-      "reason": "Effect size bootstrap CI deferred in Phase 2"
+      "reason": "Effect size bootstrap CI deferred in the current validation framework"
     },
     {
       "method_id": "paired_t",
       "field": "effect_size_ci",
       "evidence_level": "D",
-      "reason": "Cohen's dz exact noncentral-t CI deferred in Phase 2"
+      "reason": "Cohen's dz exact noncentral-t CI deferred in the current validation framework"
     },
     {
       "method_id": "wilcoxon_signed_rank",
       "field": "effect_size_ci",
       "evidence_level": "D",
-      "reason": "Matched-pairs rank-biserial bootstrap CI deferred in Phase 2"
+      "reason": "Matched-pairs rank-biserial bootstrap CI deferred in the current validation framework"
     },
     {
       "method_id": "spearman_correlation",
       "field": "confidence_interval",
       "evidence_level": "D",
-      "reason": "Spearman paired bootstrap CI deferred in Phase 2"
+      "reason": "Spearman paired bootstrap CI deferred in the current validation framework"
     },
     {
       "method_id": "pearson_chi_square",
       "field": "effect_size_ci",
       "evidence_level": "D",
-      "reason": "Cramer's V bootstrap interval deferred in Phase 2"
+      "reason": "Cramer's V bootstrap interval deferred in the current validation framework"
     },
     {
       "method_id": "fisher_exact",
       "field": "confidence_interval",
       "evidence_level": "D",
-      "reason": "Odds ratio confidence interval deferred in Phase 2"
+      "reason": "Odds ratio confidence interval deferred in the current validation framework"
     },
     {
       "method_id": "friedman_test",

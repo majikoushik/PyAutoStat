@@ -147,10 +147,10 @@ python validation/run_reference_validation.py --method intraclass_correlation
 # Generate JSON validation report artifact
 python validation/run_reference_validation.py --json report.json
 
-# Regenerate machine-readable case manifest (Schema v2) and summary artifact
-python validation/run_reference_validation.py --generate-manifest
+# Regenerate machine-readable case manifest (Schema v2) and summary artifact (strict mode)
+python validation/run_reference_validation.py --generate-manifest --strict
 
-# Run harness self-checks (verifies registry integrity, unique IDs, finite tolerances)
+# Run comprehensive harness self-checks (verifies registry integrity, manifest schema, tolerances, shared primitives)
 python validation/run_reference_validation.py --self-check
 ```
 

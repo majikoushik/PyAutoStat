@@ -16,8 +16,77 @@ from validation.models import FieldValidationResult
 
 import pyautostat
 
+import subprocess
+
 NUMERICAL_BASELINE_SHA = "817bb9c5454c266462a457690f3673099546b49f"
 FRAMEWORK_BASELINE_SHA = "8fce4e9087236446eb4238387ffc04a9e33930c4"
+
+STATISTICAL_RUNTIME_PATHS = [
+    "src/pyautostat/categorical.py",
+    "src/pyautostat/execution.py",
+    "src/pyautostat/icc.py",
+    "src/pyautostat/inference.py",
+    "src/pyautostat/inference_extended.py",
+    "src/pyautostat/logistic_regression.py",
+    "src/pyautostat/method_contracts.py",
+    "src/pyautostat/multigroup.py",
+    "src/pyautostat/regression.py",
+    "src/pyautostat/reliability.py",
+    "src/pyautostat/repeated_measures.py",
+    "src/pyautostat/two_way_anova.py",
+    "src/pyautostat/uncertainty.py",
+]
+
+
+def _get_git_metadata() -> dict[str, Any]:
+    """Retrieve Git provenance metadata without exposing personal filesystem paths."""
+    rev_sha: str | None = None
+    is_dirty: bool | None = None
+    invariance_status: str = "unavailable"
+
+    try:
+        # Current HEAD revision
+        res_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res_head.returncode == 0:
+            rev_sha = res_head.stdout.strip() or None
+
+        # Worktree dirty status
+        res_status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res_status.returncode == 0:
+            is_dirty = bool(res_status.stdout.strip())
+
+        # Check diff of statistical runtime source files against numerical baseline SHA
+        res_diff = subprocess.run(
+            ["git", "diff", "--name-only", NUMERICAL_BASELINE_SHA, "--", *STATISTICAL_RUNTIME_PATHS],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res_diff.returncode == 0:
+            changed_files = res_diff.stdout.strip()
+            invariance_status = "changed" if changed_files else "unchanged"
+        else:
+            invariance_status = "unavailable"
+    except Exception:
+        rev_sha = "unavailable"
+        is_dirty = None
+        invariance_status = "unavailable"
+
+    return {
+        "validation_framework_revision_sha": rev_sha or "unavailable",
+        "git_worktree_dirty": is_dirty,
+        "source_code_invariance_status": invariance_status,
+    }
 
 
 def build_manifest_v2(
@@ -107,9 +176,11 @@ def build_validation_summary(
                         "method_id": r.method_id,
                         "field": r.field,
                         "evidence_level": "D",
-                        "reason": r.notes or "Explicitly deferred in current tranche",
+                        "reason": r.notes or "Explicitly deferred in current validation tranche",
                     }
                 )
+
+    git_meta = _get_git_metadata()
 
     return {
         "schema_version": 1,
@@ -118,7 +189,9 @@ def build_validation_summary(
             "version": pyautostat.__version__,
             "numerical_source_baseline_sha": NUMERICAL_BASELINE_SHA,
             "validation_framework_baseline_sha": FRAMEWORK_BASELINE_SHA,
-            "source_code_invariant": True,
+            "validation_framework_revision_sha": git_meta["validation_framework_revision_sha"],
+            "git_worktree_dirty": git_meta["git_worktree_dirty"],
+            "source_code_invariance_status": git_meta["source_code_invariance_status"],
         },
         "environment": {
             "python_version": sys.version.split()[0],
