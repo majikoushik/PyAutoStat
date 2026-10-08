@@ -21,6 +21,12 @@ from .specifications import (
     StudyDesign,
     _json_value,
 )
+from .usability import (
+    SUPPORTED_VARIABLE_TYPES,
+    invalid_condition_order_message,
+    invalid_level_message,
+    missing_column_message,
+)
 
 
 class QuestionStatus(str, Enum):
@@ -253,7 +259,10 @@ def prepare_question(
         condition_order if condition_order is not None else base.condition_order
     )
     if not isinstance(selected_options, AnalysisOptions):
-        raise InvalidDataError("options must be an AnalysisOptions instance.")
+        raise InvalidDataError(
+            "`options` must be an AnalysisOptions instance; pass "
+            "`options=AnalysisOptions(...)` or use the corresponding named arguments."
+        )
     if question.objective == Objective.DESCRIPTIVE and (
         question.predictor is not None
         or question.predictors is not None
@@ -267,18 +276,31 @@ def prepare_question(
         )
     if question.objective != Objective.COMPARE_REFERENCE and question.reference_value is not None:
         raise InvalidDataError(
-            "reference_value is supported only for objective='compare_reference'."
+            "`reference_value` is only valid with `objective='compare_reference'`. "
+            "Remove `reference_value` or change the objective."
         )
     if question.objective == Objective.COMPARE_REFERENCE and question.predictor is not None:
-        raise InvalidDataError("A reference comparison does not use a predictor column.")
+        raise InvalidDataError(
+            "`objective='compare_reference'` compares `outcome` with `reference_value` and "
+            "does not use `predictor`; remove the `predictor` argument."
+        )
     if question.objective != Objective.REGRESSION and question.predictors is not None:
-        raise InvalidDataError("predictors is supported only for objective='regression'.")
+        raise InvalidDataError(
+            "`predictors` is only valid with `objective='regression'`. Remove `predictors` "
+            "or change the objective; an association uses singular `predictor`."
+        )
     if question.objective != Objective.RELIABILITY and question.items is not None:
-        raise InvalidDataError("items is supported only for objective='reliability'.")
+        raise InvalidDataError(
+            "`items` is only valid with `objective='reliability'`; remove `items` or change "
+            "the objective."
+        )
     if question.objective != Objective.RELIABILITY and (
         question.target is not None or question.rater is not None
     ):
-        raise InvalidDataError("target and rater are supported only for objective='reliability'.")
+        raise InvalidDataError(
+            "`target` and `rater` are only valid with `objective='reliability'` for an ICC "
+            "layout; remove them or change the objective."
+        )
     if question.objective == Objective.RELIABILITY:
         if question.items is not None and any(
             value is not None
@@ -291,32 +313,41 @@ def prepare_question(
             )
         ):
             raise InvalidDataError(
-                "Multi-item scale reliability uses an explicit items list, "
-                "not outcome, predictor, target, or rater roles."
+                "Choose one reliability layout: use `items=[...]` for multi-item internal "
+                "consistency, or use `target=...` and `rater=...` with "
+                "`estimand='intraclass_correlation'`; do not mix those roles."
             )
         if question.predictor is not None or question.predictors is not None:
-            raise InvalidDataError("Reliability does not use predictor roles.")
+            raise InvalidDataError(
+                "`objective='reliability'` does not use `predictor` or `predictors`; use "
+                "`items=[...]` for a scale or `target=...` and `rater=...` for ICC."
+            )
     if question.objective != Objective.RELIABILITY and any(
         opt is not None
         for opt in (selected_options.model, selected_options.definition, selected_options.unit)
     ):
         raise InvalidDataError(
-            "model, definition, and unit options are supported only for objective='reliability'."
+            "`model`, `definition`, and `unit` are ICC options and require "
+            "`objective='reliability'`; remove them or change the objective."
         )
     if question.objective != Objective.ASSOCIATION and question.controls is not None:
         raise InvalidDataError(
-            "controls is supported only for objective='association' (partial linear correlation "
-            "with estimand='partial_linear'). For multiple regression, pass all explanatory "
-            "variables using predictors=..."
+            "`controls` is only valid with `objective='association'` and "
+            "`estimand='partial_linear'`. Remove `controls` or change the objective; for "
+            "multiple regression, pass all explanatory variables using `predictors`."
         )
     if question.objective != Objective.ASSOCIATION and question.association_measure is not None:
-        raise InvalidDataError("association_measure is supported only for objective='association'.")
+        raise InvalidDataError(
+            "`association_measure` is only valid with `objective='association'`; remove it "
+            "or change the objective."
+        )
     if question.objective != Objective.REGRESSION and (
         selected_options.covariance_type != "classical"
         or selected_options.reference_levels is not None
     ):
         raise InvalidDataError(
-            "covariance_type and reference_levels are supported only for objective='regression'."
+            "covariance_type and reference_levels are supported only for "
+            "objective='regression'. Remove them or change the objective."
         )
     if (
         question.objective
@@ -343,6 +374,16 @@ def prepare_question(
                 "variable_types must map existing columns to supported analytical type names."
             )
         for column, declared_type in variable_types.items():
+            if not isinstance(column, str) or column not in frame.columns:
+                raise InvalidDataError(
+                    missing_column_message("variable_types", column, frame.columns)
+                )
+            if declared_type not in SUPPORTED_VARIABLE_TYPES:
+                valid = ", ".join(repr(item) for item in SUPPORTED_VARIABLE_TYPES)
+                raise InvalidDataError(
+                    f"`variable_types[{column!r}]` is {declared_type!r}, which is not a "
+                    f"supported declaration. Choose one of: {valid}."
+                )
             candidate = {key: value.copy() for key, value in dictionary.items()}
             candidate.setdefault(column, {})["type"] = declared_type
             dictionary = validate_data_dictionary(frame, candidate)
@@ -352,12 +393,16 @@ def prepare_question(
             frame[column]
         ):
             raise InvalidDataError(
-                f"{column!r} is declared {entry_type} but its pandas dtype "
-                "is not numeric. Correct the declaration or source data."
+                f"Column {column!r} is declared {entry_type!r}, but its pandas dtype is "
+                f"{str(frame[column].dtype)!r}, not numeric. Correct the source data or change "
+                f"`variable_types={{'{column}': '<type>'}}` to its scientific meaning; values "
+                "were not coerced."
             )
         if entry_type == "boolean" and not pd.api.types.is_bool_dtype(frame[column]):
             raise InvalidDataError(
-                f"{column!r} is declared boolean but its pandas dtype is not boolean."
+                f"Column {column!r} is declared 'boolean', but its pandas dtype is "
+                f"{str(frame[column].dtype)!r}. Correct the source data or change "
+                f"`variable_types={{'{column}': '<type>'}}`; values were not coerced."
             )
     selected_fields: tuple[tuple[str, str | None], ...] = (
         ("outcome", question.outcome),
@@ -371,32 +416,27 @@ def prepare_question(
     for field_name, selected_column in selected_fields:
         if selected_column is not None and selected_column not in frame.columns:
             raise ColumnNotFoundError(
-                f"{field_name} column {selected_column!r} does not exist. "
-                f"Available columns: {list(frame.columns)!r}."
+                missing_column_message(field_name, selected_column, frame.columns)
             )
     for selected_column in question.predictors or ():
         if selected_column not in frame.columns:
             raise ColumnNotFoundError(
-                f"predictor column {selected_column!r} does not exist. "
-                f"Available columns: {list(frame.columns)!r}."
+                missing_column_message("predictors", selected_column, frame.columns)
             )
     for selected_column in question.factors or ():
         if selected_column not in frame.columns:
             raise ColumnNotFoundError(
-                f"factor column {selected_column!r} does not exist. "
-                f"Available columns: {list(frame.columns)!r}."
+                missing_column_message("factors", selected_column, frame.columns)
             )
     for selected_column in question.items or ():
         if selected_column not in frame.columns:
             raise ColumnNotFoundError(
-                f"item column {selected_column!r} does not exist. "
-                f"Available columns: {list(frame.columns)!r}."
+                missing_column_message("items", selected_column, frame.columns)
             )
     for selected_column in question.controls or ():
         if selected_column not in frame.columns:
             raise ColumnNotFoundError(
-                f"control column {selected_column!r} does not exist. "
-                f"Available columns: {list(frame.columns)!r}."
+                missing_column_message("controls", selected_column, frame.columns)
             )
     if (
         question.objective in (Objective.COMPARE_GROUPS, Objective.ASSOCIATION)
@@ -404,7 +444,8 @@ def prepare_question(
         and question.outcome == question.predictor
     ):
         raise InvalidDataError(
-            "outcome and predictor must be different columns for this objective."
+            f"`outcome` and `predictor` both name {question.outcome!r}. Choose two different "
+            "columns so the requested relationship or group contrast is defined."
         )
     if (
         question.objective == Objective.COMPARE_GROUPS
@@ -412,13 +453,31 @@ def prepare_question(
         and question.factors is not None
         and question.outcome in question.factors
     ):
-        raise InvalidDataError("outcome cannot be one of the factor columns.")
+        raise InvalidDataError(
+            f"`outcome` {question.outcome!r} also appears in `factors`. Remove it from "
+            "`factors` or choose a different outcome."
+        )
     if (
         question.objective == Objective.REGRESSION
         and question.outcome is not None
         and question.outcome in (question.predictors or ())
     ):
-        raise InvalidDataError("The regression outcome cannot also appear among predictors.")
+        raise InvalidDataError(
+            f"Regression `outcome` {question.outcome!r} also appears in `predictors`. Remove "
+            "the outcome from `predictors` so response and explanatory roles remain distinct."
+        )
+
+    if selected_condition_order is not None and question.predictor is not None:
+        observed_conditions = list(pd.unique(frame[question.predictor].dropna()))
+        invalid_conditions = [
+            value for value in selected_condition_order if value not in observed_conditions
+        ]
+        if invalid_conditions:
+            raise InvalidDataError(
+                invalid_condition_order_message(
+                    invalid_conditions, question.predictor, observed_conditions
+                )
+            )
     spec = AnalysisSpecification(
         question=question,
         design=selected_design,
@@ -453,10 +512,16 @@ def prepare_question(
     if question.objective == Objective.REGRESSION and selected:
         resolved_references = dict(spec.options.reference_levels or {})
         predictors_set = set(question.predictors or ())
-        unknown_references = set(resolved_references) - predictors_set
+        unknown_references = [name for name in resolved_references if name not in predictors_set]
         if unknown_references:
+            unknown = unknown_references[0]
+            if unknown not in frame.columns:
+                raise InvalidDataError(
+                    missing_column_message("reference_levels", unknown, frame.columns)
+                )
             raise InvalidDataError(
-                f"reference_levels names non-predictors: {sorted(unknown_references)!r}."
+                f"`reference_levels` names {unknown!r}, but that column is not in the selected "
+                "`predictors`. Remove that entry or include the column in `predictors`."
             )
         complete = (
             frame[[question.outcome, *(question.predictors or ())]].dropna()
@@ -468,8 +533,9 @@ def prepare_question(
             if predictor_type in {"continuous_numerical", "discrete_numerical"}:
                 if predictor_name in resolved_references:
                     raise InvalidDataError(
-                        f"reference_levels[{predictor_name!r}] is invalid because the predictor "
-                        "is numerical."
+                        f"`reference_levels[{predictor_name!r}]` is invalid because predictor "
+                        f"{predictor_name!r} is numerical. Remove that entry; numerical "
+                        "predictors use their original units."
                     )
                 continue
             if predictor_type not in {"nominal_categorical", "ordinal_categorical", "boolean"}:
@@ -482,8 +548,12 @@ def prepare_question(
             if predictor_name in resolved_references:
                 if resolved_references[predictor_name] not in levels:
                     raise InvalidDataError(
-                        f"Reference level {resolved_references[predictor_name]!r} is not observed "
-                        f"for predictor {predictor_name!r}."
+                        invalid_level_message(
+                            f"reference_levels[{predictor_name!r}]",
+                            resolved_references[predictor_name],
+                            predictor_name,
+                            levels,
+                        )
                     )
             elif levels:
                 resolved_references[predictor_name] = _regression_label(levels[0])
@@ -882,11 +952,21 @@ def prepare_question(
                 "select",
                 choices,
             )
+    elif event_variable is not None and question.event_level is not None:
+        levels = list(pd.unique(frame[event_variable].dropna()))
+        if question.event_level not in levels:
+            raise InvalidDataError(
+                invalid_level_message("event_level", question.event_level, event_variable, levels)
+            )
     if spec.unit_id is not None and spec.unit_id in {
         question.outcome,
         question.predictor,
     }:
-        raise InvalidDataError("unit_id must differ from the outcome and condition columns.")
+        overlapping_role = "outcome" if spec.unit_id == question.outcome else "predictor/condition"
+        raise InvalidDataError(
+            f"`unit_id` {spec.unit_id!r} is also the `{overlapping_role}` column. Choose a "
+            "separate unit identifier so pairing is not inferred from an analysis variable."
+        )
 
     for column in selected:
         observed = frame[column].dropna()

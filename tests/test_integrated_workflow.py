@@ -70,6 +70,14 @@ def test_guided_mean_workflow_preserves_one_canonical_numerical_result(compariso
     assert workflow.reproducibility.to_dict()["stochastic"]["effective_seed"] == 0
 
     payload_before_brief = workflow.to_dict()
+    guidance = workflow.type_guidance()
+    assert guidance == workflow.type_guidance()
+    assert "exam_score: continuous numerical" in guidance
+    assert "declared by the researcher" in guidance
+    assert "teaching_method: nominal categorical" in guidance
+    assert "inferred advisory" in guidance
+    assert "type_guidance" not in payload_before_brief
+    assert workflow.to_dict() == payload_before_brief
     brief = workflow.brief()
     assert workflow.brief() == brief
     assert workflow.to_dict() == payload_before_brief
@@ -606,6 +614,11 @@ def test_existing_interval_regressions_survive_integrated_contract(comparison_fr
 def test_schema_and_public_exports_are_additive():
     assert AnalysisSpecification().to_dict()["schema_version"] == 1
     assert WorkflowStatus("completed") is WorkflowStatus.COMPLETED
+    descriptive = ResearchAssistant(pd.DataFrame({"x": [1.0, 2.0]})).run(objective="descriptive")
+    assert (
+        descriptive.type_guidance()
+        == "No analytical variables are selected, so no variable-type guidance is available."
+    )
 
 
 def test_workflow_schema_rejects_inconsistent_statuses(comparison_frame):

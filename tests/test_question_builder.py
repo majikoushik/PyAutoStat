@@ -91,8 +91,22 @@ def test_association_requires_two_variables_and_observation_design(assistant):
 
 
 def test_unknown_column_and_same_column_are_actionable(assistant):
-    with pytest.raises(ColumnNotFoundError, match="unknown.*Available columns"):
+    with pytest.raises(ColumnNotFoundError, match="unknown.*Available columns") as unrelated:
         assistant.prepare_question(objective="association", outcome="score", predictor="unknown")
+    assert "Did you mean" not in str(unrelated.value)
+    with pytest.raises(ColumnNotFoundError, match="Did you mean 'score'") as outcome_typo:
+        assistant.prepare_question(objective="association", outcome="scoree", predictor="group")
+    assert "Change `outcome=`" in str(outcome_typo.value)
+    with pytest.raises(ColumnNotFoundError, match="Did you mean 'group'") as predictor_typo:
+        assistant.prepare_question(objective="association", outcome="score", predictor="gropu")
+    assert "Change `predictor=`" in str(predictor_typo.value)
+    wide = ResearchAssistant(
+        pd.DataFrame({"score": [1.0], **{f"column_{index}": [index] for index in range(19)}})
+    )
+    with pytest.raises(ColumnNotFoundError) as bounded:
+        wide.prepare_question(objective="association", outcome="not_related", predictor="score")
+    assert "+8 more columns" in str(bounded.value)
+    assert "column_18" not in str(bounded.value)
     with pytest.raises(InvalidDataError, match="different columns"):
         assistant.prepare_question(objective="association", outcome="score", predictor="score")
     with pytest.raises(InvalidDataError, match="non-empty string"):
@@ -112,6 +126,22 @@ def test_declared_type_overrides_integer_category_ambiguity():
     )
     assert fields(draft) == ["variable_types.rating"]
     assert draft.variable_suggestions["rating"]["type_source"] == "suggested"
+    pending = assistant.run(
+        objective="compare_groups",
+        outcome="rating",
+        predictor="group",
+        design="independent",
+        estimand="distribution",
+    )
+    pending_payload = pending.to_dict()
+    pending_guidance = pending.type_guidance()
+    assert pending.status.value == "needs_input"
+    assert pending_guidance == pending.type_guidance()
+    assert "rating: ambiguous numeric category" in pending_guidance
+    assert "variable_types.rating" in pending_guidance
+    assert "variable_types={'rating': 'ordinal'}" in pending_guidance
+    assert "continuous_numerical" not in pending_guidance
+    assert pending.to_dict() == pending_payload
     revised = assistant.update_question(draft, variable_types={"rating": "ordinal"})
     assert revised.status == "ready"
     assert revised.variable_suggestions["rating"]["suggested_type"] == "ordinal_categorical"
@@ -119,6 +149,30 @@ def test_declared_type_overrides_integer_category_ambiguity():
     assert revised.specification.to_dict()["schema_version"] == 2
     with pytest.raises(InvalidDataError, match="not numeric"):
         assistant.update_question(draft, variable_types={"group": "continuous"})
+    with pytest.raises(InvalidDataError, match="Did you mean 'rating'") as type_key:
+        assistant.prepare_question(objective="descriptive", variable_types={"raiting": "ordinal"})
+    assert "dictionary key" in str(type_key.value)
+    with pytest.raises(InvalidDataError, match="not a supported declaration") as bad_type:
+        assistant.prepare_question(objective="descriptive", variable_types={"rating": "numeric"})
+    assert all(
+        name in str(bad_type.value)
+        for name in ("continuous", "discrete", "nominal", "ordinal", "identifier", "boolean")
+    )
+
+    clear = ResearchAssistant(
+        pd.DataFrame({"measurement": [1.1, 2.2, 3.4, 4.8], "group": ["A", "A", "B", "B"]})
+    ).run(
+        objective="compare_groups",
+        outcome="measurement",
+        predictor="group",
+        design="independent",
+        estimand="mean",
+    )
+    assert clear.status.value == "completed"
+    clear_guidance = clear.type_guidance()
+    assert "measurement: continuous numerical" in clear_guidance
+    assert "group: nominal categorical" in clear_guidance
+    assert clear_guidance.count("inferred advisory") == 2
 
 
 def test_profile_metadata_reused_but_copied():
@@ -155,6 +209,16 @@ def test_identifier_warning_and_ordered_category():
     assert "variable_types.student_id" in fields(draft)
     assert any("identifier" in warning for warning in draft.warnings)
     assert draft.variable_suggestions["rating"]["suggested_type"] == "ordinal_categorical"
+    workflow = assistant.run(
+        objective="association",
+        outcome="student_id",
+        predictor="rating",
+        design="independent",
+    )
+    assert workflow.status.value == "needs_input"
+    guidance = workflow.type_guidance()
+    assert "student_id: identifier" in guidance
+    assert "inferred advisory" in guidance
 
 
 def test_data_limits_and_overlapping_missing_counts():
@@ -401,3 +465,5 @@ def test_invalid_builder_arguments_are_actionable(assistant):
         assistant.prepare_question(
             objective="descriptive", data_dictionary={"score": {"type": "boolean"}}
         )
+    with pytest.raises(InvalidDataError, match="Remove `predictors`"):
+        assistant.prepare_question(objective="association", outcome="score", predictors=["hours"])

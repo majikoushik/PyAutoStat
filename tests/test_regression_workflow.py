@@ -201,13 +201,17 @@ def test_unidentifiable_models_are_blocked(frame, message):
 
 def test_invalid_reference_and_categorical_outcome_are_rejected():
     frame = pd.DataFrame({"y": [1.0, 2, 3, 4, 5, 6], "g": ["A", "B"] * 3})
-    with pytest.raises(InvalidDataError, match="not observed"):
+    with pytest.raises(InvalidDataError, match="not observed") as invalid_reference:
         StatisticalAnalyzer(frame).linear_regression(
             "y",
             ["g"],
             variable_types={"y": "continuous", "g": "nominal"},
             reference_levels={"g": "missing"},
         )
+    reference_message = str(invalid_reference.value)
+    assert "reference_levels['g']" in reference_message
+    assert "'A'" in reference_message and "'B'" in reference_message
+    assert "Change" in reference_message
     blocked = ResearchAssistant(frame.assign(y=frame["g"])).run(
         objective="regression",
         outcome="y",

@@ -1391,6 +1391,43 @@ def test_condition_order_extra_missing_duplicate_handling():
     with pytest.raises((InvalidTestError, InsufficientDataError), match="duplicate"):
         repeated_panel(df, "id", "cond", "y", ("A", "B", "C", "A"))
 
+    with pytest.raises(InvalidDataError, match="unobserved label") as invalid_order:
+        ResearchAssistant(df).prepare_question(
+            objective="compare_groups",
+            outcome="y",
+            predictor="cond",
+            design="repeated",
+            estimand="mean",
+            unit_id="id",
+            condition_order=("A", "B", "missing"),
+            variable_types={"y": "continuous"},
+        )
+    order_message = str(invalid_order.value)
+    assert "'missing'" in order_message
+    assert all(label in order_message for label in ("'A'", "'B'", "'C'", "'D'"))
+    assert "signed contrast" in order_message
+
+    many_levels = pd.DataFrame(
+        {
+            "id": list(range(13)),
+            "cond": [f"condition-{index}" for index in range(13)],
+            "y": [float(index) for index in range(13)],
+        }
+    )
+    with pytest.raises(InvalidDataError) as bounded_levels:
+        ResearchAssistant(many_levels).prepare_question(
+            objective="compare_groups",
+            outcome="y",
+            predictor="cond",
+            design="repeated",
+            estimand="mean",
+            unit_id="id",
+            condition_order=("condition-0", "condition-1", "missing"),
+            variable_types={"y": "continuous"},
+        )
+    assert "+3 more levels" in str(bounded_levels.value)
+    assert "condition-12" not in str(bounded_levels.value)
+
     # Missing condition_order in guided workflow yields needs_input
     assistant = ResearchAssistant(df)
     wf = assistant.run(

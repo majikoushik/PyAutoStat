@@ -355,6 +355,7 @@ def test_logistic_mixed_predictors_hc3_complete_contract_and_safe_rendering():
             "two",
         ),
         (pd.DataFrame({"event": ["yes", "no"] * 6, "x": range(12)}), "missing", "observed"),
+        (pd.DataFrame({"event": [0, 1] * 6, "x": range(12)}), "1", "observed"),
         (pd.DataFrame({"event": ["yes", "no"] * 6, "x": [1.0] * 12}), "yes", "variation"),
         (
             pd.DataFrame({"event": ["yes", "no"] * 6, "x": range(12), "z": np.arange(12) * 2}),
@@ -366,6 +367,26 @@ def test_logistic_mixed_predictors_hc3_complete_contract_and_safe_rendering():
 )
 def test_logistic_invalid_models_are_not_presented_as_completed(frame, event_level, message):
     predictors = [name for name in ("x", "z") if name in frame]
+    if message == "observed":
+        with pytest.raises(InvalidDataError, match="Observed levels") as invalid_event:
+            ResearchAssistant(frame).run(
+                objective="regression",
+                outcome="event",
+                predictors=predictors,
+                estimand="event_probability",
+                design="independent",
+                event_level=event_level,
+                variable_types={
+                    "event": "nominal",
+                    **{name: "continuous" for name in predictors},
+                },
+            )
+        event_message = str(invalid_event.value)
+        for observed in pd.unique(frame["event"]):
+            assert repr(observed) in event_message
+        assert repr(event_level) in event_message
+        assert "Change `event_level`" in event_message
+        return
     workflow = ResearchAssistant(frame).run(
         objective="regression",
         outcome="event",

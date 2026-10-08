@@ -92,6 +92,7 @@ def test_declared_identifier_repeats_are_not_called_exact_duplicates():
     "metadata,fragment",
     [
         ({"absent": {"type": "continuous"}}, "unknown column"),
+        ({1: {"type": "continuous"}}, "unknown column"),
         ({"x": []}, "metadata mapping"),
         ({"x": {"type": "magic"}}, "type must be"),
         ({"x": {"type": ["continuous"]}}, "type must be"),
@@ -105,8 +106,14 @@ def test_declared_identifier_repeats_are_not_called_exact_duplicates():
     ],
 )
 def test_invalid_data_dictionary_is_actionable(metadata, fragment):
-    with pytest.raises(InvalidDataError, match=fragment):
+    with pytest.raises(InvalidDataError, match=fragment) as error:
         ResearchAssistant(pd.DataFrame({"x": [1, 2, 3]})).profile(data_dictionary=metadata)
+    if "absent" in metadata:
+        assert "Available columns" in str(error.value)
+        with pytest.raises(InvalidDataError, match="Did you mean 'score'"):
+            ResearchAssistant(pd.DataFrame({"score": [1, 2, 3]})).profile(
+                data_dictionary={"scroe": {"type": "continuous"}}
+            )
 
 
 @pytest.mark.parametrize("bins", [0, -1, 1.5, True, 1001])

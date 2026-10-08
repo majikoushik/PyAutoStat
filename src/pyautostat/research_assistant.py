@@ -99,7 +99,10 @@ class ResearchAssistant:
         options: AnalysisOptions | None = None,
     ) -> None:
         if options is not None and not isinstance(options, AnalysisOptions):
-            raise InvalidDataError("options must be an AnalysisOptions instance.")
+            raise InvalidDataError(
+                "`options` must be an AnalysisOptions instance; pass "
+                "`options=AnalysisOptions(...)`."
+            )
         self._analyzer = StatisticalAnalyzer(df)
         self._default_options = options if options is not None else AnalysisOptions()
         self._data_dictionary: dict | None = None
@@ -368,7 +371,11 @@ class ResearchAssistant:
         if paired_by is not None and (not isinstance(paired_by, str) or not paired_by.strip()):
             raise InvalidDataError("paired_by must be a non-empty string when provided.")
         if paired_by is None and condition_order is not None:
-            raise InvalidDataError("condition_order requires paired_by for a paired comparison.")
+            raise InvalidDataError(
+                "condition_order requires paired_by because its order defines a signed paired "
+                "contrast. Add `paired_by=...` to name the unit identifier, or remove "
+                "`condition_order` for an independent comparison."
+            )
 
         if paired_by is not None and condition_order is None:
             draft = self.prepare_question(

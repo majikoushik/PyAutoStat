@@ -749,3 +749,18 @@ class ResearchWorkflowResult:
         from .result_access import generate_workflow_brief
 
         return generate_workflow_brief(self, include_warnings=include_warnings)
+
+    def type_guidance(self) -> str:
+        """Explain stored variable-type declarations and advisory inferences.
+
+        This view reads only metadata already captured in the draft and
+        specification. It does not inspect source data, profile again, or
+        calculate statistics.
+        """
+        from .usability import format_type_guidance
+
+        return format_type_guidance(
+            self.draft.variable_suggestions,
+            self.specification.analytical_variable_types,
+            self.specification.data_dictionary,
+        )

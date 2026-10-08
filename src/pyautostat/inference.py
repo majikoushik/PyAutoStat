@@ -18,6 +18,7 @@ from .uncertainty import (
     matched_pairs_rank_biserial_bootstrap_ci,
     one_sample_cohen_d_ci,
 )
+from .usability import invalid_condition_order_message
 
 
 def _scipy_result_value(result: Any, *names: str, index: int) -> float:
@@ -208,7 +209,15 @@ def paired_values(
     observed = list(pd.unique(frame[condition_col].dropna()))
     order = list(condition_order or tuple(observed))
     if len(observed) != 2 or len(order) != 2 or set(order) != set(observed):
-        raise InsufficientDataError("Paired analysis requires exactly two ordered conditions.")
+        invalid = [value for value in order if value not in observed]
+        if invalid:
+            raise InsufficientDataError(
+                invalid_condition_order_message(invalid, condition_col, observed)
+            )
+        raise InsufficientDataError(
+            "Paired analysis requires `condition_order` to contain the two observed levels "
+            f"exactly; observed levels are {observed!r}. The order defines the signed contrast."
+        )
     pivot = usable.pivot(index=unit_id, columns=condition_col, values=value_col)
     complete = pivot.dropna(subset=order)
     if numeric:

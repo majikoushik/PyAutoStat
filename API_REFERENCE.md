@@ -363,6 +363,13 @@ registered methods, retains recorded contrast orientation and sample/exclusion a
 shows at most the first workflow warning with a count of any remaining warnings. Pass
 `include_warnings=False` to omit warnings without changing the numerical content. Blocked and
 incomplete workflows receive concise status-specific text; no substitute result is fabricated.
+`workflow.type_guidance() -> str` presents the already-recorded variable hints for selected
+columns. Each line distinguishes a researcher/data-dictionary declaration from an inferred
+advisory type and flags existing ambiguous numeric-category or identifier-like cases that need
+scientific confirmation. It reads only `draft.variable_suggestions`,
+`specification.analytical_variable_types`, and `specification.data_dictionary`: it does not access
+the DataFrame, profile again, or calculate statistics. It works for completed and non-completed
+workflow statuses and is not added to `to_dict()` or any serialized schema.
 `workflow.explain() -> str` returns a deterministic portable plain-text view assembled from the
 recorded specification, analysis, interpretation, limitations, warnings, and structured
 clarification questions. For completed group analyses it includes the recorded group order and
@@ -380,6 +387,7 @@ Choose the smallest result view that fits the task:
 
 ```python
 workflow.brief()          # concise result
+workflow.type_guidance()  # stored variable-type rationale
 workflow.apa_statement()  # reporting sentence
 workflow.explain()        # detailed explanation
 show(workflow)            # full structured presentation
@@ -388,6 +396,51 @@ show(workflow)            # full structured presentation
 `brief()` is a computed presentation convenience only: it does not add a `brief` field to
 `to_dict()`, JSON, reports, reproducibility records, or export bundles, and it never recalculates
 statistics.
+
+### Friendly input diagnostics and variable types
+
+Integrated question validation reports the supplied argument, one close column suggestion when
+the match is credible, and a bounded original-order column list. A suggestion is never applied:
+
+```text
+Column 'scoree' supplied for `outcome` was not found. Did you mean 'score'?
+Change `outcome=` to an existing column. Available columns: ['score', 'group'].
+```
+
+Invalid supplied category values similarly retain exact value identity and show a bounded list in
+observed order. For example, an invalid binary event reports the requested value, outcome column,
+observed levels such as `['Yes', 'No']`, and tells the caller to change `event_level`. Regression
+`reference_levels` and paired/repeated `condition_order` use the same policy; condition-order
+errors also remind callers that order defines the signed contrast. PyAutoStat never substitutes,
+sorts, coerces, or chooses a replacement level from these messages.
+
+Use the public declaration names when the recorded guidance asks for confirmation:
+
+```python
+workflow = assistant.run(
+    objective="compare_groups",
+    outcome="stage",
+    predictor="group",
+    estimand="distribution",
+    design="independent",
+)
+print(workflow.type_guidance())
+
+workflow = assistant.run(
+    objective="compare_groups",
+    outcome="stage",
+    predictor="group",
+    estimand="distribution",
+    design="independent",
+    variable_types={"stage": "ordinal"},
+)
+```
+
+Supported `variable_types` declarations are `continuous`, `discrete`, `nominal`, `ordinal`,
+`identifier`, and `boolean`. Inferred types are advisory storage/data-pattern hints, not
+scientifically confirmed variable meaning. Clear existing cases do not gain a new confirmation
+step; existing ambiguous cases remain structured `needs_input` requests until the researcher
+declares their meaning.
 
 The default successful path performs one statistical execution. Later stages consume that result;
 reproducibility-record creation does not replay it. Default audit renders and checks HTML,

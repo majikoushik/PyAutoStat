@@ -14,6 +14,7 @@ from statsmodels.stats.stattools import jarque_bera
 
 from .exceptions import InsufficientDataError, InvalidDataError
 from .uncertainty import ols_r_squared_case_bootstrap_ci
+from .usability import invalid_level_message
 
 _NUMERIC_TYPES = {"continuous_numerical", "discrete_numerical"}
 _CATEGORICAL_TYPES = {"nominal_categorical", "ordinal_categorical", "boolean"}
@@ -130,8 +131,9 @@ def build_design_matrix(
             )
             if predictor in references:
                 raise InvalidDataError(
-                    f"reference_levels[{predictor!r}] is invalid because the predictor "
-                    "is numerical."
+                    f"`reference_levels[{predictor!r}]` is invalid because predictor "
+                    f"{predictor!r} is numerical. Remove that entry; numerical predictors "
+                    "use their original units."
                 )
             continue
         if kind not in _CATEGORICAL_TYPES:
@@ -147,7 +149,9 @@ def build_design_matrix(
         reference = references.get(predictor, levels[0])
         if reference not in levels:
             raise InvalidDataError(
-                f"Reference level {reference!r} is not observed for predictor {predictor!r}."
+                invalid_level_message(
+                    f"reference_levels[{predictor!r}]", reference, predictor, levels
+                )
             )
         comparison_levels = [level for level in levels if level != reference]
         encoded_terms = []

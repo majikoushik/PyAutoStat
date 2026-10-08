@@ -17,6 +17,7 @@ import pandas as pd
 
 from .detection import detect_column_types, suggest_column_roles
 from .exceptions import InvalidDataError
+from .usability import missing_column_message
 
 _TYPE_NAMES = {
     "continuous": "continuous_numerical",
@@ -192,7 +193,10 @@ def validate_data_dictionary(frame: pd.DataFrame, data_dictionary: Any) -> dict[
     clean: dict[str, dict] = {}
     for column, raw_entry in data_dictionary.items():
         if not isinstance(column, str) or column not in frame.columns:
-            raise InvalidDataError(f"data_dictionary references unknown column {column!r}.")
+            raise InvalidDataError(
+                f"data_dictionary references unknown column {column!r}. "
+                f"{missing_column_message('data_dictionary', column, frame.columns)}"
+            )
         if not isinstance(raw_entry, Mapping):
             raise InvalidDataError(f"data_dictionary[{column!r}] must be a metadata mapping.")
         unknown = set(raw_entry) - _ENTRY_FIELDS

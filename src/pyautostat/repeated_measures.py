@@ -20,6 +20,7 @@ from .uncertainty import (
     paired_cohen_dz_ci,
     repeated_measures_partial_eta_squared_ci,
 )
+from .usability import invalid_condition_order_message, observed_levels
 
 
 def _helmert_contrasts(k: int) -> np.ndarray:
@@ -77,16 +78,18 @@ def repeated_panel(
     observed_set = set(observed_raw.tolist())
     order_set = set(order)
     if not order_set.issubset(observed_set):
-        missing_from_data = order_set - observed_set
+        missing_from_data = [item for item in order if item not in observed_set]
         raise InsufficientDataError(
-            "Declared condition_order includes conditions not observed in data: "
-            f"{sorted(map(str, missing_from_data))}."
+            invalid_condition_order_message(missing_from_data, condition_col, observed_raw)
+            + " The declared labels were not observed in data."
         )
-    extra_in_data = observed_set - order_set
+    extra_in_data = [item for item in observed_raw if item not in order_set]
     if extra_in_data:
         raise InsufficientDataError(
-            f"Data contains undeclared condition levels: {sorted(map(str, extra_in_data))}. "
-            "Filter the dataset or declare all condition levels explicitly."
+            f"Data contains undeclared condition levels {observed_levels(list(extra_in_data))}. "
+            f"Observed levels for {condition_col!r}: {observed_levels(observed_raw)}. Filter "
+            "the dataset or declare every level in `condition_order`; its order defines the "
+            "signed contrasts."
         )
 
     missing_unit_rows = int(frame[unit_id].isna().sum())

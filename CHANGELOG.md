@@ -9,6 +9,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Added `ResearchWorkflowResult.type_guidance()`, a deterministic, non-serialized view of stored variable-type declarations and advisory hints, including existing ambiguity and public `variable_types` override guidance without re-profiling or statistical calculation.
 -   Added `ResearchWorkflowResult.brief(include_warnings=True)`, a deterministic single-paragraph result view with method-specific summaries for all 24 registered methods, explicit workflow-status handling, stored sample/orientation context, and optional bounded warning display. The convenience performs no statistical recalculation and does not change serialized workflow schemas.
 -   Added `ResearchAssistant.compare_means(...)` and `ResearchAssistant.correlate(..., method=...)` as thin beginner conveniences over the existing design-aware `run()` workflow, without adding methods or changing statistical calculations.
 -   Added keyword-only constructor `AnalysisOptions` defaults for integrated `ResearchAssistant.run()` and `prepare_question()` calls, with complete per-call options taking precedence.
@@ -18,6 +19,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+-   Made integrated column, declaration-key, event/reference-level, condition-order, and frequent argument-conflict diagnostics actionable, with at most one credible typo suggestion and bounded original-order column/level displays; no suggested value is applied automatically.
 -   Corrected Fisher exact documentation to distinguish its exact two-sided p-value from the asymptotic log-Wald interval for SciPy's unconditional sample odds-ratio estimator, including zero-cell interval unavailability.
 -   Corrected README wording from 24 statistical method families to 24 registered statistical methods.
 -   Hardened result ergonomics convenience accessors in `pyautostat.result_access`:

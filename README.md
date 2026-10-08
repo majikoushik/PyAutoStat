@@ -114,7 +114,9 @@ print(workflow.brief())
 
 `workflow.brief()` gives a concise, single-paragraph result from the stored analysis. Use
 `workflow.apa_statement()` for a reporting sentence, `workflow.explain()` for the detailed
-plain-text explanation, or `show(workflow)` for the full structured presentation.
+plain-text explanation, `workflow.type_guidance()` to inspect declared versus advisory variable
+types, or `show(workflow)` for the full structured presentation. Type suggestions are never
+scientific confirmations, and typo suggestions in validation errors are never applied silently.
 
 ```python
 workflow = assistant.run(

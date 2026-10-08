@@ -20,6 +20,7 @@ from statsmodels.tools.sm_exceptions import PerfectSeparationError
 
 from .exceptions import InsufficientDataError, InvalidDataError
 from .regression import _finite, _label, build_design_matrix
+from .usability import invalid_level_message
 
 # ---------------------------------------------------------------------------
 # Binary outcome helper
@@ -46,7 +47,7 @@ def _validate_binary_outcome(
         )
     if event_level not in unique_vals:
         raise InvalidDataError(
-            f"Declared event_level {event_level!r} is not observed in {outcome!r}."
+            invalid_level_message("event_level", event_level, outcome, unique_vals)
         )
     non_event = [value for value in unique_vals if value != event_level][0]
     return non_event, event_level

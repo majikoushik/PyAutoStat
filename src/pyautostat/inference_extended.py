@@ -13,6 +13,7 @@ from scipy import stats
 
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidDataError
 from .inference import paired_values
+from .usability import invalid_level_message
 
 
 def _label(value: Any) -> str | int | float | bool:
@@ -87,9 +88,7 @@ def _binary_levels(values: np.ndarray, event_level: Any, variable: str) -> tuple
         )
     matches = [value for value in levels if value == event_level]
     if not matches:
-        raise InvalidDataError(
-            f"event_level {event_level!r} is not observed in binary variable {variable!r}."
-        )
+        raise InvalidDataError(invalid_level_message("event_level", event_level, variable, levels))
     event = matches[0]
     non_event = next(value for value in levels if value != event)
     return _label(non_event), _label(event)
