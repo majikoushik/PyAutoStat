@@ -212,7 +212,9 @@ The following quantities are intentionally **deferred (Level D)** in the current
 1. **Resampling / Bootstrap Confidence Intervals**: Intervals for Cohen's $d$, Spearman $\rho$, Cramer's $V$, Kendall's $W$, partial $r$, and Cronbach's $\alpha$ rely on pseudo-random case resampling. An independent deterministic bootstrap harness with reproducible random generation is scheduled for subsequent expansion.
 2. **Noncentral-t Exact Inversion Intervals**: Analytical confidence intervals for one-sample Cohen's $d$ and paired Cohen's $d_z$ rely on iterative root-finding over the noncentral Student-t cumulative distribution function.
 3. **Exact ICC Inversion Confidence Intervals**: Noncentral-F confidence limits for two-way random absolute agreement ICC variants.
-4. **Conditional Exact Odds Ratio Intervals**: Exact conditional confidence intervals for 2x2 odds ratios in Fisher's exact test.
+4. **Fisher Sample Odds Ratio Intervals**: Asymptotic log-Wald confidence intervals for the
+   unconditional sample odds-ratio estimator in Fisher's exact test; intervals are unavailable
+   when any observed cell is zero, without continuity correction.
 
 No deferred quantity is certified as independently validated.
 

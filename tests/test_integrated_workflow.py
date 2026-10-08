@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from pyautostat import (
+    AnalysisOptions,
     AnalysisResult,
     AnalysisSpecification,
     AnalysisStatus,
@@ -45,7 +46,8 @@ def _mean_arguments():
 
 def test_guided_mean_workflow_preserves_one_canonical_numerical_result(comparison_frame):
     original = comparison_frame.copy(deep=True)
-    workflow = ResearchAssistant(comparison_frame).run(**_mean_arguments())
+    assistant = ResearchAssistant(comparison_frame)
+    workflow = assistant.run(**_mean_arguments())
 
     assert isinstance(workflow, ResearchWorkflowResult)
     assert workflow.status is WorkflowStatus.COMPLETED
@@ -65,6 +67,59 @@ def test_guided_mean_workflow_preserves_one_canonical_numerical_result(compariso
     assert workflow.audit.status == "passed"
     assert workflow.reproducibility.method_id == "welch_t"
     assert workflow.reproducibility.to_dict()["stochastic"]["effective_seed"] == 0
+
+    wrapper = assistant.compare_means(
+        "exam_score",
+        by="teaching_method",
+        variable_types={"exam_score": "continuous"},
+    )
+    assert wrapper.status is workflow.status
+    assert wrapper.specification == workflow.specification
+    assert wrapper.recommendation.method_id == workflow.recommendation.method_id
+    assert wrapper.analysis.method_id == workflow.analysis.method_id
+    assert wrapper.analysis.to_dict() == workflow.analysis.to_dict()
+    assert wrapper.interpretation.to_dict() == workflow.interpretation.to_dict()
+    assert wrapper.audit.to_dict() == workflow.audit.to_dict()
+
+    constructor_options = AnalysisOptions(
+        alpha=0.01,
+        confidence_level=0.9,
+        random_seed=17,
+        bootstrap_samples=19,
+    )
+    configured = ResearchAssistant(comparison_frame, options=constructor_options)
+    inherited = configured.run(**_mean_arguments())
+    assert inherited.specification.options == constructor_options
+    assert configured.prepare_question(**_mean_arguments()).specification.options == (
+        constructor_options
+    )
+    call_options = AnalysisOptions(
+        alpha=0.1,
+        confidence_level=0.8,
+        random_seed=23,
+        bootstrap_samples=17,
+    )
+    overridden = configured.run(options=call_options, **_mean_arguments())
+    assert overridden.specification.options == call_options
+    assert overridden.specification.options.alpha == 0.1
+    assert overridden.specification.options.confidence_level == 0.8
+    assert (
+        ResearchAssistant(comparison_frame)
+        .prepare_question(**_mean_arguments())
+        .specification.options
+        == AnalysisOptions()
+    )
+
+    with pytest.raises(InvalidDataError, match="AnalysisOptions"):
+        ResearchAssistant(comparison_frame, options={})
+    with pytest.raises(InvalidDataError, match="outcome must be a non-empty string"):
+        assistant.compare_means(" ", by="teaching_method")
+    with pytest.raises(InvalidDataError, match="by must be a non-empty string"):
+        assistant.compare_means("exam_score", by="")
+    with pytest.raises(InvalidDataError, match="paired_by must be a non-empty string"):
+        assistant.compare_means("exam_score", by="teaching_method", paired_by=" ")
+    with pytest.raises(InvalidDataError, match="condition_order requires paired_by"):
+        assistant.compare_means("exam_score", by="teaching_method", condition_order=("A", "B"))
     pd.testing.assert_frame_equal(comparison_frame, original)
 
 
@@ -148,6 +203,54 @@ def test_paired_workflow_requests_explicit_unit_identifier(comparison_frame, mon
     workflow = assistant.run(**{**_mean_arguments(), "design": "paired"})
     assert workflow.status is WorkflowStatus.NEEDS_INPUT
     assert workflow.missing_information[0].field == "unit_id"
+
+    paired_frame = pd.DataFrame(
+        {
+            "participant_id": [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6],
+            "condition": ["before", "after"] * 6,
+            "score": [10.0, 12.0, 11.0, 14.0, 9.0, 13.0, 12.0, 15.0, 8.0, 10.0, 13.0, 16.0],
+        }
+    )
+    paired_assistant = ResearchAssistant(paired_frame)
+    variable_types = {"score": "continuous", "condition": "nominal"}
+    wrapper = paired_assistant.compare_means(
+        "score",
+        by="condition",
+        paired_by="participant_id",
+        condition_order=("before", "after"),
+        variable_types=variable_types,
+    )
+    explicit = paired_assistant.run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="condition",
+        estimand="mean",
+        design="paired",
+        unit_id="participant_id",
+        condition_order=("before", "after"),
+        variable_types=variable_types,
+    )
+    assert wrapper.status is explicit.status
+    assert wrapper.specification == explicit.specification
+    assert wrapper.recommendation.method_id == explicit.recommendation.method_id
+    assert wrapper.analysis.to_dict() == explicit.analysis.to_dict()
+    assert wrapper.interpretation.to_dict() == explicit.interpretation.to_dict()
+    assert wrapper.audit.to_dict() == explicit.audit.to_dict()
+    assert wrapper.analysis.metadata["condition_order"] == ["before", "after"]
+
+    missing_order = paired_assistant.compare_means(
+        "score",
+        by="condition",
+        paired_by="participant_id",
+        variable_types=variable_types,
+    )
+    assert missing_order.status is WorkflowStatus.NEEDS_INPUT
+    assert "condition_order" in {item.field for item in missing_order.missing_information}
+    revised = paired_assistant.update_question(
+        missing_order.draft, condition_order=("before", "after")
+    )
+    continued = paired_assistant.run(draft=revised)
+    assert continued.analysis.to_dict() == explicit.analysis.to_dict()
 
 
 def test_three_group_mean_target_uses_welch_not_rank_test():

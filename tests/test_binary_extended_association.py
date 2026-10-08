@@ -195,6 +195,38 @@ def test_kendall_is_explicit_and_spearman_remains_default():
     assert kendall.analysis.values["primary_estimate"] == pytest.approx(_scipy_stat(expected))
     assert kendall.analysis.values["ties"]["variant"] == "b"
 
+    assistant = ResearchAssistant(frame)
+    variable_types = {"x": "continuous", "y": "continuous"}
+    for method, estimand, association_measure, method_id in (
+        ("pearson", "linear", None, "pearson_correlation"),
+        ("spearman", "monotonic", "spearman", "spearman_correlation"),
+        ("kendall", "monotonic", "kendall", "kendall_tau_b"),
+    ):
+        wrapper = assistant.correlate("x", "y", method=method, variable_types=variable_types)
+        explicit = assistant.run(
+            objective="association",
+            outcome="x",
+            predictor="y",
+            estimand=estimand,
+            design="independent",
+            association_measure=association_measure,
+            variable_types=variable_types,
+        )
+        assert wrapper.status is explicit.status
+        assert wrapper.specification == explicit.specification
+        assert wrapper.recommendation.method_id == method_id
+        assert wrapper.analysis.method_id == explicit.analysis.method_id == method_id
+        assert wrapper.analysis.to_dict() == explicit.analysis.to_dict()
+
+    with pytest.raises(InvalidDataError, match="first must be a non-empty string"):
+        assistant.correlate("", "y", method="pearson")
+    with pytest.raises(InvalidDataError, match="second must be a non-empty string"):
+        assistant.correlate("x", " ", method="pearson")
+    with pytest.raises(InvalidDataError, match="different columns"):
+        assistant.correlate("x", "x", method="pearson")
+    with pytest.raises(InvalidDataError, match="pearson, spearman, kendall"):
+        assistant.correlate("x", "y", method="automatic")
+
 
 def test_partial_pearson_matches_residual_reference_and_uses_correct_df():
     rng = np.random.default_rng(8)

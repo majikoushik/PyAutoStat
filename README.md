@@ -56,7 +56,7 @@ PyAutoStat provides optional extras for extended reporting and visualization (co
 
 | Need | Installation | Notes |
 | --- | --- | --- |
-| **Core statistics & terminal** | `pip install pyautostat` | Full profiling, all 24 method families, Rich terminal presentation, static HTML, and Markdown |
+| **Core statistics & terminal** | `pip install pyautostat` | Full profiling, all 24 registered statistical methods, Rich terminal presentation, static HTML, and Markdown |
 | **Interactive Plotly reports** | `pip install "pyautostat[report]"` | Adds interactive Plotly charts (forest plots, CIs) to HTML exports |
 | **Publication-oriented PDF** | `pip install "pyautostat[pdf]"`<br>`python -m playwright install chromium` | Generates high-fidelity PDF documents via headless Chromium |
 | **Figure-enabled PDF** | `pip install "pyautostat[report,pdf]"`<br>`python -m playwright install chromium` | Combines interactive figures with headless Chromium PDF generation |
@@ -102,6 +102,10 @@ polished summary directly in your terminal.
 ## Guided analysis
 
 Once you understand your data, run a design-aware research workflow:
+
+For common mean comparisons and correlations, the beginner conveniences are
+`assistant.compare_means(...)` and `assistant.correlate(..., method=...)`. They delegate to the
+same guided workflow shown below.
 
 ```python
 workflow = assistant.run(

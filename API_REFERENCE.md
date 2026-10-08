@@ -43,6 +43,68 @@ show(workflow)
 save_html(workflow, "analysis.html")
 ```
 
+#### Beginner convenience methods and default options
+
+`ResearchAssistant` accepts an optional immutable default options object:
+
+```python
+from pyautostat import AnalysisOptions, ResearchAssistant
+
+assistant = ResearchAssistant(
+    df,
+    options=AnalysisOptions(confidence_level=0.95, random_seed=7),
+)
+```
+
+Its constructor signature is
+`ResearchAssistant(df, *, options: AnalysisOptions | None = None)`. The defaults apply to
+integrated `run(...)` and `prepare_question(...)` calls, including the beginner wrappers below.
+A call-specific `options=` object replaces the complete constructor default object for that call;
+options are not merged field by field. Existing specialized arguments such as `covariance_type`,
+`reference_levels`, `sum_of_squares`, `model`, `definition`, and `unit` retain their established
+reconciliation with the selected options object. Focused direct calculation methods and
+`StatisticalAnalyzer` keep their own explicit settings.
+
+For independent or paired mean questions, use:
+
+```python
+workflow = assistant.compare_means("score", by="group")
+
+paired_workflow = assistant.compare_means(
+    "score",
+    by="condition",
+    paired_by="participant_id",
+    condition_order=("before", "after"),
+)
+```
+
+`compare_means(outcome, *, by, paired_by=None, condition_order=None, options=None,
+variable_types=None, data_dictionary=None)` supplies `estimand="mean"` to the existing guided
+workflow. The independent form declares `design="independent"`. The paired form declares
+`design="paired"`, passes `paired_by` as `unit_id`, and preserves the explicit
+`condition_order`; that order defines the first-minus-second contrast and is never inferred.
+Omitting required paired order produces the ordinary structured `needs_input` workflow.
+
+For an ordinary bivariate correlation, make the method explicit:
+
+```python
+workflow = assistant.correlate(
+    "hours_studied",
+    "score",
+    method="pearson",
+)
+```
+
+`correlate(first, second, *, method, options=None, variable_types=None,
+data_dictionary=None)` accepts only `"pearson"`, `"spearman"`, or `"kendall"`. These names map
+to the existing Pearson linear, Spearman monotonic, and Kendall tau-b workflow paths. No method is
+chosen automatically.
+
+Both conveniences return the ordinary `ResearchWorkflowResult`, add no statistical methods, and
+delegate recommendation, execution, interpretation, reporting, and audit to `run()`. Use
+`run(...)` for advanced designs and estimands; use `StatisticalAnalyzer` only when the exact
+low-level calculation is already specified.
+
 ### Canonical presentation and export paths
 
 | Goal | Beginner path | In-memory / advanced path | Returns |
@@ -877,7 +939,7 @@ Group and categorical effect intervals use the existing 499-resample bootstrap w
 - **`result.apa_statement(style="apa") -> str`**: Deterministic APA-oriented statistical statement formatted directly from stored values.
 - **`result.statement(style="apa") -> str`**: Statement generator supporting `style="apa"` and `style="plain"`.
 
-For comprehensive guidance and examples across all 24 method families, see [`docs/RESULT_ERGONOMICS_AND_STATEMENTS.md`](docs/RESULT_ERGONOMICS_AND_STATEMENTS.md).
+For comprehensive guidance and examples across all 24 registered statistical methods, see [`docs/RESULT_ERGONOMICS_AND_STATEMENTS.md`](docs/RESULT_ERGONOMICS_AND_STATEMENTS.md).
 
 ### Deterministic interpretation
 

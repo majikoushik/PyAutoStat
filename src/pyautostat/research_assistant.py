@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, cast
 
@@ -32,11 +33,16 @@ from .practical_significance import (
 )
 from .profiling import complete_case_count
 from .provenance import content_reference, dataset_fingerprint
-from .question_builder import QuestionDraft, prepare_question
+from .question_builder import (
+    ClarificationQuestion,
+    QuestionDraft,
+    QuestionStatus,
+    prepare_question,
+)
 from .recommendation import recommend_from_draft
 from .reproducibility import ReproducibilityRecord
 from .research_report import ResearchReport, build_research_report
-from .results import AnalysisResult, Recommendation
+from .results import AnalysisResult, MissingInformation, Recommendation
 from .sensitivity import (
     Comparability,
     ScenarioStatus,
@@ -77,16 +83,25 @@ class ResearchAssistant:
     - **No side effects**: Running analyses does not write files to disk. File
       export is explicit through functions such as :func:`pyautostat.save_html`
       or :func:`pyautostat.save_pdf`.
-    - **Dual workflow support**: Provides both the integrated, guided :meth:`run`
-      entry point and focused convenience methods (:meth:`profile`,
+    - **Layered workflow support**: Provides beginner convenience methods
+      (:meth:`compare_means`, :meth:`correlate`), the integrated guided
+      :meth:`run` entry point, and focused methods (:meth:`profile`,
       :meth:`summarize`, :meth:`reliability`, :meth:`two_way_anova`,
       :meth:`intraclass_correlation`).
     - **Layered architecture**: Underlying direct calculation and profiling
       operations remain accessible through :class:`pyautostat.StatisticalAnalyzer`.
     """
 
-    def __init__(self, df: pd.DataFrame) -> None:
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        *,
+        options: AnalysisOptions | None = None,
+    ) -> None:
+        if options is not None and not isinstance(options, AnalysisOptions):
+            raise InvalidDataError("options must be an AnalysisOptions instance.")
         self._analyzer = StatisticalAnalyzer(df)
+        self._default_options = options if options is not None else AnalysisOptions()
         self._data_dictionary: dict | None = None
         self._ledger: DecisionLedger | None = None
         self._planning_status = "unknown"
@@ -313,6 +328,153 @@ class ResearchAssistant:
     def complete_case_count(self, columns: list[str]) -> dict:
         """Count rows available for a specified set of columns."""
         return complete_case_count(self._analyzer.df, columns)
+
+    def compare_means(
+        self,
+        outcome: str,
+        *,
+        by: str,
+        paired_by: str | None = None,
+        condition_order: tuple[Any, Any] | None = None,
+        options: AnalysisOptions | None = None,
+        variable_types: dict[str, str] | None = None,
+        data_dictionary: dict | None = None,
+    ) -> ResearchWorkflowResult:
+        """Compare independent or explicitly paired means through :meth:`run`.
+
+        This beginner convenience method supplies the mean estimand and delegates
+        recommendation, calculation, interpretation, and audit to the ordinary
+        design-aware workflow. It returns the same :class:`ResearchWorkflowResult`
+        as an equivalent explicit :meth:`run` call.
+
+        ``paired_by`` names the unit identifier for long-format paired data.
+        ``condition_order`` is never inferred: its first and second labels define
+        the signed first-minus-second contrast. If paired order is omitted, the
+        workflow returns its normal structured ``needs_input`` request.
+
+        Examples
+        --------
+        >>> workflow = assistant.compare_means("score", by="group")
+        >>> paired = assistant.compare_means(
+        ...     "score",
+        ...     by="condition",
+        ...     paired_by="participant_id",
+        ...     condition_order=("before", "after"),
+        ... )
+        """
+        for name, value in (("outcome", outcome), ("by", by)):
+            if not isinstance(value, str) or not value.strip():
+                raise InvalidDataError(f"{name} must be a non-empty string.")
+        if paired_by is not None and (not isinstance(paired_by, str) or not paired_by.strip()):
+            raise InvalidDataError("paired_by must be a non-empty string when provided.")
+        if paired_by is None and condition_order is not None:
+            raise InvalidDataError("condition_order requires paired_by for a paired comparison.")
+
+        if paired_by is not None and condition_order is None:
+            draft = self.prepare_question(
+                objective="compare_groups",
+                outcome=outcome,
+                predictor=by,
+                estimand="mean",
+                design="paired",
+                unit_id=paired_by,
+                options=options,
+                variable_types=variable_types,
+                data_dictionary=data_dictionary,
+            )
+            if draft.status in {QuestionStatus.READY, QuestionStatus.NEEDS_INPUT}:
+                missing = MissingInformation(
+                    "condition_order",
+                    "Declare the two condition labels in first-minus-second contrast order.",
+                )
+                question = ClarificationQuestion(
+                    "condition_order",
+                    "Which condition should be first and which should be second?",
+                    "The order defines the signed paired mean difference and is never inferred.",
+                    "ordered_levels",
+                )
+                retained_missing = tuple(
+                    item for item in draft.missing_information if item.field != "condition_order"
+                )
+                retained_questions = tuple(
+                    item for item in draft.questions if item.field != "condition_order"
+                )
+                draft = replace(
+                    draft,
+                    status=QuestionStatus.NEEDS_INPUT,
+                    missing_information=(*retained_missing, missing),
+                    questions=(*retained_questions, question),
+                )
+                return ResearchWorkflowResult(
+                    status=WorkflowStatus.NEEDS_INPUT,
+                    specification=draft.specification,
+                    draft=draft,
+                    missing_information=draft.missing_information,
+                    warnings=draft.warnings,
+                )
+
+        return self.run(
+            objective="compare_groups",
+            outcome=outcome,
+            predictor=by,
+            estimand="mean",
+            design="paired" if paired_by is not None else "independent",
+            unit_id=paired_by,
+            condition_order=condition_order if paired_by is not None else None,
+            options=options,
+            variable_types=variable_types,
+            data_dictionary=data_dictionary,
+        )
+
+    def correlate(
+        self,
+        first: str,
+        second: str,
+        *,
+        method: str,
+        options: AnalysisOptions | None = None,
+        variable_types: dict[str, str] | None = None,
+        data_dictionary: dict | None = None,
+    ) -> ResearchWorkflowResult:
+        """Estimate an explicitly selected ordinary bivariate correlation.
+
+        ``method`` is required and must be ``"pearson"``, ``"spearman"``, or
+        ``"kendall"``. The method maps to the existing association specification;
+        this wrapper performs no automatic method selection or statistical
+        calculation and returns the ordinary :class:`ResearchWorkflowResult`.
+
+        Examples
+        --------
+        >>> workflow = assistant.correlate(
+        ...     "hours_studied",
+        ...     "score",
+        ...     method="pearson",
+        ... )
+        """
+        for name, value in (("first", first), ("second", second)):
+            if not isinstance(value, str) or not value.strip():
+                raise InvalidDataError(f"{name} must be a non-empty string.")
+        if first == second:
+            raise InvalidDataError("first and second must name different columns.")
+        method_mapping: dict[str, tuple[str, str | None]] = {
+            "pearson": ("linear", None),
+            "spearman": ("monotonic", "spearman"),
+            "kendall": ("monotonic", "kendall"),
+        }
+        if not isinstance(method, str) or method not in method_mapping:
+            raise InvalidDataError("method must be one of: pearson, spearman, kendall.")
+        estimand, association_measure = method_mapping[method]
+        return self.run(
+            objective="association",
+            outcome=first,
+            predictor=second,
+            estimand=estimand,
+            design="independent",
+            association_measure=association_measure,
+            options=options,
+            variable_types=variable_types,
+            data_dictionary=data_dictionary,
+        )
 
     def frequency_table(self, column: str, *, data_dictionary=None) -> dict:
         """Return a categorical frequency table plus deterministic narration."""
@@ -1089,6 +1251,9 @@ class ResearchAssistant:
         specification: AnalysisSpecification | None = None,
     ) -> QuestionDraft:
         """Prepare a serializable question; return focused requests for missing facts."""
+        effective_options = (
+            self._default_options if options is None and specification is None else options
+        )
         draft = prepare_question(
             self._analyzer.df,
             objective=objective,
@@ -1100,7 +1265,7 @@ class ResearchAssistant:
             design=design,
             estimand=estimand,
             description=description,
-            options=options,
+            options=effective_options,
             data_dictionary=(
                 data_dictionary
                 if data_dictionary is not None

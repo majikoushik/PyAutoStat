@@ -18,7 +18,7 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 ### Product Gap Classifications
 - `COMPLETE_FOR_CURRENT_SCOPE`: Point estimate, effect size, and uncertainty intervals are fully implemented, ergonomically accessible, and aligned with standard scientific reporting.
 - `PRESENT_BUT_ERGONOMICS_GAP`: Computed at runtime but previously difficult to access (all 0 following ergonomics hardening).
-- `PRESENT_BUT_VALIDATION_GAP`: Computed at runtime (e.g. bootstrap CIs, exact Fisher OR CIs, exact ICC CIs) but currently classified as Level D (deferred) in the independent validation framework.
+- `PRESENT_BUT_VALIDATION_GAP`: Computed at runtime (e.g. bootstrap CIs, asymptotic Fisher sample-OR CIs, exact ICC CIs) but currently classified as Level D (deferred) in the independent validation framework.
 - `TRUE_HIGH_VALUE_GAP`: High scientific value, identical estimand, absent from runtime, and actionable for subsequent implementation.
 - `OPTIONAL_ALTERNATIVE_METRIC`: Valid alternative formula or correction factor that may be added in the future without altering the estimand.
 - `NOT_APPLICABLE`: Estimand does not define an inferential effect size or standardized magnitude (e.g., omnibus tests without post-hocs).
@@ -255,16 +255,16 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 
 ### 16. `fisher_exact` (Fisher's Exact Test)
 - **Primary Estimand**: Non-random association in a $2 \times 2$ table under fixed marginals.
-- **Primary Estimate**: Sample odds ratio ($\text{OR} = \frac{a \cdot d}{b \cdot c}$).
-- **Primary Estimate CI**: Available (exact conditional inversion interval).
+- **Primary Estimate**: SciPy unconditional sample odds ratio for the ordered $2 \times 2$ table ($\text{OR} = \frac{a \cdot d}{b \cdot c}$).
+- **Primary Estimate CI**: Available as an asymptotic log-Wald interval when every cell is positive; unavailable when any cell is zero.
 - **Effect Size Quantity**: Odds ratio ($\text{OR}$).
 - **Effect Size Definition**: Ratio of odds of exposure in cases vs. controls.
-- **Effect Size CI Status**: Available.
+- **Effect Size CI Status**: Available when every cell is positive; otherwise unavailable without a continuity correction.
 - **Runtime Field Location**: `values["primary_estimate"]`, `values["confidence_interval"]`.
-- **CI Method**: Exact hypergeometric inversion.
+- **CI Method**: Asymptotic log-Wald confidence interval for the same sample odds-ratio estimator.
 - **Validation Evidence (Estimate)**: Level A for $p$; Level B for sample OR.
 - **Validation Evidence (Interval)**: Level D in validation framework benchmark.
-- **Interpretation Caveat**: Sample OR differs from unconditional MLE; odds ratios are not relative risks.
+- **Interpretation Caveat**: The p-value is from the exact two-sided Fisher test; the odds-ratio interval is not exact or conditional. Odds ratios are not relative risks.
 - **Alternative Candidates**: Risk Ratio (CHANGES ESTIMAND; only valid in prospective cohorts).
 - **Classification**: `PRESENT_BUT_VALIDATION_GAP`.
 

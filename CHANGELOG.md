@@ -9,12 +9,16 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Added `ResearchAssistant.compare_means(...)` and `ResearchAssistant.correlate(..., method=...)` as thin beginner conveniences over the existing design-aware `run()` workflow, without adding methods or changing statistical calculations.
+-   Added keyword-only constructor `AnalysisOptions` defaults for integrated `ResearchAssistant.run()` and `prepare_question()` calls, with complete per-call options taking precedence.
 -   Completed exhaustive result ergonomics consistency audit across all 24 registered statistical methods (`docs/RESULT_ERGONOMICS_AUDIT.md`), verifying zero-recalculation guarantees and documenting ambiguity rules for complex multi-parameter models.
 -   Completed authoritative effect-size and uncertainty gap audit (`docs/EFFECT_SIZE_AND_UNCERTAINTY_AUDIT.md`), evaluating estimand alignment, runtime field locations, independent validation levels, candidate metrics, and non-blocking candidate prioritization (Hedges' $g$, standardized regression betas, and omega-squared classified as optional future metrics).
 -   Added deterministic SHA-256 validation framework content fingerprinting (`validation_framework_content_sha256`) in `validation/manifest.py` and `validation/run_reference_validation.py` to truthfully record framework content provenance across commits.
 
 ### Fixed
 
+-   Corrected Fisher exact documentation to distinguish its exact two-sided p-value from the asymptotic log-Wald interval for SciPy's unconditional sample odds-ratio estimator, including zero-cell interval unavailability.
+-   Corrected README wording from 24 statistical method families to 24 registered statistical methods.
 -   Hardened result ergonomics convenience accessors in `pyautostat.result_access`:
     -   Corrected repeated-measures ANOVA statement formatting to read authoritative integrated schema `values["greenhouse_geisser"]["epsilon"]` and `values["greenhouse_geisser"]["applied"]`, preventing epsilon from displaying as unavailable when stored.
     -   Corrected `result.effect_size_confidence_interval` lookup to read authoritative nested `values["effect_size"]["confidence_interval"]`.
