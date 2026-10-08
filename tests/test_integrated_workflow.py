@@ -20,6 +20,7 @@ from pyautostat import (
     ResearchWorkflowResult,
     WorkflowStatus,
 )
+from pyautostat.result_access import format_apa_ci, format_apa_number, format_apa_p_value
 
 
 @pytest.fixture
@@ -67,6 +68,26 @@ def test_guided_mean_workflow_preserves_one_canonical_numerical_result(compariso
     assert workflow.audit.status == "passed"
     assert workflow.reproducibility.method_id == "welch_t"
     assert workflow.reproducibility.to_dict()["stochastic"]["effective_seed"] == 0
+
+    payload_before_brief = workflow.to_dict()
+    brief = workflow.brief()
+    assert workflow.brief() == brief
+    assert workflow.to_dict() == payload_before_brief
+    assert "brief" not in payload_before_brief
+    assert workflow.analysis.method_label in brief
+    assert format_apa_number(workflow.analysis.values["primary_estimate"]) in brief
+    assert "A minus B" in brief
+    assert format_apa_ci(interval) in brief
+    stored_df = format_apa_number(workflow.analysis.values["degrees_of_freedom"])
+    assert f"t({stored_df})" in brief
+    assert format_apa_p_value(workflow.analysis.values["p_value"]) in brief
+    assert workflow.analysis.values["effect_size"]["name"] in brief
+    assert "N = 12" in brief and "excluded rows = 1" in brief
+    without_warning = workflow.brief(include_warnings=False)
+    assert "Warning:" in brief and "Warning:" not in without_warning
+    assert without_warning.rstrip(".") in brief
+    with pytest.raises(InvalidDataError, match="include_warnings must be a Boolean"):
+        workflow.brief(include_warnings="yes")
 
     wrapper = assistant.compare_means(
         "exam_score",
@@ -138,6 +159,10 @@ def test_missing_design_is_actionable_and_can_continue_without_reentry(compariso
     design = next(item for item in incomplete.draft.questions if item.field == "design")
     assert dict(design.options)["independent"] == "Independent observations"
     assert "cannot be established" in design.explanation
+    incomplete_brief = incomplete.brief()
+    assert incomplete_brief.startswith("Input needed")
+    assert incomplete.missing_information[0].field in incomplete_brief
+    assert incomplete.analysis is None
 
     revised = assistant.update_question(incomplete.draft, design="independent")
     completed = assistant.run(draft=revised)
@@ -179,6 +204,8 @@ def test_unsupported_dependent_designs_never_execute(comparison_frame, monkeypat
     assert workflow.status is WorkflowStatus.UNSUPPORTED
     assert workflow.analysis is workflow.report is None
     assert workflow.blockers
+    assert workflow.brief().startswith("Unsupported workflow")
+    assert "No substitute method was run" in workflow.brief()
 
 
 def test_repeated_workflow_requests_explicit_unit_identifier(comparison_frame, monkeypatch):
@@ -237,6 +264,10 @@ def test_paired_workflow_requests_explicit_unit_identifier(comparison_frame, mon
     assert wrapper.interpretation.to_dict() == explicit.interpretation.to_dict()
     assert wrapper.audit.to_dict() == explicit.audit.to_dict()
     assert wrapper.analysis.metadata["condition_order"] == ["before", "after"]
+    paired_brief = wrapper.brief()
+    assert "before minus after" in paired_brief
+    assert "complete pairs = 6" in paired_brief
+    assert "incomplete units = 0" in paired_brief
 
     missing_order = paired_assistant.compare_means(
         "score",
@@ -295,6 +326,8 @@ def test_data_limits_stop_before_recommendation(frame, expected_text):
     assert workflow.status is WorkflowStatus.DATA_LIMITED
     assert workflow.recommendation is workflow.analysis is workflow.report is None
     assert expected_text in " ".join(workflow.blockers)
+    assert workflow.brief().startswith("Data limited")
+    assert "No statistical analysis was completed" in workflow.brief()
 
 
 @pytest.mark.parametrize(
@@ -473,6 +506,7 @@ def test_audit_controls_workflow_status_without_claiming_a_pass(comparison_frame
     assert disabled.status is WorkflowStatus.PARTIAL
     assert disabled.audit is None
     assert any("no audit was performed" in item for item in disabled.warnings)
+    assert disabled.brief().startswith("Partial workflow")
 
     assistant = ResearchAssistant(comparison_frame)
     failed = AuditResult(
@@ -497,6 +531,8 @@ def test_audit_controls_workflow_status_without_claiming_a_pass(comparison_frame
     assert workflow.status is WorkflowStatus.FAILED
     assert workflow.audit is failed
     assert "contradicts" in workflow.blockers[0]
+    assert workflow.brief().startswith("Workflow failed after analysis")
+    assert workflow.analysis.method_label in workflow.brief()
 
     incomplete_audit = AuditResult("incomplete", (), ("analysis",), ("exports",), {})
     monkeypatch.setattr(assistant, "audit", lambda *args, **kwargs: incomplete_audit)
@@ -553,6 +589,7 @@ def test_workflow_is_json_safe_private_and_does_not_write_files(comparison_frame
     json.dumps(payload, allow_nan=False)
     assert json.loads(workflow.to_json())["schema_version"] == 1
     assert "participant-0" not in workflow.to_json()
+    assert "brief" not in payload
     assert set(tmp_path.iterdir()) == before
     assert "private_id" not in workflow.reproducibility.to_json()
 

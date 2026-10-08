@@ -273,6 +273,7 @@ def test_representative_methods_docx_fidelity(
 
 def test_all_24_registered_methods_produce_valid_docx():
     """Ensure every registered method adapter produces schema-faithful valid DOCX."""
+    import re
     import sys
     from pathlib import Path
 
@@ -281,16 +282,92 @@ def test_all_24_registered_methods_produce_valid_docx():
         sys.path.insert(0, tests_dir)
     from method_factories import ALL_24_METHOD_FACTORIES
 
+    from pyautostat import METHOD_CONTRACTS
     from pyautostat.presentation import adapt
+    from pyautostat.result_access import BRIEF_METHOD_CATEGORIES
 
     assert len(ALL_24_METHOD_FACTORIES) == 24
     assert len(METHOD_ADAPTERS) == 24
+    assert set(BRIEF_METHOD_CATEGORIES) == set(METHOD_CONTRACTS)
+    assert set(BRIEF_METHOD_CATEGORIES) == set(ALL_24_METHOD_FACTORIES)
+
+    required_fragments = {
+        "welch_t": ("mean difference", "A minus B", "95% CI", "t(", "Cohen's d"),
+        "student_t": ("mean difference", "A minus B", "95% CI", "t(", "Cohen's d"),
+        "one_sample_t": ("mean difference", "reference =", "95% CI", "t("),
+        "paired_t": ("mean paired difference", "before minus after", "complete pairs = 6"),
+        "mann_whitney_u": ("U =", "rank-biserial", "orientation ="),
+        "wilcoxon_signed_rank": ("W =", "matched-pairs rank-biserial", "complete pairs"),
+        "welch_anova": ("F(", "pairwise comparisons recorded = 3"),
+        "one_way_anova": ("F(", "eta-squared", "pairwise comparisons recorded = 3"),
+        "kruskal_wallis": ("H(", "epsilon-squared", "pairwise comparisons recorded = 3"),
+        "repeated_measures_anova": (
+            "F(",
+            "Greenhouse-Geisser correction applied",
+            "complete units = 6",
+            "pairwise comparisons recorded = 3",
+        ),
+        "friedman_test": ("Q(", "Kendall's W", "complete units = 6"),
+        "pearson_correlation": ("r =", "95% CI", "p ", "N ="),
+        "spearman_correlation": ("r_s =", "95% CI", "p ", "N ="),
+        "kendall_tau_b": ("tau-b =", "95% CI", "p ", "N ="),
+        "point_biserial_correlation": ("r_pb(", "positive level =", "95% CI"),
+        "partial_pearson_correlation": ("partial r(", "controls =", "95% CI"),
+        "pearson_chi_square": ("chi^2(", "Cramer's V", "N ="),
+        "fisher_exact": (
+            "exact two-sided p",
+            "unconditional sample OR",
+            "asymptotic log-Wald",
+        ),
+        "mcnemar": ("Exact McNemar", "paired proportion difference", "event =", "complete pairs"),
+        "linear_regression": (
+            "R^2 =",
+            "adjusted R^2 =",
+            "F(",
+            "covariance = HC3",
+            "non-intercept coefficients = 2",
+        ),
+        "logistic_regression": (
+            "event = yes",
+            "LR chi^2(",
+            "McFadden pseudo-R^2",
+            "non-intercept coefficients = 1",
+        ),
+        "cronbach_alpha": ("alpha =", "items = 3", "N ="),
+        "two_way_anova": ("Type II", "A:", "B:", "A:B:", "partial eta^2"),
+        "intraclass_correlation": ("ICC(2,1)", "95% CI", "targets = 3", "raters = 2"),
+    }
 
     for method_id, (factory, expected_label) in ALL_24_METHOD_FACTORIES.items():
         wf = factory()
         res = wf.analysis
         assert res is not None
         assert res.method_id == method_id
+
+        workflow_payload = deepcopy(wf.to_dict())
+        brief = wf.brief()
+        assert wf.brief() == brief
+        assert wf.to_dict() == workflow_payload
+        assert "brief" not in workflow_payload
+        assert isinstance(brief, str) and brief
+        assert "\n" not in brief and "\r" not in brief
+        assert not re.search(r"(?<![A-Za-z])(?:nan|[+-]?inf)(?![A-Za-z])", brief, re.I)
+        assert all(fragment in brief for fragment in required_fragments[method_id])
+        no_warning = wf.brief(include_warnings=False)
+        assert "Warning:" not in no_warning
+        assert no_warning.rstrip(".") in brief
+
+        if method_id in {"welch_anova", "one_way_anova", "kruskal_wallis"}:
+            comparisons = res.values.get("pairwise_comparisons", [])
+            assert len(comparisons) == 3
+            assert not any(str(item.get("orientation")) in brief for item in comparisons)
+        if method_id == "two_way_anova":
+            terms = res.values["terms"]
+            for term in terms:
+                if term["term_type"] != "residual":
+                    assert f"{term['term']}:" in brief
+            residual = next(term for term in terms if term["term_type"] == "residual")
+            assert str(residual["term"]) not in brief
 
         # Source object unchanged assertion setup
         res_copy = deepcopy(res)

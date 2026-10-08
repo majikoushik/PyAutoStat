@@ -108,6 +108,15 @@ For common mean comparisons and correlations, the beginner conveniences are
 same guided workflow shown below.
 
 ```python
+workflow = assistant.compare_means("score", by="group")
+print(workflow.brief())
+```
+
+`workflow.brief()` gives a concise, single-paragraph result from the stored analysis. Use
+`workflow.apa_statement()` for a reporting sentence, `workflow.explain()` for the detailed
+plain-text explanation, or `show(workflow)` for the full structured presentation.
+
+```python
 workflow = assistant.run(
     objective="compare_groups",
     outcome="score",

@@ -737,3 +737,15 @@ class ResearchWorkflowResult:
         from .result_access import generate_workflow_statement
 
         return generate_workflow_statement(self)
+
+    def brief(self, *, include_warnings: bool = True) -> str:
+        """Return a concise, deterministic paragraph from stored workflow results.
+
+        The brief does not recalculate statistics or alter the serialized workflow.
+        Set ``include_warnings=False`` to omit its single-warning suffix.
+        """
+        if not isinstance(include_warnings, bool):
+            raise InvalidDataError("include_warnings must be a Boolean.")
+        from .result_access import generate_workflow_brief
+
+        return generate_workflow_brief(self, include_warnings=include_warnings)

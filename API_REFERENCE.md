@@ -357,6 +357,12 @@ Most workflows require only a small subset of parameters. Use this cookbook to i
 `needs_input`, `data_limited`, `unsupported`, and `failed`. A stage that did not run stays `None`.
 `to_dict()` and `to_json()` use workflow schema version 1, reject nonfinite JSON values, and do
 not embed the source DataFrame.
+`workflow.brief(*, include_warnings=True) -> str` returns a deterministic, single-paragraph result
+from the already stored workflow and analysis records. It uses method-specific summaries for all
+registered methods, retains recorded contrast orientation and sample/exclusion accounting, and
+shows at most the first workflow warning with a count of any remaining warnings. Pass
+`include_warnings=False` to omit warnings without changing the numerical content. Blocked and
+incomplete workflows receive concise status-specific text; no substitute result is fabricated.
 `workflow.explain() -> str` returns a deterministic portable plain-text view assembled from the
 recorded specification, analysis, interpretation, limitations, warnings, and structured
 clarification questions. For completed group analyses it includes the recorded group order and
@@ -369,6 +375,19 @@ network or generative service.
 `recommendation.method_label` expose human display names while `method_id` remains the stable
 machine identifier. `workflow.interpretation.findings_plain` numbers the existing finding messages
 without changing their meaning.
+
+Choose the smallest result view that fits the task:
+
+```python
+workflow.brief()          # concise result
+workflow.apa_statement()  # reporting sentence
+workflow.explain()        # detailed explanation
+show(workflow)            # full structured presentation
+```
+
+`brief()` is a computed presentation convenience only: it does not add a `brief` field to
+`to_dict()`, JSON, reports, reproducibility records, or export bundles, and it never recalculates
+statistics.
 
 The default successful path performs one statistical execution. Later stages consume that result;
 reproducibility-record creation does not replay it. Default audit renders and checks HTML,

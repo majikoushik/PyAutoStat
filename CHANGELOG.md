@@ -9,6 +9,7 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   Added `ResearchWorkflowResult.brief(include_warnings=True)`, a deterministic single-paragraph result view with method-specific summaries for all 24 registered methods, explicit workflow-status handling, stored sample/orientation context, and optional bounded warning display. The convenience performs no statistical recalculation and does not change serialized workflow schemas.
 -   Added `ResearchAssistant.compare_means(...)` and `ResearchAssistant.correlate(..., method=...)` as thin beginner conveniences over the existing design-aware `run()` workflow, without adding methods or changing statistical calculations.
 -   Added keyword-only constructor `AnalysisOptions` defaults for integrated `ResearchAssistant.run()` and `prepare_question()` calls, with complete per-call options taking precedence.
 -   Completed exhaustive result ergonomics consistency audit across all 24 registered statistical methods (`docs/RESULT_ERGONOMICS_AUDIT.md`), verifying zero-recalculation guarantees and documenting ambiguity rules for complex multi-parameter models.
