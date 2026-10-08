@@ -468,10 +468,18 @@ def _format_canonical_statement(
         else:
             df_str = "Unavailable"
         eff_part = f", partial eta^2 = {eff_val}" if eff_val != "Unavailable" else ""
-        eps = format_apa_number(vals.get("greenhouse_geisser_epsilon"), bounded_unit=True)
+        gg_map = vals.get("greenhouse_geisser")
+        gg_eps = (
+            gg_map.get("epsilon")
+            if isinstance(gg_map, Mapping)
+            else vals.get("greenhouse_geisser_epsilon")
+        )
+        eps = format_apa_number(gg_eps, bounded_unit=True)
+        primary_inf = str(vals.get("primary_inference", "")).lower()
         gg_applied = (
-            vals.get("sphericity_correction_applied")
-            or vals.get("primary_inference") == "Greenhouse-Geisser"
+            (isinstance(gg_map, Mapping) and gg_map.get("applied") is True)
+            or vals.get("sphericity_correction_applied") is True
+            or primary_inf in ("greenhouse_geisser", "greenhouse-geisser")
         )
         gg = f" (Greenhouse-Geisser epsilon = {eps} applied)" if gg_applied else ""
         f_s = format_apa_number(vals.get("test_statistic"))

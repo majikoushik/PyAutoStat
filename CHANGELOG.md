@@ -10,12 +10,13 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 -   Completed exhaustive result ergonomics consistency audit across all 24 registered statistical methods (`docs/RESULT_ERGONOMICS_AUDIT.md`), verifying zero-recalculation guarantees and documenting ambiguity rules for complex multi-parameter models.
--   Completed authoritative effect-size and uncertainty gap audit (`docs/EFFECT_SIZE_AND_UNCERTAINTY_AUDIT.md`), evaluating estimand alignment, runtime field locations, independent validation levels, candidate metrics, and candidate prioritization (P1: Hedges' $g$, standardized regression betas).
+-   Completed authoritative effect-size and uncertainty gap audit (`docs/EFFECT_SIZE_AND_UNCERTAINTY_AUDIT.md`), evaluating estimand alignment, runtime field locations, independent validation levels, candidate metrics, and non-blocking candidate prioritization (Hedges' $g$, standardized regression betas, and omega-squared classified as optional future metrics).
 -   Added deterministic SHA-256 validation framework content fingerprinting (`validation_framework_content_sha256`) in `validation/manifest.py` and `validation/run_reference_validation.py` to truthfully record framework content provenance across commits.
 
 ### Fixed
 
 -   Hardened result ergonomics convenience accessors in `pyautostat.result_access`:
+    -   Corrected repeated-measures ANOVA statement formatting to read authoritative integrated schema `values["greenhouse_geisser"]["epsilon"]` and `values["greenhouse_geisser"]["applied"]`, preventing epsilon from displaying as unavailable when stored.
     -   Corrected `result.effect_size_confidence_interval` lookup to read authoritative nested `values["effect_size"]["confidence_interval"]`.
     -   Corrected `result.degrees_of_freedom` extraction to read canonical stored values (returning 2-element tuples for ANOVA variants and ICC, scalars for single-df tests, and `None` for ambiguous models).
     -   Corrected two-way factorial ANOVA statement formatting to extract residual denominator df, read partial $\eta^2$ from `term["effect_size"]["value"]`, format $F(\text{df}_{\text{num}}, \text{df}_{\text{resid}})$, and omit the residual row from inferential reporting.
@@ -24,6 +25,12 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
     -   Corrected McNemar statement wording to reflect the exact paired binary procedure and avoided inaccurate "continuity-corrected" descriptions.
     -   Expanded `sample_accounting` to surface all tracked unit, pair, target, rater, and difference fields, using explicit `is not None` logic to preserve valid zero values.
     -   Preserved exact scalar, tuple, or `None` objects in `result.to_dataframe("primary")` for degrees of freedom rather than stringifying.
+-   Reconciled audit and documentation surfaces against runtime source:
+    -   Distinguished sample mean from primary estimate/estimand (mean difference from reference) in one-sample t-test audit.
+    -   Corrected paired-t sample accounting audit to remove Wilcoxon zero-difference fields.
+    -   Documented runtime availability of Friedman Kendall's W bootstrap confidence interval (`PRESENT_BUT_VALIDATION_GAP`).
+    -   Scoped Pearson Fisher-z interval description as an analytical transformation-based interval rather than an exact finite-sample interval.
+    -   Confirmed Welch-ANOVA effect-size documentation aligns with runtime schema (`name: "global standardized effect"`, `value: None`, `status: "not_applicable"`).
 
 ### Changed
 

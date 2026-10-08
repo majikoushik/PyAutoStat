@@ -154,8 +154,8 @@ class TestMethodLabel:
                 "test_statistic": 8.44,
                 "degrees_of_freedom": [1.6, 22.4],
                 "p_value": 0.003,
-                "primary_inference": "Greenhouse-Geisser",
-                "greenhouse_geisser_epsilon": 0.8,
+                "primary_inference": "greenhouse_geisser",
+                "greenhouse_geisser": {"applied": True, "epsilon": 0.8},
                 "effect_size": {"name": "partial_eta_squared", "value": 0.38},
             },
         )

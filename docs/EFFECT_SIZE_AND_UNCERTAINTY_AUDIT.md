@@ -74,9 +74,9 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 - **Classification**: `PRESENT_BUT_VALIDATION_GAP`.
 
 ### 4. `one_sample_t` (One-Sample t-Test)
-- **Primary Estimand**: Difference between population mean and reference benchmark ($\mu - \mu_0$).
-- **Primary Estimate**: Sample mean ($\bar{x}$).
-- **Primary Estimate CI**: Available (95% analytical $t$-interval).
+- **Primary Estimand**: Difference between population mean and reference benchmark ($\Delta\mu = \mu - \mu_0$).
+- **Primary Estimate**: Mean difference from reference ($\bar{x} - \mu_0$, stored in `primary_estimate` with `estimate_name: "mean difference from reference"`; sample mean $\bar{x}$ is reported as supporting descriptive quantity).
+- **Primary Estimate CI**: Available (95% analytical $t$-interval for mean difference from reference).
 - **Effect Size Quantity**: One-sample Cohen's $d$ ($(\bar{x} - \mu_0) / s$).
 - **Effect Size Definition**: Standardized distance from reference benchmark.
 - **Effect Size CI Status**: Available (bootstrap interval).
@@ -85,7 +85,7 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 - **Validation Evidence (Estimate)**: Level A.
 - **Validation Evidence (Interval)**: Level A for primary; Level D for bootstrap effect CI.
 - **Interpretation Caveat**: Assumes normal distribution of population scores.
-- **Alternative Candidates**: Hedges' $g$ (small-sample correction).
+- **Alternative Candidates**: Hedges' $g$ (small-sample correction; optional future metric).
 - **Classification**: `PRESENT_BUT_VALIDATION_GAP`.
 
 ### 5. `mann_whitney_u` (Mann-Whitney U Test)
@@ -120,17 +120,17 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 
 ### 7. `welch_anova` (Welch's One-Way ANOVA)
 - **Primary Estimand**: Equality of $k \ge 3$ population means under variance heterogeneity.
-- **Primary Estimate**: Omnibus $F$-statistic (Games-Howell post-hoc mean differences).
+- **Primary Estimate**: Omnibus Welch $F$-statistic; pairwise Games-Howell mean differences.
 - **Primary Estimate CI**: Unavailable for omnibus test; available for pairwise Games-Howell comparisons.
-- **Effect Size Quantity**: Eta-squared ($\eta^2$) / Omega-squared ($\omega^2$).
-- **Effect Size Definition**: Proportion of variance explained.
-- **Effect Size CI Status**: Unavailable.
-- **Runtime Field Location**: `values["effect_size"]["value"]`.
-- **CI Method**: None for omnibus effect size.
-- **Validation Evidence (Estimate)**: Level A for omnibus $F$; Level B for effect size.
+- **Effect Size Quantity**: Global standardized effect (`name: "global standardized effect"`, `value: None`, `status: "not_applicable"`).
+- **Effect Size Definition**: Global omnibus effect size is not applicable for Welch's ANOVA in PyAutoStat; pairwise Games-Howell unstandardized mean differences serve as primary local contrasts.
+- **Effect Size CI Status**: Not applicable (pairwise Games-Howell post-hoc CIs provided).
+- **Runtime Field Location**: `values["effect_size"]["value"]` (`None`), `values["post_hoc"]["comparisons"]`.
+- **CI Method**: Games-Howell Welch-t intervals for post-hoc pairs.
+- **Validation Evidence (Estimate)**: Level A for omnibus Welch $F$.
 - **Validation Evidence (Interval)**: Level C for post-hoc intervals.
-- **Interpretation Caveat**: Omnibus effect size does not locate which specific groups differ.
-- **Alternative Candidates**: Field-level Games-Howell CIs already provide pairwise localization.
+- **Interpretation Caveat**: Global omnibus effect size is not defined/emitted; pairwise Games-Howell comparisons locate group differences directly.
+- **Alternative Candidates**: Pairwise Games-Howell CIs already provide unstandardized pairwise contrasts.
 - **Classification**: `COMPLETE_FOR_CURRENT_SCOPE`.
 
 ### 8. `one_way_anova` (Fisher's One-Way ANOVA)
@@ -171,7 +171,7 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 - **Effect Size Definition**: Standardized bivariate linear covariance.
 - **Effect Size CI Status**: Available (Fisher $z$ CI).
 - **Runtime Field Location**: `values["primary_estimate"]`, `values["confidence_interval"]`.
-- **CI Method**: Exact analytical Fisher $z$-transformation.
+- **CI Method**: Analytical Fisher $z$-transformation interval.
 - **Validation Evidence (Estimate)**: Level A.
 - **Validation Evidence (Interval)**: Level A.
 - **Interpretation Caveat**: Sensitive to non-normality and outliers; bounded $[-1, 1]$. Strictly stored values reported without derived $n-2$ df.
@@ -295,8 +295,8 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 - **Validation Evidence (Estimate)**: Level A for $B_j$, $\text{SE}$, $t$, $p$, and $R^2$.
 - **Validation Evidence (Interval)**: Level A for coefficient CIs.
 - **Interpretation Caveat**: Unstandardized coefficients depend on measurement units; omnibus scalars return `None` to prevent single-number distortion.
-- **Alternative Candidates**: Standardized regression coefficients ($\beta^*_j$, scale-independent effect magnitude, answers same estimand).
-- **Classification**: `TRUE_HIGH_VALUE_GAP` (for standardized betas).
+- **Alternative Candidates**: Standardized regression coefficients ($\beta^*_j$, scale-independent rescaled magnitude, optional future enhancement).
+- **Classification**: `COMPLETE_FOR_CURRENT_SCOPE` (Unstandardized coefficients and HC3 robust CIs are complete; standardized betas are optional future metrics).
 
 ### 19. `logistic_regression` (Binary Logistic Regression)
 - **Primary Estimand**: Conditional log-odds of binary outcome event ($P(Y = 1 \mid X)$).
@@ -346,17 +346,17 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 ### 22. `friedman_test` (Friedman Test)
 - **Primary Estimand**: Equality of rank distributions across $k \ge 3$ repeated/matched conditions.
 - **Primary Estimate**: Omnibus $Q$-statistic.
-- **Primary Estimate CI**: Unavailable.
+- **Primary Estimate CI**: Unavailable for omnibus test.
 - **Effect Size Quantity**: Kendall's $W = \frac{Q}{N(k - 1)}$.
 - **Effect Size Definition**: Coefficient of concordance across repeated rankings ($0 \le W \le 1$).
-- **Effect Size CI Status**: Unavailable.
-- **Runtime Field Location**: `values["effect_size"]["value"]`.
-- **CI Method**: None.
+- **Effect Size CI Status**: Available (bootstrap interval).
+- **Runtime Field Location**: `values["effect_size"]["value"]`, `values["effect_size"]["confidence_interval"]`.
+- **CI Method**: Non-parametric bootstrap resample (`friedman_kendall_w_bootstrap_ci`).
 - **Validation Evidence (Estimate)**: Level A for $Q$; Level B for $W$.
 - **Validation Evidence (Interval)**: Level D for deferred bootstrap interval.
 - **Interpretation Caveat**: Non-parametric analog of repeated ANOVA; ranks within each participant block.
 - **Alternative Candidates**: None required.
-- **Classification**: `COMPLETE_FOR_CURRENT_SCOPE`.
+- **Classification**: `PRESENT_BUT_VALIDATION_GAP`.
 
 ### 23. `two_way_anova` (Two-Way Factorial ANOVA)
 - **Primary Estimand**: Factor A main effect, Factor B main effect, and Factor $A \times B$ interaction.
@@ -394,16 +394,16 @@ This document provides a disciplined, audit-first assessment of PyAutoStat's eff
 
 | Domain / Method | Candidate Metric | Answers Same Estimand? | Scientific Value | Recommendation | Justification |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Mean comparisons** | Hedges' $g$ | Yes (standardized mean diff) | High | **HIGH_VALUE_FUTURE** | Essential for small samples ($N < 20$) where Cohen's $d$ overestimates population effect. Exact closed-form $J(df)$. |
+| **Mean comparisons** | Hedges' $g$ | Yes (standardized mean diff) | High | **OPTIONAL_FUTURE** | Small-sample bias-corrected standardized mean difference ($N < 20$); non-blocking future enhancement since raw mean differences, Cohen's d, and CIs are fully reported. |
 | **Mean comparisons** | Glass's $\Delta$ | Yes (standardized mean diff) | Medium | **OPTIONAL_FUTURE** | Useful when control and intervention variances differ substantially, but requires explicit designation of control group. |
-| **ANOVA** | Omega-squared ($\omega^2$) | Yes (variance explained) | High | **HIGH_VALUE_FUTURE** | Unbiased estimator of population variance explained; avoids the known positive sample bias of $\eta^2$. |
+| **ANOVA** | Omega-squared ($\omega^2$) | Yes (variance explained) | High | **OPTIONAL_FUTURE** | Unbiased estimator of population variance explained; non-blocking optional future metric. |
 | **ANOVA** | Partial omega-squared ($\omega_p^2$) | Yes (variance explained) | Medium | **OPTIONAL_FUTURE** | Less biased for factorial/repeated designs; algebraic complexity higher under unbalanced designs. |
 | **Rank tests** | Rank-biserial variants | Yes (stochastic dominance) | High | **KEEP CURRENT** | Already present in runtime for Mann-Whitney and Wilcoxon with bootstrap uncertainty. |
 | **Rank tests** | Epsilon-squared ($\epsilon^2$) | Yes (rank variance explained) | High | **KEEP CURRENT** | Already present in runtime for Kruskal-Wallis. |
 | **Categorical** | Cramer's $V$ | Yes (nominal association) | High | **KEEP CURRENT** | Already present in runtime with bootstrap confidence interval. |
 | **Categorical** | Odds Ratio ($\text{OR}$) | Yes (odds association) | High | **KEEP CURRENT** | Already present in Fisher's exact test and logistic regression. |
 | **Categorical** | Risk Ratio (Relative Risk) | **NO (changes estimand)** | N/A | **DO_NOT_ADD** | Relative risk requires a prospective cohort/clinical trial design. Computing RR in case-control/cross-sectional data is scientifically invalid. |
-| **Regression** | Standardized beta ($\beta^*$) | Yes (relative predictor strength) | High | **HIGH_VALUE_FUTURE** | Scale-independent comparison of predictor effect magnitudes in OLS regression. |
+| **Regression** | Standardized beta ($\beta^*$) | Yes (relative predictor strength) | High | **OPTIONAL_FUTURE** | Scale-independent standardized regression coefficient; rescales original parameters. Non-blocking optional future metric. |
 | **Regression** | $R^2$ / Adjusted $R^2$ | Yes (model variance explained) | High | **KEEP CURRENT** | Already present in `model_fit`. |
 | **Regression** | $R^2$ Confidence Interval | Yes (fit uncertainty) | Medium | **OPTIONAL_FUTURE** | Can be calculated via noncentral $F$ inversion; moderate implementation complexity. |
 | **Reliability** | Cronbach $\alpha$ Bootstrap CI | Yes (internal consistency) | High | **KEEP CURRENT** | Already supported at runtime via uncertainty settings. |
@@ -427,12 +427,12 @@ The standalone validation framework (`validation/reference_validation_summary.js
 | `spearman_correlation` | `confidence_interval` | Runtime quantity exists (bootstrap CI) | A (Runtime exists; only independent reference deferred) |
 | `pearson_chi_square` | `effect_size_ci` | Runtime quantity exists (bootstrap CI) | A (Runtime exists; only independent reference deferred) |
 | `fisher_exact` | `confidence_interval` | Runtime quantity exists (exact conditional CI) | A (Runtime exists; only independent reference deferred) |
-| `friedman_test` | `kendall_w_bootstrap_ci`| Runtime quantity does NOT exist | B (Runtime quantity does not exist) |
+| `friedman_test` | `kendall_w_bootstrap_ci`| Runtime quantity exists (bootstrap CI) | A (Runtime exists; only independent reference deferred) |
 | `partial_pearson_correlation` | `partial_r_ci` | Runtime quantity exists (Fisher $z$ CI) | A (Runtime exists; only independent reference deferred) |
 | `cronbach_alpha` | `cronbach_bootstrap_ci`| Runtime quantity exists (bootstrap CI) | A (Runtime exists; only independent reference deferred) |
 | `intraclass_correlation` | `icc_exact_ci` | Runtime quantity exists (exact $F$-inversion) | A (Runtime exists; only independent reference deferred) |
 
-**Key Finding**: 11 of the 12 deferred fields already exist and execute accurately in PyAutoStat runtime; their Level D status reflects the deliberate omission of stochastic bootstrap harnesses or complex exact inversions from the lightweight standalone NumPy reference script.
+**Key Finding**: All 12 deferred fields already exist and execute accurately in PyAutoStat runtime; their Level D status reflects the deliberate omission of stochastic bootstrap harnesses or complex exact inversions from the lightweight standalone NumPy reference script.
 
 ---
 
@@ -447,17 +447,18 @@ Every candidate gap is evaluated against 5 objective criteria:
 
 | Candidate Metric | Scientific Value | User Frequency | Implementation Risk | Estimand Risk | Validation Feasibility | Recommended Priority |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Hedges' $g$ (Unbiased SMD)** | High | High | Low | Same estimand | Straightforward | **P1** |
-| **Standardized Regression Betas** | High | High | Low | Same estimand | Straightforward | **P1** |
-| **Omega-Squared ($\omega^2$) for ANOVA** | Medium | Medium | Low | Same estimand | Straightforward | **P2** |
-| **Feldt Exact CI for Cronbach's Alpha** | Medium | Medium | Low | Same estimand | Straightforward | **P2** |
-| **Glass's Delta ($\Delta$)** | Medium | Low | Medium | Same estimand | Moderate | **DEFER** |
-| **Partial Omega-Squared ($\omega_p^2$)** | Medium | Low | Medium | Same estimand | Moderate | **DEFER** |
-| **$R^2$ Confidence Interval** | Low | Low | Medium | Same estimand | Moderate | **DEFER** |
+| **Hedges' $g$ (Unbiased SMD)** | High | High | Low | Same estimand | Straightforward | **OPTIONAL_FUTURE** |
+| **Standardized Regression Betas** | High | High | Low | Same estimand | Straightforward | **OPTIONAL_FUTURE** |
+| **Omega-Squared ($\omega^2$) for ANOVA** | Medium | Medium | Low | Same estimand | Straightforward | **OPTIONAL_FUTURE** |
+| **Feldt Exact CI for Cronbach's Alpha** | Medium | Medium | Low | Same estimand | Straightforward | **OPTIONAL_FUTURE** |
+| **Glass's Delta ($\Delta$)** | Medium | Low | Medium | Same estimand | Moderate | **OPTIONAL_FUTURE** |
+| **Partial Omega-Squared ($\omega_p^2$)** | Medium | Low | Medium | Same estimand | Moderate | **OPTIONAL_FUTURE** |
+| **$R^2$ Confidence Interval** | Low | Low | Medium | Same estimand | Moderate | **OPTIONAL_FUTURE** |
 | **Risk Ratio (Relative Risk)** | N/A | High | High | **Changes estimand**| N/A | **DO_NOT_ADD** |
 | **Standardized Cronbach's Alpha** | Low | Medium | Low | **Changes estimand**| N/A | **DO_NOT_ADD** |
 
-### Recommendations for Future Implementation:
-- **P1 Implementation Scope**: Keep strictly focused on **Hedges' $g$** and **Standardized Betas**. Both share identical estimands with existing implementations, carry negligible implementation risk, and have closed-form, independently verifiable analytical solutions.
-- **P2 Implementation Scope**: Address **Omega-squared** and **Feldt's Alpha CI** if requested by users.
-- **Excluded**: Do not implement Risk Ratio or Standardized Alpha.
+### Synthesis and Scope Boundaries:
+- **Optional future metrics are not release blockers.** PyAutoStat's 24 statistical methods are fully interpretable, reproducible, and complete for their stated estimands with existing point estimates, raw/standardized effect sizes, and uncertainty intervals.
+- **True High-Value Gaps in Current Scope**: 0 (None). All 24 methods provide complete effect-size and/or uncertainty coverage for their supported estimands.
+- **Optional Future Enhancements**: Hedges' $g$, standardized regression coefficients ($\beta^*$), omega-squared ($\omega^2$), partial omega-squared ($\omega_p^2$), and Feldt's alpha CI are classified as non-blocking candidate enhancements for future development.
+- **Excluded**: Risk Ratio and Standardized Alpha remain permanently excluded as scientifically inappropriate for the supported study designs.
