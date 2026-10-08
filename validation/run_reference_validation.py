@@ -34,6 +34,7 @@ from validation.cases import get_all_reference_cases  # noqa: E402
 from validation.manifest import (  # noqa: E402
     build_manifest_v2,
     build_validation_summary,
+    compute_validation_framework_content_sha256,
     write_manifest,
     write_summary,
 )
@@ -3347,6 +3348,21 @@ def run_self_check() -> bool:
                 passed = False
             else:
                 print("[SELF-CHECK PASS] Summary totals equal recomputed totals from field results.")
+
+            committed_fp = s_data.get("package", {}).get("validation_framework_content_sha256")
+            if not committed_fp:
+                print("[SELF-CHECK FAIL] Summary missing validation_framework_content_sha256.")
+                passed = False
+            else:
+                current_fp = compute_validation_framework_content_sha256()
+                if committed_fp != current_fp:
+                    print(
+                        f"[SELF-CHECK FAIL] Validation framework content fingerprint mismatch: "
+                        f"committed={committed_fp}, current={current_fp}"
+                    )
+                    passed = False
+                else:
+                    print("[SELF-CHECK PASS] Validation framework content fingerprint matches committed summary.")
 
         except Exception as exc:
             print(f"[SELF-CHECK FAIL] Exception reading summary: {exc}")

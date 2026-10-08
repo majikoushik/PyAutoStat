@@ -53,7 +53,7 @@
         },
         {
           "field": "ci_lower",
-          "expected": 3.4521753277158833,
+          "expected": 3.4521753277158838,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -80,7 +80,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.0003849145273821434,
+          "expected": 0.00038491452738214363,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -183,7 +183,7 @@
         },
         {
           "field": "ci_lower",
-          "expected": -4.331128461821145,
+          "expected": -4.331128461821149,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -192,7 +192,7 @@
         },
         {
           "field": "ci_upper",
-          "expected": -2.526014395321712,
+          "expected": -2.5260143953217087,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -210,7 +210,7 @@
         },
         {
           "field": "p_value",
-          "expected": 8.77319138262566e-05,
+          "expected": 8.773191382625657e-05,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -304,7 +304,7 @@
         },
         {
           "field": "ci_lower",
-          "expected": 3.593334976727843,
+          "expected": 3.5933349767047975,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -313,7 +313,7 @@
         },
         {
           "field": "ci_upper",
-          "expected": 8.406665023272158,
+          "expected": 8.406665023295202,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -331,7 +331,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.00024243082443224819,
+          "expected": 0.0002424308244322483,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -425,7 +425,7 @@
         },
         {
           "field": "ci_lower",
-          "expected": -8.671508808463997,
+          "expected": -8.671508808417755,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -434,7 +434,7 @@
         },
         {
           "field": "ci_upper",
-          "expected": -4.928491191536003,
+          "expected": -4.928491191582245,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -452,7 +452,7 @@
         },
         {
           "field": "p_value",
-          "expected": 1.7820656872379158e-05,
+          "expected": 1.782065687237914e-05,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -546,7 +546,7 @@
         },
         {
           "field": "ci_lower",
-          "expected": 10.126460214574013,
+          "expected": 10.12646021457401,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -555,7 +555,7 @@
         },
         {
           "field": "ci_upper",
-          "expected": 23.302111213997417,
+          "expected": 23.30211121399742,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -573,7 +573,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.0005814825610781419,
+          "expected": 0.0005814825610781422,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -676,7 +676,7 @@
         },
         {
           "field": "ci_upper",
-          "expected": -13.755604269494519,
+          "expected": -13.755604269494517,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -694,7 +694,7 @@
         },
         {
           "field": "p_value",
-          "expected": 3.7568241560157766e-06,
+          "expected": 3.756824156015774e-06,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -789,7 +789,7 @@
         },
         {
           "field": "ci_lower",
-          "expected": 2.6852123652240016,
+          "expected": 2.6852123652239976,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -798,7 +798,7 @@
         },
         {
           "field": "ci_upper",
-          "expected": 4.743359063347427,
+          "expected": 4.743359063347431,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -816,7 +816,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.000117072914607714,
+          "expected": 0.00011707291460771399,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -948,7 +948,7 @@
         },
         {
           "field": "p_value",
-          "expected": 1.361034956818193e-05,
+          "expected": 1.3610349568181925e-05,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -1333,7 +1333,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.2216236024593935,
+          "expected": 0.375,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -1524,7 +1524,7 @@
         },
         {
           "field": "p_value",
-          "expected": 8.349704820373075e-07,
+          "expected": 8.349704820373072e-07,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -2108,7 +2108,7 @@
         },
         {
           "field": "p_value",
-          "expected": 1.1431893790998072e-06,
+          "expected": 1.1431893790998085e-06,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "A",
@@ -2243,7 +2243,7 @@
         },
         {
           "field": "gh_p_B_C",
-          "expected": 0.0001825470101877169,
+          "expected": 0.00018254701018760588,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -2322,7 +2322,7 @@
         },
         {
           "field": "p_value",
-          "expected": 5.295369208007927e-06,
+          "expected": 5.295369208007928e-06,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "A",
@@ -2572,7 +2572,7 @@
         },
         {
           "field": "tk_p_A_B",
-          "expected": 0.11205120333178553,
+          "expected": 0.11205120333178564,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -2714,7 +2714,7 @@
         },
         {
           "field": "p_value",
-          "expected": 9.075129565176216e-08,
+          "expected": 9.075129565176319e-08,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -3052,7 +3052,7 @@
         },
         {
           "field": "dunn_raw_p_A_B",
-          "expected": 0.14762797238264413,
+          "expected": 0.14762797238264416,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -3061,7 +3061,7 @@
         },
         {
           "field": "dunn_adj_p_A_B",
-          "expected": 0.14762797238264413,
+          "expected": 0.14762797238264416,
           "atol": 1e-12,
           "rtol": 1e-10,
           "evidence_level": "A",
@@ -3230,7 +3230,7 @@
         },
         {
           "field": "p_uncorrected",
-          "expected": 7.665305840420417e-11,
+          "expected": 7.665305840420418e-11,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "A",
@@ -3810,7 +3810,7 @@
         },
         {
           "field": "p_a",
-          "expected": 5.803681653922503e-13,
+          "expected": 5.80368165392251e-13,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -3819,7 +3819,7 @@
         },
         {
           "field": "p_b",
-          "expected": 4.462280639030914e-11,
+          "expected": 4.462280639030915e-11,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4006,7 +4006,7 @@
         },
         {
           "field": "p_a",
-          "expected": 3.679589348204022e-13,
+          "expected": 3.6795893482040184e-13,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4015,7 +4015,7 @@
         },
         {
           "field": "p_b",
-          "expected": 7.663484796787549e-11,
+          "expected": 7.663484796787545e-11,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4024,7 +4024,7 @@
         },
         {
           "field": "p_ab",
-          "expected": 0.00015597380787692465,
+          "expected": 0.00015597380787692476,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4202,7 +4202,7 @@
         },
         {
           "field": "p_a",
-          "expected": 5.803681653922503e-13,
+          "expected": 5.80368165392251e-13,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -4211,7 +4211,7 @@
         },
         {
           "field": "p_b",
-          "expected": 4.462280639030914e-11,
+          "expected": 4.462280639030915e-11,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -5052,7 +5052,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.00012036668127409674,
+          "expected": 0.00012036668127409956,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -5201,7 +5201,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.2531699951003226,
+          "expected": 0.25316999510032273,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -5277,7 +5277,7 @@
         },
         {
           "field": "p_value",
-          "expected": 0.09478696226682135,
+          "expected": 0.09478696226682143,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -5861,7 +5861,7 @@
         },
         {
           "field": "p_twoway",
-          "expected": 8.042088905836252e-15,
+          "expected": 8.042088905836248e-15,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",
@@ -6027,7 +6027,7 @@
         },
         {
           "field": "p_twoway",
-          "expected": 2.9894714324789015e-17,
+          "expected": 2.989471432478903e-17,
           "atol": 1e-08,
           "rtol": 1e-06,
           "evidence_level": "B",

@@ -27,6 +27,8 @@ provide focused technical and scientific detail organized by research goal.
 - [Statistical validation](STATISTICAL_VALIDATION.md): Numerical definitions, method-selection rules, validation cases, dependency behavior, and interpretation policies.
 - [Independent Numerical Validation](NUMERICAL_VALIDATION.md): Transparent evidence hierarchy (Levels A–D), tolerance policy, and first-tranche validation results across 10 foundational methods.
 - [Result Ergonomics and Statements](RESULT_ERGONOMICS_AND_STATEMENTS.md): Ergonomic accessors, scalar safeguards, defensive copies, tabular views, and deterministic APA-oriented statistical statement formatting.
+- [Result Ergonomics Consistency Audit](RESULT_ERGONOMICS_AUDIT.md): Exhaustive consistency audit across all 24 registered methods for scalar properties, DataFrame views, and APA-oriented statements.
+- [Effect-Size & Uncertainty Gap Audit](EFFECT_SIZE_AND_UNCERTAINTY_AUDIT.md): Authoritative audit of effect sizes, point estimates, uncertainty intervals, runtime field locations, numerical validation levels, and candidate prioritization across all 24 methods.
 - [Effect-size confidence interval gaps](EFFECT_SIZE_CI_GAPS.md): Explicit classification of missing effect-size confidence intervals, candidate methods, validation requirements, and implementation priorities.
 - [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md): Sensitivity scenario comparability and researcher-defined meaningful-effect thresholds.
 - [Scientific limitations](SCIENTIFIC_LIMITATIONS.md): Unsupported claims, design responsibilities, privacy limits, resource caveats, and dependency boundaries.

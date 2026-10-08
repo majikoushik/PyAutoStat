@@ -5,15 +5,16 @@
     "version": "0.5.0",
     "numerical_source_baseline_sha": "817bb9c5454c266462a457690f3673099546b49f",
     "validation_framework_baseline_sha": "8fce4e9087236446eb4238387ffc04a9e33930c4",
-    "validation_framework_revision_sha": "2113a7e6a0bc589ce2b3c51d922238bc354eb702",
+    "validation_framework_revision_sha": "4d4284be3ade8c450b648fca48da732ae88077c6",
+    "validation_framework_content_sha256": "8ece17b8aaeb8d8a0e78383e35b279cbc91e856fa7a237a1ccd382c4d80faf01",
     "git_worktree_dirty": true,
     "source_code_invariance_status": "unchanged"
   },
   "environment": {
     "python_version": "3.12.7",
     "platform": "Windows-11-10.0.26300-SP0",
-    "numpy_version": "2.2.6",
-    "scipy_version": "1.13.0",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
     "pandas_version": "3.0.6",
     "statsmodels_version": "0.15.0"
   },

@@ -84,19 +84,18 @@ def get_p_value(result: AnalysisResult) -> float | None:
 def get_degrees_of_freedom(result: AnalysisResult) -> int | float | tuple[Any, ...] | None:
     mid = result.method_id
     vals = result.values or {}
-    if mid in ("two_way_anova", "cronbach_alpha"):
+    if mid in ("two_way_anova", "linear_regression", "logistic_regression", "cronbach_alpha"):
         return None
-    if mid in ("welch_anova", "one_way_anova", "repeated_measures_anova"):
-        d1 = vals.get("df_between") or vals.get("df_num")
-        d2 = vals.get("df_within") or vals.get("df_denom")
-        return (d1, d2) if d1 is not None and d2 is not None else None
+    df = vals.get("degrees_of_freedom")
+    if isinstance(df, (list, tuple)) and len(df) == 2:
+        return (df[0], df[1])
+    if isinstance(df, (int, float)) and not math.isnan(df):
+        return df
     if mid == "intraclass_correlation":
         f_t = vals.get("f_test", {})
         if isinstance(f_t, Mapping) and "df1" in f_t and "df2" in f_t:
             return (f_t["df1"], f_t["df2"])
-        return None
-    df = vals.get("degrees_of_freedom")
-    return df if isinstance(df, (int, float)) and not math.isnan(df) else None
+    return None
 
 
 def get_estimate(result: AnalysisResult) -> float | None:
@@ -115,28 +114,52 @@ def get_effect_size(result: AnalysisResult) -> dict[str, Any] | None:
 
 
 def get_effect_size_ci(result: AnalysisResult) -> dict[str, Any] | None:
-    ci = (result.values or {}).get("effect_size_confidence_interval")
+    vals = result.values or {}
+    eff = vals.get("effect_size")
+    ci = eff.get("confidence_interval") if isinstance(eff, Mapping) else None
+    if ci is None:
+        ci = vals.get("effect_size_confidence_interval")
     return copy.deepcopy(ci) if isinstance(ci, dict) else None
 
 
 def get_sample_accounting(result: AnalysisResult) -> dict[str, Any]:
     meta = result.metadata or {}
     s_meta = meta.get("sample", {}) if isinstance(meta.get("sample"), Mapping) else {}
-    acc: dict[str, Any] = {
-        "sample_size": result.sample_size,
-        "excluded_rows": result.excluded_rows,
-    }
-    for k in (
+    vals = result.values or {}
+    acc: dict[str, Any] = {}
+    if result.sample_size is not None:
+        acc["sample_size"] = result.sample_size
+    if result.excluded_rows is not None:
+        acc["excluded_rows"] = result.excluded_rows
+
+    tracked_keys = (
         "original_rows",
         "analyzed_rows",
+        "excluded_rows",
+        "sample_size",
         "group_sizes",
+        "total_units",
         "complete_pairs",
+        "complete_units",
+        "incomplete_units",
+        "excluded_units",
+        "missing_unit_rows",
+        "nonzero_differences",
+        "zero_differences",
+        "effective_pair_count",
         "effective_n",
         "targets",
+        "n_targets",
         "raters",
-    ):
-        v = s_meta.get(k) or meta.get(k)
-        if v is not None:
+        "n_raters",
+    )
+    for k in tracked_keys:
+        v = s_meta.get(k)
+        if v is None:
+            v = meta.get(k)
+        if v is None and isinstance(vals, Mapping):
+            v = vals.get(k)
+        if v is not None and k not in acc:
             acc[k] = copy.deepcopy(v)
     return acc
 
@@ -205,7 +228,7 @@ def result_to_dataframe(result: AnalysisResult, section: str = "primary") -> pd.
             "method_id": [mid],
             "test_name": [result.method_label],
             "statistic": [get_statistic(result)],
-            "degrees_of_freedom": [str(get_degrees_of_freedom(result))],
+            "degrees_of_freedom": [get_degrees_of_freedom(result)],
             "p_value": [get_p_value(result)],
             "estimate": [get_estimate(result)],
             "sample_size": [result.sample_size],
@@ -288,14 +311,34 @@ def generate_statement(result: AnalysisResult, style: str = "apa") -> str:
 
     if mid == "two_way_anova":
         ss_type = vals.get("sum_of_squares_type", "II")
+        terms = vals.get("terms", [])
+        if isinstance(terms, Mapping):
+            terms = list(terms.values())
+        resid_term = next((t for t in terms if t.get("term_type") == "residual"), None)
+        df_resid = resid_term.get("df") if resid_term else None
+        df_resid_str = (
+            f"{df_resid:.1f}"
+            if isinstance(df_resid, float) and not df_resid.is_integer()
+            else str(int(df_resid))
+            if isinstance(df_resid, (int, float))
+            else None
+        )
         lines = [f"{t_name} terms (Type {ss_type} SS):"]
-        for t in vals.get("terms", []):
-            df_s = (
-                f"{int(t.get('df', 0))}, {int(t.get('df_residual', 0))}"
-                if t.get("df_residual")
-                else str(int(t.get("df", 0)))
+        for t in terms:
+            if t.get("term_type") == "residual":
+                continue
+            df_num = t.get("df")
+            df_num_str = (
+                f"{df_num:.1f}"
+                if isinstance(df_num, float) and not df_num.is_integer()
+                else str(int(df_num))
+                if isinstance(df_num, (int, float))
+                else "Unavailable"
             )
-            eta_s = format_apa_number(t.get("partial_eta_squared"), bounded_unit=True)
+            df_s = f"{df_num_str}, {df_resid_str}" if df_resid_str else df_num_str
+            eff_entry = t.get("effect_size")
+            eta_val = eff_entry.get("value") if isinstance(eff_entry, Mapping) else None
+            eta_s = format_apa_number(eta_val, bounded_unit=True)
             eta_clause = f", partial eta^2 = {eta_s}" if eta_s != "Unavailable" else ""
             t_f = format_apa_number(t.get("f_statistic"))
             t_p = format_apa_p_value(t.get("p_value"))
@@ -308,11 +351,14 @@ def generate_statement(result: AnalysisResult, style: str = "apa") -> str:
         if is_log:
             df_lr = fit.get("lr_degrees_of_freedom") or fit.get("model_degrees_of_freedom")
             df_str = str(int(df_lr)) if df_lr is not None else "Unavailable"
-            pr2 = format_apa_number(fit.get("pseudo_r_squared"), bounded_unit=True)
+            pr2 = format_apa_number(fit.get("mcfadden_r2"), bounded_unit=True)
             f_s = format_apa_number(fit.get("lr_statistic"))
             p_s = format_apa_p_value(fit.get("lr_p_value"))
+            event_clause = ""
+            if vals.get("event_level") is not None:
+                event_clause = f" (event: {vals.get('event_level')})"
             lines = [
-                f"Logistic regression model fit: LR chi^2({df_str}) = {f_s}, {p_s}, "
+                f"Logistic regression model fit{event_clause}: LR chi^2({df_str}) = {f_s}, {p_s}, "
                 f"McFadden pseudo-R^2 = {pr2}."
             ]
         else:
@@ -357,7 +403,7 @@ def _format_canonical_statement(
     eff_val: str,
 ) -> str:
     if mid in ("welch_t", "student_t", "one_sample_t", "paired_t"):
-        df = vals.get("degrees_of_freedom")
+        df = get_degrees_of_freedom(result)
         df_str = (
             f"{df:.1f}"
             if isinstance(df, float) and not df.is_integer()
@@ -394,14 +440,12 @@ def _format_canonical_statement(
         )
 
     if mid in ("welch_anova", "one_way_anova"):
-        df1 = vals.get("df_between") or vals.get("df_num")
-        df2 = vals.get("df_within") or vals.get("df_denom")
-        if df1 is not None and df2 is not None:
-            df_str = (
-                f"{int(df1)}, {df2:.1f}"
-                if isinstance(df2, float) and not df2.is_integer()
-                else f"{int(df1)}, {int(df2)}"
-            )
+        dfs = get_degrees_of_freedom(result)
+        if isinstance(dfs, (tuple, list)) and len(dfs) == 2:
+            d1, d2 = dfs[0], dfs[1]
+            d1_str = f"{d1:.1f}" if isinstance(d1, float) and not d1.is_integer() else str(int(d1))
+            d2_str = f"{d2:.1f}" if isinstance(d2, float) and not d2.is_integer() else str(int(d2))
+            df_str = f"{d1_str}, {d2_str}"
         else:
             df_str = "Unavailable"
         eff_part = f", {eff_name} = {eff_val}" if eff_val != "Unavailable" else ""
@@ -409,32 +453,33 @@ def _format_canonical_statement(
         return f"{t_name}: omnibus F({df_str}) = {f_s}, {p_str}{eff_part}."
 
     if mid == "kruskal_wallis":
-        df_k = vals.get("degrees_of_freedom")
+        df_k = get_degrees_of_freedom(result)
         h_df = str(int(df_k)) if isinstance(df_k, (int, float)) else "Unavailable"
         h_s = format_apa_number(vals.get("test_statistic"))
         return f"Kruskal-Wallis test: H({h_df}) = {h_s}, {p_str}, epsilon^2 = {eff_val}."
 
     if mid == "repeated_measures_anova":
-        df1, df2 = vals.get("df_num"), vals.get("df_denom")
-        df_str = (
-            f"{df1:.1f}, {df2:.1f}"
-            if isinstance(df1, float) and isinstance(df2, float)
-            else f"{int(df1)}, {int(df2)}"
-            if df1 and df2
-            else "Unavailable"
-        )
+        dfs = get_degrees_of_freedom(result)
+        if isinstance(dfs, (tuple, list)) and len(dfs) == 2:
+            d1, d2 = dfs[0], dfs[1]
+            d1_str = f"{d1:.1f}" if isinstance(d1, float) and not d1.is_integer() else str(int(d1))
+            d2_str = f"{d2:.1f}" if isinstance(d2, float) and not d2.is_integer() else str(int(d2))
+            df_str = f"{d1_str}, {d2_str}"
+        else:
+            df_str = "Unavailable"
         eff_part = f", partial eta^2 = {eff_val}" if eff_val != "Unavailable" else ""
         eps = format_apa_number(vals.get("greenhouse_geisser_epsilon"), bounded_unit=True)
-        gg = (
-            f" (Greenhouse-Geisser epsilon = {eps} applied)"
-            if vals.get("sphericity_correction_applied")
-            else ""
+        gg_applied = (
+            vals.get("sphericity_correction_applied")
+            or vals.get("primary_inference") == "Greenhouse-Geisser"
         )
+        gg = f" (Greenhouse-Geisser epsilon = {eps} applied)" if gg_applied else ""
         f_s = format_apa_number(vals.get("test_statistic"))
         return f"Repeated-measures ANOVA: F({df_str}) = {f_s}, {p_str}{eff_part}{gg}."
 
     if mid == "friedman_test":
-        df_str = str(int(vals.get("degrees_of_freedom", 0)))
+        df_f = get_degrees_of_freedom(result)
+        df_str = str(int(df_f)) if isinstance(df_f, (int, float)) else "Unavailable"
         eff_part = f", {eff_name} = {eff_val}" if eff_val != "Unavailable" else ""
         q_s = format_apa_number(vals.get("test_statistic"))
         return f"Friedman test: Q({df_str}) = {q_s}, {p_str}{eff_part}."
@@ -446,9 +491,7 @@ def _format_canonical_statement(
         "point_biserial_correlation",
         "partial_pearson_correlation",
     ):
-        df = vals.get("degrees_of_freedom") or (
-            result.sample_size - 2 if result.sample_size and mid == "pearson_correlation" else None
-        )
+        df = get_degrees_of_freedom(result)
         df_str = f"({int(df)})" if isinstance(df, (int, float)) else ""
         sym = {
             "pearson_correlation": "r",
@@ -462,7 +505,7 @@ def _format_canonical_statement(
         return f"{t_name}: {sym}{df_str} = {r_s}, {p_str}{ci_part}"
 
     if mid == "pearson_chi_square":
-        df_c = vals.get("degrees_of_freedom")
+        df_c = get_degrees_of_freedom(result)
         chi_df = str(int(df_c)) if isinstance(df_c, (int, float)) else "Unavailable"
         n_s = result.sample_size
         chi_s = format_apa_number(vals.get("test_statistic"))
@@ -479,7 +522,9 @@ def _format_canonical_statement(
 
     if mid == "mcnemar":
         diff_s = format_apa_number(vals.get("primary_estimate"), bounded_unit=True)
-        return f"McNemar's test: {p_str}, paired proportion difference = {diff_s}."
+        ci_c = format_apa_ci(vals.get("confidence_interval"), bounded_unit=True)
+        ci_part = f", {ci_c}." if ci_c else "."
+        return f"Exact McNemar test: {p_str}, paired proportion difference = {diff_s}{ci_part}"
 
     if mid == "cronbach_alpha":
         k_items = vals.get("item_count") or len(vals.get("items", []))
@@ -491,15 +536,14 @@ def _format_canonical_statement(
         )
 
     if mid == "intraclass_correlation":
-        f_t = vals.get("f_test", {}) if isinstance(vals.get("f_test"), Mapping) else {}
-        df_s = (
-            f"{int(f_t.get('df1', 0))}, {int(f_t.get('df2', 0))}"
-            if f_t.get("df1")
-            else "Unavailable"
-        )
+        dfs = get_degrees_of_freedom(result)
+        if isinstance(dfs, (tuple, list)) and len(dfs) == 2:
+            df_s = f"{int(dfs[0])}, {int(dfs[1])}"
+        else:
+            df_s = "Unavailable"
         icc_s = format_apa_number(vals.get("primary_estimate"), bounded_unit=True)
-        f_s = format_apa_number(f_t.get("statistic"))
-        fp_s = format_apa_p_value(f_t.get("p_value"))
+        f_s = format_apa_number(get_statistic(result))
+        fp_s = format_apa_p_value(get_p_value(result))
         ci_part = f", {ci_str}" if ci_str else ""
         notat = vals.get("notation", "ICC")
         desc = vals.get("description", "intraclass correlation")

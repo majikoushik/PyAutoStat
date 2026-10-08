@@ -60,12 +60,12 @@ The following read-only convenience properties are available on `AnalysisResult`
 | `result.test_name` | `str` | Human-readable scientific method name (delegates to `result.method_label`). |
 | `result.statistic` | `float \| None` | Primary scalar test statistic, or `None` if scientifically ambiguous. |
 | `result.p_value` | `float \| None` | Primary scalar inferential $p$-value, or `None` if ambiguous. |
-| `result.degrees_of_freedom` | `int \| float \| tuple \| None` | Analytical degrees of freedom, tuple for multigroup/repeated $F$-tests, or `None`. |
+| `result.degrees_of_freedom` | `int \| float \| tuple \| None` | Analytical degrees of freedom, tuple for multigroup/repeated $F$-tests and ICC, or `None` if ambiguous or not stored. |
 | `result.estimate` | `float \| None` | Primary scalar point estimate (e.g. mean difference, correlation $r$, reliability $\alpha$), or `None`. |
 | `result.confidence_interval` | `dict[str, Any] \| None` | Defensive copy of stored primary estimate confidence interval dictionary, or `None`. |
 | `result.effect_size` | `dict[str, Any] \| None` | Defensive copy of stored effect size record, or `None` if unavailable or ambiguous. |
 | `result.effect_size_confidence_interval` | `dict[str, Any] \| None` | Defensive copy of stored effect size confidence interval dictionary, or `None`. |
-| `result.sample_accounting` | `dict[str, Any]` | Defensive dictionary summarizing analyzed rows, excluded rows, and group/pair sizes. |
+| `result.sample_accounting` | `dict[str, Any]` | Defensive dictionary summarizing `original_rows`, `analyzed_rows`, `excluded_rows`, `sample_size`, `group_sizes`, `total_units`, `complete_pairs`, `complete_units`, `incomplete_units`, `excluded_units`, `missing_unit_rows`, `nonzero_differences`, `zero_differences`, `effective_pair_count`, `effective_n`, `targets`/`n_targets`, and `raters`/`n_raters` where available. Preserves valid zero values. |
 
 ---
 
@@ -257,24 +257,31 @@ print(workflow.apa_statement())
 ```python
 workflow = assistant.run(objective="association", outcome="y", predictor="x1", design="independent", estimand="linear", data_dictionary=dict_spec)
 print(workflow.apa_statement())
-# Pearson correlation: r(8) = 1.00, p < .001, 95% CI [1.00, 1.00].
+# Pearson correlation: r = 1.00, p < .001, 95% CI [1.00, 1.00].
 ```
 
-### I. Contingency Independence (`pearson_chi_square`)
+### I. Paired Binary Exact Test (`mcnemar`)
+```python
+workflow = assistant.run(objective="association", outcome="post_pass", predictor="pre_pass", design="paired", estimand="paired_proportion_difference")
+print(workflow.apa_statement())
+# Exact McNemar test: p = .035, paired proportion difference = .15, 95% CI [.02, .28].
+```
+
+### J. Contingency Independence (`pearson_chi_square`)
 ```python
 workflow = assistant.run(objective="association", outcome="cat1", predictor="cat2", design="independent", estimand="categorical_independence", data_dictionary=dict_spec)
 print(workflow.apa_statement())
 # Pearson's chi-square test: chi^2(1, N = 60) = 6.67, p = .010, Cramer's V = .33.
 ```
 
-### J. Scale Reliability (`cronbach_alpha`)
+### K. Scale Reliability (`cronbach_alpha`)
 ```python
 workflow = assistant.run(objective="reliability", items=["item1", "item2", "item3"], design="independent", estimand="internal_consistency", data_dictionary=dict_spec)
 print(workflow.apa_statement())
-# Cronbach's alpha: alpha = .94, k = 3 items, N = 10 respondents, 95% CI [.87, .98].
+# Cronbach's alpha: alpha = .94, k = 3 items, N = 10 respondents.
 ```
 
-### K. Inter-Rater Agreement (`intraclass_correlation`)
+### L. Inter-Rater Agreement (`intraclass_correlation`)
 ```python
 workflow = assistant.run(objective="reliability", target="subject", rater="judge", outcome="rating", model="two_way_random", definition="absolute_agreement", unit="single")
 print(workflow.apa_statement())

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,8 +17,6 @@ import statsmodels
 from validation.models import FieldValidationResult
 
 import pyautostat
-
-import subprocess
 
 NUMERICAL_BASELINE_SHA = "817bb9c5454c266462a457690f3673099546b49f"
 FRAMEWORK_BASELINE_SHA = "8fce4e9087236446eb4238387ffc04a9e33930c4"
@@ -36,6 +36,28 @@ STATISTICAL_RUNTIME_PATHS = [
     "src/pyautostat/two_way_anova.py",
     "src/pyautostat/uncertainty.py",
 ]
+
+
+def compute_validation_framework_content_sha256(root: Path | None = None) -> str:
+    """Deterministically compute SHA-256 content fingerprint over validation framework source files."""
+    if root is None:
+        root = Path(__file__).resolve().parent
+    val_files: list[tuple[str, Path]] = []
+    for p in root.rglob("*.py"):
+        if "__pycache__" in p.parts:
+            continue
+        rel = p.relative_to(root).as_posix()
+        val_files.append((rel, p))
+    val_files.sort(key=lambda x: x[0])
+
+    h = hashlib.sha256()
+    for rel, path in val_files:
+        h.update(rel.encode("utf-8"))
+        h.update(b"\0")
+        raw = path.read_bytes().replace(b"\r\n", b"\n")
+        h.update(raw)
+        h.update(b"\0")
+    return h.hexdigest()
 
 
 def _get_git_metadata() -> dict[str, Any]:
@@ -86,6 +108,7 @@ def _get_git_metadata() -> dict[str, Any]:
         "validation_framework_revision_sha": rev_sha or "unavailable",
         "git_worktree_dirty": is_dirty,
         "source_code_invariance_status": invariance_status,
+        "validation_framework_content_sha256": compute_validation_framework_content_sha256(),
     }
 
 
@@ -190,6 +213,7 @@ def build_validation_summary(
             "numerical_source_baseline_sha": NUMERICAL_BASELINE_SHA,
             "validation_framework_baseline_sha": FRAMEWORK_BASELINE_SHA,
             "validation_framework_revision_sha": git_meta["validation_framework_revision_sha"],
+            "validation_framework_content_sha256": git_meta["validation_framework_content_sha256"],
             "git_worktree_dirty": git_meta["git_worktree_dirty"],
             "source_code_invariance_status": git_meta["source_code_invariance_status"],
         },
