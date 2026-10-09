@@ -298,6 +298,18 @@ def test_paired_design_requires_explicit_unit_identifier(assistant):
     )
     assert draft.status == "needs_input"
     assert draft.missing_information[0].field == "unit_id"
+    for unit_id, role in (("score", "outcome"), ("group", "predictor/condition")):
+        with pytest.raises(InvalidDataError, match="separate unit identifier") as error:
+            assistant.prepare_question(
+                objective="compare_groups",
+                outcome="score",
+                predictor="group",
+                design="paired",
+                estimand="mean",
+                unit_id=unit_id,
+                condition_order=("A", "B"),
+            )
+        assert role in str(error.value)
 
 
 def test_unknown_design_stays_unknown_and_options_have_stable_values(assistant):

@@ -21,6 +21,8 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+-   Corrected paired/repeated role-conflict validation so a `unit_id` that duplicates the outcome or condition column receives the existing actionable role-specific error before complete-case counting, rather than a generic duplicate-column message.
+-   Completed the Getting Started public `variable_types` declaration list by including the supported `boolean` name.
 -   Made integrated column, declaration-key, event/reference-level, condition-order, and frequent argument-conflict diagnostics actionable, with at most one credible typo suggestion and bounded original-order column/level displays; no suggested value is applied automatically.
 -   Corrected Fisher exact documentation to distinguish its exact two-sided p-value from the asymptotic log-Wald interval for SciPy's unconditional sample odds-ratio estimator, including zero-cell interval unavailability.
 -   Corrected README method-count wording to identify 24 registered statistical methods rather than treating method IDs as analysis families.

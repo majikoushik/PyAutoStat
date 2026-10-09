@@ -243,7 +243,7 @@ responsible for design, measurement meaning, sampling assumptions, and external 
 
 PyAutoStat is version **0.5.0** and has **Alpha** status. APIs and schemas are documented and
 tested, but alpha software can still change. The package does not claim 1.0 stability, universal
-statistical coverage, APA certification, publication certification, or scientific validity.
+statistical coverage, APA certification, guaranteed publication readiness, or scientific validity.
 
 See the [changelog](CHANGELOG.md), [roadmap](ROADMAP.md), and
 [migration guide](docs/MIGRATING_FROM_0_1.md).

@@ -466,6 +466,17 @@ def prepare_question(
             f"Regression `outcome` {question.outcome!r} also appears in `predictors`. Remove "
             "the outcome from `predictors` so response and explanatory roles remain distinct."
         )
+    if selected_unit_id is not None and selected_unit_id in {
+        question.outcome,
+        question.predictor,
+    }:
+        overlapping_role = (
+            "outcome" if selected_unit_id == question.outcome else "predictor/condition"
+        )
+        raise InvalidDataError(
+            f"`unit_id` {selected_unit_id!r} is also the `{overlapping_role}` column. Choose a "
+            "separate unit identifier so pairing is not inferred from an analysis variable."
+        )
 
     if selected_condition_order is not None and question.predictor is not None:
         observed_conditions = list(pd.unique(frame[question.predictor].dropna()))
@@ -958,16 +969,6 @@ def prepare_question(
             raise InvalidDataError(
                 invalid_level_message("event_level", question.event_level, event_variable, levels)
             )
-    if spec.unit_id is not None and spec.unit_id in {
-        question.outcome,
-        question.predictor,
-    }:
-        overlapping_role = "outcome" if spec.unit_id == question.outcome else "predictor/condition"
-        raise InvalidDataError(
-            f"`unit_id` {spec.unit_id!r} is also the `{overlapping_role}` column. Choose a "
-            "separate unit identifier so pairing is not inferred from an analysis variable."
-        )
-
     for column in selected:
         observed = frame[column].dropna()
         info = hints[column]

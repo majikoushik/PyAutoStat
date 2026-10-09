@@ -108,7 +108,7 @@ print(workflow.type_guidance())
 
 Inferred types are advisory. Declared types are researcher supplied. If scientific meaning is
 ambiguous, the workflow can return `needs_input`; pass public type names such as `continuous`,
-`discrete`, `nominal`, `ordinal`, or `identifier` through `variable_types`. You do not
+`discrete`, `nominal`, `ordinal`, `identifier`, or `boolean` through `variable_types`. You do not
 need to inspect type guidance after every analysis.
 
 ## When a workflow needs input
