@@ -11,6 +11,8 @@ governance material only when you need it.
 - [README](../README.md): one-minute project introduction and exact quickstart output.
 - [Examples Guide](../examples/README.md): longer examples using the bundled customer dataset.
 
+## Task guides
+
 | Research task | Guide |
 | --- | --- |
 | Independent, paired, distribution, or reference comparisons | [Mean comparisons](task_guides/mean_comparisons.md) |
@@ -19,7 +21,7 @@ governance material only when you need it.
 | Conditional means or binary event odds | [Regression](task_guides/regression.md) |
 | Scale internal consistency or rater agreement | [Reliability & agreement](task_guides/reliability_agreement.md) |
 
-## Statistical capabilities
+## Statistical reference
 
 - [Capabilities](CAPABILITIES.md): user paths, workflow statuses, supported analyses, and explicit
   boundaries.
@@ -31,18 +33,18 @@ governance material only when you need it.
 - [Scientific Limitations](SCIENTIFIC_LIMITATIONS.md): boundaries on designs and claims.
 - [ICC Guide](ICC_GUIDE.md): focused selection and interpretation for agreement/reliability.
 
-## Understanding results
+## Results and interpretation
 
-- [Statistical validation](STATISTICAL_VALIDATION.md): Numerical definitions, method-selection rules, validation cases, dependency behavior, and interpretation policies.
-- [Independent Numerical Validation](NUMERICAL_VALIDATION.md): Transparent evidence hierarchy (Levels A–D), tolerance policy, and first-tranche validation results across 10 foundational methods.
-- [Result Ergonomics and Statements](RESULT_ERGONOMICS_AND_STATEMENTS.md): Ergonomic accessors, scalar safeguards, defensive copies, tabular views, and deterministic APA-oriented statistical statement formatting.
-- [Result Ergonomics Consistency Audit](RESULT_ERGONOMICS_AUDIT.md): Exhaustive consistency audit across all 24 registered methods for scalar properties, DataFrame views, and APA-oriented statements.
-- [Effect-Size & Uncertainty Gap Audit](EFFECT_SIZE_AND_UNCERTAINTY_AUDIT.md): Authoritative audit of effect sizes, point estimates, uncertainty intervals, runtime field locations, numerical validation levels, and candidate prioritization across all 24 methods.
-- [Effect-size confidence interval gaps](EFFECT_SIZE_CI_GAPS.md): Explicit classification of missing effect-size confidence intervals, candidate methods, validation requirements, and implementation priorities.
+- [Statistical validation](STATISTICAL_VALIDATION.md): numerical definitions, method-selection
+  rules, validation cases, dependency behavior, and interpretation policies.
+- [Numerical validation](NUMERICAL_VALIDATION.md): evidence levels, tolerance policy, and
+  independently checked reference cases.
+- [API reference: results and statements](../API_REFERENCE.md#result-ergonomics-primary-views-and-apa-oriented-statements): typed result
+  records, scalar safeguards, tabular views, and deterministic APA-oriented statements.
 - [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md): Sensitivity scenario comparability and researcher-defined meaningful-effect thresholds.
 - [Scientific limitations](SCIENTIFIC_LIMITATIONS.md): Unsupported claims, design responsibilities, privacy limits, resource caveats, and dependency boundaries.
 
-## Reporting
+## Reporting and export
 
 - [Terminal presentation](TERMINAL_PRESENTATION.md): Polished, Rich-powered console rendering for workflows, profiles, and governance records via `show(...)`.
 - [HTML reporting](HTML_REPORTING.md): Offline static and interactive HTML presentation layers with zero statistical recalculation.
@@ -50,7 +52,6 @@ governance material only when you need it.
 - [DOCX reporting](DOCX_REPORTING.md): Editable Microsoft Word export with native OpenXML tables and styled captions.
 - [Static scientific figures](STATIC_FIGURES.md): Publication-quality vector (SVG, PDF) and raster (PNG) figure generation via Kaleido.
 - [Research export bundles](RESEARCH_BUNDLES.md): Multi-format self-contained zip archives with cryptographic SHA-256 tamper verification.
-- [Reporting audit](REPORTING_AUDIT.md): Systematic engineering and usability audit across all presentation media, target compatibilities, and semantic parity contracts.
 - [Research report schema](RESEARCH_REPORT_SCHEMA.md): Canonical report structure, serialization, export protections, and presentation contracts.
 
 ### Reporting quick guide
@@ -68,14 +69,15 @@ Core installation provides terminal, static HTML, Markdown, JSON, CSV tables, an
 Plotly, Playwright/Chromium, python-docx, and Kaleido/Chrome are optional and documented in their
 respective guides.
 
-## Advanced and reproducibility
+## Reproducibility and advanced
 
 Start with [Advanced Workflows](ADVANCED_WORKFLOWS.md), which routes planning, practical
 significance, sensitivity, reporting completeness, audit, fingerprints, replay, research bundles,
 governance, and direct APIs.
 
-- [Governance usability audit](GOVERNANCE_USABILITY_AUDIT.md): Systematic audit across all 16 lifecycle feature families, language contracts, status vocabularies, and scientific boundaries.
-- [Advanced planning and presentation](ADVANCED_PLANNING_AND_PRESENTATION.md): Analysis plans (`StatisticalAnalysisPlan`), plan adherence (`plan_adherence`), prospective study planning (`StudyPlanner`), reporting completeness (`reporting_completeness`), and session snapshots (`session_snapshot`), including an end-to-end lifecycle script.
+- [Advanced workflows](ADVANCED_WORKFLOWS.md): analysis plans, prospective study planning, plan
+  adherence, result accessors and statements, reporting completeness, session snapshots, and
+  direct APIs.
 - [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md): Same-estimand vs different-estimand sensitivity scenarios (`sensitivity_analysis`) and researcher-defined meaningful-effect thresholds (`practical_significance`).
 - [Provenance and replay](PROVENANCE_AND_REPLAY.md): Decision tracking (`DecisionLedger`), dataset fingerprints (`dataset_fingerprint`), deterministic content references, report consistency audits (`audit`), reproducibility records (`ReproducibilityRecord`), and explicit re-execution (`reproduce`).
 - [Research export bundles](RESEARCH_BUNDLES.md): Multi-format self-contained zip archives with cryptographic SHA-256 tamper verification.
@@ -99,16 +101,22 @@ governance, and direct APIs.
 These records preserve and compare recorded evidence. They do not authenticate data, prove
 preregistration, certify study quality, or establish causality.
 
-## Developer and reference
+## Developer and API
 
 - [Architecture](ARCHITECTURE.md): Module boundaries, public workflow, typed contracts, scientific safeguards, data ownership, and compatibility policy.
 - [API Reference](../API_REFERENCE.md): Comprehensive public API documentation with parameter specifications and return types.
 - [API Stability Policy](API_STABILITY.md): Stability tiers, SemVer policies, and deprecation process.
-- [Migration Guide](MIGRATING_FROM_0_1.md): Transition from legacy 0.1.x composition APIs.
-- [Release Notes 0.5.0](RELEASE_NOTES_0_5_0.md): Published 0.5.0 capabilities and guidance.
-- [Release Readiness Audit](RELEASE_READINESS_AUDIT.md): Release-scope evidence and limitations.
-- [Usability Audit](USABILITY_AUDIT.md): Historical usability review.
+- [Public API 1.0](PUBLIC_API_1_0.md): audited top-level exports, stability tiers, and legacy-policy
+  decisions.
 - [Product Vision](../PRODUCT_VISION.md): Enduring product principles, estimand preservation, and scientific philosophy.
 - [Roadmap](../ROADMAP.md): Forward-looking development roadmap and planned capabilities.
 - [Citation Metadata](../CITATION.cff): Machine-readable academic citation metadata (CFF format).
+
+## Migration and release
+
+- [Migration to 1.0](MIGRATION_TO_1_0.md): canonical workflows, compatibility surfaces, and
+  serialization guidance for existing users.
+- [Release notes 1.0.0](RELEASE_NOTES_1_0_0.md): stable-release scope, validation, reporting, and
+  known boundaries.
+- [Changelog](../CHANGELOG.md): chronological software changes.
 

@@ -7,6 +7,31 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.0.0] - 2026-10-09
+
+PyAutoStat 1.0 establishes the stable 1.x public compatibility boundary while preserving the
+existing 24 registered statistical methods and their scientific contracts. This release
+consolidates documentation and release metadata; it does not add statistical methods or change
+p-values, effects, intervals, recommendation logic, missing-data policy, or outlier policy.
+
+### Stable release milestone
+
+-   Established `ResearchAssistant` as the canonical beginner and integrated API, including
+    constructor `AnalysisOptions` defaults, `compare_means()`, `correlate()`, `brief()`,
+    `type_guidance()`, and the advanced `run()` path.
+-   Froze all 97 documented top-level exports for 1.x. No exports were removed. `InsightEngine`
+    and `ReportGenerator` remain supported as `COMPATIBILITY_STABLE` APIs.
+-   Adopted stable SemVer, schema-compatibility, deprecation-window, scientific-correctness, and
+    security policies in `docs/API_STABILITY.md` and documented the boundary in
+    `docs/PUBLIC_API_1_0.md`.
+-   Retained the independently checked numerical-validation framework for all 24 registered
+    methods and its explicit evidence-level and deferred-quantity disclosures.
+-   Consolidated historical audit, gap, migration, and release-note Markdown into permanent
+    capabilities, method-contract, validation, limitation, reporting, advanced-workflow, API,
+    migration, and 1.0 release documents.
+
 ### Added
 
 -   Added a beginner-first README front door with a verified 60-second `compare_means()` example, actual `brief()` output, early task routing, consistent result-view hierarchy, and concise scope boundaries.
@@ -15,8 +40,11 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 -   Added `ResearchWorkflowResult.brief(include_warnings=True)`, a deterministic single-paragraph result view with method-specific summaries for all 24 registered methods, explicit workflow-status handling, stored sample/orientation context, and optional bounded warning display. The convenience performs no statistical recalculation and does not change serialized workflow schemas.
 -   Added `ResearchAssistant.compare_means(...)` and `ResearchAssistant.correlate(..., method=...)` as thin beginner conveniences over the existing design-aware `run()` workflow, without adding methods or changing statistical calculations.
 -   Added keyword-only constructor `AnalysisOptions` defaults for integrated `ResearchAssistant.run()` and `prepare_question()` calls, with complete per-call options taking precedence.
--   Completed exhaustive result ergonomics consistency audit across all 24 registered statistical methods (`docs/RESULT_ERGONOMICS_AUDIT.md`), verifying zero-recalculation guarantees and documenting ambiguity rules for complex multi-parameter models.
--   Completed authoritative effect-size and uncertainty gap audit (`docs/EFFECT_SIZE_AND_UNCERTAINTY_AUDIT.md`), evaluating estimand alignment, runtime field locations, independent validation levels, candidate metrics, and non-blocking candidate prioritization (Hedges' $g$, standardized regression betas, and omega-squared classified as optional future metrics).
+-   Completed result-ergonomics consistency review across all 24 registered statistical methods,
+    verifying zero-recalculation guarantees and documenting ambiguity rules in the API reference.
+-   Completed effect-size and uncertainty review across all registered methods and consolidated
+    the resulting classifications into the statistical method contracts and numerical-validation
+    references.
 -   Added deterministic SHA-256 validation framework content fingerprinting (`validation_framework_content_sha256`) in `validation/manifest.py` and `validation/run_reference_validation.py` to truthfully record framework content provenance across commits.
 
 ### Fixed
@@ -337,7 +365,7 @@ separate owner decision.
 -   Added scientific-contract and uncertainty documentation:
 
     -   `docs/STATISTICAL_METHOD_CONTRACTS.md`
-    -   `docs/EFFECT_SIZE_CI_GAPS.md`
+    -   uncertainty classifications now consolidated into that contract reference
 
 -   Added final scientific-closure regression coverage spanning
     representative workflow families, including method execution,

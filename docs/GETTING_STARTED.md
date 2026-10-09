@@ -135,5 +135,5 @@ meaning, and design facts rather than guessing.
 - [Choose a task guide](task_guides/README.md).
 - Read the [API reference](../API_REFERENCE.md) for signatures and contracts.
 - Check [capabilities and limitations](CAPABILITIES.md).
-- Learn about [reporting](README.md#reporting).
+- Learn about [reporting](README.md#reporting-and-export).
 - Route planning, audit, replay, and bundles through [Advanced Workflows](ADVANCED_WORKFLOWS.md).

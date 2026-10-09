@@ -36,7 +36,7 @@ from pyautostat import (
 from pyautostat.presentation.adapters import adapt
 
 
-def _capture(target, detail="standard", width=80, no_color=False, force_terminal=True) -> str:
+def _capture(target, detail="standard", width=80, no_color=False, force_terminal=False) -> str:
     """Helper to capture show() output string cleanly."""
     console = Console(
         record=True,

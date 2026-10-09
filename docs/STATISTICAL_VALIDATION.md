@@ -1,8 +1,7 @@
 # Statistical validation baseline
 
-Authoritative contracts for every method are documented in
-[Statistical Method Contracts](STATISTICAL_METHOD_CONTRACTS.md), and current uncertainty
-classifications are tracked in [Effect-Size Confidence Interval Gaps](EFFECT_SIZE_CI_GAPS.md).
+Authoritative contracts and current uncertainty classifications for every method are documented
+in [Statistical Method Contracts](STATISTICAL_METHOD_CONTRACTS.md).
 
 PyAutoStat uses established SciPy/statsmodels numerical backends where appropriate and explicit,
 independently validated formulas where required by the method contract.

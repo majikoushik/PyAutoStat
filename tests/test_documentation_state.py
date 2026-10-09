@@ -54,13 +54,47 @@ def test_capability_documents_are_consolidated_and_indexed():
     assert not (ROOT / "docs" / "FINAL_CAPABILITY_MATRIX.md").exists()
     assert (ROOT / "docs" / "CAPABILITIES.md").is_file()
     assert (ROOT / "docs" / "README.md").is_file()
+    for current in (
+        "MIGRATION_TO_1_0.md",
+        "PUBLIC_API_1_0.md",
+        "RELEASE_NOTES_1_0_0.md",
+    ):
+        assert (ROOT / "docs" / current).is_file()
+    for superseded in (
+        "ADVANCED_PLANNING_AND_PRESENTATION.md",
+        "EFFECT_SIZE_AND_UNCERTAINTY_AUDIT.md",
+        "EFFECT_SIZE_CI_GAPS.md",
+        "GOVERNANCE_USABILITY_AUDIT.md",
+        "MIGRATING_FROM_0_1.md",
+        "RELEASE_NOTES_0_5_0.md",
+        "RELEASE_READINESS_AUDIT.md",
+        "REPORTING_AUDIT.md",
+        "RESULT_ERGONOMICS_AND_STATEMENTS.md",
+        "RESULT_ERGONOMICS_AUDIT.md",
+        "USABILITY_AUDIT.md",
+    ):
+        assert not (ROOT / "docs" / superseded).exists()
+
+    documentation_home = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    sections = [
+        "## Start here",
+        "## Task guides",
+        "## Statistical reference",
+        "## Results and interpretation",
+        "## Reporting and export",
+        "## Reproducibility and advanced",
+        "## Developer and API",
+        "## Migration and release",
+    ]
+    positions = [documentation_home.index(section) for section in sections]
+    assert positions == sorted(positions)
 
 
 def test_internal_documentation_links_resolve():
     documents = [
         *ROOT.glob("*.md"),
-        *(ROOT / "docs").glob("*.md"),
-        *(ROOT / "examples").glob("*.md"),
+        *(ROOT / "docs").rglob("*.md"),
+        *(ROOT / "examples").rglob("*.md"),
     ]
     missing = {
         path.relative_to(ROOT).as_posix(): [
@@ -111,6 +145,7 @@ def test_changelog_release_history_integrity():
     """Verify that CHANGELOG.md preserves released history without unreleased contamination."""
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## [Unreleased]" in changelog
+    assert "## [1.0.0] - 2026-10-09" in changelog
     assert "## [0.3.0] - 2026-09-27" in changelog
 
     # 0.3.0 was released prior to repeated-measures additions;

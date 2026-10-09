@@ -6,7 +6,7 @@
 [![CI](https://github.com/majikoushik/PyAutoStat/actions/workflows/ci.yml/badge.svg)](https://github.com/majikoushik/PyAutoStat/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)](#project-status)
+[![Status: Stable](https://img.shields.io/badge/Status-Stable-brightgreen.svg)](#project-status)
 
 **PyAutoStat** is an open-source, deterministic research analysis assistant for Python and pandas.
 It helps researchers state a question, preserve the intended target, run a validated calculation,
@@ -154,8 +154,10 @@ association, or another advanced design/model option. Essential design facts rem
 ### Low-level and retained public surfaces
 
 `StatisticalAnalyzer` provides direct pre-specified calculations. `InsightEngine` and
-`ReportGenerator` remain supported compatibility APIs. They are not deprecated by the beginner
-front door. See the [API reference](API_REFERENCE.md) and [API stability policy](docs/API_STABILITY.md).
+`ReportGenerator` are retained as compatibility-stable APIs for existing dictionary-oriented
+workflows. New work should use `ResearchAssistant` and the canonical presentation/export APIs.
+See the [1.0 public API boundary](docs/PUBLIC_API_1_0.md), [API reference](API_REFERENCE.md), and
+[API stability policy](docs/API_STABILITY.md).
 
 ## Supported methods and capabilities
 
@@ -201,7 +203,7 @@ Install only the extras you need:
 | Editable Word (DOCX) | `pip install "pyautostat[docx]"` | None |
 | Static PNG/SVG/figure PDF | `pip install "pyautostat[figures]"` | `plotly_get_chrome -y` |
 
-See the [reporting guides](docs/README.md#reporting) for HTML, PDF, DOCX, terminal, and figure
+See the [reporting guides](docs/README.md#reporting-and-export) for HTML, PDF, DOCX, terminal, and figure
 details. Publication-oriented output still requires expert and journal-specific review.
 
 ## Advanced reproducibility and governance
@@ -241,12 +243,14 @@ responsible for design, measurement meaning, sampling assumptions, and external 
 
 ## Project status
 
-PyAutoStat is version **0.5.0** and has **Alpha** status. APIs and schemas are documented and
-tested, but alpha software can still change. The package does not claim 1.0 stability, universal
-statistical coverage, APA certification, guaranteed publication readiness, or scientific validity.
+PyAutoStat is version **1.0.0** and has a stable public 1.x compatibility commitment. Documented
+top-level exports and stable serialized contracts follow the compatibility and deprecation policy;
+compatible additions and scientifically necessary corrections remain possible. Stable software
+does not imply universal statistical coverage, APA certification, guaranteed publication
+readiness, or scientific validity.
 
 See the [changelog](CHANGELOG.md), [roadmap](ROADMAP.md), and
-[migration guide](docs/MIGRATING_FROM_0_1.md).
+[migration guide](docs/MIGRATION_TO_1_0.md).
 
 ## Compatibility
 
@@ -275,7 +279,7 @@ instructions before proposing statistical behavior changes.
 If you use PyAutoStat in research, cite the software version and repository. A generic form is:
 
 ```text
-PyAutoStat contributors. PyAutoStat (version 0.5.0) [Computer software].
+PyAutoStat contributors. PyAutoStat (version 1.0.0) [Computer software].
 https://github.com/majikoushik/PyAutoStat
 ```
 

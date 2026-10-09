@@ -5,7 +5,7 @@ not release promises or a record of past implementation order.
 
 ## Current product status
 
-PyAutoStat is an alpha Python package for deterministic, explainable analysis of pandas
+PyAutoStat is a stable Python package for deterministic, explainable analysis of pandas
 DataFrames. Its guided workflow covers dataset profiling, structured research questions,
 design-aware method recommendation, a bounded set of independent and paired analyses,
 deterministic interpretation, research reports, consistency auditing, and reproducibility
@@ -43,7 +43,7 @@ alternatives are not currently supported. Study design facts and scientific mean
 responsibilities. See [statistical method contracts](docs/STATISTICAL_METHOD_CONTRACTS.md) for full
 contracts of all supported methods.
 
-## Near term: alpha hardening
+## Near term: 1.x hardening
 
 - Keep beginner onboarding centered on `ResearchAssistant(df).profile()` and
   `ResearchAssistant(df).run(...)`, with advanced contracts introduced progressively.
@@ -57,13 +57,13 @@ contracts of all supported methods.
 - Improve warning and error clarity, packaging checks, installed-artifact smoke coverage, and
   end-to-end examples.
 
-## Beta readiness
+## Stable-series maintenance
 
-Beta-readiness work includes broader user testing, an API stability review, a documented
-deprecation policy, supported-data-size guidance, dependency and Python support review,
-documentation completeness, and repeatable performance benchmarks. Packaging and release
-automation should be exercised without changing the statistical contracts. Beta is a maturity
-target, not a scheduled next release.
+Stable-series work includes broader user testing, measured supported-data-size guidance,
+dependency and Python support review, documentation maintenance, and repeatable performance
+benchmarks. Packaging and release automation should continue to be exercised without changing
+statistical contracts. Breaking public API or schema changes require the documented deprecation
+process or a new major release, subject to the scientific-correctness and security exceptions.
 
 ## Candidate statistical capabilities
 
@@ -139,14 +139,13 @@ limits, and stable serializable results.
   reporting language.
 - Use user feedback to identify ambiguous guidance and unsupported real-world designs.
 
-## Release maturity
+## Release maintenance
 
 ```text
-alpha -> beta readiness -> stable
+compatible 1.0.x fixes -> backward-compatible 1.x additions -> deliberate 2.0 changes
 ```
 
-Alpha work focuses on correctness, bounded scope, usability, compatibility evidence, and honest
-limitations. Beta readiness requires broader validation, clearer stability guarantees, mature
-documentation, and measured scale behavior. Stable releases require a deliberate owner decision,
-documented compatibility policy, dependable packaging, and sustained evidence from real use. No
-date or version is assigned by this roadmap.
+Stable maintenance focuses on correctness, bounded scope, usability, compatibility evidence,
+dependable packaging, and honest limitations. A future major release would require a deliberate
+owner decision, documented migration guidance, and evidence that the compatibility cost is
+justified. No future release date or version is assigned by this roadmap.

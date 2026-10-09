@@ -9,7 +9,7 @@ authors:
 repository-code: "https://github.com/majikoushik/pyautostat"
 url: "https://github.com/majikoushik/pyautostat"
 license: "MIT"
-version: "0.5.0"
+version: "1.0.0"
 abstract: "Design-aware statistical analysis assistant for pandas DataFrames with method recommendation, effect sizes, uncertainty estimation, deterministic interpretation, reproducibility, audit, and research reporting."
 keywords:
   - "statistics"

@@ -6,6 +6,7 @@ import math
 import pandas as pd
 import pytest
 
+import pyautostat
 from pyautostat import (
     AnalysisOptions,
     AnalysisSpecification,
@@ -49,6 +50,8 @@ def test_assistant_reuses_analyzer_validation(bad):
 
 
 def test_legacy_exports_are_available():
+    assert len(pyautostat.__all__) == 97
+    assert {"InsightEngine", "ReportGenerator"} <= set(pyautostat.__all__)
     for exported in (
         StatisticalAnalyzer,
         InsightEngine,

@@ -225,7 +225,7 @@ No deferred quantity is certified as independently validated.
 The validation foundation was verified under the following authoritative environment:
 
 - **Repository**: `majikoushik/PyAutoStat`
-- **Package Version**: `0.5.0`
+- **Package Version**: `1.0.0`
 - **Numerical Implementation Baseline Commit**: `817bb9c5454c266462a457690f3673099546b49f` (head commit establishing authoritative statistical calculation source)
 - **Validation Framework Baseline Commit**: `8fce4e9087236446eb4238387ffc04a9e33930c4` (initial validation foundation head)
 - **Validation Framework Current Revision**: `2113a7e6a0bc589ce2b3c51d922238bc354eb702` (head commit of expanded validation framework)

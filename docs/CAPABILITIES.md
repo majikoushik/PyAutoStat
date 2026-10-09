@@ -215,9 +215,9 @@ Common blockers remain explicit:
 - Numerical backend failure never becomes a successful result. Invalid report metadata or audit
   contradictions remain visible and do not trigger an automatic rerun.
 
-See [statistical method contracts](STATISTICAL_METHOD_CONTRACTS.md) for full scientific contracts,
-[effect-size confidence interval gaps](EFFECT_SIZE_CI_GAPS.md) for uncertainty classifications,
-[statistical validation](STATISTICAL_VALIDATION.md) for numerical policies, and
+See [statistical method contracts](STATISTICAL_METHOD_CONTRACTS.md) for full scientific contracts
+and uncertainty classifications, [statistical validation](STATISTICAL_VALIDATION.md) for numerical
+policies, and
 [scientific limitations](SCIENTIFIC_LIMITATIONS.md) for the boundaries of research claims.
 
 ## Export, privacy, and researcher responsibility

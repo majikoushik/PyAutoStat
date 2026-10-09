@@ -114,7 +114,6 @@ It is not a substitute for scientific design review or subject-matter judgment.
 - Confidence intervals are reported where an independently validated method is implemented.
   Missing uncertainty is explicitly classified (`unavailable`, `not_applicable`, `not_supported`,
   or `uncomputable`) rather than silently omitted; see
-  [Effect-Size Confidence Interval Gaps](EFFECT_SIZE_CI_GAPS.md) and
   [Statistical Method Contracts](STATISTICAL_METHOD_CONTRACTS.md).
 - General, APA-oriented, and IEEE-oriented templates organize the same canonical numbers. They do
   not guarantee journal, regulatory, accessibility, or publication compliance.

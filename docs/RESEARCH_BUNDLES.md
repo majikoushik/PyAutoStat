@@ -156,7 +156,7 @@ The bundle manifest is located at `pyautostat_bundle/manifest.json`. It provides
 ```json
 {
   "bundle_schema_version": 1,
-  "pyautostat_version": "0.5.0",
+  "pyautostat_version": "1.0.0",
   "target_type": "ResearchWorkflowResult",
   "report_status": "complete",
   "method_id": "welch_t",

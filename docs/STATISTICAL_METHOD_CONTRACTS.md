@@ -1125,7 +1125,7 @@ audit invariants, and independent reference validation sources.
 
 ## Cross-References
 
-- [Effect-Size Confidence Interval Gaps](EFFECT_SIZE_CI_GAPS.md)
+- [Numerical Validation](NUMERICAL_VALIDATION.md)
 - [Statistical Validation Baseline](STATISTICAL_VALIDATION.md)
 - [Scientific Limitations](SCIENTIFIC_LIMITATIONS.md)
 - [Capabilities](CAPABILITIES.md)

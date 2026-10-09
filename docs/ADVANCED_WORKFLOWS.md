@@ -7,23 +7,26 @@ certify scientific truth, study quality, external preregistration, or data authe
 
 ## Plan an analysis or study
 
-- [Advanced planning and presentation](ADVANCED_PLANNING_AND_PRESENTATION.md) covers statistical
-  analysis plans, prospective independent/paired mean planning, plan adherence, and an end-to-end
-  lifecycle example.
+- `StatisticalAnalysisPlan` and `assistant.analysis_plan(...)` record the intended specification,
+  hypotheses, alpha, and researcher-supplied decisions without proving external preregistration.
+- `StudyPlanner` and `assistant.study_planner()` support prospective independent- and paired-mean
+  planning from researcher-supplied assumptions. They do not compute observed post-hoc power.
+- `plan_adherence` and `assistant.plan_adherence(...)` compare a recorded plan with an executed
+  result and make matches, deviations, and unknowns explicit.
 - [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md) covers
   researcher-declared sensitivity scenarios and meaningful-effect thresholds.
 - [API reference: advanced feature routing](../API_REFERENCE.md#which-advanced-feature-do-i-need)
   lists the entry point and returned record for each feature.
 
-Prospective planning requires researcher-supplied assumptions. PyAutoStat does not compute
-observed post-hoc power.
+Planning records are JSON-safe and UI-independent. Preserve them before execution when they are
+intended to document prospective decisions.
 
 ## Assess and report recorded evidence
 
 - [Research report schema](RESEARCH_REPORT_SCHEMA.md) documents the canonical report.
-- [Result ergonomics and statements](RESULT_ERGONOMICS_AND_STATEMENTS.md) documents deterministic
-  result accessors and APA-oriented statements.
-- [Reporting audit](REPORTING_AUDIT.md) scopes format parity, privacy, and reporting claims.
+- Analysis-result scalar properties, defensive copies, tabular views, and `apa_statement()` are
+  documented in the [API reference](../API_REFERENCE.md#result-ergonomics-primary-views-and-apa-oriented-statements). Statements are
+  deterministic summaries of recorded values, not publication-compliance certifications.
 - [HTML reporting](HTML_REPORTING.md), [PDF reporting](PDF_REPORTING.md),
   [DOCX reporting](DOCX_REPORTING.md), and [static figures](STATIC_FIGURES.md) cover individual
   outputs.
@@ -37,8 +40,8 @@ applicable. They are not publication-readiness or journal-compliance scores.
   consistency audit, reproducibility metadata, and explicit replay with separately supplied data.
 - [Research bundles](RESEARCH_BUNDLES.md) covers multi-format packages and SHA-256 manifest
   verification.
-- [Governance usability audit](GOVERNANCE_USABILITY_AUDIT.md) records governance boundaries and
-  status vocabularies.
+- `session_snapshot` and `assistant.session_snapshot(...)` capture UI-independent application
+  state without embedding raw data.
 
 An audit compares recorded values without rerunning the statistical test. A fingerprint detects
 some dataset changes but does not authenticate identity, custody, or provenance. Replay is explicit

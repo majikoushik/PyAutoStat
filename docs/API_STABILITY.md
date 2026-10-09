@@ -5,30 +5,25 @@ processes for PyAutoStat.
 
 ---
 
-## 1. Project Status and Semantic Versioning
+## 1. Stable status and Semantic Versioning
 
-PyAutoStat is currently in **Alpha** (`0.5.0`, `Development Status :: 3 - Alpha`).
+PyAutoStat 1.0 defines a stable public compatibility boundary under Semantic Versioning:
 
-During the `0.x` series, PyAutoStat follows the principles of Semantic Versioning (SemVer 2.0):
-- **Patch versions (`0.x.Y`)**: Bug fixes, numerical hardening, documentation improvements, and
-  non-breaking performance optimizations.
-- **Minor versions (`0.X.0`)**: New statistical capabilities, export formats, governance features,
-  and backwards-compatible API additions. Breaking changes are avoided whenever practical, but
-  may occur if required to correct statistical invalidity or close security/integrity flaws.
-- **Major version (`1.0.0`)**: Production-ready release offering formal public API stability and
-  strict backwards compatibility guarantees.
-
-> [!NOTE]
-> As an Alpha package in the 0.x series, PyAutoStat cannot guarantee indefinite freeze of all
-> experimental or lower-level interfaces. However, changes are governed by the tiered stability
-> policy described below to protect user workflows.
+- **Patch releases (`1.0.x`)** contain compatible bug fixes, security fixes, documentation
+  corrections, numerical hardening, and statistical-correctness fixes. Unavoidable output changes
+  are documented with their scientific reason.
+- **Minor releases (`1.x.0`)** may add backward-compatible capabilities, optional fields, or formal
+  deprecations. Existing supported calls and payload readers continue to work.
+- **Major release (`2.0.0`)** is required for intentional breaking public API or stable-schema
+  changes, except for the scientific-correctness and security exceptions below.
 
 ---
 
 ## 2. API Stability Tiers
 
-PyAutoStat categorizes its public interfaces into three stability tiers plus a dedicated legacy
-compatibility tier.
+PyAutoStat classifies names as `CORE_STABLE`, `ADVANCED_STABLE`, `COMPATIBILITY_STABLE`, or
+`INTERNAL_NOT_FOR_1_0`. The complete export-by-export decision is recorded in
+[Public API 1.0](PUBLIC_API_1_0.md).
 
 ```mermaid
 graph TD
@@ -60,7 +55,7 @@ graph TD
     Level2 --> Level3
 ```
 
-### Level 1 — Canonical User Surface
+### Level 1 — Canonical User Surface (`CORE_STABLE`)
 
 **Scope**:
 - `ResearchAssistant`
@@ -75,7 +70,7 @@ graph TD
 - Breaking changes to Level 1 APIs are avoided whenever practical. If an adjustment is required for
   scientific correctness, it will be announced well in advance with migration documentation.
 
-### Level 2 — Direct Statistical and Planning API
+### Level 2 — Direct Statistical and Planning API (`ADVANCED_STABLE`)
 
 **Scope**:
 - `StatisticalAnalyzer`
@@ -86,12 +81,10 @@ graph TD
 
 **Stability Intent**:
 - Supported public API for domain experts who require direct execution without guided intake.
-- These interfaces may evolve during the `0.x` lifecycle as new statistical procedures or diagnostic
-  parameters are added.
-- Existing methods and parameters will not be removed or renamed arbitrarily. Additions are designed
-  to be backwards-compatible whenever feasible.
+- These interfaces may gain backward-compatible procedures, options, and diagnostic records during
+  1.x. Existing documented methods and parameters follow the deprecation policy below.
 
-### Level 3 — Framework, Governance, and Typed Contracts
+### Level 3 — Framework, Governance, and Typed Contracts (`ADVANCED_STABLE`)
 
 **Scope**:
 - **Typed specifications and results**: `AnalysisSpecification`, `ResearchQuestion`, `AnalysisResult`,
@@ -106,12 +99,17 @@ graph TD
 - Designed for tool builders, platform integrators, automated pipelines, and compliance systems.
 - Dedicated serialized schemas are explicitly versioned (e.g. research bundle schema `BUNDLE_SCHEMA_VERSION = 1`
   and session snapshot schema `SNAPSHOT_SCHEMA_VERSION = 1`). While data structures and dataclasses may
-  gain optional fields or structural refinements prior to `1.0.0`, all changes will be explicitly
-  documented in `CHANGELOG.md`.
+  gain additive optional fields or new status values during 1.x; changes are documented in
+  `CHANGELOG.md` and existing schema versions remain readable.
 
 ---
 
-## 3. Legacy Compatibility Surface
+### Internal implementation (`INTERNAL_NOT_FOR_1_0`)
+
+Names absent from `pyautostat.__all__` are internal unless another public document explicitly
+promotes them. Their importability from a submodule does not create a 1.x compatibility promise.
+
+## 3. Legacy Compatibility Surface (`COMPATIBILITY_STABLE`)
 
 **Scope**:
 - `InsightEngine`
@@ -120,21 +118,47 @@ graph TD
 **Policy**:
 - **Fully supported**: These classes remain importable from `pyautostat` and continue to function
   for 0.1.x-style analysis pipelines.
-- **No removal in 0.5.0**: Neither class is removed, deprecated at runtime, or broken in the 0.5.x
-  release.
-- **Future deprecation requirements**: If these legacy classes are eventually deprecated in a future
-  release, the project will strictly adhere to the following deprecation policy:
-  1. A documented, tested replacement path must exist (already available via `ResearchAssistant` and
-     modern presentation exports).
-  2. Clear migration documentation must be provided (available in
-     [`docs/MIGRATING_FROM_0_1.md`](MIGRATING_FROM_0_1.md)).
-  3. Formal deprecation warnings will be introduced at least one minor release cycle prior to any
-     removal.
-  4. Changes will be recorded prominently in `CHANGELOG.md`.
+- **1.0 decision**: both classes are `COMPATIBILITY_STABLE`; neither is deprecated at runtime.
+- **Preferred path**: new code should use `ResearchAssistant`, `ResearchReport`, and canonical
+  presentation/export functions. See [Migration to 1.0](MIGRATION_TO_1_0.md).
+- **Removal boundary**: any future deprecation follows the policy below and removal cannot occur
+  before 2.0.0.
 
 ---
 
-## 4. Core Scientific Design Principles and Intended Invariants
+## 4. Public boundary and schema compatibility
+
+The public 1.x API consists of names exported by `pyautostat.__all__`, documented public methods
+on those objects, and documented versioned records. The complete boundary and tiers are recorded
+in [Public API 1.0](PUBLIC_API_1_0.md). A name that is merely importable from a submodule is not
+public unless the API reference or public-boundary document says it is.
+
+Existing required serialized fields retain their meaning and type throughout 1.x. Minor releases
+may add optional fields, enum/status members, and table sections when older consumers can continue
+to read existing payloads. Fields are never silently repurposed to a different estimand, contrast,
+unit, or design. Consumers should tolerate unknown additive fields.
+
+## 5. Deprecation process
+
+A public API can be removed only after a documented replacement exists, a `DeprecationWarning`
+and changelog entry appear in a minor 1.x release, migration guidance identifies behavioral and
+schema differences, and the API remains available for at least one subsequent minor release and
+normally at least six months. Removal occurs no earlier than 2.0.0.
+
+## 6. Scientific-correctness and security exceptions
+
+Compatibility does not require preserving a known statistical error. A patch release may correct
+a formula, estimand label, orientation, degrees of freedom, p-value, effect estimate, interval,
+sample-accounting rule, recommendation, or interpretation when current behavior is scientifically
+wrong. The prior and corrected behavior, affected methods, and validation evidence must be
+documented; the research question must not be silently changed.
+
+A patch release may immediately change or disable behavior that exposes raw data, participant
+identifiers, credentials, executable content, unsafe archive paths, formula injection, or another
+material security/privacy risk. Compatibility impact is documented without publishing details
+that would increase risk.
+
+## 7. Core Scientific Design Principles and Intended Invariants
 
 Beyond Python signatures, PyAutoStat adheres to core scientific design principles across releases (unless
 a bug fix or security correction is strictly required for statistical validity or execution safety):

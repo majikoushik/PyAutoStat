@@ -159,7 +159,8 @@ low-level calculation is already specified.
 | Bundle | `save_bundle(workflow, "bundle.zip")` | `to_bundle(target)` | `pathlib.Path` / `bytes` |
 | Verify bundle | `verify_bundle("bundle.zip")` | `verify_bundle(bytes_or_zip)` | `BundleVerificationResult` |
 
-For an in-depth audit of each format's target compatibility, privacy model, and dependency requirements, see the [Reporting Audit](docs/REPORTING_AUDIT.md).
+For each format's target compatibility, privacy model, and dependency requirements, start with the
+[reporting and export guides](docs/README.md#reporting-and-export).
 For independent mathematical validation evidence levels (A–D), tolerance policies, and first-tranche reference results, see the [Numerical Validation Foundation Guide](docs/NUMERICAL_VALIDATION.md).
 
 ### Level 2 — Direct statistical and planning API
@@ -224,7 +225,9 @@ PyAutoStat maintains full backwards compatibility with the standalone compositio
 - New users should normally start with `ResearchAssistant`, which integrates profiling, recommendation, execution, interpretation, reporting, and audit in a single design-aware workflow.
 - No removals or runtime deprecation warnings occur in this release.
 
-For step-by-step guidance on transitioning to modern workflows, see the [0.1.x to 0.5.x Migration Guide](docs/MIGRATING_FROM_0_1.md). For stability tier definitions, see the [API Stability Policy](docs/API_STABILITY.md).
+For step-by-step guidance on transitioning to the stable API, see [Migration to
+1.0](docs/MIGRATION_TO_1_0.md). For stability tier definitions, see the [API Stability
+Policy](docs/API_STABILITY.md).
 
 ### Which advanced feature do I need?
 
@@ -247,7 +250,8 @@ When moving beyond standard exploratory profiling and single inferential runs, P
 | Capture UI-independent current session state | `assistant.session_snapshot(...)` | `ResearchSessionSnapshot` | To serialize current workflow and governance state for UI adapters |
 | Package completed research artifacts | `save_bundle(...)` / `to_bundle(...)` | `pathlib.Path` / `bytes` | Multi-format report zip archive with SHA-256 integrity manifest |
 
-For the complete governance usability audit, status vocabularies, and lifecycle boundaries, see the [Governance Usability Audit](docs/GOVERNANCE_USABILITY_AUDIT.md).
+For lifecycle boundaries and advanced-feature routing, see [Advanced
+Workflows](docs/ADVANCED_WORKFLOWS.md).
 
 ## `ResearchAssistant` common workflows
 
@@ -1052,7 +1056,9 @@ Group and categorical effect intervals use the existing 499-resample bootstrap w
 - **`result.apa_statement(style="apa") -> str`**: Deterministic APA-oriented statistical statement formatted directly from stored values.
 - **`result.statement(style="apa") -> str`**: Statement generator supporting `style="apa"` and `style="plain"`.
 
-For comprehensive guidance and examples across all 24 registered statistical methods, see [`docs/RESULT_ERGONOMICS_AND_STATEMENTS.md`](docs/RESULT_ERGONOMICS_AND_STATEMENTS.md).
+These accessors are zero-recalculation views of the validated result record. See [Advanced
+Workflows](docs/ADVANCED_WORKFLOWS.md#assess-and-report-recorded-evidence) for their reporting and
+scientific boundaries.
 
 ### Deterministic interpretation
 
@@ -1428,7 +1434,7 @@ escaped inert text and is never compiled. `ResearchSessionSnapshot` schema versi
 JSON-safe workflow state, machine-renderable questions, action identifiers, registry-derived
 capabilities, warnings/blockers, and optional records; it embeds no DataFrame or callable.
 
-See [advanced planning and presentation](docs/ADVANCED_PLANNING_AND_PRESENTATION.md), the
+See [advanced workflows](docs/ADVANCED_WORKFLOWS.md), the
 [capabilities and support matrix](docs/CAPABILITIES.md), and
 [scientific limitations](docs/SCIENTIFIC_LIMITATIONS.md).
 
@@ -1445,7 +1451,9 @@ roles = suggest_column_roles(df)
 
 ## `InsightEngine` (Legacy Compatibility)
 
-`InsightEngine` is a standalone heuristic generation engine preserved for backwards compatibility with 0.1.x pipelines. It remains supported, but new workflows should normally use `ResearchAssistant`, which provides integrated deterministic interpretation. See the [0.1.x Migration Guide](docs/MIGRATING_FROM_0_1.md).
+`InsightEngine` is a standalone heuristic generation engine preserved as a compatibility-stable
+surface. New workflows should normally use `ResearchAssistant`, which provides integrated
+deterministic interpretation. See [Migration to 1.0](docs/MIGRATION_TO_1_0.md).
 
 ```python
 engine = InsightEngine(analysis)
@@ -1461,7 +1469,10 @@ returns `total_insights`, `high_severity`, `medium_severity`, `low_severity` and
 
 ## `ReportGenerator` (Legacy Compatibility)
 
-`ReportGenerator` is a standalone reporting engine preserved for backwards compatibility with 0.1.x pipelines. It remains supported, but modern workflows should use `show(...)`, `save_html(...)`, `save_pdf(...)`, `save_docx(...)`, or `save_bundle(...)` directly on workflows and reports. See the [0.1.x Migration Guide](docs/MIGRATING_FROM_0_1.md).
+`ReportGenerator` is a standalone reporting engine preserved as a compatibility-stable surface.
+Modern workflows should use `show(...)`, `save_html(...)`, `save_pdf(...)`, `save_docx(...)`, or
+`save_bundle(...)` directly on workflows and reports. See [Migration to
+1.0](docs/MIGRATION_TO_1_0.md).
 
 ```python
 report = ReportGenerator(

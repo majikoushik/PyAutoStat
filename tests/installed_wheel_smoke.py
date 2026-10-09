@@ -6,13 +6,27 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+from rich.console import Console
 
 import pyautostat
-from pyautostat import AnalysisOptions, ResearchAssistant, StudyPlanner
+from pyautostat import AnalysisOptions, ResearchAssistant, StudyPlanner, show
 
 module_path = Path(pyautostat.__file__).resolve()
 assert module_path.is_relative_to(Path(sys.prefix).resolve()), module_path
-assert pyautostat.__version__
+assert pyautostat.__version__ == "1.0.0"
+
+readme_frame = pd.DataFrame(
+    {
+        "group": ["standard"] * 6 + ["new"] * 6,
+        "score": [62, 65, 68, 70, 72, 75, 67, 71, 74, 78, 80, 84],
+    }
+)
+readme_workflow = ResearchAssistant(readme_frame).compare_means("score", by="group")
+assert readme_workflow.brief() == (
+    "Welch independent-samples t-test: mean difference = -7.00 (standard minus new); "
+    "95% CI [-14.17, 0.17]; t(9.32) = -2.20; p = .055; Cohen's d = -1.27; N = 12, "
+    "excluded rows = 0; Warning: Independence must be confirmed from the study design."
+)
 
 independent = pd.DataFrame(
     {
@@ -57,6 +71,17 @@ assert "WHY THIS TEST?" in guided.recommendation.rationale_text
 explanation = guided.explain()
 assert "ANALYSIS RESULT" in explanation
 assert "Groups    : 'A', 'B'" in explanation
+assert guided.brief()
+assert "score: continuous numerical" in guided.type_guidance()
+wrapper = assistant.compare_means(
+    "score",
+    by="group",
+    variable_types={"score": "continuous"},
+)
+assert wrapper.analysis.to_dict() == guided.analysis.to_dict()
+console = Console(record=True, width=100, color_system=None)
+show(guided, detail="compact", console=console)
+assert "Welch" in console.export_text()
 
 multi_group = pd.DataFrame(
     {
@@ -94,6 +119,14 @@ paired_guided = ResearchAssistant(paired).run(
     variable_types={"score": "continuous"},
 )
 assert paired_guided.status.value == "completed"
+paired_wrapper = ResearchAssistant(paired).compare_means(
+    "score",
+    by="condition",
+    paired_by="participant",
+    condition_order=("before", "after"),
+    variable_types={"score": "continuous"},
+)
+assert paired_wrapper.analysis.to_dict() == paired_guided.analysis.to_dict()
 
 one_sample = ResearchAssistant(pd.DataFrame({"score": [48.0, 51.0, 53.0, 55.0]})).run(
     objective="compare_reference",
@@ -250,6 +283,14 @@ association_frame = pd.DataFrame(
         "control": [2.0, 1.0, 3.0, 2.0, 5.0, 4.0, 6.0, 5.0],
     }
 )
+correlation_wrapper = ResearchAssistant(association_frame).correlate(
+    "score",
+    "rank",
+    method="pearson",
+    variable_types={"score": "continuous", "rank": "continuous"},
+)
+assert correlation_wrapper.status.value == "completed"
+assert correlation_wrapper.analysis.method_id == "pearson_correlation"
 point = ResearchAssistant(association_frame).run(
     objective="association",
     outcome="binary",
