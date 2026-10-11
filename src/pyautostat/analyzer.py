@@ -1907,10 +1907,17 @@ class StatisticalAnalyzer:
             se = np.sqrt(pooled_var * (1 / n1 + 1 / n2))
             df = n1 + n2 - 2
         else:
-            se = np.sqrt(var1 / n1 + var2 / n2)
-            df = (var1 / n1 + var2 / n2) ** 2 / (
-                (var1 / n1) ** 2 / (n1 - 1) + (var2 / n2) ** 2 / (n2 - 1)
-            )
+            u1 = var1 / n1
+            u2 = var2 / n2
+            se = np.sqrt(u1 + u2)
+            max_u = max(u1, u2)
+            if max_u > 0:
+                w1 = u1 / max_u
+                w2 = u2 / max_u
+                denom = (w1**2) / (n1 - 1) + (w2**2) / (n2 - 1)
+                df = ((w1 + w2) ** 2) / denom if denom > 0 else float(n1 + n2 - 2)
+            else:
+                df = float(n1 + n2 - 2)
 
         margin = stats.t.ppf(1 - alpha / 2, df) * se
         return {

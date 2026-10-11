@@ -22,6 +22,19 @@ from .exceptions import InsufficientDataError, InvalidDataError
 from .regression import _finite, _label, build_design_matrix
 from .usability import invalid_level_message
 
+
+def _safe_exp(value: float, label: str) -> float:
+    try:
+        res = math.exp(value)
+        if not math.isfinite(res):
+            raise InsufficientDataError(f"Logistic regression produced an overflow in {label}.")
+        return float(res)
+    except OverflowError as exc:
+        raise InsufficientDataError(
+            f"Logistic regression produced an overflow in {label}."
+        ) from exc
+
+
 # ---------------------------------------------------------------------------
 # Binary outcome helper
 # ---------------------------------------------------------------------------
@@ -332,10 +345,10 @@ def fit_logit(
                     "method": "Wald z interval on log-odds scale",
                     "quantity": "log odds ratio",
                 },
-                "odds_ratio": float(math.exp(log_or)),
+                "odds_ratio": _safe_exp(log_or, "odds ratio"),
                 "odds_ratio_ci": {
-                    "lower": float(math.exp(ci_lower_log)),
-                    "upper": float(math.exp(ci_upper_log)),
+                    "lower": _safe_exp(ci_lower_log, "odds ratio CI lower bound"),
+                    "upper": _safe_exp(ci_upper_log, "odds ratio CI upper bound"),
                     "level": confidence_level,
                     "method": "Wald z interval exponentiated",
                     "quantity": "odds ratio",

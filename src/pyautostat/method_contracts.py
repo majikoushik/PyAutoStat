@@ -1128,7 +1128,10 @@ METHOD_CONTRACTS: dict[str, MethodContract] = {
             "Incomplete units (missing either condition) are excluded; "
             "incomplete unit count recorded."
         ),
-        degenerate_data_behavior="Zero discordant pairs (b + c = 0) returns unavailable status.",
+        degenerate_data_behavior=(
+            "Zero discordant pairs (b + c = 0) returns p_value=1.0 "
+            "with matched odds ratio undefined."
+        ),
         multiplicity_policy="Not applicable.",
         numerical_provenance="scipy.stats.binomtest(n=b+c, p=0.5, alternative='two-sided')",
         interpretation_limitations=(

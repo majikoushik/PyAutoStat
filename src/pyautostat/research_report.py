@@ -1363,27 +1363,27 @@ def build_research_report(
                                 item.get("estimate"), f"analysis.values.all_variants[{i}].estimate"
                             ),
                             _cell(
-                                item.get("confidence_interval", {}).get("lower"),
+                                (item.get("confidence_interval") or {}).get("lower"),
                                 f"analysis.values.all_variants[{i}].confidence_interval.lower",
                             ),
                             _cell(
-                                item.get("confidence_interval", {}).get("upper"),
+                                (item.get("confidence_interval") or {}).get("upper"),
                                 f"analysis.values.all_variants[{i}].confidence_interval.upper",
                             ),
                             _cell(
-                                item.get("f_test", {}).get("statistic"),
+                                (item.get("f_test") or {}).get("statistic"),
                                 f"analysis.values.all_variants[{i}].f_test.statistic",
                             ),
                             _cell(
-                                item.get("f_test", {}).get("df1"),
+                                (item.get("f_test") or {}).get("df1"),
                                 f"analysis.values.all_variants[{i}].f_test.df1",
                             ),
                             _cell(
-                                item.get("f_test", {}).get("df2"),
+                                (item.get("f_test") or {}).get("df2"),
                                 f"analysis.values.all_variants[{i}].f_test.df2",
                             ),
                             _cell(
-                                item.get("f_test", {}).get("p_value"),
+                                (item.get("f_test") or {}).get("p_value"),
                                 f"analysis.values.all_variants[{i}].f_test.p_value",
                             ),
                         ]

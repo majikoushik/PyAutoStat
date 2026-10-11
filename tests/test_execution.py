@@ -376,6 +376,99 @@ def test_analysis_does_not_mutate_draft_or_assistant_data(two_groups):
     assert draft.specification.to_dict() == before
     pd.testing.assert_frame_equal(frame, assistant._analyzer.df)
 
+    # Multi-method immutability, option immutability, and deterministic repeatability checks
+    corr_df = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0], "y": [2.0, 4.0, 5.0, 4.0, 5.0]})
+    corr_orig = corr_df.copy(deep=True)
+    opts = AnalysisOptions(confidence_level=0.95, random_seed=42)
+    opts_before = deepcopy(opts.to_dict())
+    c_ast = ResearchAssistant(corr_df)
+    res_c1 = c_ast.run(objective="association", outcome="y", predictor="x", options=opts)
+    res_c2 = c_ast.run(objective="association", outcome="y", predictor="x", options=opts)
+    pd.testing.assert_frame_equal(corr_df, corr_orig)
+    assert opts.to_dict() == opts_before
+    assert res_c1.to_dict() == res_c2.to_dict()
+
+    reg_df = pd.DataFrame(
+        {
+            "x1": [1.0, 2.0, 3.0, 4.0, 5.0],
+            "x2": [5.0, 4.0, 3.0, 2.0, 1.0],
+            "y": [2.0, 3.5, 5.0, 6.5, 8.0],
+        }
+    )
+    reg_orig = reg_df.copy(deep=True)
+    reg_ast = ResearchAssistant(reg_df)
+    res_r1 = reg_ast.run(objective="regression", outcome="y", predictors=["x1", "x2"])
+    res_r2 = reg_ast.run(objective="regression", outcome="y", predictors=["x1", "x2"])
+    pd.testing.assert_frame_equal(reg_df, reg_orig)
+    assert res_r1.to_dict() == res_r2.to_dict()
+
+    cat_df = pd.DataFrame(
+        {
+            "a": ["yes", "no", "yes", "no", "yes", "yes"],
+            "b": ["low", "high", "low", "high", "high", "low"],
+        }
+    )
+    cat_orig = cat_df.copy(deep=True)
+    cat_ast = ResearchAssistant(cat_df)
+    res_cat1 = cat_ast.run(objective="association", outcome="b", predictor="a")
+    res_cat2 = cat_ast.run(objective="association", outcome="b", predictor="a")
+    pd.testing.assert_frame_equal(cat_df, cat_orig)
+    assert res_cat1.to_dict() == res_cat2.to_dict()
+
+    rm_df = pd.DataFrame(
+        {
+            "subject": [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4],
+            "time": ["t1", "t2", "t3"] * 4,
+            "val": [10.0, 12.0, 15.0, 11.0, 13.0, 14.0, 9.0, 11.0, 13.0, 12.0, 14.0, 16.0],
+        }
+    )
+    rm_orig = rm_df.copy(deep=True)
+    rm_ast = ResearchAssistant(rm_df)
+    res_rm1 = rm_ast.run(
+        objective="compare_groups",
+        outcome="val",
+        predictor="time",
+        design="paired",
+        unit_id="subject",
+    )
+    res_rm2 = rm_ast.run(
+        objective="compare_groups",
+        outcome="val",
+        predictor="time",
+        design="paired",
+        unit_id="subject",
+    )
+    pd.testing.assert_frame_equal(rm_df, rm_orig)
+    assert res_rm1.to_dict() == res_rm2.to_dict()
+
+    rel_df = pd.DataFrame(
+        {
+            "q1": [1, 2, 3, 4, 5, 4, 3, 2, 1, 5],
+            "q2": [2, 2, 4, 4, 5, 3, 3, 2, 2, 4],
+            "q3": [1, 3, 3, 5, 5, 4, 2, 1, 2, 5],
+        }
+    )
+    rel_orig = rel_df.copy(deep=True)
+    rel_ast = ResearchAssistant(rel_df)
+    res_rel1 = rel_ast.run(objective="reliability", items=["q1", "q2", "q3"])
+    res_rel2 = rel_ast.run(objective="reliability", items=["q1", "q2", "q3"])
+    pd.testing.assert_frame_equal(rel_df, rel_orig)
+    assert res_rel1.to_dict() == res_rel2.to_dict()
+
+    icc_df = pd.DataFrame(
+        {
+            "judge": ["j1", "j2", "j3"] * 4,
+            "target": [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4],
+            "score": [9, 8, 9, 6, 7, 6, 8, 8, 7, 5, 5, 4],
+        }
+    )
+    icc_orig = icc_df.copy(deep=True)
+    icc_ast = ResearchAssistant(icc_df)
+    res_icc1 = icc_ast.run(objective="reliability", outcome="score", target="target", rater="judge")
+    res_icc2 = icc_ast.run(objective="reliability", outcome="score", target="target", rater="judge")
+    pd.testing.assert_frame_equal(icc_df, icc_orig)
+    assert res_icc1.to_dict() == res_icc2.to_dict()
+
 
 def test_missing_effect_interval_is_explicit_without_losing_mean_interval(monkeypatch, two_groups):
     _, assistant = two_groups

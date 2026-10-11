@@ -111,7 +111,14 @@ def _welch_values(n1: int, n2: int, sd1: float, sd2: float) -> tuple[float, floa
     first = sd1 * sd1 / n1
     second = sd2 * sd2 / n2
     standard_error = math.sqrt(first + second)
-    degrees = (first + second) ** 2 / (first * first / (n1 - 1) + second * second / (n2 - 1))
+    max_comp = max(first, second)
+    if max_comp > 0:
+        w1 = first / max_comp
+        w2 = second / max_comp
+        denom = (w1 * w1 / (n1 - 1)) + (w2 * w2 / (n2 - 1))
+        degrees = ((w1 + w2) ** 2) / denom if denom > 0 else float(n1 + n2 - 2)
+    else:
+        degrees = float(n1 + n2 - 2)
     return standard_error, degrees
 
 

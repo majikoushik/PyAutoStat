@@ -247,6 +247,34 @@ def test_closure_linear_and_logistic_regression():
     assert replay.status == "reproduced"
     json.dumps(wf_lin.to_dict(), allow_nan=False)
 
+    # Linear regression edge cases: collinear predictors and constant outcome yield data_limited
+    df_collinear = pd.DataFrame(
+        {"y": [1.0, 2.0, 3.0, 4.0, 5.0], "x1": [1, 2, 3, 4, 5], "x2": [2, 4, 6, 8, 10]}
+    )
+    wf_coll = ResearchAssistant(df_collinear).run(
+        objective="regression",
+        outcome="y",
+        predictors=["x1", "x2"],
+        design="independent",
+        estimand="conditional_mean",
+        variable_types={"y": "continuous", "x1": "continuous", "x2": "continuous"},
+    )
+    assert wf_coll.status.value == "data_limited"
+
+    df_const_y = pd.DataFrame({"y": [5.0] * 8, "x": list(range(8))})
+    wf_cy = ResearchAssistant(df_const_y).run(
+        objective="regression",
+        outcome="y",
+        predictors=["x"],
+        design="independent",
+        estimand="conditional_mean",
+        variable_types={"y": "continuous", "x": "continuous"},
+    )
+    assert wf_cy.status.value == "data_limited"
+
+    # Input immutability of df_reg
+    assert len(df_reg) == 8 and list(df_reg.columns) == ["y", "x", "grp"]
+
     # Logistic regression
     df_logit = pd.DataFrame(
         {
@@ -254,6 +282,7 @@ def test_closure_linear_and_logistic_regression():
             "x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
         }
     )
+    orig_logit = df_logit.copy()
     wf_logit = ResearchAssistant(df_logit).run(
         objective="regression",
         outcome="y",
@@ -267,6 +296,32 @@ def test_closure_linear_and_logistic_regression():
     assert wf_logit.analysis.method_id == "logistic_regression"
     assert wf_logit.audit.status == "passed"
     json.dumps(wf_logit.to_dict(), allow_nan=False)
+    pd.testing.assert_frame_equal(df_logit, orig_logit)
+
+    # Logistic regression edge cases: single class outcome and perfect separation yield data_limited
+    df_single_class = pd.DataFrame({"y": [1] * 10, "x": list(range(10))})
+    wf_sc = ResearchAssistant(df_single_class).run(
+        objective="regression",
+        outcome="y",
+        predictors=["x"],
+        design="independent",
+        estimand="event_probability",
+        event_level=1,
+        variable_types={"y": "nominal", "x": "continuous"},
+    )
+    assert wf_sc.status.value == "unsupported"
+
+    df_sep = pd.DataFrame({"y": [0] * 5 + [1] * 5, "x": [-10, -8, -6, -4, -2, 2, 4, 6, 8, 10]})
+    wf_sep = ResearchAssistant(df_sep).run(
+        objective="regression",
+        outcome="y",
+        predictors=["x"],
+        design="independent",
+        estimand="event_probability",
+        event_level=1,
+        variable_types={"y": "nominal", "x": "continuous"},
+    )
+    assert wf_sep.status.value == "failed"
 
 
 def test_closure_scale_reliability():
@@ -278,6 +333,7 @@ def test_closure_scale_reliability():
             "item3": [2, 1, 3, 5, 4, 4, 3, 5],
         }
     )
+    orig_alpha = df_alpha.copy()
     wf_rel = ResearchAssistant(df_alpha).reliability(
         items=["item1", "item2", "item3"], bootstrap_samples=50
     )
@@ -288,6 +344,19 @@ def test_closure_scale_reliability():
     replay = reproduce(wf_rel.reproducibility, data=df_alpha)
     assert replay.status == "reproduced"
     json.dumps(wf_rel.to_dict(), allow_nan=False)
+    pd.testing.assert_frame_equal(df_alpha, orig_alpha)
+
+    # Cronbach alpha with 2 identical items (alpha = 1.0)
+    df_ident = pd.DataFrame({"q1": [1, 2, 3, 4, 5], "q2": [1, 2, 3, 4, 5]})
+    wf_ident = ResearchAssistant(df_ident).reliability(items=["q1", "q2"], bootstrap_samples=50)
+    assert wf_ident.analysis.values["cronbach_alpha"] == pytest.approx(1.0)
+
+    # All constant items yields data_limited
+    df_const_item = pd.DataFrame({"q1": [1, 1, 1], "q2": [2, 2, 2]})
+    wf_const = ResearchAssistant(df_const_item).reliability(
+        items=["q1", "q2"], bootstrap_samples=50
+    )
+    assert wf_const.status.value == "data_limited"
 
 
 def test_closure_repeated_measures_and_friedman():

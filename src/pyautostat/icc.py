@@ -746,9 +746,32 @@ def intraclass_correlation(
     all_variants_results = []
     for var_key in ("icc_1_1", "icc_1_k", "icc_2_1", "icc_2_k", "icc_3_1", "icc_3_k"):
         var_meta = ICC_VARIANTS[var_key]
-        var_est = compute_icc_estimate(var_key, n_targets, n_raters, anova)
-        var_f = compute_icc_f_test(var_key, n_targets, n_raters, anova)
-        var_ci = compute_icc_ci(var_key, n_targets, n_raters, anova, var_est, conf_level)
+        try:
+            var_est: float | None = compute_icc_estimate(var_key, n_targets, n_raters, anova)
+            var_f: dict[str, Any] | None = compute_icc_f_test(var_key, n_targets, n_raters, anova)
+            var_ci: dict[str, Any] | None = (
+                compute_icc_ci(var_key, n_targets, n_raters, anova, var_est, conf_level)
+                if var_est is not None
+                else None
+            )
+        except InvalidDataError:
+            var_est = None
+            var_f = {
+                "statistic": None,
+                "df1": None,
+                "df2": None,
+                "p_value": None,
+                "null_hypothesis": "Population ICC is zero (target variance is zero).",
+                "alternative_hypothesis": "Population ICC is greater than zero.",
+            }
+            var_ci = {
+                "quantity": "intraclass_correlation",
+                "method": "unavailable",
+                "level": conf_level,
+                "lower": None,
+                "upper": None,
+                "status": "unavailable",
+            }
         all_variants_results.append(
             {
                 "variant": var_key,

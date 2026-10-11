@@ -288,6 +288,32 @@ def test_negative_icc_preserved_not_clamped():
     # Warning must be issued explaining negative estimate
     assert any("negative" in w.lower() for w in result["warnings"])
 
+    # Degenerate case where MS_between == 0.0 and MS_within > 0:
+    # ICC(1,1) is exactly -1.0, and secondary diagnostic all_variants contains all 6 variants
+    # without crashing due to ICC(1,k)'s zero denominator.
+    bms_zero_df = pd.DataFrame(
+        {
+            "target": ["T1", "T1", "T2", "T2"],
+            "rater": ["R1", "R2", "R1", "R2"],
+            "score": [0.0, 10.0, 0.0, 10.0],
+        }
+    )
+    orig_bms_zero = bms_zero_df.copy()
+    bms_zero_res = intraclass_correlation(
+        bms_zero_df,
+        target="target",
+        rater="rater",
+        outcome="score",
+        model="one_way_random",
+        unit="single",
+    )
+    assert bms_zero_res["estimate"] == pytest.approx(-1.0)
+    assert len(bms_zero_res["all_variants"]) == 6
+    icc_1_k = next(v for v in bms_zero_res["all_variants"] if v["variant"] == "icc_1_k")
+    assert icc_1_k["estimate"] is None
+    assert icc_1_k["confidence_interval"]["status"] == "unavailable"
+    pd.testing.assert_frame_equal(bms_zero_df, orig_bms_zero)
+
 
 def test_negative_variance_components_preserved_not_clamped():
     """Construct data where BMS < EMS and JMS < EMS, verifying unconstrained negative

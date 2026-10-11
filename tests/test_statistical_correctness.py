@@ -57,6 +57,48 @@ def test_welch_t_and_student_t_against_hand_formula():
         assert result["excluded_rows"] == 0
         assert result["equal_variance"] is equal_var
 
+    # Extreme-finite scale test: Welch t on values around 1e150 without overflow
+    extreme_frame = _groups([1e150, 2e150, 3e150], [4e150, 5e150, 6e150])
+    extreme_res = StatisticalAnalyzer(extreme_frame).hypothesis_tests(
+        "group", "value", "ttest", equal_var=False, bootstrap_samples=0
+    )
+    assert math.isfinite(extreme_res["statistic"])
+    assert math.isfinite(extreme_res["degrees_of_freedom"])
+    assert (
+        extreme_res["confidence_interval"]["lower"] <= extreme_res["confidence_interval"]["upper"]
+    )
+
+    # Input immutability verification
+    expected_original = _groups([1, 2, 3, 4], [3, 5, 7, 9])
+    pd.testing.assert_frame_equal(frame, expected_original)
+
+    # Metamorphic invariant: shifting both groups by +100 leaves t, df, p, Cohen's d unchanged
+    shifted_frame = frame.copy()
+    shifted_frame["value"] += 100.0
+    shifted_res = StatisticalAnalyzer(shifted_frame).hypothesis_tests(
+        "group", "value", "ttest", equal_var=False, bootstrap_samples=0, confidence_level=0.9
+    )
+    welch_base = analyzer.hypothesis_tests(
+        "group", "value", "ttest", equal_var=False, bootstrap_samples=0, confidence_level=0.9
+    )
+    assert shifted_res["statistic"] == pytest.approx(welch_base["statistic"])
+    assert shifted_res["degrees_of_freedom"] == pytest.approx(welch_base["degrees_of_freedom"])
+    assert shifted_res["p_value"] == pytest.approx(welch_base["p_value"])
+    assert shifted_res["effect_size"]["value"] == pytest.approx(welch_base["effect_size"]["value"])
+
+    # Metamorphic invariant: scaling by *2.0 scales difference and CI bounds by 2.0 while t, df, p
+    # remain invariant
+    scaled_frame = frame.copy()
+    scaled_frame["value"] *= 2.0
+    scaled_res = StatisticalAnalyzer(scaled_frame).hypothesis_tests(
+        "group", "value", "ttest", equal_var=False, bootstrap_samples=0, confidence_level=0.9
+    )
+    assert scaled_res["statistic"] == pytest.approx(welch_base["statistic"])
+    assert scaled_res["degrees_of_freedom"] == pytest.approx(welch_base["degrees_of_freedom"])
+    assert scaled_res["p_value"] == pytest.approx(welch_base["p_value"])
+    assert scaled_res["mean_difference"] == pytest.approx(welch_base["mean_difference"] * 2.0)
+    assert scaled_res["effect_size"]["value"] == pytest.approx(welch_base["effect_size"]["value"])
+
 
 def test_welch_unbalanced_groups_against_hand_standard_error():
     first, second = [1, 2, 3], [2, 4, 6, 8, 10]
@@ -138,6 +180,28 @@ def test_mann_whitney_ties_u_and_rank_direction():
     assert reverse["effect_size"]["value"] == pytest.approx(0.36)
     assert reverse["p_value"] == pytest.approx(result["p_value"])
 
+    # Equal distributions: zero rank-biserial effect and p=1.0
+    equal_frame = _groups([1, 2, 3], [1, 2, 3])
+    equal_res = StatisticalAnalyzer(equal_frame).hypothesis_tests(
+        "group", "value", "mannwhitney", bootstrap_samples=0
+    )
+    assert equal_res["statistic"] == pytest.approx(4.5)
+    assert equal_res["effect_size"]["value"] == pytest.approx(0.0)
+    assert equal_res["p_value"] == pytest.approx(1.0)
+
+    # All values tied: U=4.5, rank-biserial=0.0, p=1.0
+    tied_frame = _groups([5, 5, 5], [5, 5, 5])
+    tied_res = StatisticalAnalyzer(tied_frame).hypothesis_tests(
+        "group", "value", "mannwhitney", bootstrap_samples=0
+    )
+    assert tied_res["statistic"] == pytest.approx(4.5)
+    assert tied_res["effect_size"]["value"] == pytest.approx(0.0)
+    assert tied_res["p_value"] == pytest.approx(1.0)
+
+    # Input immutability
+    orig_equal = _groups([1, 2, 3], [1, 2, 3])
+    pd.testing.assert_frame_equal(equal_frame, orig_equal)
+
 
 def test_anova_f_eta_and_kruskal_h_epsilon_from_rank_sums():
     anova = StatisticalAnalyzer(_groups([1, 2, 3], [2, 4, 6], [5, 7, 9])).hypothesis_tests(
@@ -156,6 +220,41 @@ def test_anova_f_eta_and_kruskal_h_epsilon_from_rank_sums():
     assert rank["degrees_of_freedom"] == 2
     assert rank["effect_size"]["value"] == pytest.approx(10.5 / 12)
     assert rank["effect_size"]["interpretation"] is None
+
+    # ANOVA metamorphic invariants: adding constant C=25.0 and multiplying by k=4.0
+    anova_df = _groups([1, 2, 3], [2, 4, 6], [5, 7, 9])
+    orig_anova = anova_df.copy()
+    shifted_anova = anova_df.copy()
+    shifted_anova["value"] += 25.0
+    shifted_res = StatisticalAnalyzer(shifted_anova).hypothesis_tests(
+        "group", "value", "anova", bootstrap_samples=0
+    )
+    assert shifted_res["statistic"] == pytest.approx(anova["statistic"])
+    assert shifted_res["p_value"] == pytest.approx(anova["p_value"])
+    assert shifted_res["effect_size"]["value"] == pytest.approx(anova["effect_size"]["value"])
+
+    scaled_anova = anova_df.copy()
+    scaled_anova["value"] *= 4.0
+    scaled_res = StatisticalAnalyzer(scaled_anova).hypothesis_tests(
+        "group", "value", "anova", bootstrap_samples=0
+    )
+    assert scaled_res["statistic"] == pytest.approx(anova["statistic"])
+    assert scaled_res["p_value"] == pytest.approx(anova["p_value"])
+    assert scaled_res["effect_size"]["value"] == pytest.approx(anova["effect_size"]["value"])
+    pd.testing.assert_frame_equal(anova_df, orig_anova)
+
+    # Kruskal metamorphic invariant: monotone rank-preserving transformation x -> x^3
+    kruskal_df = _groups([1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15])
+    orig_kruskal = kruskal_df.copy()
+    monotone_df = kruskal_df.copy()
+    monotone_df["value"] = monotone_df["value"] ** 3
+    monotone_res = StatisticalAnalyzer(monotone_df).hypothesis_tests(
+        "group", "value", "kruskal", bootstrap_samples=0
+    )
+    assert monotone_res["statistic"] == pytest.approx(rank["statistic"])
+    assert monotone_res["p_value"] == pytest.approx(rank["p_value"])
+    assert monotone_res["effect_size"]["value"] == pytest.approx(rank["effect_size"]["value"])
+    pd.testing.assert_frame_equal(kruskal_df, orig_kruskal)
 
 
 def test_chi_square_and_categorical_effects_from_hand_table():
@@ -244,6 +343,27 @@ def test_correlation_reference_and_pairwise_missing():
     assert correlations["kendall"]["matrix"]["x"]["y"] == pytest.approx(2 / 3)
     assert correlations["p_values"]["x"]["y"] == pytest.approx(0.2)
     assert correlations["pearson"]["matrix"]["x"]["negative"] == pytest.approx(-1)
+    assert correlations["spearman"]["matrix"]["x"]["negative"] == pytest.approx(-1)
+    assert correlations["kendall"]["matrix"]["x"]["negative"] == pytest.approx(-1)
+
+    # Perfect correlation with self
+    assert correlations["pearson"]["matrix"]["x"]["x"] == pytest.approx(1.0)
+    assert correlations["spearman"]["matrix"]["x"]["x"] == pytest.approx(1.0)
+    assert correlations["kendall"]["matrix"]["x"]["x"] == pytest.approx(1.0)
+
+    # Positive affine transformation invariant: y -> 3y + 5
+    affine_frame = frame.copy()
+    affine_frame["y"] = 3.0 * affine_frame["y"] + 5.0
+    affine_corr = StatisticalAnalyzer(affine_frame).analyze_all()["correlation"]
+    assert affine_corr["pearson"]["matrix"]["x"]["y"] == pytest.approx(0.8)
+    assert affine_corr["spearman"]["matrix"]["x"]["y"] == pytest.approx(0.8)
+    assert affine_corr["kendall"]["matrix"]["x"]["y"] == pytest.approx(2 / 3)
+
+    # Input immutability check
+    orig_frame = pd.DataFrame(
+        {"x": [1, 2, 3, 4, np.nan], "y": [1, 3, 2, 4, 99], "negative": [4, 3, 2, 1, 0]}
+    )
+    pd.testing.assert_frame_equal(frame, orig_frame)
 
 
 def test_nearly_constant_pearson_is_unavailable_with_warning():
@@ -317,6 +437,19 @@ def test_degenerate_and_bootstrap_metadata():
         StatisticalAnalyzer(_groups([1, 1, 1], [2, 2, 2])).hypothesis_tests(
             "group", "value", "ttest", bootstrap_samples=0
         )
+    # Single observation per group is rejected
+    with pytest.raises(InsufficientDataError):
+        StatisticalAnalyzer(_groups([1], [2])).hypothesis_tests(
+            "group", "value", "ttest", bootstrap_samples=0
+        )
+    # Extreme offset with small difference (near-cancellation) remains finite and computable
+    offset_df = _groups([1e9 + 1.0, 1e9 + 2.0, 1e9 + 3.0], [1e9 + 4.0, 1e9 + 5.0, 1e9 + 6.0])
+    offset_res = StatisticalAnalyzer(offset_df).hypothesis_tests(
+        "group", "value", "ttest", equal_var=True, bootstrap_samples=0
+    )
+    assert offset_res["mean_difference"] == pytest.approx(-3.0)
+    assert math.isfinite(offset_res["statistic"])
+    assert math.isfinite(offset_res["p_value"])
     analyzer = StatisticalAnalyzer(_groups([1, 2, 3, 4, 5], [2, 4, 6, 8, 10]))
     first = analyzer.hypothesis_tests(
         "group", "value", "ttest", bootstrap_samples=100, random_state=7

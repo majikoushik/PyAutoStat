@@ -7,7 +7,40 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-No changes yet.
+### Fixed
+
+-   **Welch t-test degrees of freedom calculation (`welch_t`, `study_planning`)**:
+    -   *Affected method*: `welch_t` (and prospective Welch planning helper `_welch_values`).
+    -   *Edge condition*: Extremely large sample variances ($\ge 10^{150}$).
+    -   *Previous failure*: Float64 overflow in $u_i^2 = (s_i^2/n_i)^2$ causing Welch-Satterthwaite denominator to evaluate to `inf` / `nan`.
+    -   *Corrected behavior*: Normalized variance-to-sample-size terms $w_i = u_i / \max(u_1, u_2)$ to guarantee scale-invariant, overflow-immune computation of Welch-Satterthwaite degrees of freedom and corresponding p-value.
+-   **Intraclass correlation diagnostic variant robustness (`intraclass_correlation`)**:
+    -   *Affected method*: `intraclass_correlation`.
+    -   *Edge condition*: Between-target mean squares $MS_B = 0$ with nonzero within-target variation ($MS_W > 0$).
+    -   *Previous failure*: In `all_variants_results` diagnostic population, secondary variant calculation for `ICC(1,k)` raised an unhandled `InvalidDataError` from division by zero, crashing valid primary calculations such as `ICC(1,1)` which evaluate to $-1.0$.
+    -   *Corrected behavior*: Trapped zero-denominator / invalid conditions during auxiliary non-primary variant calculation in `all_variants_results`, recording `None`/`unavailable` for undefined variants while preserving the valid primary model output.
+-   **Research report ICC cell formatting resilience (`research_report`)**:
+    -   *Affected method*: `intraclass_correlation` presentation in research reports.
+    -   *Edge condition*: Non-primary ICC variants returning `None` in `all_variants` results.
+    -   *Previous failure*: Potential `AttributeError` when extracting `.get("confidence_interval")` or `.get("f_test")` on `None` dictionary values.
+    -   *Corrected behavior*: Defensively guard sub-dictionary lookups with `(item.get(...) or {}).get(...)`.
+-   **Logistic regression odds ratio exponentiation protection (`logistic_regression`)**:
+    -   *Affected method*: `logistic_regression`.
+    -   *Edge condition*: Extremely large estimated coefficients ($\beta > 709$) due to quasi-separation or extreme predictor scaling.
+    -   *Previous failure*: Uncaught `OverflowError` during `math.exp(coef)` or `math.exp(ci)`.
+    -   *Corrected behavior*: Safe exponentiation helper `_safe_exp` traps `OverflowError` and converts it into a clean, public `InsufficientDataError` with diagnostic context.
+-   **Method contract specification alignment (`mcnemar`)**:
+    -   *Affected method*: `mcnemar`.
+    -   *Edge condition*: Zero discordant pairs ($b + c = 0$).
+    -   *Previous failure*: Contract text ambiguously referenced odds ratio handling.
+    -   *Corrected behavior*: Aligned `METHOD_CONTRACTS["mcnemar"].degenerate_data_behavior` with actual implementation: `Zero discordant pairs (b + c = 0) returns p_value=1.0 with matched odds ratio undefined.`
+
+### Hardened
+
+-   **Input immutability and determinism**:
+    -   Strengthened test suite across diverse method families (t-tests, rank tests, ANOVA, correlations, regression, categorical association, repeated measures, scale reliability, intraclass correlation) to verify that input DataFrames, columns, indices, dtypes, and user-provided `AnalysisOptions` are strictly immutable, and repeated execution produces identical deterministic results.
+-   **Numerical invariants and extreme finite scaling**:
+    -   Strengthened existing test assertions across t-tests, Mann-Whitney U, ANOVA, Kruskal-Wallis, correlations, linear regression, logistic regression, Cronbach alpha, and ICC to verify p-value boundedness ($0 \le p \le 1$), CI ordering ($\text{lower} \le \text{estimate} \le \text{upper}$), scale invariance, affine transformation invariance, and sign/contrast orientation.
 
 ## [1.0.0] - 2026-10-09
 
