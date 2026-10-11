@@ -178,8 +178,13 @@ class StatisticalAnalyzer:
                 "Add at least one column before running analysis."
             )
         if not df.columns.is_unique:
+            duplicates = [
+                str(col) for col in dict.fromkeys(df.columns) if list(df.columns).count(col) > 1
+            ]
+            dup_str = ", ".join(repr(col) for col in duplicates)
             raise InvalidDataError(
-                "DataFrame column names must be unique. Rename duplicate columns before analysis."
+                f"DataFrame column names must be unique, but found duplicate column(s): {dup_str}. "
+                "Rename duplicate columns before analysis."
             )
         if any(not isinstance(col, str) or not col.strip() for col in df.columns):
             raise InvalidDataError(

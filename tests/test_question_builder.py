@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from pyautostat import (
+    AnalysisOptions,
     AnalysisSpecification,
     ColumnNotFoundError,
     InvalidDataError,
@@ -13,6 +14,7 @@ from pyautostat import (
     ResearchAssistant,
     StatisticalAnalyzer,
 )
+from pyautostat.question_builder import prepare_question
 
 
 @pytest.fixture
@@ -111,6 +113,61 @@ def test_unknown_column_and_same_column_are_actionable(assistant):
         assistant.prepare_question(objective="association", outcome="score", predictor="score")
     with pytest.raises(InvalidDataError, match="non-empty string"):
         assistant.prepare_question(objective="association", outcome=" ")
+
+    df_dup = pd.DataFrame([[1, 2, 3]], columns=["score", "score", "group"])
+    with pytest.raises(InvalidDataError, match=r"duplicate column\(s\): 'score'"):
+        StatisticalAnalyzer(df_dup)
+    with pytest.raises(InvalidDataError, match=r"duplicate column\(s\): 'score'"):
+        prepare_question(df_dup, outcome="score", predictor="group")
+    with pytest.raises(InvalidDataError, match="expects a pandas DataFrame"):
+        prepare_question(None, outcome="score")  # type: ignore[arg-type]
+
+    with pytest.raises(InvalidDataError, match="only valid with `objective='compare_groups'`"):
+        assistant.prepare_question(
+            objective="association", outcome="score", predictor="group", factor_a="score"
+        )
+    with pytest.raises(InvalidDataError, match="sum_of_squares"):
+        assistant.prepare_question(
+            objective="association", outcome="score", predictor="group", sum_of_squares="type3"
+        )
+    with pytest.raises(InvalidDataError, match="reverse_scoring names items outside"):
+        assistant.prepare_question(
+            objective="reliability",
+            items=["score", "hours"],
+            options=AnalysisOptions(reverse_scoring={"unknown_item": (1.0, 5.0)}),
+        )
+
+    df_levels = pd.DataFrame({"y": [1.0, 2.0], "grp": [0, 1], "id": [1, 1]})
+    asst_levels = ResearchAssistant(df_levels)
+    with pytest.raises(InvalidDataError, match="condition_order"):
+        asst_levels.compare_means(
+            "y",
+            by="grp",
+            paired_by="id",
+            condition_order=(True, False),  # type: ignore[arg-type]
+        )
+
+    df_fact = pd.DataFrame({"y": [1.0, 2.0], "a": ["A1", "A2"], "b": ["B1", "B2"]})
+    asst_fact = ResearchAssistant(df_fact)
+    fact_draft = asst_fact.prepare_question(
+        objective="compare_groups", outcome="y", factor_a="a", factor_b="b"
+    )
+    updated_fact = asst_fact.update_question(fact_draft, estimand="mean")
+    assert updated_fact.specification.question.factor_a == "a"
+    assert updated_fact.specification.question.factor_b == "b"
+    assert updated_fact.specification.question.factors == ("a", "b")
+
+    df_icc = pd.DataFrame({"score": [1.0, 2.0], "target": ["T1", "T2"], "rater": ["R1", "R2"]})
+    asst_icc = ResearchAssistant(df_icc)
+    icc_draft = asst_icc.prepare_question(
+        objective="reliability", outcome="score", target="target", rater="rater"
+    )
+    updated_icc = asst_icc.update_question(
+        icc_draft, model="two_way_random", definition="absolute_agreement", unit="single"
+    )
+    assert updated_icc.specification.options.model == "two_way_random"
+    assert updated_icc.specification.options.definition == "absolute_agreement"
+    assert updated_icc.specification.options.unit == "single"
 
 
 def test_declared_type_overrides_integer_category_ambiguity():

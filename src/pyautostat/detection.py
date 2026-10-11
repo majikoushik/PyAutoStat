@@ -36,7 +36,14 @@ def suggest_column_roles(df: pd.DataFrame) -> dict:
     if not isinstance(df, pd.DataFrame):
         raise InvalidDataError("suggest_column_roles() expects a pandas DataFrame.")
     if not df.columns.is_unique:
-        raise InvalidDataError("Column names must be unique before suggesting roles.")
+        duplicates = [
+            str(col) for col in dict.fromkeys(df.columns) if list(df.columns).count(col) > 1
+        ]
+        dup_str = ", ".join(repr(col) for col in duplicates)
+        raise InvalidDataError(
+            "Column names must be unique before suggesting roles, but found "
+            f"duplicate column(s): {dup_str}."
+        )
     roles = {}
     for col in df.columns:
         name = str(col)
@@ -92,7 +99,14 @@ def detect_column_types(df: pd.DataFrame) -> dict:
     if not isinstance(df, pd.DataFrame):
         raise InvalidDataError("detect_column_types() expects a pandas DataFrame.")
     if not df.columns.is_unique:
-        raise InvalidDataError("Column names must be unique before detecting types.")
+        duplicates = [
+            str(col) for col in dict.fromkeys(df.columns) if list(df.columns).count(col) > 1
+        ]
+        dup_str = ", ".join(repr(col) for col in duplicates)
+        raise InvalidDataError(
+            "Column names must be unique before detecting types, but found "
+            f"duplicate column(s): {dup_str}."
+        )
     types = {}
     for col in df.columns:
         series = df[col].dropna()

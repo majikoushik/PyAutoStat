@@ -6,8 +6,24 @@ from collections.abc import Iterable, Mapping, Sequence
 from difflib import get_close_matches
 from typing import Any
 
+import numpy as np
+
 COLUMN_DISPLAY_LIMIT = 12
 LEVEL_DISPLAY_LIMIT = 10
+
+
+def level_matches(requested: Any, observed: Any) -> bool:
+    """Check if requested level matches observed level, strictly preserving bool vs int identity."""
+    if isinstance(requested, bool) != isinstance(observed, (bool, np.bool_)):
+        return False
+    return bool(requested == observed)
+
+
+def level_in(requested: Any, levels: Iterable[Any]) -> bool:
+    """Check if requested level is in levels, strictly preserving bool vs int identity."""
+    return any(level_matches(requested, level) for level in levels)
+
+
 SUPPORTED_VARIABLE_TYPES = (
     "continuous",
     "discrete",

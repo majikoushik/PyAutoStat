@@ -25,6 +25,7 @@ from .usability import (
     SUPPORTED_VARIABLE_TYPES,
     invalid_condition_order_message,
     invalid_level_message,
+    level_in,
     missing_column_message,
 )
 
@@ -169,6 +170,19 @@ def prepare_question(
     unit: str | None = None,
 ) -> QuestionDraft:
     """Build or revalidate a question against the assistant's copied DataFrame."""
+    if not isinstance(frame, pd.DataFrame):
+        raise InvalidDataError(
+            f"prepare_question expects a pandas DataFrame, got {type(frame).__name__}."
+        )
+    if not frame.columns.is_unique:
+        duplicates = [
+            str(col) for col in dict.fromkeys(frame.columns) if list(frame.columns).count(col) > 1
+        ]
+        dup_str = ", ".join(repr(col) for col in duplicates)
+        raise InvalidDataError(
+            f"DataFrame column names must be unique, but found duplicate column(s): {dup_str}. "
+            "Rename duplicate columns before analysis."
+        )
     if specification is not None and not isinstance(specification, AnalysisSpecification):
         raise InvalidDataError("specification must be an AnalysisSpecification.")
     base = specification or AnalysisSpecification()
@@ -349,6 +363,23 @@ def prepare_question(
             "covariance_type and reference_levels are supported only for "
             "objective='regression'. Remove them or change the objective."
         )
+    if question.objective != Objective.COMPARE_GROUPS and (
+        question.factor_a is not None
+        or question.factor_b is not None
+        or question.factors is not None
+    ):
+        raise InvalidDataError(
+            "`factor_a`, `factor_b`, and `factors` are only valid with "
+            "`objective='compare_groups'` for factorial ANOVA; remove them or change the "
+            "objective to compare_groups."
+        )
+    if (
+        question.objective != Objective.COMPARE_GROUPS or question.factors is None
+    ) and selected_options.sum_of_squares != "type2":
+        raise InvalidDataError(
+            "`sum_of_squares` is supported only for factorial ANOVA (objective='compare_groups' "
+            "with factors); remove it or set up a factorial analysis."
+        )
     if (
         question.objective
         not in {
@@ -365,6 +396,17 @@ def prepare_question(
         )
     if question.objective != Objective.RELIABILITY and selected_options.reverse_scoring is not None:
         raise InvalidDataError("reverse_scoring is supported only for objective='reliability'.")
+    if (
+        question.objective == Objective.RELIABILITY
+        and question.items is not None
+        and selected_options.reverse_scoring is not None
+    ):
+        unknown_scoring = set(selected_options.reverse_scoring) - set(question.items)
+        if unknown_scoring:
+            un_items = sorted(unknown_scoring)
+            raise InvalidDataError(
+                f"reverse_scoring names items outside the selected scale: {un_items!r}."
+            )
     dictionary = validate_data_dictionary(
         frame, data_dictionary if data_dictionary is not None else base.data_dictionary
     )
@@ -481,7 +523,7 @@ def prepare_question(
     if selected_condition_order is not None and question.predictor is not None:
         observed_conditions = list(pd.unique(frame[question.predictor].dropna()))
         invalid_conditions = [
-            value for value in selected_condition_order if value not in observed_conditions
+            value for value in selected_condition_order if not level_in(value, observed_conditions)
         ]
         if invalid_conditions:
             raise InvalidDataError(
@@ -557,7 +599,7 @@ def prepare_question(
                 complete[predictor_name], dictionary.get(predictor_name, {})
             )
             if predictor_name in resolved_references:
-                if resolved_references[predictor_name] not in levels:
+                if not level_in(resolved_references[predictor_name], levels):
                     raise InvalidDataError(
                         invalid_level_message(
                             f"reference_levels[{predictor_name!r}]",
@@ -965,7 +1007,7 @@ def prepare_question(
             )
     elif event_variable is not None and question.event_level is not None:
         levels = list(pd.unique(frame[event_variable].dropna()))
-        if question.event_level not in levels:
+        if not level_in(question.event_level, levels):
             raise InvalidDataError(
                 invalid_level_message("event_level", question.event_level, event_variable, levels)
             )

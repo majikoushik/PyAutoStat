@@ -14,7 +14,7 @@ from statsmodels.stats.stattools import jarque_bera
 
 from .exceptions import InsufficientDataError, InvalidDataError
 from .uncertainty import ols_r_squared_case_bootstrap_ci
-from .usability import invalid_level_message
+from .usability import invalid_level_message, level_in
 
 _NUMERIC_TYPES = {"continuous_numerical", "discrete_numerical"}
 _CATEGORICAL_TYPES = {"nominal_categorical", "ordinal_categorical", "boolean"}
@@ -147,7 +147,7 @@ def build_design_matrix(
                 "complete-case levels."
             )
         reference = references.get(predictor, levels[0])
-        if reference not in levels:
+        if not level_in(reference, levels):
             raise InvalidDataError(
                 invalid_level_message(
                     f"reference_levels[{predictor!r}]", reference, predictor, levels

@@ -1324,10 +1324,19 @@ class ResearchAssistant:
             "predictors",
             "items",
             "controls",
+            "factor_a",
+            "factor_b",
+            "factors",
+            "target",
+            "rater",
             "design",
             "estimand",
             "description",
             "options",
+            "model",
+            "definition",
+            "unit",
+            "sum_of_squares",
             "data_dictionary",
             "variable_types",
             "unit_id",
@@ -1360,6 +1369,11 @@ class ResearchAssistant:
             "predictors": previous.predictors,
             "items": previous.items,
             "controls": previous.controls,
+            "factor_a": previous.factor_a,
+            "factor_b": previous.factor_b,
+            "factors": previous.factors,
+            "target": previous.target,
+            "rater": previous.rater,
             "estimand": previous.estimand,
             "description": previous.description,
             "reference_value": previous.reference_value,
@@ -1372,6 +1386,11 @@ class ResearchAssistant:
             values["predictors"] = None
             values["items"] = None
             values["controls"] = None
+            values["factor_a"] = None
+            values["factor_b"] = None
+            values["factors"] = None
+            values["target"] = None
+            values["rater"] = None
             values["estimand"] = None
             values["reference_value"] = None
             values["event_level"] = None
@@ -1392,6 +1411,11 @@ class ResearchAssistant:
             "predictors",
             "items",
             "controls",
+            "factor_a",
+            "factor_b",
+            "factors",
+            "target",
+            "rater",
             "estimand",
             "description",
             "reference_value",
@@ -1421,10 +1445,25 @@ class ResearchAssistant:
             raise InvalidDataError(
                 "Descriptive questions do not use predictor, estimand, reference_value, or design."
             )
+        revised_options = changes.get("options", old.options)
+        if any(k in changes for k in ("model", "definition", "unit", "sum_of_squares")):
+            revised_options = AnalysisOptions(
+                alpha=revised_options.alpha,
+                confidence_level=revised_options.confidence_level,
+                random_seed=revised_options.random_seed,
+                covariance_type=revised_options.covariance_type,
+                reference_levels=revised_options.reference_levels,
+                bootstrap_samples=revised_options.bootstrap_samples,
+                reverse_scoring=revised_options.reverse_scoring,
+                sum_of_squares=changes.get("sum_of_squares", revised_options.sum_of_squares),
+                model=changes.get("model", revised_options.model),
+                definition=changes.get("definition", revised_options.definition),
+                unit=changes.get("unit", revised_options.unit),
+            )
         revised = AnalysisSpecification(
             question=ResearchQuestion(**values),
             design=cast(StudyDesign, selected_design),
-            options=changes.get("options", old.options),
+            options=revised_options,
             variable_metadata=old.variable_metadata,
             data_dictionary=changes.get("data_dictionary", old.data_dictionary),
             unit_id=changes.get("unit_id", selected_unit_id),

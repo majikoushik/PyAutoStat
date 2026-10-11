@@ -271,6 +271,13 @@ def _display_value(value: Any) -> str:
     return str(value)
 
 
+def _safe_is_unique(series: pd.Series) -> bool:
+    try:
+        return bool(series.is_unique)
+    except TypeError:
+        return False
+
+
 class DatasetProfiler:
     """Add dataset intelligence to the analyzer's existing calculation engine."""
 
@@ -357,7 +364,7 @@ class DatasetProfiler:
             elif isinstance(series.dtype, pd.CategoricalDtype):
                 suggested = "ordinal_categorical" if series.dtype.ordered else "nominal_categorical"
             elif pd.api.types.is_numeric_dtype(series):
-                if role == "identifier" and len(nonmissing) >= 3 and nonmissing.is_unique:
+                if role == "identifier" and len(nonmissing) >= 3 and _safe_is_unique(nonmissing):
                     suggested = "identifier"
                     evidence.append("identifier-like name and all observed values unique")
                 elif observed == "categorical_numeric":
@@ -370,7 +377,7 @@ class DatasetProfiler:
             elif observed == "datetime_like":
                 suggested = "datetime"
                 evidence.append("sampled text parses as dates; source is not recoded")
-            elif role == "identifier" and len(nonmissing) >= 3 and nonmissing.is_unique:
+            elif role == "identifier" and len(nonmissing) >= 3 and _safe_is_unique(nonmissing):
                 suggested = "identifier"
                 evidence.append("identifier-like name and all observed values unique")
             else:

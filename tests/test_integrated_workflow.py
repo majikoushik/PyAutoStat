@@ -149,6 +149,30 @@ def test_guided_mean_workflow_preserves_one_canonical_numerical_result(compariso
         assistant.compare_means("exam_score", by="teaching_method", paired_by=" ")
     with pytest.raises(InvalidDataError, match="condition_order requires paired_by"):
         assistant.compare_means("exam_score", by="teaching_method", condition_order=("A", "B"))
+
+    corr_df = pd.DataFrame({"x": [1.1, 2.2, 3.3, 4.4], "y": [2.1, 4.2, 6.3, 8.4]})
+    corr_asst = ResearchAssistant(corr_df)
+    for method in ("pearson", "spearman", "kendall"):
+        r_wrap = corr_asst.correlate("x", "y", method=method)
+        mapping = {
+            "pearson": ("linear", None),
+            "spearman": ("monotonic", "spearman"),
+            "kendall": ("monotonic", "kendall"),
+        }
+        est, measure = mapping[method]
+        r_run = corr_asst.run(
+            objective="association",
+            outcome="x",
+            predictor="y",
+            estimand=est,
+            design="independent",
+            association_measure=measure,
+        )
+        assert r_wrap.status == r_run.status
+        assert r_wrap.to_dict() == r_run.to_dict()
+    assert constructor_options.alpha == 0.01
+    assert call_options.alpha == 0.1
+
     pd.testing.assert_frame_equal(comparison_frame, original)
 
 

@@ -34,9 +34,29 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
     -   *Edge condition*: Zero discordant pairs ($b + c = 0$).
     -   *Previous failure*: Contract text ambiguously referenced odds ratio handling.
     -   *Corrected behavior*: Aligned `METHOD_CONTRACTS["mcnemar"].degenerate_data_behavior` with actual implementation: `Zero discordant pairs (b + c = 0) returns p_value=1.0 with matched odds ratio undefined.`
+-   **Question revision state preservation (`ResearchAssistant.update_question`)**:
+    -   *Affected API*: `ResearchAssistant.update_question`.
+    -   *Previous failure*: Updating a question draft silently dropped factorial parameters (`factor_a`, `factor_b`, `factors`) and ICC parameters (`target`, `rater`), resetting them to `None`. Additionally, submitting responses to ICC clarification prompts (`model`, `definition`, `unit`) raised `InvalidDataError: Unknown question updates: ...`.
+    -   *Corrected behavior*: Retained all design roles across question updates and mapped options updates (`model`, `definition`, `unit`, `sum_of_squares`) directly to `options` reconciliation.
+-   **Strict level identity and boolean scalar separation (`usability.level_in`, `question_builder`, `regression`)**:
+    -   *Affected API*: `prepare_question`, `build_design_matrix`, condition order, event level, and reference levels.
+    -   *Previous failure*: Python equality `True == 1` and `False == 0` allowed boolean scalars to silently match numeric `0` or `1` group levels, potentially corrupting binary event orientation or reference level selection.
+    -   *Corrected behavior*: Enforced strict boolean scalar typing so `True`/`False` do not match numeric `1`/`0`.
+-   **Unhashable cell robustness in profiling (`_safe_is_unique`, `profiling`)**:
+    -   *Affected API*: `ResearchAssistant.profile`, `_variable_intelligence`.
+    -   *Previous failure*: Object columns containing unhashable elements (such as lists or dicts) raised raw Python `TypeError: unhashable type: 'list'` during uniqueness testing.
+    -   *Corrected behavior*: Safely guarded uniqueness testing to treat unhashable Series as non-unique without crashing profiling.
 
 ### Hardened
 
+-   **Duplicate column detection across all public entry points**:
+    -   Standardized duplicate column rejection across `ResearchAssistant`, `StatisticalAnalyzer`, `prepare_question`, `detect_column_types`, and `suggest_column_roles` with explicit, deterministic error messages identifying the duplicated column names: `DataFrame column names must be unique, but found duplicate column(s): '...'. Rename duplicate columns before analysis.`
+-   **DataFrame input validation**:
+    -   Guarded public `prepare_question` entry point to explicitly validate that `frame` is a `pandas.DataFrame`, rejecting non-DataFrame objects with an actionable `InvalidDataError` before internal attribute access.
+-   **Question specification and option invariants**:
+    -   Validated that factorial specifications (`factor_a`, `factor_b`, `factors`, non-default `sum_of_squares`) and scale reliability reverse-scoring items are rejected with actionable `InvalidDataError` when supplied to incompatible objectives.
+-   **Wrapper-to-run equivalence and option immutability**:
+    -   Strengthened integrated workflow tests to assert identical status, specification, recommendation, analysis method, p-value, and orientation between convenience wrappers (`compare_means`, `correlate` across Pearson, Spearman, Kendall) and explicit `run()`, verifying strict immutability of caller options and DataFrames.
 -   **Input immutability and determinism**:
     -   Strengthened test suite across diverse method families (t-tests, rank tests, ANOVA, correlations, regression, categorical association, repeated measures, scale reliability, intraclass correlation) to verify that input DataFrames, columns, indices, dtypes, and user-provided `AnalysisOptions` are strictly immutable, and repeated execution produces identical deterministic results.
 -   **Numerical invariants and extreme finite scaling**:
