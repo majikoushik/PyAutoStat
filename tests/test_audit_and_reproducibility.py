@@ -293,6 +293,29 @@ def test_export_audit_reads_actual_json_csv_html_and_markdown(case):
     assert content == original
     assert result.to_dict() == report.to_dict()["analysis"]
 
+    # H3: Verify formula protection neutralizes formula strings while preserving numbers
+    from pyautostat.report import _csv_safe
+    from pyautostat.reproducibility import _differences
+    from pyautostat.research_report import _csv_cell
+
+    for fn in (_csv_cell, _csv_safe):
+        assert fn("-12.5") == "-12.5"
+        assert fn("-0.05") == "-0.05"
+        assert fn("+3.14") == "+3.14"
+        assert fn("-1e-4") == "-1e-4"
+        assert fn("=cmd|' /C calc'!A0") == "'=cmd|' /C calc'!A0"
+        assert fn("-SUM(1,2)") == "'-SUM(1,2)"
+        assert fn("+SUM(1,2)") == "'+SUM(1,2)"
+        assert fn("@SUM(1,2)") == "'@SUM(1,2)"
+        assert fn(-12.5) == -12.5
+
+    # H3: Verify _differences in reproducibility handles int/float tolerance without false mismatch
+    diffs: list[str] = []
+    _differences({"stat": 0}, {"stat": 0.0}, "root", diffs)
+    assert diffs == []
+    _differences({"stat": 1.00000000000001}, {"stat": 1.0}, "root", diffs)
+    assert diffs == []
+
 
 def test_reproducibility_record_replay_and_dataset_mismatch(case, tmp_path):
     frame, assistant, _, result, _ = case

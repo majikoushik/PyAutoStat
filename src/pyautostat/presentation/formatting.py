@@ -29,13 +29,19 @@ def format_number(
 
     if unit and ("$" in unit or "USD" in unit):
         # Currency formatting preserving negative sign correctly: e.g. -$47.70
-        prefix = "-$" if is_negative else "$"
-        return f"{prefix}{abs_val:,.{decimals}f}"
+        formatted_val = f"{abs_val:,.{decimals}f}"
+        if is_negative and float(formatted_val.replace(",", "")) != 0.0:
+            prefix = "-$"
+        else:
+            prefix = "$"
+        return f"{prefix}{formatted_val}"
 
     if isinstance(val, int):
         num_str = f"{val:,}"
     else:
         num_str = f"{val:.{decimals}f}"
+        if num_str.startswith("-") and float(num_str) == 0.0:
+            num_str = num_str[1:]
 
     if unit:
         return f"{num_str} {unit}"

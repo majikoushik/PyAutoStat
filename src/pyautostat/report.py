@@ -54,9 +54,18 @@ def _json_safe(value):
 
 
 def _csv_safe(value):
-    """Prevent spreadsheet formula execution in exported text cells."""
-    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
-        return "'" + value
+    """Prevent spreadsheet formula execution in exported text cells while preserving numbers."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith(("=", "+", "-", "@")):
+            if stripped.startswith(("+", "-")):
+                try:
+                    number = float(stripped)
+                    if math.isfinite(number):
+                        return value
+                except (ValueError, TypeError):
+                    pass
+            return "'" + value
     return value
 
 
@@ -72,7 +81,14 @@ def _csv_safe_frame(frame):
 
 def _write_text(filepath, content):
     try:
+        path = Path(filepath)
+        if path.is_dir():
+            raise ReportError(
+                f"Could not write report to '{filepath}': Target path is a directory."
+            )
         Path(filepath).write_text(content, encoding="utf-8")
+    except ReportError:
+        raise
     except (OSError, ValueError, TypeError) as exc:
         raise ReportError(f"Could not write report to '{filepath}': {exc}") from exc
 
@@ -459,12 +475,18 @@ class ReportGenerator:
         if output_dir:
             try:
                 directory = Path(output_dir)
+                if directory.exists() and not directory.is_dir():
+                    raise ReportError(
+                        f"Could not write CSV reports to '{output_dir}': Target path is a file."
+                    )
                 directory.mkdir(parents=True, exist_ok=True)
                 for name, frame in csvs.items():
                     _csv_safe_frame(frame).to_csv(
                         directory / f"{name}.csv",
                         index=name in ("descriptive_stats", "missing_data"),
                     )
+            except ReportError:
+                raise
             except (OSError, ValueError, TypeError) as exc:
                 raise ReportError(f"Could not write CSV reports to '{output_dir}': {exc}") from exc
 

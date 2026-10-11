@@ -767,6 +767,27 @@ class TestWorkflowExplain:
         assert result.to_dict() == payload
         assert str(result) == text
 
+        # H3: Verify workflow explain with None/unavailable quantities formats safely
+        from dataclasses import replace
+
+        from pyautostat.results import AnalysisResult
+
+        alpha_res = AnalysisResult("cronbach_alpha", "available", values={"cronbach_alpha": None})
+        wf_alpha = replace(result, analysis=alpha_res)
+        assert "Cronbach's alpha=Unavailable." in wf_alpha.explain()
+
+        icc_res = AnalysisResult(
+            "intraclass_correlation",
+            "available",
+            values={
+                "intraclass_correlation": None,
+                "f_test": {"p_value": 0.05, "statistic": None, "df1": 5, "df2": 10},
+            },
+        )
+        wf_icc = replace(result, analysis=icc_res)
+        assert "ICC=Unavailable" in wf_icc.explain()
+        assert "F(5, 10)=Unavailable" in wf_icc.explain()
+
     def test_assumption_notes_use_neutral_bullets(self, two_group_df):
         text = _completed_workflow(two_group_df).explain()
 

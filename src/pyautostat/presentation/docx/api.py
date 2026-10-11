@@ -186,6 +186,8 @@ def save_docx(
         Path to the saved DOCX file.
     """
     destination = Path(path)
+    if destination.is_dir():
+        raise ReportError(f"Report destination is a directory, not a file: {destination}.")
     if destination.suffix.lower() != ".docx":
         raise ReportError("DOCX export destination must have a .docx extension.")
     if destination.exists() and not overwrite:

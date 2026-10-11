@@ -145,6 +145,17 @@ def test_save_docx_overwrite_protection(sample_workflow, tmp_path):
     assert saved_path == dest
     assert dest.read_bytes().startswith(b"PK")
 
+    # H3: Validate directory passed as file and nested parent creation
+    dir_as_file = tmp_path / "folder.docx"
+    dir_as_file.mkdir()
+    with pytest.raises(ReportError, match="is a directory"):
+        save_docx(sample_workflow, dir_as_file)
+
+    nested_dest = tmp_path / "nested" / "sub" / "output.docx"
+    saved_nested = save_docx(sample_workflow, nested_dest)
+    assert saved_nested.exists()
+    assert saved_nested.read_bytes().startswith(b"PK")
+
 
 def test_missing_optional_dependency_error(sample_workflow):
     with patch("importlib.util.find_spec", return_value=None):

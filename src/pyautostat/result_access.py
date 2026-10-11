@@ -91,9 +91,10 @@ def get_statistic(result: AnalysisResult) -> float | None:
     if result.method_id in AMBIGUOUS_SCALAR_METHODS:
         return None
     vals = result.values or {}
+    f_test = vals.get("f_test")
     stat = (
-        vals.get("f_test", {}).get("statistic")
-        if result.method_id == "intraclass_correlation"
+        f_test.get("statistic")
+        if result.method_id == "intraclass_correlation" and isinstance(f_test, Mapping)
         else vals.get("test_statistic")
     )
     return stat if isinstance(stat, (int, float)) and not math.isnan(stat) else None
@@ -103,9 +104,10 @@ def get_p_value(result: AnalysisResult) -> float | None:
     if result.method_id in AMBIGUOUS_SCALAR_METHODS:
         return None
     vals = result.values or {}
+    f_test = vals.get("f_test")
     pval = (
-        vals.get("f_test", {}).get("p_value")
-        if result.method_id == "intraclass_correlation"
+        f_test.get("p_value")
+        if result.method_id == "intraclass_correlation" and isinstance(f_test, Mapping)
         else vals.get("p_value")
     )
     return pval if isinstance(pval, (int, float)) and not math.isnan(pval) else None
@@ -295,10 +297,23 @@ def result_to_dataframe(result: AnalysisResult, section: str = "primary") -> pd.
 
 
 def format_apa_number(val: Any, bounded_unit: bool = False, decimals: int = 2) -> str:
-    if val is None or not isinstance(val, (int, float)) or math.isnan(val) or math.isinf(val):
+    if (
+        val is None
+        or isinstance(val, bool)
+        or not isinstance(val, (int, float))
+        or math.isnan(val)
+        or math.isinf(val)
+    ):
         return "Unavailable"
     txt = f"{val:.{decimals}f}"
-    return txt.replace("0.", ".", 1) if bounded_unit and abs(val) < 1.0 else txt
+    if txt.startswith("-") and float(txt) == 0.0:
+        txt = txt[1:]
+    if bounded_unit and abs(val) < 1.0:
+        if txt.startswith("-0."):
+            txt = "-" + txt[2:]
+        elif txt.startswith("0."):
+            txt = txt[1:]
+    return txt
 
 
 def format_apa_p_value(p: Any) -> str:
@@ -341,9 +356,13 @@ def generate_statement(result: AnalysisResult, style: str = "apa") -> str:
 
     if mid == "two_way_anova":
         ss_type = vals.get("sum_of_squares_type", "II")
-        terms = vals.get("terms", [])
-        if isinstance(terms, Mapping):
-            terms = list(terms.values())
+        raw_terms = vals.get("terms")
+        if isinstance(raw_terms, Mapping):
+            terms = list(raw_terms.values())
+        elif isinstance(raw_terms, list):
+            terms = raw_terms
+        else:
+            terms = []
         resid_term = next((t for t in terms if t.get("term_type") == "residual"), None)
         df_resid = resid_term.get("df") if resid_term else None
         df_resid_str = (
@@ -404,7 +423,10 @@ def generate_statement(result: AnalysisResult, style: str = "apa") -> str:
                 f"R^2 = {r2}, adjusted R^2 = {ar2}."
             ]
 
-        for c in vals.get("coefficients", []):
+        coeffs = vals.get("coefficients")
+        if not isinstance(coeffs, list):
+            coeffs = []
+        for c in coeffs:
             ci_c = format_apa_ci(c.get("odds_ratio_ci") if is_log else c.get("confidence_interval"))
             ci_part = f", {ci_c}" if ci_c else ""
             b_s = format_apa_number(c.get("estimate"))
@@ -449,21 +471,18 @@ def _format_canonical_statement(
 
     if mid == "mann_whitney_u":
         u_s = format_apa_number(vals.get("test_statistic"))
-        r_s = format_apa_number(
-            vals.get("effect_size", {}).get("value")
-            if isinstance(vals.get("effect_size"), Mapping)
-            else None,
-            bounded_unit=True,
-        )
+        eff_m = vals.get("effect_size")
+        r_val = eff_m.get("value") if isinstance(eff_m, Mapping) else None
+        r_s = format_apa_number(r_val, bounded_unit=True)
         return f"Mann-Whitney U test: U = {u_s}, {p_str}, rank-biserial r = {r_s}."
 
     if mid == "wilcoxon_signed_rank":
         w_s = format_apa_number(vals.get("test_statistic"))
-        r_s = format_apa_number(
-            vals.get("effect_size", {}).get("value")
-            if isinstance(vals.get("effect_size"), Mapping)
-            else None,
-            bounded_unit=True,
+        eff_w = vals.get("effect_size")
+        r_val = eff_w.get("value") if isinstance(eff_w, Mapping) else None
+        r_s = format_apa_number(r_val, bounded_unit=True)
+        return (
+            f"Wilcoxon signed-rank test: W = {w_s}, {p_str}, matched-pairs rank-biserial r = {r_s}."
         )
         return (
             f"Wilcoxon signed-rank test: W = {w_s}, {p_str}, matched-pairs rank-biserial r = {r_s}."
@@ -565,7 +584,8 @@ def _format_canonical_statement(
         return f"Exact McNemar test: {p_str}, paired proportion difference = {diff_s}{ci_part}"
 
     if mid == "cronbach_alpha":
-        k_items = vals.get("item_count") or len(vals.get("items", []))
+        items = vals.get("items")
+        k_items = vals.get("item_count") or (len(items) if isinstance(items, (list, tuple)) else 0)
         a_s = format_apa_number(vals.get("primary_estimate"), bounded_unit=True)
         ci_part = f", {ci_str}." if ci_str else "."
         return (

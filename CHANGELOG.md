@@ -9,6 +9,42 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+-   **NumPy 2.x and pandas NA scalar serialization (`_json_value`, `specifications.py`)**:
+    -   *Affected area*: `to_dict()`, `to_json()`, specification and result serialization.
+    -   *Edge condition*: NumPy 2.x scalar objects (`np.int64`, `np.float64`, `np.bool_`), `pd.NA`, `pd.NaT`, and date/datetime objects.
+    -   *Previous failure*: In NumPy 2.x, `isinstance(np.int64(1), int)` is False, causing `_json_value` to raise `InvalidDataError: value must contain only JSON-compatible values`.
+    -   *Corrected behavior*: Normalized 0-d scalar array objects via `.item()`, normalized `pd.NA`/`pd.NaT` to `None`, and serialized date/datetime objects using `.isoformat()`.
+-   **Negative zero and currency display normalization (`formatting.py`, `result_access.py`)**:
+    -   *Affected area*: `format_number`, `format_apa_number`, presentation and APA statement generation.
+    -   *Edge condition*: `-0.0` or small negative floating-point numbers rounding to `0.0`.
+    -   *Previous failure*: Displayed misleading `"-0.00"` or `-$0.00` when semantic rounded value is zero.
+    -   *Corrected behavior*: Normalized negative zero representations to `"0.00"` and `$0.00`.
+-   **Defensive dictionary lookups in result accessors (`result_access.py`)**:
+    -   *Affected area*: `get_statistic`, `get_p_value`, `generate_statement`.
+    -   *Edge condition*: Stored results containing `{"f_test": None}`, `{"terms": None}`, `{"coefficients": None}`, or `{"items": None}`.
+    -   *Previous failure*: Unhandled `AttributeError` or `TypeError` when accessing subfields on `None`.
+    -   *Corrected behavior*: Defensively validated mappings and sequences before querying nested attributes.
+-   **Workflow explanation safe number formatting (`workflow.py`)**:
+    -   *Affected area*: `ResearchWorkflowResult.explain()`.
+    -   *Edge condition*: Partially completed or corrupted workflows with `None` in `cronbach_alpha`, `intraclass_correlation`, or regression model fit metrics.
+    -   *Previous failure*: Unhandled `TypeError: unsupported format string passed to NoneType.__format__`.
+    -   *Corrected behavior*: Safely formatted float fields via `_fmt_g` helper, displaying `"Unavailable"` instead of crashing.
+-   **Legitimate numeric negative value preservation in CSV exports (`research_report.py`, `report.py`)**:
+    -   *Affected area*: `ResearchReport.to_csv_tables()`, `ReportGenerator.to_csv()`.
+    -   *Edge condition*: Numerical cells containing valid negative numbers (e.g., `"-12.5"`).
+    -   *Previous failure*: Indiscriminately prefixed `'` to all strings starting with `-` or `+`, turning numbers into text cells.
+    -   *Corrected behavior*: Validates whether string is a finite number before applying formula escaping prefix `'`.
+-   **Directory and path validation in report and figure exporters (`research_report.py`, `report.py`, `presentation/figures/api.py`, `presentation/docx/api.py`)**:
+    -   *Affected area*: `save_docx`, `to_csv`, `save_static_figures`.
+    -   *Edge condition*: Export destination path pointing to an existing directory instead of a file, or target directory pointing to a file.
+    -   *Previous failure*: Unhandled OS errors or generic tracebacks.
+    -   *Corrected behavior*: Preflights destination path types and raises actionable `ReportError`.
+-   **Replay float/integer and numerical tolerance comparison (`reproducibility.py`)**:
+    -   *Affected area*: `reproduce()` outcome comparison.
+    -   *Edge condition*: Equivalent numeric quantities differing by scalar type (e.g., `int` 0 vs `float` 0.0) or NaN pairs.
+    -   *Previous failure*: Mismatch triggered solely due to `type(expected) is not type(actual)`.
+    -   *Corrected behavior*: Evaluates numeric scalar equality within recorded numerical tolerances `math.isclose(rel_tol=1e-10, abs_tol=1e-12)`.
+
 -   **Welch t-test degrees of freedom calculation (`welch_t`, `study_planning`)**:
     -   *Affected method*: `welch_t` (and prospective Welch planning helper `_welch_values`).
     -   *Edge condition*: Extremely large sample variances ($\ge 10^{150}$).

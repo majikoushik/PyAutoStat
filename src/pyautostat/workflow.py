@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -15,6 +16,18 @@ from .reproducibility import ReproducibilityRecord
 from .research_report import ResearchReport
 from .results import AnalysisResult, MissingInformation, Recommendation
 from .specifications import AnalysisSpecification, _json_value
+
+
+def _fmt_g(val: Any) -> str:
+    """Format floating point values cleanly, degrading gracefully on missing numbers."""
+    if (
+        val is None
+        or isinstance(val, bool)
+        or not isinstance(val, (int, float))
+        or not math.isfinite(val)
+    ):
+        return "Unavailable"
+    return f"{val:.4g}"
 
 
 def _serializable_profile(profile: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -280,11 +293,11 @@ class ResearchWorkflowResult:
             interval = values.get("confidence_interval", {})
             lines.append(thin)
             lines.append(" RELIABILITY ESTIMATE")
-            lines.append(f"   Cronbach's alpha={values.get('cronbach_alpha'):.4g}.")
+            lines.append(f"   Cronbach's alpha={_fmt_g(values.get('cronbach_alpha'))}.")
             if isinstance(interval, dict) and interval.get("status") == "available":
                 lines.append(
-                    f"   Bootstrap CI [{interval.get('lower'):.4g}, "
-                    f"{interval.get('upper'):.4g}]; valid resamples="
+                    f"   Bootstrap CI [{_fmt_g(interval.get('lower'))}, "
+                    f"{_fmt_g(interval.get('upper'))}]; valid resamples="
                     f"{interval.get('valid_resamples')}/{interval.get('requested_resamples')}."
                 )
             lines.append(thin)
@@ -309,20 +322,20 @@ class ResearchWorkflowResult:
             lines.append(" RELIABILITY ESTIMATE")
             lines.append(
                 f"   {values.get('variant')} ({values.get('notation')}): "
-                f"ICC={values.get('intraclass_correlation'):.4g} "
+                f"ICC={_fmt_g(values.get('intraclass_correlation'))} "
                 f"[{values.get('model')}, {values.get('definition')}, {values.get('unit')}]."
             )
             if isinstance(interval, dict) and interval.get("status") == "available":
                 conf = int(interval.get("confidence_level", 0.95) * 100)
                 lines.append(
-                    f"   Analytical CI [{interval.get('lower'):.4g}, {interval.get('upper'):.4g}] "
-                    f"({conf}%)."
+                    f"   Analytical CI [{_fmt_g(interval.get('lower'))}, "
+                    f"{_fmt_g(interval.get('upper'))}] ({conf}%)."
                 )
             if isinstance(f_test, dict) and f_test.get("p_value") is not None:
                 lines.append(
                     f"   F({f_test.get('df1')}, {f_test.get('df2')})="
-                    f"{f_test.get('statistic'):.4g}, "
-                    f"p={f_test.get('p_value'):.4g} (H0: ICC = {f_test.get('null_value', 0)})."
+                    f"{_fmt_g(f_test.get('statistic'))}, "
+                    f"p={_fmt_g(f_test.get('p_value'))} (H0: ICC = {f_test.get('null_value', 0)})."
                 )
             lines.append(thin)
             lines.append(" PANEL DESIGN")
@@ -344,18 +357,18 @@ class ResearchWorkflowResult:
             lines.append(thin)
             lines.append(" MODEL FIT")
             lines.append(
-                f"   R-squared={fit.get('r_squared'):.4g}; adjusted R-squared="
-                f"{fit.get('adjusted_r_squared'):.4g}; residual SE="
-                f"{fit.get('residual_standard_error'):.4g}."
+                f"   R-squared={_fmt_g(fit.get('r_squared'))}; adjusted R-squared="
+                f"{_fmt_g(fit.get('adjusted_r_squared'))}; residual SE="
+                f"{_fmt_g(fit.get('residual_standard_error'))}."
             )
             lines.append(thin)
             lines.append(" COEFFICIENTS")
             for item in coefficients[:8]:
                 interval = item.get("confidence_interval", {})
                 lines.append(
-                    f"   - {item.get('term')}: b={item.get('estimate'):.4g}, "
-                    f"SE={item.get('standard_error'):.4g}, p={item.get('p_value'):.4g}, "
-                    f"CI [{interval.get('lower'):.4g}, {interval.get('upper'):.4g}]"
+                    f"   - {item.get('term')}: b={_fmt_g(item.get('estimate'))}, "
+                    f"SE={_fmt_g(item.get('standard_error'))}, p={_fmt_g(item.get('p_value'))}, "
+                    f"CI [{_fmt_g(interval.get('lower'))}, {_fmt_g(interval.get('upper'))}]"
                 )
             if len(coefficients) > 8:
                 lines.append(

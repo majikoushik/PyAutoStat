@@ -49,9 +49,18 @@ def _markdown(value: Any, *, cell: bool = False, p_value: bool = False) -> str:
 
 
 def _csv_cell(value: Any) -> Any:
-    """Protect text beginning with a spreadsheet formula prefix."""
-    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
-        return "'" + value
+    """Protect text beginning with formula prefix while preserving numbers."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith(("=", "+", "-", "@")):
+            if stripped.startswith(("+", "-")):
+                try:
+                    num = float(stripped)
+                    if math.isfinite(num):
+                        return value
+                except (ValueError, TypeError):
+                    pass
+            return "'" + value
     return value
 
 
@@ -223,6 +232,8 @@ def _mapping_rows(mapping: dict[str, Any], prefix: str) -> list[list[dict[str, A
 def _write(path: str | Path, content: str, *, overwrite: bool) -> Path:
     try:
         destination = Path(path)
+        if destination.is_dir():
+            raise ReportError(f"Report destination is a directory, not a file: {destination}.")
         if destination.exists() and not overwrite:
             raise ReportError(f"Report destination already exists: {destination}.")
         destination.write_text(content, encoding="utf-8")
@@ -243,6 +254,8 @@ def _write_binary(
 ) -> Path:
     try:
         destination = Path(path)
+        if destination.is_dir():
+            raise ReportError(f"Report destination is a directory, not a file: {destination}.")
         if destination.suffix.lower() != expected_ext.lower():
             raise ReportError(
                 f"{format_name} export destination must have a {expected_ext} extension."

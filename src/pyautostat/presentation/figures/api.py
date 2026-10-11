@@ -139,6 +139,8 @@ def save_static_figures(
         return ()
 
     dest_dir = Path(directory)
+    if dest_dir.exists() and not dest_dir.is_dir():
+        raise ReportError(f"Target path is a file, not a directory: {dest_dir}")
     target_paths = [dest_dir / art.filename for art in artifacts]
 
     # Preflight collisions before writing any file

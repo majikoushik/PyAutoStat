@@ -126,6 +126,33 @@ def test_missing_information_and_result_contracts_serialize():
     for record in (recommendation, diagnostic, result):
         assert json.loads(json.dumps(record.to_dict(), allow_nan=False)) == record.to_dict()
 
+    # H3: NumPy scalar, pd.NA, datetime, and negative zero serialization invariants
+    import numpy as np
+
+    from pyautostat.presentation.formatting import format_number
+    from pyautostat.result_access import format_apa_number, get_p_value, get_statistic
+    from pyautostat.specifications import _json_value
+
+    assert _json_value(np.int64(42)) == 42
+    assert _json_value(np.float64(3.14)) == 3.14
+    assert _json_value(np.bool_(True)) is True
+    assert _json_value(pd.NA) is None
+    assert _json_value(pd.NaT) is None
+    assert _json_value(pd.Timestamp("2026-01-01")) == "2026-01-01T00:00:00"
+
+    # Negative zero display normalization
+    assert format_number(-0.0) == "0.00"
+    assert format_number(-0.0001, decimals=2) == "0.00"
+    assert format_number(-0.0001, decimals=2, unit="$") == "$0.00"
+    assert format_number(-5.0, decimals=2, unit="$") == "-$5.00"
+    assert format_apa_number(-0.0) == "0.00"
+    assert format_apa_number(-0.0001, decimals=2) == "0.00"
+
+    # result_access handles None in f_test gracefully
+    dummy_res = AnalysisResult("intraclass_correlation", "available", values={"f_test": None})
+    assert get_statistic(dummy_res) is None
+    assert get_p_value(dummy_res) is None
+
 
 def test_nonfinite_and_unsupported_result_values_fail_serialization():
     for value in (math.nan, math.inf, -math.inf):

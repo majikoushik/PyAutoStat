@@ -180,11 +180,21 @@ def _differences(expected: Any, actual: Any, path: str, output: list[str]) -> No
         for index, (left, right) in enumerate(zip(expected, actual, strict=False)):
             _differences(left, right, f"{path}[{index}]", output)
         return
+    if (
+        isinstance(expected, (int, float))
+        and not isinstance(expected, bool)
+        and isinstance(actual, (int, float))
+        and not isinstance(actual, bool)
+    ):
+        exp_f = float(expected)
+        act_f = float(actual)
+        if math.isnan(exp_f) and math.isnan(act_f):
+            return
+        if not math.isclose(exp_f, act_f, rel_tol=_REL_TOL, abs_tol=_ABS_TOL):
+            output.append(path)
+        return
     if type(expected) is not type(actual):
         output.append(path)
-    elif isinstance(expected, float):
-        if not math.isclose(expected, actual, rel_tol=_REL_TOL, abs_tol=_ABS_TOL):
-            output.append(path)
     elif expected != actual:
         output.append(path)
 

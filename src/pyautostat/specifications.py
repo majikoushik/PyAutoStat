@@ -62,6 +62,17 @@ def _json_value(value: Any, field_name: str = "value") -> Any:
         return value.value
     if value is None or isinstance(value, (str, bool, int)):
         return value
+    if type(value).__name__ in ("NAType", "NaTType"):
+        return None
+    if (
+        hasattr(value, "ndim")
+        and value.ndim == 0
+        and hasattr(value, "item")
+        and callable(getattr(value, "item", None))
+    ):
+        return _json_value(value.item(), field_name)
+    if hasattr(value, "isoformat") and callable(getattr(value, "isoformat", None)):
+        return value.isoformat()
     if isinstance(value, float):
         if not math.isfinite(value):
             raise InvalidDataError(f"{field_name} must be finite or None for JSON serialization.")
