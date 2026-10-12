@@ -9,6 +9,21 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+-   **Exception hierarchy consistency for presentation errors (`presentation/adapters/workflow.py`)**:
+    -   *Affected area*: `UnsupportedPresentationError`, top-level exception exports.
+    -   *Edge condition*: Client applications catching base `PyAutoStatError` to handle all package exceptions when presentation adapters encounter unsupported models or objects.
+    -   *Previous failure*: `UnsupportedPresentationError` inherited directly from `Exception` rather than `PyAutoStatError`, bypassing top-level `except PyAutoStatError:` handlers.
+    -   *Corrected behavior*: Subclassed `UnsupportedPresentationError` from `PyAutoStatError` while preserving `Exception` inheritance, ensuring predictable catch-all exception handling.
+-   **Internal module import cleanup in user documentation and examples (`docs/ICC_GUIDE.md`, `examples/17_research_export_bundle.py`)**:
+    -   *Affected area*: Public documentation, task guides, runnable examples.
+    -   *Edge condition*: User documentation importing private internal submodules (`from pyautostat.icc import ...`, `from pyautostat.presentation.docx import check_docx_available`).
+    -   *Previous failure*: Exposed internal module paths that are not part of the stable 1.x contract and should not be relied on by users.
+    -   *Corrected behavior*: Replaced internal imports with canonical public APIs (`StatisticalAnalyzer`) and standard dependency preflight checks.
+-   **Public API documentation completeness (`API_REFERENCE.md`)**:
+    -   *Affected area*: Public API documentation, contract references.
+    -   *Edge condition*: 22 public top-level exports (`AnalysisPlanStatus`, `AnalysisStatus`, `AuditFinding`, `BUNDLE_SCHEMA_VERSION`, `ClarificationQuestion`, `Comparability`, `CompletenessItem`, `InterpretationStatus`, `METHOD_CONTRACTS`, `MethodCapability`, `MethodContract`, `QuestionStatus`, `RecommendationStatus`, `ScenarioStatus`, `SensitivityScenario`, `SensitivityScenarioResult`, `SensitivityStatus`, `StudyDesign`, `UnsupportedPresentationError`, `assess_reporting_completeness`, `build_session_snapshot`, `capability_payload`) were cataloged in `docs/PUBLIC_API_1_0.md` but missing from `API_REFERENCE.md`.
+    -   *Previous failure*: Discrepancy between `API_REFERENCE.md` and the 97 top-level exports in `pyautostat.__all__`.
+    -   *Corrected behavior*: Documented and cross-referenced all 22 supporting exports in `API_REFERENCE.md` to ensure 100% consistency across `pyautostat.__all__`, `docs/PUBLIC_API_1_0.md`, and `API_REFERENCE.md`.
 -   **NumPy 2.x and pandas NA scalar serialization (`_json_value`, `specifications.py`)**:
     -   *Affected area*: `to_dict()`, `to_json()`, specification and result serialization.
     -   *Edge condition*: NumPy 2.x scalar objects (`np.int64`, `np.float64`, `np.bool_`), `pd.NA`, `pd.NaT`, and date/datetime objects.

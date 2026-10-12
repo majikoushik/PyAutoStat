@@ -821,13 +821,7 @@ method ID, the ordinary deterministic recommendation for that scenario specifica
 Student t and standard ANOVA require an explicit equal-population-variance assumption. No method
 is chosen from a p-value.
 
-`SensitivityResult.status` is `complete`, `partial`, or `unavailable`. Its
-`scenario_results` retain every supplied scenario in order with `completed`, `unavailable`,
-`incompatible`, or `failed` execution status and `same_estimand`, `different_estimand`,
-`incompatible`, or `unavailable` comparability. Each record includes actual method, stable
-estimate quantity, estimate, effect quantity/value, CI, p-value, sample/exclusion counts, contrast,
-warnings, error, and the aggregate `AnalysisResult` in memory. Serialization excludes the
-in-memory result object and source DataFrame.
+`SensitivityResult.status` is governed by `SensitivityStatus` (`complete`, `partial`, or `unavailable`). Each scenario in `SensitivitySpecification.scenarios` is defined as a `SensitivityScenario`. Its `scenario_results` retain every supplied scenario in order as a `SensitivityScenarioResult` with execution status governed by `ScenarioStatus` (`completed`, `unavailable`, `incompatible`, or `failed`) and comparability governed by `Comparability` (`same_estimand`, `different_estimand`, `incompatible`, or `unavailable`). Each record includes actual method, stable estimate quantity, estimate, effect quantity/value, CI, p-value, sample/exclusion counts, contrast, warnings, error, and the aggregate `AnalysisResult` in memory. Serialization excludes the in-memory result object and source DataFrame.
 
 Same-estimand comparisons record estimate difference, direction, interval availability and
 descriptive overlap, sample-size change, and a relative change only when the base estimate is not
@@ -910,15 +904,15 @@ restored = AnalysisSpecification.from_dict(saved)
 rechecked = assistant.prepare_question(specification=restored)
 ```
 
-`prepare_question()` accepts optional `objective`, `outcome`, `predictor`, `predictors`, `items`,
-`controls`, `design`, `estimand`, `event_level`, `association_measure`, `description`, `options`,
+`prepare_question()` accepts optional `objective` (an `Objective` enum value or string, such as `compare_groups`, `test_association`, or `estimate_reliability`), `outcome`, `predictor`, `predictors`, `items`,
+`controls`, `design` (a `StudyDesign` enum value or string: `independent`, `paired`, `repeated_measures`, or `factorial`), `estimand`, `event_level`, `association_measure`, `description`, `options`,
 `data_dictionary`, `variable_types`, and `specification`. For comparison, `predictor` names the
 group or condition column. For association it names the second variable. `controls` is restricted
 to association requests, while `predictors` is restricted to regression. A descriptive request
 needs none of these inferential details. `unknown` design remains unresolved; essential event and
 pairing orientations produce structured `needs_input` rather than arbitrary level selection.
 
-The `QuestionDraft` has `specification`, `status` (`ready`, `needs_input`, `data_limited`, `unsupported`), `missing_information`, `questions`, `warnings`, `blockers`, `variable_suggestions`, and `availability`. `questions` carry `field`, `question`, `explanation`, `input_type`, `required`, and options with stable `value` and display `label`; `to_dict()` is JSON-compatible. A future GUI should render these records and send selected values through `update_question()`. `availability` reports total, complete, and missing-relevant rows using complete-case counts. It is an availability summary, not a missing-data treatment. Declared missing codes remain ordinary observed values until the caller normalizes them. All-missing selected columns, no complete rows, and a group with fewer than two observed categories produce `data_limited` with blockers. An unsupported objective raises an actionable error; `unsupported` is reserved for future requests that cannot be represented. Constant variables produce warnings. Invalid column names and incompatible declarations raise package errors.
+The `QuestionDraft` has `specification`, `status` governed by `QuestionStatus` (`ready`, `needs_input`, `data_limited`, `unsupported`), `missing_information`, `questions` (a list of `ClarificationQuestion` records), `warnings`, `blockers`, `variable_suggestions`, and `availability`. `questions` carry `field`, `question`, `explanation`, `input_type`, `required`, and options with stable `value` and display `label`; `to_dict()` is JSON-compatible. A future GUI should render these records and send selected values through `update_question()`. `availability` reports total, complete, and missing-relevant rows using complete-case counts. It is an availability summary, not a missing-data treatment. Declared missing codes remain ordinary observed values until the caller normalizes them. All-missing selected columns, no complete rows, and a group with fewer than two observed categories produce `data_limited` with blockers. An unsupported objective raises an actionable error; `unsupported` is reserved for future requests that cannot be represented. Constant variables produce warnings. Invalid column names and incompatible declarations raise package errors.
 
 `update_question(draft, **changes)` preserves confirmed answers, reconstructs a new draft, and leaves the old draft unchanged on invalid input. When the objective changes, it clears the previous predictor, target, and design; switching to descriptive also clears the old outcome. Supply new role selections explicitly. `profile(data_dictionary=...)` makes a copied declaration available to later question preparation; an explicit `data_dictionary` or `variable_types` correction takes precedence. The builder reuses dataset variable intelligence without running full profiling, hypothesis tests, or recommendations.
 
@@ -942,6 +936,8 @@ print(recommendation.rationale_text)
 result = assistant.analyze(draft)
 print(recommendation.explain(diagnostics=result.metadata["diagnostics"]))
 ```
+
+`Recommendation.status` is governed by `RecommendationStatus` (`recommended`, `alternative`, or `unsupported`). The recommendation record exposes `method_id`, `status`, `rationale`, `assumptions`, `requirements`, and `alternatives`.
 
 `recommend_test(draft=None, *, specification=None)` accepts exactly one `QuestionDraft` or `AnalysisSpecification`. A direct specification, and any supplied draft, are revalidated against the assistant's current DataFrame and question-availability rules. No full profile or hypothesis test is run. Unknown essential information returns `needs_input` with `missing_information` and GUI-ready `questions`; a data-limited draft returns `unsupported` with its blockers. An incompatible design, target, measurement type, or hard computational requirement returns `unsupported`. `ready` means a compatible existing operation can be called later; it does not certify uncheckable assumptions.
 
@@ -990,7 +986,7 @@ print(result.values["primary_estimate"], result.values["p_value"])
 print(result.metadata["sample"], result.metadata["group_order"])
 ```
 
-`analyze(draft=None, *, specification=None)` accepts exactly one completed `QuestionDraft` or `AnalysisSpecification`. It rebuilds the question against the assistant's copied DataFrame and obtains a fresh recommendation. Only `ready` and `runnable` selections dispatch. Incomplete, unsupported, or known backend numerical failures return `AnalysisResult(status="unavailable")` with a reason and no fabricated values. Invalid specification fields or nonexistent columns raise the existing package exceptions. Unexpected programming errors are not hidden.
+`analyze(draft=None, *, specification=None)` accepts exactly one completed `QuestionDraft` or `AnalysisSpecification`. It rebuilds the question against the assistant's copied DataFrame and obtains a fresh recommendation. Only `ready` and `runnable` selections dispatch. `AnalysisResult.status` is governed by `AnalysisStatus` (`completed`, `partial`, `data_limited`, or `failed`). Incomplete, unsupported, or known backend numerical failures return `AnalysisResult(status="unavailable")` with a reason and no fabricated values. Invalid specification fields or nonexistent columns raise the existing package exceptions. Unexpected programming errors are not hidden.
 
 | Selected method ID | Existing numerical source | Main outputs |
 | --- | --- | --- |
@@ -1114,7 +1110,7 @@ print(interpretation.status, [finding.code for finding in interpretation.finding
 payload = interpretation.to_dict()  # json.dumps(payload, allow_nan=False)
 ```
 
-`interpret(result: AnalysisResult) -> InterpretationResult` reads the completed analysis record only; it runs no statistical test or report writer. `InterpretationEngine().interpret(result)` is the independently usable rule engine. The result has `status` (`available`, `partial`, `unavailable`), `execution_status`, `method_id`, `summary`, `method_explanation`, `hypothesis_interpretation`, `effect_interpretation`, `uncertainty_interpretation`, `assumption_notes`, `limitations`, `conclusion`, `warnings`, `metadata`, and `findings`. Each `InterpretationFinding` has a stable `code`, display `message`, and `supporting_fields` pointing to the source result. `findings_plain` numbers the existing messages for display without changing codes or serialization. `to_dict()` is JSON compatible and leaves the original `AnalysisResult` unchanged.
+`interpret(result: AnalysisResult) -> InterpretationResult` reads the completed analysis record only; it runs no statistical test or report writer. `InterpretationEngine().interpret(result)` is the independently usable rule engine. The result has `status` governed by `InterpretationStatus` (`available`, `partial`, or `unavailable`), `execution_status`, `method_id`, `summary`, `method_explanation`, `hypothesis_interpretation`, `effect_interpretation`, `uncertainty_interpretation`, `assumption_notes`, `limitations`, `conclusion`, `warnings`, `metadata`, and `findings`. Each `InterpretationFinding` has a stable `code`, display `message`, and `supporting_fields` pointing to the source result. `findings_plain` numbers the existing messages for display without changing codes or serialization. `to_dict()` is JSON compatible and leaves the original `AnalysisResult` unchanged.
 
 Supported guided results include the four additions `one_sample_t`, `wilcoxon_signed_rank`,
 `spearman_correlation`, and `fisher_exact` alongside the established methods. One-sample and
@@ -1180,7 +1176,7 @@ replay = reproduce(record, data=df)  # explicit supplied-data rerun
 
 `decision_ledger` is `None` when tracking is off. Tracked events have sequence IDs, local software timestamps, before/after states for revisions, optional researcher-supplied reasons, and content references. `update_question(draft, reason="...")` accepts an optional decision reason. `declare_planning("planned" | "exploratory" | "unknown")` is an explicit declaration; the default is `unknown`. `DecisionLedger.import_result(result)` records only an import and marks prior history unavailable. No ledger or hash authenticates an external preregistration or timestamp.
 
-`audit(report, *, result=None, sensitivity=None, practical_significance=None, exports=None) -> AuditResult` compares the report with its captured sources or explicitly supplied originals. Findings have stable codes and field paths, including threshold, relation, estimate, omission, status, and comparability mismatches. `passed`, `failed`, and `incomplete` distinguish agreement, contradiction, and checks that could not be performed. A directly reconstructed report without a supplied source result is incomplete. If `exports` is omitted, all four current formats are rendered and checked; supplied content is inspected as provided. HTML and Markdown checks compare the exact canonical rendering, not arbitrary edited prose semantics. The auditor never reruns a statistical test or sensitivity scenario. Its pass status does not establish scientific validity.
+`audit(report, *, result=None, sensitivity=None, practical_significance=None, exports=None) -> AuditResult` compares the report with its captured sources or explicitly supplied originals. Findings in `AuditResult.findings` are typed as `AuditFinding` records with stable codes and field paths, including threshold, relation, estimate, omission, status, and comparability mismatches. `passed`, `failed`, and `incomplete` distinguish agreement, contradiction, and checks that could not be performed. A directly reconstructed report without a supplied source result is incomplete. If `exports` is omitted, all four current formats are rendered and checked; supplied content is inspected as provided. HTML and Markdown checks compare the exact canonical rendering, not arbitrary edited prose semantics. The auditor never reruns a statistical test or sensitivity scenario. Its pass status does not establish scientific validity.
 
 `reproducibility_record(result, *, fingerprint=True, sensitivity=None, practical_significance=None) -> ReproducibilityRecord` stores a JSON-safe specification, method, restricted expected-result projection, actual runtime versions, recorded seed and bootstrap configuration, and an optional hash of the assistant's current DataFrame. Base-only records remain schema version 1. Optional sensitivity configuration produces schema version 2 with ordered scenarios, actual methods/statuses/seeds, fingerprint metadata, and the meaningful threshold. `ReproducibilityRecord.from_dict(...)` reloads this metadata. `record.save_package(path, data_reference=None, overwrite=False)` writes a metadata-only ZIP to an explicit path; no raw data or script are included. `reproduce(record, *, data=df, allow_changed_data=False) -> ReproductionOutcome` checks the fingerprint, revalidates the recorded base method, executes only on explicit request, and compares actual numeric fields under the documented tolerance. It does not automatically replay sensitivity scenarios. A changed dataset is a mismatch by default; an allowed changed-data rerun remains labelled as such. A missing fingerprint cannot establish same-data reproduction. See [the precise fingerprint, comparison, privacy, and export policy](docs/PROVENANCE_AND_REPLAY.md).
 
@@ -1379,7 +1375,7 @@ threshold are retained. `previous_plan=` plus optional `reason=` records a revis
 is enabled. `StatisticalAnalysisPlan` has schema version 1, `to_dict()`, `to_json()`,
 `from_dict()`, and `to_specification()`. A plan created after this assistant has executed an
 analysis records `created_after_analysis=True`. `plan_adherence()` compares recorded fields with
-a result as `matched`, `changed`, or `not_recorded` and makes no conduct inference. When supplied,
+a result as `matched`, `changed`, or `not_recorded` (governed by the `AnalysisPlanStatus` enum) and makes no conduct inference. When supplied,
 the optional performed sensitivity and practical-significance records are also compared with the
 planned scenario specifications and meaningful-effect threshold. It does not invent a reason for
 a change. Binary and extended-association plans retain modeled event/positive level, condition
@@ -1428,11 +1424,13 @@ snapshot = assistant.session_snapshot(
 )
 ```
 
-Completeness item statuses are `present`, `missing`, `partial`, and `not_applicable`; there is no
-quality score. Styles are `general`, `apa`, and `ieee` and change presentation only. LaTeX is
-escaped inert text and is never compiled. `ResearchSessionSnapshot` schema version 1 contains
-JSON-safe workflow state, machine-renderable questions, action identifiers, registry-derived
-capabilities, warnings/blockers, and optional records; it embeds no DataFrame or callable.
+Completeness item statuses in each `CompletenessItem` of `ReportingCompletenessResult` are `present`, `missing`, `partial`, and `not_applicable`; there is no quality score. `assess_reporting_completeness(report, style="apa")` is the standalone functional equivalent of `assistant.reporting_completeness(report, style=...)`. Styles are `general`, `apa`, and `ieee` and change presentation only. LaTeX is escaped inert text and is never compiled.
+
+`ResearchSessionSnapshot` schema version 1 contains JSON-safe workflow state, machine-renderable questions, action identifiers, registry-derived capabilities, warnings/blockers, and optional records; it embeds no DataFrame or callable. `build_session_snapshot(workflow, analysis_plan=None, reporting_completeness=None)` is the standalone functional builder for session snapshots.
+
+`capability_payload() -> dict[str, Any]` returns a JSON-safe mapping of all supported method capabilities for client and UI integrations. The underlying method registry is `METHOD_CONTRACTS`, an immutable dictionary mapping 24 method identifiers to their scientific `MethodContract` specifications (which specify required data shapes, assumptions, and `MethodCapability` descriptors).
+
+Self-contained research archive bundles created via `save_bundle(...)` and `to_bundle(...)` adhere to the schema version defined by `BUNDLE_SCHEMA_VERSION = 1`.
 
 See [advanced workflows](docs/ADVANCED_WORKFLOWS.md), the
 [capabilities and support matrix](docs/CAPABILITIES.md), and
@@ -1523,6 +1521,7 @@ All package-specific errors derive from `PyAutoStatError`:
 | `InsufficientDataError` | Too few usable observations or undefined test result |
 | `InvalidTestError` | Unknown or incompatible test request |
 | `ReportError` | A report file could not be created or written |
+| `UnsupportedPresentationError` | Attempted presentation rendering for an unsupported statistical method or object |
 
 `analysis_warnings` records skipped descriptive calculations without aborting the full analysis.
 

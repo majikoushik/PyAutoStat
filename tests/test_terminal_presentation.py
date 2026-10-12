@@ -100,6 +100,7 @@ def test_unsupported_presentation_error_export():
     """Verify UnsupportedPresentationError is exported from top-level."""
     assert hasattr(pyautostat, "UnsupportedPresentationError")
     assert issubclass(pyautostat.UnsupportedPresentationError, Exception)
+    assert issubclass(pyautostat.UnsupportedPresentationError, pyautostat.PyAutoStatError)
 
 
 def test_welch_standard_mode_renders_all_required_elements(welch_workflow):

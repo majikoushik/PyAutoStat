@@ -51,7 +51,11 @@ def test_assistant_reuses_analyzer_validation(bad):
 
 def test_legacy_exports_are_available():
     assert len(pyautostat.__all__) == 97
+    assert len(set(pyautostat.__all__)) == 97
     assert {"InsightEngine", "ReportGenerator"} <= set(pyautostat.__all__)
+    for name in pyautostat.__all__:
+        assert hasattr(pyautostat, name), f"Missing public export: {name}"
+        assert getattr(pyautostat, name) is not None
     for exported in (
         StatisticalAnalyzer,
         InsightEngine,
@@ -63,6 +67,20 @@ def test_legacy_exports_are_available():
         ColumnNotFoundError,
     ):
         assert exported is not None
+    for exc_name in (
+        "InvalidDataError",
+        "ColumnNotFoundError",
+        "InsufficientGroupsError",
+        "InsufficientDataError",
+        "InvalidTestError",
+        "ReportError",
+        "UnsupportedPresentationError",
+    ):
+        exc_cls = getattr(pyautostat, exc_name)
+        assert issubclass(exc_cls, pyautostat.PyAutoStatError)
+        assert issubclass(exc_cls, Exception)
+    assert len(pyautostat.METHOD_CONTRACTS) == 24
+    assert pyautostat.BUNDLE_SCHEMA_VERSION == 1
 
 
 def test_specification_round_trip_preserves_unknown_and_nulls():

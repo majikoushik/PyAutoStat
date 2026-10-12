@@ -205,14 +205,16 @@ print("95% CI:", result["confidence_interval"])
 ### All Variants at Once
 
 ```python
-from pyautostat.icc import intraclass_correlation
+from pyautostat import StatisticalAnalyzer
 
-result = intraclass_correlation(
-    ratings_df,
+analyzer = StatisticalAnalyzer(ratings_df)
+result = analyzer.intraclass_correlation(
     target="subject_id",
     rater="rater_id",
-    outcome="score",
-    include_all_variants=True,
+    value="score",
+    model="two_way_random",
+    definition="absolute_agreement",
+    unit="single",
 )
 
 for var_name, var_info in result["all_variants"].items():

@@ -32,9 +32,6 @@ from pyautostat import (
     show,
     verify_bundle,
 )
-from pyautostat.presentation.docx import check_docx_available
-from pyautostat.presentation.pdf import check_playwright_available
-
 RANDOM_SEED = 42
 
 
@@ -107,13 +104,13 @@ def main() -> None:
     formats = ["html", "json", "csv", "markdown", "latex"]
 
     try:
-        check_docx_available()
+        import docx  # noqa: F401
+
         formats.append("docx")
-    except Exception:
+    except ImportError:
         pass
 
     try:
-        check_playwright_available()
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as p:
