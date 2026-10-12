@@ -1,4 +1,27 @@
-"""Smoke the built wheel from an isolated environment, outside the source import path."""
+r"""Smoke the built wheel from an isolated environment, outside the source import path.
+
+Contributor note:
+Do not run this script directly using the development repository interpreter
+(e.g., `python tests/installed_wheel_smoke.py`), as Python will resolve `src/pyautostat`
+instead of the built distribution. The assertion verifying that `pyautostat` resides
+within `sys.prefix` intentionally requires an isolated environment.
+
+Intended execution (matching CI):
+  python -m build
+  python -m venv .wheel-smoke
+
+  # POSIX:
+  .wheel-smoke/bin/python -m pip install dist/*.whl
+  .wheel-smoke/bin/python -I tests/installed_wheel_smoke.py
+
+  # Windows (PowerShell):
+  $whl = (Get-Item dist/*.whl | Select-Object -Last 1).FullName
+  .wheel-smoke\Scripts\python.exe -m pip install $whl
+  .wheel-smoke\Scripts\python.exe -I tests/installed_wheel_smoke.py
+
+The `-I` flag (isolated mode) is essential to prevent Python from adding the current
+working directory or user site-packages to sys.path.
+"""
 
 import json
 import math

@@ -794,3 +794,85 @@ class TestWorkflowExplain:
         assert " ASSUMPTIONS" in text
         assert "   - " in text
         assert "?" not in text
+
+
+def test_brief_generated_separators_are_ascii_portable(two_group_df):
+    """Verify library-generated brief() structural text uses portable ASCII separators."""
+    assistant = ResearchAssistant(two_group_df)
+
+    # 1. needs_input brief
+    wf_needs_input = assistant.run(objective="compare_groups", outcome="score")
+    assert wf_needs_input.status.value == "needs_input"
+    brief_ni = wf_needs_input.brief()
+    assert brief_ni.startswith("Input needed: ")
+    assert "—" not in brief_ni
+    brief_ni.encode("ascii")
+
+    # 2. data_limited brief
+    df_limited = pd.DataFrame({"x": [1.0, 2.0], "y": [2.0, 3.0]})
+    wf_limited = ResearchAssistant(df_limited).run(
+        objective="association",
+        outcome="x",
+        predictor="y",
+        estimand="linear",
+        design="independent",
+        variable_types={"x": "continuous", "y": "continuous"},
+    )
+    assert wf_limited.status.value == "data_limited"
+    brief_dl = wf_limited.brief()
+    assert brief_dl.startswith("Data limited: ")
+    assert "—" not in brief_dl
+    brief_dl.encode("ascii")
+
+    # 3. unsupported brief
+    wf_unsupported = assistant.run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        design="clustered",
+        estimand="mean",
+        variable_types={"score": "continuous", "group": "nominal"},
+    )
+    assert wf_unsupported.status.value == "unsupported"
+    brief_un = wf_unsupported.brief()
+    assert brief_un.startswith("Unsupported workflow: ")
+    assert "—" not in brief_un
+    brief_un.encode("ascii")
+
+    # 4. failed brief
+    from dataclasses import replace
+
+    from pyautostat.results import AnalysisResult, AnalysisStatus
+    from pyautostat.workflow import WorkflowStatus
+
+    wf_failed = replace(
+        wf_unsupported,
+        status=WorkflowStatus.FAILED,
+        blockers=("Numerical convergence failure.",),
+        analysis=AnalysisResult("welch_t", AnalysisStatus.UNAVAILABLE),
+    )
+    brief_fl = wf_failed.brief()
+    assert brief_fl.startswith("Workflow failed after analysis: ")
+    assert "—" not in brief_fl
+    brief_fl.encode("ascii")
+
+    # 5. partial brief
+    sparse = pd.DataFrame(
+        {
+            "treatment": ["A"] * 5 + ["B"] * 7,
+            "response": ["yes"] + ["no"] * 4 + ["yes"] * 5 + ["no"] * 2,
+        }
+    )
+    wf_partial = ResearchAssistant(sparse).run(
+        objective="association",
+        outcome="response",
+        predictor="treatment",
+        design="independent",
+        estimand="categorical_independence",
+        variable_types={"response": "nominal", "treatment": "nominal"},
+    )
+    assert wf_partial.status.value == "partial"
+    brief_pt = wf_partial.brief()
+    assert brief_pt.startswith("Partial workflow: ")
+    assert "—" not in brief_pt
+    brief_pt.encode("ascii")

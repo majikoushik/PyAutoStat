@@ -7,6 +7,17 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+-   **Pre-release 1.0 documentation, ergonomics, and warning cleanup**:
+    -   *Public API freeze synchronization (`PUBLIC_API_1_0.md`)*: Synchronized the public freeze record with all 109 top-level exports in `pyautostat.__all__`, incorporating `MethodRegistration`, `QuantityDefinition`, registry accessors, assumption records, and `SensitivityEstimate`.
+    -   *Registry accessor documentation (`API_REFERENCE.md`)*: Added dedicated reference documentation, signatures, and examples for `get_method_registration`, `get_quantity_definition`, `list_method_registrations`, `list_quantity_definitions`, `validate_registry_invariants`, and associated metadata records.
+    -   *Example sequence polish (`examples/13_tabular_and_latex_reporting.py`, `examples/run_all.py`)*: Added example 13 demonstrating structured table extraction (`to_csv_tables()`), journal-ready LaTeX generation (`to_latex()`, `save_latex()`), and Markdown reporting (`to_markdown()`), closing the numbering gap without altering existing filenames.
+    -   *Portable `brief()` workflow separators (`result_access.py`)*: Replaced Unicode em-dash structural punctuation (`—`) with ASCII colons (`:`) in workflow brief output across needs_input, data_limited, unsupported, failed, and partial workflows to ensure clean rendering on non-UTF-8 console streams (such as CP437).
+    -   *SciPy noncentral-t internal warning filtering (`uncertainty.py`)*: Encapsulated `stats.nct.cdf` calls during root bracketing in `_safe_nct_cdf`, narrowly catching known benign internal SciPy `RuntimeWarning` messages (`divide by zero` / `invalid value` in `_nct_cdf`) without globally suppressing warnings, altering root bracketing, or hiding nonfinite outputs.
+    -   *Installed-wheel smoke test contributor guidance (`tests/installed_wheel_smoke.py`, `AGENTS.md`)*: Documented the requirement to run the smoke check in an isolated virtual environment with Python's `-I` flag after building the wheel, preventing source tree import resolution.
+    -   *Validation and review wording precision (`docs/`)*: Clarified documentation phrasing to distinguish empirical validation and project-configured tool policies (Mypy, Ruff, CI test suite) from formal external accreditations or absolute correctness claims.
+
 ### Added
 
 -   **Coefficient-level integrated sensitivity analysis for regression models (PR-1, `sensitivity.py`, `research_assistant.py`)**:

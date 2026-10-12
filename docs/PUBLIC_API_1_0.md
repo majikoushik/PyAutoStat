@@ -47,10 +47,15 @@ tests, or package integration. No export was removed during 1.0 consolidation.
 | `SensitivitySpecification` | Sensitivity specification | Yes | Yes | Advanced researchers | `ADVANCED_STABLE` | Keep; explicit scenario contract. |
 | `SensitivityScenario` | Sensitivity scenario | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; stable scenario record. |
 | `SensitivityScenarioResult` | Scenario result | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; preserves every attempt. |
+| `SensitivityEstimate` | Sensitivity estimate record | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; term- and coefficient-level sensitivity estimate. |
 | `SensitivityResult` | Sensitivity result | Yes | Yes | Researchers/integrators | `ADVANCED_STABLE` | Keep; canonical scenario collection. |
 | `SensitivityStatus` | Sensitivity status enum | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; serialized status vocabulary. |
 | `ScenarioStatus` | Scenario status enum | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; serialized status vocabulary. |
 | `Comparability` | Comparability enum | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; protects estimand comparisons. |
+| `AssumptionCheck` | Structured assumption record | Yes | Yes | Advanced researchers/integrators | `ADVANCED_STABLE` | Keep; structured lifecycle representation distinguishing design, data checks, diagnostics, review. |
+| `AssessmentMode` | Assumption mode constants | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; lifecycle modes for assumption checks. |
+| `AssumptionStatus` | Assumption status constants | Yes | Yes | Integrators | `ADVANCED_STABLE` | Keep; serialized assumption status vocabulary. |
+| `reconcile_assumptions` | Assumption reconciliation function | Yes | Yes | Advanced researchers/integrators | `ADVANCED_STABLE` | Keep; direct reconciler of pre-execution checks and diagnostics. |
 
 ### Stable specifications, recommendations, and results
 
@@ -73,6 +78,13 @@ tests, or package integration. No export was removed during 1.0 consolidation.
 | `MethodCapability` | Recommendation capability | Yes | Yes | Tool builders | `ADVANCED_STABLE` | Keep; registry-facing typed record. |
 | `MethodContract` | Method contract | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; documented scientific metadata. |
 | `METHOD_CONTRACTS` | Contract registry | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; established read-only registry surface. |
+| `MethodRegistration` | Method metadata record | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; canonical metadata linkage for supported methods. |
+| `QuantityDefinition` | Quantity metadata record | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; canonical definition of analytical quantities. |
+| `get_method_registration` | Method metadata accessor | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; read-only method registration lookup. |
+| `get_quantity_definition` | Quantity metadata accessor | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; read-only quantity definition lookup. |
+| `list_method_registrations` | Method metadata listing | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; read-only tuple of all method registrations. |
+| `list_quantity_definitions` | Quantity metadata listing | Yes | Yes | Tool builders/reviewers | `ADVANCED_STABLE` | Keep; read-only tuple of all quantity definitions. |
+| `validate_registry_invariants` | Registry validation function | Yes | Yes | Developers/reviewers | `ADVANCED_STABLE` | Keep; verifies cross-registry consistency and prevents metadata drift. |
 
 ### Audit, reproducibility, completeness, and sessions
 

@@ -125,7 +125,22 @@ python -m twine check dist/*
 ```
 
 Also run focused numerical, documentation, example, or installed-wheel checks required by the
-change. Never lower thresholds or disable a failing test to obtain a pass.
+change. For the installed-wheel smoke test (`tests/installed_wheel_smoke.py`), do not run directly
+from the repository development interpreter because Python will resolve `src/pyautostat` instead of
+the built wheel. Always execute within an isolated virtual environment using Python's `-I` flag:
+
+```bash
+python -m build
+python -m venv .wheel-smoke
+# POSIX:
+.wheel-smoke/bin/python -m pip install dist/*.whl
+.wheel-smoke/bin/python -I tests/installed_wheel_smoke.py
+# Windows (PowerShell):
+.wheel-smoke\Scripts\python.exe -m pip install (Get-Item dist/*.whl | Select-Object -Last 1).FullName
+.wheel-smoke\Scripts\python.exe -I tests/installed_wheel_smoke.py
+```
+
+Never lower thresholds or disable a failing test to obtain a pass.
 
 ## Git and release safeguards
 

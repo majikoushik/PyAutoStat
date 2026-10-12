@@ -1,6 +1,8 @@
 """Audit hardening and corruption tests for effect-size confidence intervals."""
 
 import copy
+import math
+import warnings
 
 import pandas as pd
 import pytest
@@ -11,6 +13,11 @@ from pyautostat import (
 )
 from pyautostat.audit import _method_contract_findings
 from pyautostat.reproducibility import reproduce
+from pyautostat.uncertainty import (
+    noncentral_t_confidence_limits,
+    one_sample_cohen_d_ci,
+    paired_cohen_dz_ci,
+)
 
 
 @pytest.fixture
@@ -301,3 +308,64 @@ def test_reproducibility_replays_exact_bootstrap_intervals(wilcoxon_workflow):
     replay = reproduce(record, data=frame)
     assert replay.status == "reproduced"
     assert len(replay.differing_fields) == 0
+
+
+def test_known_nct_internal_warning_does_not_escape():
+    """Known SciPy internal NCT CDF warnings (e.g. divide by zero in _nct_cdf) do not leak."""
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        # Small df and moderate/high t_stat triggers root bracket expansion across wide NCPs
+        limits = noncentral_t_confidence_limits(t_stat=3.5, df=2.0, confidence_level=0.95)
+        assert math.isfinite(limits[0])
+        assert math.isfinite(limits[1])
+        assert limits[0] < limits[1]
+
+        nct_warnings = [
+            w
+            for w in recorded
+            if "_nct_cdf" in str(w.message) or "divide by zero" in str(w.message)
+        ]
+        assert len(nct_warnings) == 0
+
+
+def test_unrelated_runtime_warning_is_not_globally_suppressed():
+    """Unrelated RuntimeWarnings are preserved and never globally suppressed by pyautostat."""
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        noncentral_t_confidence_limits(t_stat=1.5, df=5.0, confidence_level=0.90)
+        warnings.warn("unrelated division by zero in caller code", RuntimeWarning, stacklevel=2)
+
+        msg = "unrelated division by zero in caller code"
+        unrelated = [w for w in recorded if msg in str(w.message)]
+        assert len(unrelated) == 1
+        assert issubclass(unrelated[0].category, RuntimeWarning)
+
+
+def test_small_sample_nct_ci_remains_finite_or_cleanly_uncomputable():
+    """Small sample sizes produce finite, ordered CIs or cleanly uncomputable records."""
+    # N = 3 paired test (df = 2)
+    ci_res = paired_cohen_dz_ci(mean_diff=1.2, sd_diff=0.6, n=3, confidence_level=0.95)
+    assert ci_res["status"] == "available"
+    assert math.isfinite(ci_res["lower"])
+    assert math.isfinite(ci_res["upper"])
+    assert ci_res["lower"] < ci_res["upper"]
+
+    # N = 1 (insufficient data)
+    ci_underflow = paired_cohen_dz_ci(mean_diff=1.2, sd_diff=0.6, n=1, confidence_level=0.95)
+    assert ci_underflow["status"] == "unavailable"
+    assert ci_underflow["lower"] is None
+    assert ci_underflow["upper"] is None
+
+    # Zero variance (uncomputable)
+    ci_zero_sd = paired_cohen_dz_ci(mean_diff=1.2, sd_diff=0.0, n=5, confidence_level=0.95)
+    assert ci_zero_sd["status"] == "uncomputable"
+    assert ci_zero_sd["lower"] is None
+
+    # One sample small n
+    ci_one = one_sample_cohen_d_ci(
+        mean_val=5.0, ref_val=2.0, sd_val=1.5, n=3, confidence_level=0.95
+    )
+    assert ci_one["status"] == "available"
+    assert math.isfinite(ci_one["lower"])
+    assert math.isfinite(ci_one["upper"])
+    assert ci_one["lower"] < ci_one["upper"]

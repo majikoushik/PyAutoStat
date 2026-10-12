@@ -605,3 +605,23 @@ def test_obsolete_manual_result_tables_removed() -> None:
     e08 = (EXAMPLES / "08_factorial_customer_segments.py").read_text(encoding="utf-8")
     assert "Cell Sample Sizes and Means (2x2 Design)" not in e08
     assert "Source / Term" not in e08
+
+
+def test_example_13_runs(tmp_path: Path) -> None:
+    """Example 13 must run successfully, generate tabular/LaTeX/Markdown files, and not leak IDs."""
+    result = _run_example("13_tabular_and_latex_reporting.py", "--output-dir", str(tmp_path))
+    assert result.returncode == 0, f"Example 13 failed:\n{result.stderr}"
+    assert "All tabular, LaTeX, and Markdown exports completed successfully" in result.stdout
+    assert "Traceback" not in result.stdout
+    assert "Traceback" not in result.stderr
+
+    for sample_id in SAMPLE_CUSTOMER_IDS:
+        assert sample_id not in result.stdout
+
+    # Check generated files
+    assert (tmp_path / "customer_spending_welch.tex").is_file()
+    assert (tmp_path / "customer_spending_welch.md").is_file()
+    assert (tmp_path / "customer_spend_drivers_ols.tex").is_file()
+    assert (tmp_path / "csv_tables").is_dir()
+    csv_files = list((tmp_path / "csv_tables").glob("*.csv"))
+    assert len(csv_files) >= 5

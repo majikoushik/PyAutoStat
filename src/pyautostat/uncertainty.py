@@ -8,6 +8,7 @@ estimator-to-CI parameter matching, finite numbers, and strict serialization.
 from __future__ import annotations
 
 import math
+import warnings
 from typing import Any
 
 import numpy as np
@@ -84,6 +85,26 @@ def _confidence_interval_record(
     return record
 
 
+def _safe_nct_cdf(x: float, df: float, nc: float) -> float:
+    """Evaluate scipy.stats.nct.cdf with narrow suppression of internal SciPy RuntimeWarnings.
+
+    During root-bracket searches for small degrees of freedom or extreme temporary
+    noncentrality parameters, some SciPy versions emit internal RuntimeWarnings such as
+    'divide by zero encountered in _nct_cdf' or 'invalid value encountered in _nct_cdf',
+    even though finite, valid CDF values and roots are subsequently obtained.
+    This helper suppresses only that specific internal SciPy warning without hiding
+    nonfinite return values or suppressing unrelated RuntimeWarnings.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*(?:divide by zero|invalid value).*_nct_cdf.*",
+            category=RuntimeWarning,
+        )
+        val = stats.nct.cdf(x, df, nc)
+    return float(val)
+
+
 def noncentral_t_confidence_limits(
     t_stat: float, df: float, confidence_level: float = 0.95
 ) -> tuple[float, float]:
@@ -104,10 +125,10 @@ def noncentral_t_confidence_limits(
     t_abs = abs(t_stat)
 
     def f_low(delta: float) -> float:
-        return float(stats.nct.cdf(t_abs, df, delta)) - target_low
+        return _safe_nct_cdf(t_abs, df, delta) - target_low
 
     def f_high(delta: float) -> float:
-        return float(stats.nct.cdf(t_abs, df, delta)) - target_high
+        return _safe_nct_cdf(t_abs, df, delta) - target_high
 
     # f_low bracket search: CDF is strictly decreasing in delta.
     # As delta -> -inf, CDF -> 1.0, so f_low -> alpha/2 > 0.

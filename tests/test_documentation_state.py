@@ -154,3 +154,34 @@ def test_changelog_release_history_integrity():
     assert "Mauchly" not in sec_030
     assert "Bushtucker" not in sec_030
     assert "Greenhouse-Geisser" not in sec_030
+
+
+def test_public_api_freeze_covers_all_top_level_exports():
+    """Verify that every symbol in pyautostat.__all__ is documented in PUBLIC_API_1_0.md."""
+    import pyautostat
+
+    freeze_doc = (ROOT / "docs" / "PUBLIC_API_1_0.md").read_text(encoding="utf-8")
+    table_exports = set(re.findall(r"^\|\s*`([^`]+)`\s*\|", freeze_doc, flags=re.MULTILINE))
+    all_exports = set(pyautostat.__all__)
+    assert table_exports == all_exports
+
+
+def test_registry_public_functions_are_documented_in_api_reference():
+    """Verify registry accessors, metadata records, and governance types are in API_REFERENCE.md."""
+    ref_doc = (ROOT / "API_REFERENCE.md").read_text(encoding="utf-8")
+    required_symbols = [
+        "get_method_registration",
+        "get_quantity_definition",
+        "list_method_registrations",
+        "list_quantity_definitions",
+        "validate_registry_invariants",
+        "MethodRegistration",
+        "QuantityDefinition",
+        "AssumptionCheck",
+        "AssessmentMode",
+        "AssumptionStatus",
+        "reconcile_assumptions",
+        "SensitivityEstimate",
+    ]
+    for symbol in required_symbols:
+        assert f"`{symbol}`" in ref_doc, f"Expected {symbol!r} to be documented in API_REFERENCE.md"

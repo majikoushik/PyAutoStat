@@ -1466,6 +1466,94 @@ See [advanced workflows](docs/ADVANCED_WORKFLOWS.md), the
 [capabilities and support matrix](docs/CAPABILITIES.md), and
 [scientific limitations](docs/SCIENTIFIC_LIMITATIONS.md).
 
+## Method and quantity registry
+
+The canonical method and quantity registry provides read-only introspection and linkage across analytical methods, sensitivity quantities, practical-significance thresholds, and execution contracts.
+
+> [!NOTE]
+> Registry functions are metadata and introspection tools. They do not execute statistical analyses, do not select methods, and do not mutate registry state.
+
+```python
+from pyautostat import (
+    get_method_registration,
+    get_quantity_definition,
+    list_method_registrations,
+    list_quantity_definitions,
+    validate_registry_invariants,
+)
+
+registration = get_method_registration("linear_regression")
+quantity = get_quantity_definition("coefficient_vector")
+methods = list_method_registrations()
+quantities = list_quantity_definitions()
+drift_errors = validate_registry_invariants()
+assert drift_errors == []
+```
+
+### Registry accessors and validation
+
+- **`get_method_registration`**(`method_id: str`) -> `MethodRegistration | None`: Return the canonical `MethodRegistration` for a given method ID, or `None` if unregistered.
+- **`get_quantity_definition`**(`quantity: str`) -> `QuantityDefinition | None`: Return the canonical `QuantityDefinition` for a given quantity identifier, or `None` if unregistered.
+- **`list_method_registrations`**() -> `tuple[MethodRegistration, ...]`: Return an immutable tuple of all registered analytical methods.
+- **`list_quantity_definitions`**() -> `tuple[QuantityDefinition, ...]`: Return an immutable tuple of all canonical analytical quantity definitions.
+- **`validate_registry_invariants`**() -> `list[str]`: Validate cross-registry consistency and detect metadata drift across method registrations, quantity definitions, method contracts, and practical significance mappings. Returns a list of error strings; an empty list indicates all invariants hold.
+
+### Registry records
+
+- **`MethodRegistration`**: Immutable record (`dataclass(frozen=True)`) representing canonical linkage metadata for one supported analytical method.
+  - `method_id: str`: Unique method identifier (e.g. `"welch_t"`, `"linear_regression"`).
+  - `name: str`: Human-readable method name.
+  - `sensitivity_quantity: str | None`: Primary sensitivity quantity identifier.
+  - `sensitivity_shape: str`: Result shape (`"scalar"`, `"coefficient_vector"`, or `"vector"`).
+  - `practical_significance_quantities: tuple[str, ...]`: Quantities supporting practical significance thresholds.
+  - `requires_contract: bool`: Whether the method requires a formal `MethodContract`.
+  - `is_inferential: bool`: Whether the method conducts statistical inference.
+  - `hypothesis_test: bool`: Whether the method performs hypothesis testing.
+- **`QuantityDefinition`**: Immutable record (`dataclass(frozen=True)`) representing an analytical or inferential quantity.
+  - `quantity: str`: Canonical quantity name (e.g. `"mean_difference"`, `"cohens_d"`, `"coefficient_vector"`).
+  - `shape: str`: Dimension of the quantity (`"scalar"`, `"coefficient_vector"`, or `"vector"`).
+  - `domain: str`: Statistical domain (e.g. `"difference"`, `"correlation"`, `"association"`, `"reliability"`).
+  - `signed: bool | None`: `True` if signed, `False` if strictly non-negative, `None` if vector/unconstrained.
+  - `supports_practical_threshold: bool`: Whether researcher-supplied practical significance thresholds are supported.
+
+## Assumptions and sensitivity metadata records
+
+PyAutoStat represents statistical assumptions and scenario-level sensitivity estimates as structured, typed records rather than unstructured strings.
+
+### Assumption governance records
+
+Assumption records distinguish pre-execution study design declarations, structural data checks, post-execution inferential diagnostics, and researcher domain review. Non-rejection of a null hypothesis by a diagnostic test is never reported as proving an assumption.
+
+- **`AssumptionCheck`**: Immutable record (`dataclass(frozen=True)`) representing an analytical assumption check.
+  - `assumption_id: str`: Unique machine identifier for the assumption.
+  - `description: str`: Human-readable description.
+  - `assessment_mode: str`: One of the `AssessmentMode` constants.
+  - `status: str`: One of the `AssumptionStatus` constants.
+  - `diagnostic_ids: tuple[str, ...]`: Associated statistical diagnostic identifiers.
+  - `message: str | None`: Contextual diagnostic or advisory message.
+  - Methods: `to_dict() -> dict[str, Any]`, `from_dict(data: dict[str, Any]) -> AssumptionCheck`.
+- **`AssessmentMode`**: Lifecycle modes distinguishing:
+  - `RESEARCHER_DESIGN_FACT = "researcher_design_fact"`: Declared by researcher from study design; cannot be verified from data values alone (e.g. unit independence, random sampling).
+  - `PRE_EXECUTION_DATA_CHECK = "pre_execution_data_check"`: Verified from data values prior to model estimation (e.g. minimum cell counts, full-rank design matrix).
+  - `POST_EXECUTION_DIAGNOSTIC = "post_execution_diagnostic"`: Inferential diagnostic computed after model estimation (e.g. Shapiro-Wilk normality on residuals, Breusch-Pagan homoscedasticity).
+  - `RESEARCHER_REVIEW = "researcher_review"`: Uncheckable domain context requiring substantive researcher review.
+  - `NOT_ASSESSABLE = "not_assessable"`: Cannot be evaluated under the available design or data.
+- **`AssumptionStatus`**: Lifecycle-safe statuses for assumption records:
+  - `CONFIRMED = "confirmed"`, `UNRESOLVED = "unresolved"`, `CHECKED = "checked"`, `NOT_ASSESSED = "not_assessed"`, `DIAGNOSTIC_AVAILABLE = "diagnostic_available"`, `EVIDENCE_AGAINST = "evidence_against"`, `NO_STRONG_EVIDENCE_AGAINST = "no_strong_evidence_against"`, `REQUIRES_REVIEW = "requires_review"`, `NOT_APPLICABLE = "not_applicable"`.
+- **`reconcile_assumptions`**(`assumption_checks: Sequence[AssumptionCheck]`, `analysis_result: Any`) -> `list[AssumptionCheck]`: Reconcile pre-execution assumption checks with actual post-execution diagnostics stored in an analysis result without claiming that assumptions are proven.
+
+### Sensitivity estimate records
+
+- **`SensitivityEstimate`**: Immutable record (`dataclass(frozen=True)`) representing one term- or coefficient-level estimate within a structured sensitivity scenario.
+  - `key: str`: Term or parameter identifier (e.g. `"x"`, `"treatment"`).
+  - `quantity: str`: Analytical quantity name.
+  - `estimate: float | None`: Point estimate value.
+  - `standard_error: float | None`: Standard error of the estimate.
+  - `confidence_interval: dict[str, Any] | None`: Standardized confidence interval record.
+  - `p_value: float | None`: p-value if applicable.
+  - `metadata: dict[str, Any]`: Additional term-level metadata dictionary.
+  - Method: `to_dict() -> dict[str, Any]`.
+
 ## Column detection
 
 ```python

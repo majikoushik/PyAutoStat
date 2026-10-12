@@ -1090,32 +1090,32 @@ def generate_workflow_brief(workflow: Any, *, include_warnings: bool = True) -> 
                 if remainder
                 else ""
             )
-            text = f"Input needed — {_brief_text(first.field)}: {_brief_text(first.message)}{more}."
+            text = f"Input needed: {_brief_text(first.field)}: {_brief_text(first.message)}{more}."
         else:
-            text = "Input needed — required workflow information is missing."
+            text = "Input needed: required workflow information is missing."
     elif status == "data_limited":
         reason = (
             _brief_text(blockers[0]) if blockers else "the recorded data do not support analysis"
         )
-        text = f"Data limited — {reason} No statistical analysis was completed."
+        text = f"Data limited: {reason} No statistical analysis was completed."
     elif status == "unsupported":
         reason = _brief_text(blockers[0]) if blockers else "the requested design is unsupported"
-        text = f"Unsupported workflow — {reason} No substitute method was run."
+        text = f"Unsupported workflow: {reason} No substitute method was run."
     elif status == "failed":
         reason = _brief_text(blockers[0]) if blockers else "the recorded workflow failed"
         if analysis is not None:
             text = (
-                f"Workflow failed after analysis — {reason} "
+                f"Workflow failed after analysis: {reason} "
                 f"Computed method: {_brief_text(analysis.method_label)}."
             )
         else:
-            text = f"Workflow failed — {reason}"
+            text = f"Workflow failed: {reason}"
     elif analysis is None:
         text = "Workflow has not completed statistical execution."
     else:
         text = _format_completed_brief(analysis)
         if status == "partial":
-            text = f"Partial workflow — {text}"
+            text = f"Partial workflow: {text}"
     return _with_brief_warning(workflow, text, include_warnings=include_warnings)
 
 
