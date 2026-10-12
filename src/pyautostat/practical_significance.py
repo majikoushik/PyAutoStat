@@ -40,6 +40,24 @@ class MeaningfulEffectThreshold:
 
     def __post_init__(self) -> None:
         if self.quantity not in SUPPORTED_QUANTITIES:
+            if self.quantity == "odds_ratio":
+                raise InvalidDataError(
+                    "Threshold quantity 'odds_ratio' is not supported: The current threshold "
+                    "contract is zero-centered; odds-ratio meaningfulness requires a "
+                    "reference-centered ratio contract around OR=1."
+                )
+            if self.quantity in {"coefficient_vector", "regression_coefficients"}:
+                raise InvalidDataError(
+                    "Threshold quantity 'coefficient_vector' is not supported: "
+                    "Practical-significance thresholds are not supported for coefficient vectors "
+                    "without an explicit researcher-selected term."
+                )
+            if self.quantity in {"cronbach_alpha", "intraclass_correlation"}:
+                raise InvalidDataError(
+                    "Threshold quantity 'reliability' is not supported: "
+                    "Reliability coefficients require a directional minimum-level contract rather "
+                    "than a two-sided magnitude threshold."
+                )
             raise InvalidDataError(
                 "threshold quantity must be one of: " + ", ".join(sorted(SUPPORTED_QUANTITIES))
             )
@@ -257,8 +275,24 @@ def _finite(value: Any, name: str) -> float:
 def _metric(
     result: AnalysisResult, quantity: str
 ) -> tuple[float, dict[str, Any] | None, str | None]:
+    aliases = {
+        "Cohen's d": "cohens_d",
+        "rank-biserial correlation": "rank_biserial",
+        "matched-pairs rank-biserial correlation": "matched_pairs_rank_biserial",
+        "eta-squared": "eta_squared",
+        "epsilon-squared": "epsilon_squared",
+        "Cramer's V": "cramers_v",
+        "Pearson r": "pearson_r",
+        "Spearman rho": "spearman_rho",
+        "point-biserial r": "point_biserial_r",
+        "Kendall's tau-b": "kendall_tau_b",
+        "partial Pearson r": "partial_pearson_r",
+        "paired proportion difference": "paired_proportion_difference",
+        "Kendall's W": "kendalls_w",
+        "one-sample Cohen's d": "cohens_d",
+    }
     primary_quantity = estimate_quantity(result.method_id)
-    if quantity == primary_quantity:
+    if quantity == primary_quantity and result.values.get("primary_estimate") is not None:
         estimate = _finite(result.values.get("primary_estimate"), quantity)
         interval = result.values.get("confidence_interval")
         unit = result.values.get("estimate_unit")
@@ -266,17 +300,7 @@ def _metric(
         effect = result.values.get("effect_size")
         if not isinstance(effect, dict):
             raise InvalidDataError(f"The analysis does not provide quantity {quantity!r}.")
-        aliases = {
-            "Cohen's d": "cohens_d",
-            "rank-biserial correlation": "rank_biserial",
-            "eta-squared": "eta_squared",
-            "epsilon-squared": "epsilon_squared",
-            "Cramer's V": "cramers_v",
-            "Pearson r": "pearson_r",
-            "Spearman rho": "spearman_rho",
-            "one-sample Cohen's d": "cohens_d",
-        }
-        observed = aliases.get(str(effect.get("name")))
+        observed = aliases.get(str(effect.get("name")), str(effect.get("name")))
         if observed != quantity:
             raise InvalidDataError(
                 f"Threshold quantity {quantity!r} does not match an available result quantity."
@@ -299,25 +323,34 @@ def _metric(
             level = _finite(interval.get("level"), "confidence level")
             if lower > upper or not 0 < level < 1:
                 raise InvalidDataError("The selected quantity has an invalid confidence interval.")
-        interval_aliases = {
-            "mean difference": "mean_difference",
-            "mean paired difference": "mean_difference",
-            "mean difference from reference": "mean_difference",
-            "Cohen's d": "cohens_d",
-            "rank-biserial correlation": "rank_biserial",
-            "eta-squared": "eta_squared",
-            "epsilon-squared": "epsilon_squared",
-            "Cramer's V": "cramers_v",
-            "Pearson r": "pearson_r",
-            "Spearman rho": "spearman_rho",
-        }
-        if interval_aliases.get(str(interval.get("quantity"))) != quantity:
-            raise InvalidDataError(
-                "The selected quantity and confidence-interval quantity do not match."
-            )
-        if not isinstance(interval.get("method"), str) or not interval["method"].strip():
-            raise InvalidDataError("The selected quantity has an invalid interval method.")
-        checked_interval = _json_value(interval)
+            interval_aliases = {
+                "mean difference": "mean_difference",
+                "mean paired difference": "mean_difference",
+                "mean difference from reference": "mean_difference",
+                "Cohen's d": "cohens_d",
+                "rank-biserial correlation": "rank_biserial",
+                "matched-pairs rank-biserial correlation": "matched_pairs_rank_biserial",
+                "eta-squared": "eta_squared",
+                "epsilon-squared": "epsilon_squared",
+                "Cramer's V": "cramers_v",
+                "Pearson r": "pearson_r",
+                "Spearman rho": "spearman_rho",
+                "point-biserial r": "point_biserial_r",
+                "Kendall's tau-b": "kendall_tau_b",
+                "partial Pearson r": "partial_pearson_r",
+                "paired proportion difference": "paired_proportion_difference",
+                "Kendall's W": "kendalls_w",
+            }
+            if (
+                interval_aliases.get(str(interval.get("quantity")), str(interval.get("quantity")))
+                != quantity
+            ):
+                raise InvalidDataError(
+                    "The selected quantity and confidence-interval quantity do not match."
+                )
+            if not isinstance(interval.get("method"), str) or not interval["method"].strip():
+                raise InvalidDataError("The selected quantity has an invalid interval method.")
+            checked_interval = _json_value(interval)
     if quantity in NONNEGATIVE_QUANTITIES and estimate < 0:
         raise InvalidDataError("A nonnegative effect quantity has an invalid negative estimate.")
     if (
@@ -326,15 +359,26 @@ def _metric(
         and float(checked_interval["lower"]) < 0
     ):
         raise InvalidDataError("A nonnegative effect quantity has an invalid negative interval.")
-    if quantity in {"pearson_r", "spearman_rho", "rank_biserial"} and abs(estimate) > 1:
-        raise InvalidDataError("A correlation quantity is outside its valid range.")
-    if checked_interval is not None and quantity in {
+    bounded_quantities = {
         "pearson_r",
         "spearman_rho",
         "rank_biserial",
-    }:
+        "matched_pairs_rank_biserial",
+        "point_biserial_r",
+        "kendall_tau_b",
+        "partial_pearson_r",
+        "paired_proportion_difference",
+    }
+    if quantity in bounded_quantities and abs(estimate) > 1:
+        raise InvalidDataError("A bounded effect quantity is outside [-1, 1].")
+    if checked_interval is not None and quantity in bounded_quantities:
         if float(checked_interval["lower"]) < -1 or float(checked_interval["upper"]) > 1:
-            raise InvalidDataError("A correlation interval is outside its valid range.")
+            raise InvalidDataError("A bounded effect interval is outside [-1, 1].")
+    if quantity == "kendalls_w" and (estimate < 0 or estimate > 1):
+        raise InvalidDataError("Kendall's W is outside [0, 1].")
+    if checked_interval is not None and quantity == "kendalls_w":
+        if float(checked_interval["lower"]) < 0 or float(checked_interval["upper"]) > 1:
+            raise InvalidDataError("Kendall's W interval is outside [0, 1].")
     return estimate, checked_interval, unit if isinstance(unit, str) else None
 
 
@@ -388,13 +432,16 @@ def assess_practical_significance(
     result: AnalysisResult,
     threshold: MeaningfulEffectThreshold,
     *,
-    planning_status: str,
+    planning_status: str | None = None,
 ) -> PracticalSignificanceResult:
     """Compare one recorded estimate and its existing interval with a supplied threshold."""
     if not isinstance(result, AnalysisResult):
         raise InvalidDataError("practical_significance requires an AnalysisResult.")
     if not isinstance(threshold, MeaningfulEffectThreshold):
         raise InvalidDataError("threshold must be a MeaningfulEffectThreshold.")
+    actual_planning_status = (
+        planning_status if planning_status is not None else threshold.planning_status
+    )
     if result.status is not AnalysisStatus.AVAILABLE:
         return PracticalSignificanceResult(
             "unavailable",
@@ -408,7 +455,7 @@ def assess_practical_significance(
             "unavailable",
             "The base analysis is unavailable, so the threshold cannot be assessed.",
             tuple(result.warnings),
-            {"planning_status": planning_status, "local_record_only": True},
+            {"planning_status": actual_planning_status, "local_record_only": True},
         )
     if threshold.direction in _FORMAL_REQUESTS:
         label = "equivalence" if threshold.direction == "equivalence" else "noninferiority"
@@ -424,7 +471,7 @@ def assess_practical_significance(
             "unavailable",
             f"Formal {label} inference is not currently implemented.",
             ("An ordinary two-sided analysis is not a validated formal " + label + " test.",),
-            {"planning_status": planning_status, "local_record_only": True},
+            {"planning_status": actual_planning_status, "local_record_only": True},
         )
     if (
         result.method_id == "paired_t"
@@ -469,7 +516,7 @@ def assess_practical_significance(
                 "orientation was not verified.",
                 (warning,),
                 {
-                    "planning_status": planning_status,
+                    "planning_status": actual_planning_status,
                     "result_contrast_order": observed_order,
                     "local_record_only": True,
                 },
@@ -526,7 +573,7 @@ def assess_practical_significance(
         conclusion,
         tuple(warnings),
         {
-            "planning_status": planning_status,
+            "planning_status": actual_planning_status,
             "researcher_supplied_rationale": threshold.rationale,
             "result_contrast_order": (
                 (
@@ -541,3 +588,6 @@ def assess_practical_significance(
             "external_preregistration_verified": False,
         },
     )
+
+
+practical_significance = assess_practical_significance

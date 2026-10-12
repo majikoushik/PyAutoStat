@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from .exceptions import InvalidDataError
+from .exceptions import InvalidDataError, PyAutoStatError
 from .method_registry import METHOD_REGISTRY, estimate_quantity_for_method
 from .narrate import sensitivity_verdict
 from .results import AnalysisResult, AnalysisStatus
@@ -769,7 +769,8 @@ def compare_same_estimand(base: AnalysisResult, scenario: AnalysisResult) -> dic
         for group in base_means:
             base_mean = base_means[group]
             scenario_mean = scenario_means[group]
-            assert base_mean is not None and scenario_mean is not None
+            if base_mean is None or scenario_mean is None:
+                raise PyAutoStatError("Internal invariant violated: group means cannot be None.")
             differences[group] = scenario_mean - base_mean
         return _json_value(
             {

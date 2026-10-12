@@ -14,6 +14,8 @@ import numpy as np
 import scipy.optimize as optimize
 import scipy.stats as stats
 
+from .exceptions import InvalidDataError
+
 
 def _confidence_interval_record(
     lower: float | None,
@@ -45,7 +47,8 @@ def _confidence_interval_record(
             "multiplicity_adjusted": multiplicity_adjusted,
         }
     else:
-        assert lower is not None and upper is not None
+        if lower is None or upper is None:
+            raise InvalidDataError("Available confidence interval requires finite bounds.")
         low_val = float(lower)
         upp_val = float(upper)
         if not (math.isfinite(low_val) and math.isfinite(upp_val)):

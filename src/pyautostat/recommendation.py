@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .categorical import contingency_counts
-from .exceptions import InsufficientDataError, InvalidDataError
+from .exceptions import InsufficientDataError, InvalidDataError, PyAutoStatError
 from .icc import intraclass_correlation
 from .logistic_regression import build_logistic_design_matrix
 from .question_builder import QuestionDraft, QuestionStatus
@@ -569,7 +569,17 @@ def _alternative(method_id: str, reason: str) -> dict[str, str]:
 
 
 def _numeric(values: pd.Series) -> np.ndarray | None:
-    """Inspect representability without running a statistical test."""
+    """Convert an already-selected numeric analysis vector to a finite float array.
+
+    Contract:
+    The caller must already have established the appropriate analysis sample and
+    handled missing-data/row-alignment policies (e.g. required-column complete cases,
+    paired complete units, or pairwise complete observations).
+    This helper checks that the resulting vector has a numeric dtype and contains
+    only finite values. It does NOT silently drop rows or alter alignment.
+    Infinities (+inf, -inf) are not treated as missing values; they cause this helper
+    to return None so that nonfinite data is caught and rejected by finite-data safeguards.
+    """
     if not pd.api.types.is_numeric_dtype(values):
         return None
     try:
@@ -642,21 +652,13 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
         alternatives: tuple[dict[str, str], ...] = (),
     ) -> Recommendation:
         capability = METHOD_CAPABILITIES.get(method_id) if method_id else None
+        assumption_records: tuple[Any, ...] = ()
         if status == RecommendationStatus.READY and capability is not None:
-            for assumption in capability.assumptions:
-                if "Independent" in assumption:
-                    continue
-                context["assumption_checks"].append(
-                    {
-                        "assumption": assumption,
-                        "category": "data_checkable"
-                        if "expected frequencies" in assumption.lower()
-                        else "not_fully_checkable",
-                        "status": "met"
-                        if "expected frequencies" in assumption.lower()
-                        else "requires_review",
-                    }
-                )
+            from .assumptions import assumptions_to_legacy_dict, build_recommendation_assumptions
+
+            built = build_recommendation_assumptions(method_id, spec, capability)
+            assumption_records = tuple(built)
+            context["assumption_checks"] = assumptions_to_legacy_dict(built)
         return Recommendation(
             status=status,
             method_id=method_id,
@@ -671,6 +673,7 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             alternatives=alternatives,
             context=context,
             questions=questions,
+            assumption_checks=assumption_records,
         )
 
     record("objective", context["objective"], "Researcher-declared research objective.")
@@ -914,12 +917,19 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             ),
         )
 
-    assert objective is not None
+    if objective is None:
+        raise PyAutoStatError("Internal invariant violated: recommendation has no objective.")
     if objective == Objective.COMPARE_REFERENCE:
-        assert question.outcome is not None
+        if question.outcome is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: COMPARE_REFERENCE requires an outcome."
+            )
         return _compare_reference(frame, question.outcome, types, spec, context, record, finish)
     if objective == Objective.REGRESSION:
-        assert question.outcome is not None and question.predictors is not None
+        if question.outcome is None or question.predictors is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: REGRESSION requires outcome and predictors."
+            )
         predictors = question.predictors
         columns = [question.outcome, *predictors]
         context.update(
@@ -1092,10 +1102,16 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             if question.factor_a is not None and question.factor_b is not None
             else question.factors
         )
-        assert question.outcome is not None and factors is not None
+        if question.outcome is None or factors is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: factorial analysis requires outcome and factors."
+            )
         required_columns = [question.outcome, *factors, *(question.controls or ())]
     else:
-        assert question.outcome is not None and question.predictor is not None
+        if question.outcome is None or question.predictor is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: analysis requires outcome and predictor."
+            )
         required_columns = [question.outcome, question.predictor, *(question.controls or ())]
     if spec.design in (StudyDesign.PAIRED, StudyDesign.REPEATED) and spec.unit_id is not None:
         required_columns.append(spec.unit_id)
@@ -1139,8 +1155,10 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 ),
                 rationale="The declared paired target has no supported method.",
             )
-        assert spec.unit_id is not None
-        assert question.predictor is not None
+        if spec.unit_id is None or question.predictor is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: paired design requires unit_id and predictor."
+            )
         return _paired_compare(
             frame,
             question.outcome,
@@ -1175,8 +1193,10 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 ),
                 rationale="The declared repeated target has no supported method.",
             )
-        assert spec.unit_id is not None
-        assert question.predictor is not None
+        if spec.unit_id is None or question.predictor is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: repeated measures requires unit_id and predictor."
+            )
         return _repeated_compare(
             frame,
             question.outcome,
@@ -1280,7 +1300,10 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
                 ),
                 rationale="Two-way factorial ANOVA requires two declared factors.",
             )
-        assert question.predictor is not None
+        if question.predictor is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: two-group comparison requires a predictor."
+            )
         return _compare(
             usable,
             question.outcome,
@@ -1292,7 +1315,8 @@ def recommend_from_draft(frame: pd.DataFrame, draft: QuestionDraft) -> Recommend
             finish,
             warnings,
         )
-    assert question.predictor is not None
+    if question.predictor is None:
+        raise PyAutoStatError("Internal invariant violated: association requires a predictor.")
     return _association(
         usable,
         question.outcome,
@@ -1819,7 +1843,10 @@ def _compare(
             ),
             rationale="Outcome ordering must be meaningful and accepted by the backend.",
         )
-    assert numeric is not None
+    if numeric is None:
+        raise PyAutoStatError(
+            "Internal invariant violated: outcome is not numeric after validation."
+        )
     codes, labels = pd.factorize(usable[group], sort=False)
     values = [numeric[codes == index] for index in range(len(labels))]
     if target == "mean":
@@ -1844,7 +1871,10 @@ def _compare(
                 rationale="The current mean-comparison backend rejects this case.",
             )
         if len(counts) == 2:
-            assert variances[0] is not None and variances[1] is not None
+            if variances[0] is None or variances[1] is None:
+                raise PyAutoStatError(
+                    "Internal invariant violated: group variances are unavailable."
+                )
             with np.errstate(over="ignore", under="ignore", invalid="ignore", divide="ignore"):
                 pooled = ((counts[0] - 1) * variances[0] + (counts[1] - 1) * variances[1]) / (
                     counts[0] + counts[1] - 2

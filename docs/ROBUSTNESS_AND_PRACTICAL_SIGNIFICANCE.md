@@ -75,9 +75,10 @@ practical = assistant.practical_significance(
 print(practical.verdict)
 ```
 
-Supported signed quantities are `mean_difference`, `cohens_d`, `pearson_r`, `spearman_rho`, and
-`rank_biserial`. Supported nonnegative quantities are `cramers_v`, `eta_squared`, and
-`epsilon_squared`. The named quantity must exist in the result. Raw and standardized effects are
+Supported signed quantities from the canonical `QUANTITY_REGISTRY` are `mean_difference`, `cohens_d`, `pearson_r`,
+`spearman_rho`, `rank_biserial`, `matched_pairs_rank_biserial`, `point_biserial_r`, `kendall_tau_b`,
+`partial_pearson_r`, and `paired_proportion_difference`. Supported nonnegative quantities are `cramers_v`,
+`eta_squared`, `epsilon_squared`, and `kendalls_w`. The named quantity must exist in the result. Raw and standardized effects are
 never converted or substituted. A known raw unit must match the threshold unit; when result-unit
 metadata are absent, a supplied unit is preserved with a verification warning.
 
@@ -140,8 +141,11 @@ follow-up configurations were recorded but were not automatically replayed.
 - Changed-data sensitivity and cross-design paired/independent substitutions are not implemented.
   Paired t versus Wilcoxon and Pearson versus Spearman retain different estimand identities;
   chi-square versus Fisher retains the categorical target but different primary effect quantities.
-  Practical thresholds for Wilcoxon matched-pairs rank-biserial effects and Fisher odds ratios are
-  intentionally unsupported; Spearman uses the existing signed-correlation threshold contract.
+- Practical thresholds for Fisher odds ratios, regression coefficient vectors, and scale reliability
+  coefficients (Cronbach's alpha, ICC) are intentionally unsupported. The current threshold architecture is
+  zero-centered; odds-ratio meaningfulness requires a reference-centered ratio contract around OR=1.
+  Regression coefficient vectors require an explicit researcher-selected term rather than evaluating an unpartitioned vector.
+  Scale reliability coefficients require a directional minimum-level contract rather than a two-sided magnitude threshold.
 - Thresholds express researcher context. PyAutoStat does not supply universal practical-importance
   cutoffs or generic small, medium, and large labels for this decision.
 - Formal equivalence and noninferiority tests remain unsupported.

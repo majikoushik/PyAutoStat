@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from ...exceptions import UnsupportedPresentationError
 from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult
 from ..models import (
@@ -86,7 +87,10 @@ def extract_context(
     Returns: (analysis, workflow, specification, interpretation, recommendation, audit)
     """
     if isinstance(target, ResearchWorkflowResult):
-        assert target.analysis is not None
+        if target.analysis is None:
+            raise UnsupportedPresentationError(
+                "Workflow has no completed analysis result to render."
+            )
         return (
             target.analysis,
             target,

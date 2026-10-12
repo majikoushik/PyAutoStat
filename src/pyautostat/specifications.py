@@ -345,6 +345,13 @@ class AnalysisOptions:
                 checked_scoring[item] = (lower, upper)
             object.__setattr__(self, "reverse_scoring", checked_scoring)
 
+    @property
+    def levels_are_complementary(self) -> bool:
+        """Return True if confidence_level is complementary to alpha."""
+        return math.isclose(
+            float(self.confidence_level), 1.0 - float(self.alpha), rel_tol=1e-7, abs_tol=1e-7
+        )
+
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "alpha": self.alpha,
@@ -370,6 +377,7 @@ class AnalysisOptions:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AnalysisOptions:
         cleaned = dict(data)
+        cleaned.pop("levels_are_complementary", None)
         if "icc_model" in cleaned and "model" not in cleaned:
             cleaned["model"] = cleaned.pop("icc_model")
         if "icc_definition" in cleaned and "definition" not in cleaned:

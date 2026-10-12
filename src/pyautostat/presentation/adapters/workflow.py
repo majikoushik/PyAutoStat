@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from ...exceptions import PyAutoStatError
+from ...exceptions import UnsupportedPresentationError
 from ...results import AnalysisResult
 from ...workflow import ResearchWorkflowResult, WorkflowStatus
 from ..models import (
@@ -81,10 +81,6 @@ METHOD_ADAPTERS: dict[str, Callable[[Any, str], TerminalView]] = {
     "two_way_anova": adapt_two_way_anova,
     "intraclass_correlation": adapt_intraclass_correlation,
 }
-
-
-class UnsupportedPresentationError(PyAutoStatError):
-    """Raised when an object or statistical method is not supported by the presentation layer."""
 
 
 def adapt_workflow(

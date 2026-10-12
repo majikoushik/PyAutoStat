@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from collections.abc import Iterable
 from typing import Any
@@ -10,7 +11,13 @@ import numpy as np
 from scipy import stats
 
 from .analyzer import StatisticalAnalyzer
-from .exceptions import InsufficientDataError, InvalidTestError, PyAutoStatError
+from .assumptions import build_recommendation_assumptions
+from .exceptions import (
+    InsufficientDataError,
+    InvalidDataError,
+    InvalidTestError,
+    PyAutoStatError,
+)
 from .inference import paired_values
 from .inference_extended import (
     kendall_tau_b as _kendall_tau_b_backend,
@@ -194,7 +201,8 @@ def _regression_result(
     recommendation: Recommendation,
 ) -> AnalysisResult:
     question = specification.question
-    assert question.outcome is not None and question.predictors is not None
+    if question.outcome is None or question.predictors is None:
+        raise InvalidDataError("Linear regression requires an outcome and predictors.")
     variable_types = recommendation.context.get("variable_types")
     if not isinstance(variable_types, dict):
         raise InsufficientDataError("Regression analytical variable types are unavailable.")
@@ -294,7 +302,8 @@ def _reliability_result(
     recommendation: Recommendation,
 ) -> AnalysisResult:
     items = specification.question.items
-    assert items is not None
+    if items is None:
+        raise InvalidDataError("Scale reliability analysis requires specified items.")
     raw = analyzer.scale_reliability(
         items,
         confidence_level=specification.options.confidence_level,
@@ -358,10 +367,12 @@ def _group_result(
     recommendation: Recommendation,
 ) -> AnalysisResult:
     method_id = recommendation.method_id
-    assert method_id is not None
+    if method_id is None:
+        raise PyAutoStatError("Internal invariant violated: group analysis requires a method_id.")
     group_col = specification.question.predictor
     outcome_col = specification.question.outcome
-    assert group_col is not None and outcome_col is not None
+    if group_col is None or outcome_col is None:
+        raise InvalidDataError("Group analysis requires both a predictor and an outcome.")
     backend_type, target, equal_var = _GROUP_BACKENDS[method_id]
     seed = specification.options.random_seed
     effective_seed = 0 if seed is None else seed
@@ -434,7 +445,8 @@ def _group_result(
         estimate_name = "group means"
         confidence_interval = None
     else:
-        assert effect_value is not None
+        if effect_value is None:
+            raise InsufficientDataError(f"Backend did not provide an effect value for {method_id}.")
         primary = effect_value
         estimate_name = effect_name
         confidence_interval = effect_interval
@@ -514,7 +526,8 @@ def _pearson_result(
 ) -> AnalysisResult:
     first = specification.question.outcome
     second = specification.question.predictor
-    assert first is not None and second is not None
+    if first is None or second is None:
+        raise InvalidDataError("Pearson correlation requires both an outcome and a predictor.")
     subset = analyzer.df[[first, second]]
     declarations = {
         name: value
@@ -601,7 +614,8 @@ def _one_sample_result(
 ) -> AnalysisResult:
     outcome = specification.question.outcome
     reference = specification.question.reference_value
-    assert outcome is not None and reference is not None
+    if outcome is None or reference is None:
+        raise InvalidDataError("One-sample t-test requires an outcome and reference value.")
     raw = analyzer.one_sample_t_test(
         outcome,
         reference,
@@ -697,7 +711,8 @@ def _paired_result(
     outcome = specification.question.outcome
     condition = specification.question.predictor
     unit_id = specification.unit_id
-    assert outcome is not None and condition is not None and unit_id is not None
+    if outcome is None or condition is None or unit_id is None:
+        raise InvalidDataError("Paired analysis requires an outcome, condition, and unit_id.")
     pairs = paired_values(analyzer.df, unit_id, condition, outcome, specification.condition_order)
     first = pairs["first"]
     second = pairs["second"]
@@ -807,7 +822,8 @@ def _wilcoxon_result(
     outcome = specification.question.outcome
     condition = specification.question.predictor
     unit_id = specification.unit_id
-    assert outcome is not None and condition is not None and unit_id is not None
+    if outcome is None or condition is None or unit_id is None:
+        raise InvalidDataError("Wilcoxon signed-rank requires an outcome, condition, and unit_id.")
     raw = analyzer.paired_wilcoxon(
         unit_id,
         condition,
@@ -914,7 +930,8 @@ def _spearman_result(
 ) -> AnalysisResult:
     first = specification.question.outcome
     second = specification.question.predictor
-    assert first is not None and second is not None
+    if first is None or second is None:
+        raise InvalidDataError("Spearman correlation requires an outcome and predictor.")
     seed = specification.options.random_seed
     effective_seed = 0 if seed is None else seed
     raw = analyzer.spearman_correlation(
@@ -990,7 +1007,8 @@ def _categorical_result(
 ) -> AnalysisResult:
     outcome = specification.question.outcome
     predictor = specification.question.predictor
-    assert outcome is not None and predictor is not None
+    if outcome is None or predictor is None:
+        raise InvalidDataError("Categorical association requires an outcome and predictor.")
     seed = specification.options.random_seed
     effective_seed = 0 if seed is None else seed
     raw = analyzer.categorical_association(
@@ -1075,7 +1093,8 @@ def _logistic_regression_result(
     recommendation: Recommendation,
 ) -> AnalysisResult:
     question = specification.question
-    assert question.outcome is not None and question.predictors is not None
+    if question.outcome is None or question.predictors is None:
+        raise InvalidDataError("Logistic regression requires an outcome and predictors.")
     variable_types = recommendation.context.get("variable_types")
     if not isinstance(variable_types, dict):
         raise InsufficientDataError(
@@ -1174,7 +1193,8 @@ def _mcnemar_result(
     outcome = specification.question.outcome
     condition = specification.question.predictor
     unit_id = specification.unit_id
-    assert outcome is not None and condition is not None and unit_id is not None
+    if outcome is None or condition is None or unit_id is None:
+        raise InvalidDataError("McNemar test requires an outcome, condition, and unit_id.")
     seed = specification.options.random_seed
     raw = _mcnemar_backend(
         analyzer.df,
@@ -1278,7 +1298,8 @@ def _point_biserial_result(
 ) -> AnalysisResult:
     first = specification.question.outcome
     second = specification.question.predictor
-    assert first is not None and second is not None
+    if first is None or second is None:
+        raise InvalidDataError("Point-biserial correlation requires an outcome and predictor.")
     types = recommendation.context.get("variable_types", {})
     if types.get(first) in {"nominal_categorical", "boolean"}:
         binary_col, continuous_col = first, second
@@ -1362,7 +1383,8 @@ def _kendall_tau_b_result(
 ) -> AnalysisResult:
     first = specification.question.outcome
     second = specification.question.predictor
-    assert first is not None and second is not None
+    if first is None or second is None:
+        raise InvalidDataError("Kendall tau-b requires an outcome and predictor.")
     seed = specification.options.random_seed
     effective_seed = 0 if seed is None else seed
     raw = _kendall_tau_b_backend(
@@ -1438,7 +1460,8 @@ def _partial_pearson_result(
 ) -> AnalysisResult:
     first = specification.question.outcome
     second = specification.question.predictor
-    assert first is not None and second is not None
+    if first is None or second is None:
+        raise InvalidDataError("Partial Pearson requires an outcome and predictor.")
     controls = specification.question.controls
     if not controls:
         raise InsufficientDataError(
@@ -1525,7 +1548,8 @@ def _fisher_result(
 ) -> AnalysisResult:
     row_variable = specification.question.outcome
     column_variable = specification.question.predictor
-    assert row_variable is not None and column_variable is not None
+    if row_variable is None or column_variable is None:
+        raise InvalidDataError("Fisher exact test requires an outcome and predictor.")
     raw = analyzer.fisher_exact(
         row_variable,
         column_variable,
@@ -1612,7 +1636,10 @@ def _repeated_measures_anova_result(
     outcome = specification.question.outcome
     condition = specification.question.predictor
     unit_id = specification.unit_id
-    assert outcome is not None and condition is not None and unit_id is not None
+    if outcome is None or condition is None or unit_id is None:
+        raise InvalidDataError(
+            "Repeated measures ANOVA requires an outcome, condition, and unit_id."
+        )
 
     raw = analyzer.repeated_measures_anova(
         unit_id,
@@ -1719,7 +1746,8 @@ def _friedman_result(
     outcome = specification.question.outcome
     condition = specification.question.predictor
     unit_id = specification.unit_id
-    assert outcome is not None and condition is not None and unit_id is not None
+    if outcome is None or condition is None or unit_id is None:
+        raise InvalidDataError("Friedman test requires an outcome, condition, and unit_id.")
 
     raw = analyzer.friedman_test(
         unit_id,
@@ -1825,7 +1853,8 @@ def _two_way_anova_result(
     if factor_a is None or factor_b is None:
         if question.factors and len(question.factors) == 2:
             factor_a, factor_b = question.factors[0], question.factors[1]
-    assert outcome is not None and factor_a is not None and factor_b is not None
+    if outcome is None or factor_a is None or factor_b is None:
+        raise InvalidDataError("Two-way ANOVA requires an outcome and two factors.")
 
     raw = analyzer.two_way_anova(
         outcome,
@@ -2066,78 +2095,112 @@ def execute_specification(
             analyzer, specification, recommendation, "Unknown selected method; no analysis ran."
         )
     try:
-        if method_id == "dataset_profile":
-            profile = analyzer.analyze_all(data_dictionary=specification.data_dictionary)
-            return AnalysisResult(
-                method_id=method_id,
-                status=AnalysisStatus.AVAILABLE,
-                sample_size=len(analyzer.df),
-                excluded_rows=0,
-                values={
-                    "profile": _json_safe(profile),
-                    "test_statistic": None,
-                    "p_value": None,
-                    "primary_estimate": None,
-                    "confidence_interval": None,
-                },
-                warnings=_warnings(
-                    recommendation,
-                    [item["message"] for item in profile.get("analysis_warnings", [])],
-                ),
-                metadata={
-                    "method_name": recommendation.method_name,
-                    "numerical_source": "StatisticalAnalyzer.analyze_all",
-                    "inference": False,
-                    "sample": {
-                        "original_rows": len(analyzer.df),
-                        "analyzed_rows": len(analyzer.df),
-                        "excluded_rows": 0,
-                    },
-                },
-                specification=specification,
-                recommendation=recommendation,
-            )
-        if method_id == "linear_regression":
-            return _regression_result(analyzer, specification, recommendation)
-        if method_id == "cronbach_alpha":
-            return _reliability_result(analyzer, specification, recommendation)
-        if method_id in _GROUP_BACKENDS:
-            return _group_result(analyzer, specification, recommendation)
-        if method_id == "one_sample_t":
-            return _one_sample_result(analyzer, specification, recommendation)
-        if method_id == "paired_t":
-            return _paired_result(analyzer, specification, recommendation)
-        if method_id == "wilcoxon_signed_rank":
-            return _wilcoxon_result(analyzer, specification, recommendation)
-        if method_id == "pearson_correlation":
-            return _pearson_result(analyzer, specification, recommendation)
-        if method_id == "spearman_correlation":
-            return _spearman_result(analyzer, specification, recommendation)
-        if method_id == "pearson_chi_square":
-            return _categorical_result(analyzer, specification, recommendation)
-        if method_id == "fisher_exact":
-            return _fisher_result(analyzer, specification, recommendation)
-        if method_id == "logistic_regression":
-            return _logistic_regression_result(analyzer, specification, recommendation)
-        if method_id == "mcnemar":
-            return _mcnemar_result(analyzer, specification, recommendation)
-        if method_id == "point_biserial_correlation":
-            return _point_biserial_result(analyzer, specification, recommendation)
-        if method_id == "kendall_tau_b":
-            return _kendall_tau_b_result(analyzer, specification, recommendation)
-        if method_id == "partial_pearson_correlation":
-            return _partial_pearson_result(analyzer, specification, recommendation)
-        if method_id == "repeated_measures_anova":
-            return _repeated_measures_anova_result(analyzer, specification, recommendation)
-        if method_id == "friedman_test":
-            return _friedman_result(analyzer, specification, recommendation)
-        if method_id == "two_way_anova":
-            return _two_way_anova_result(analyzer, specification, recommendation)
-        if method_id == "intraclass_correlation":
-            return _icc_result(analyzer, specification, recommendation)
-        raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
+        raw_result = _dispatch_method(analyzer, specification, recommendation)
+        return _attach_level_disclosure(raw_result, specification)
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, recommendation, str(exc))
+
+
+def _attach_level_disclosure(
+    result: AnalysisResult,
+    specification: AnalysisSpecification,
+) -> AnalysisResult:
+    if specification is None or specification.options is None:
+        return result
+    if specification.options.levels_are_complementary:
+        return result
+    warning_text = (
+        "The hypothesis-test alpha and confidence level are not complementary; "
+        "hypothesis decisions and interval statements are reported independently."
+    )
+    new_warnings = (
+        result.warnings if warning_text in result.warnings else (*result.warnings, warning_text)
+    )
+    new_metadata = dict(result.metadata)
+    new_metadata["inferential_levels"] = {
+        "alpha": specification.options.alpha,
+        "confidence_level": specification.options.confidence_level,
+        "complementary": False,
+    }
+    return dataclasses.replace(result, warnings=new_warnings, metadata=new_metadata)
+
+
+def _dispatch_method(
+    analyzer: StatisticalAnalyzer,
+    specification: AnalysisSpecification,
+    recommendation: Recommendation,
+) -> AnalysisResult:
+    method_id = recommendation.method_id
+    if method_id == "dataset_profile":
+        profile = analyzer.analyze_all(data_dictionary=specification.data_dictionary)
+        return AnalysisResult(
+            method_id=method_id,
+            status=AnalysisStatus.AVAILABLE,
+            sample_size=len(analyzer.df),
+            excluded_rows=0,
+            values={
+                "profile": _json_safe(profile),
+                "test_statistic": None,
+                "p_value": None,
+                "primary_estimate": None,
+                "confidence_interval": None,
+            },
+            warnings=_warnings(
+                recommendation,
+                [item["message"] for item in profile.get("analysis_warnings", [])],
+            ),
+            metadata={
+                "method_name": recommendation.method_name,
+                "numerical_source": "StatisticalAnalyzer.analyze_all",
+                "inference": False,
+                "sample": {
+                    "original_rows": len(analyzer.df),
+                    "analyzed_rows": len(analyzer.df),
+                    "excluded_rows": 0,
+                },
+            },
+            specification=specification,
+            recommendation=recommendation,
+        )
+    if method_id == "linear_regression":
+        return _regression_result(analyzer, specification, recommendation)
+    if method_id == "cronbach_alpha":
+        return _reliability_result(analyzer, specification, recommendation)
+    if method_id in _GROUP_BACKENDS:
+        return _group_result(analyzer, specification, recommendation)
+    if method_id == "one_sample_t":
+        return _one_sample_result(analyzer, specification, recommendation)
+    if method_id == "paired_t":
+        return _paired_result(analyzer, specification, recommendation)
+    if method_id == "wilcoxon_signed_rank":
+        return _wilcoxon_result(analyzer, specification, recommendation)
+    if method_id == "pearson_correlation":
+        return _pearson_result(analyzer, specification, recommendation)
+    if method_id == "spearman_correlation":
+        return _spearman_result(analyzer, specification, recommendation)
+    if method_id == "pearson_chi_square":
+        return _categorical_result(analyzer, specification, recommendation)
+    if method_id == "fisher_exact":
+        return _fisher_result(analyzer, specification, recommendation)
+    if method_id == "logistic_regression":
+        return _logistic_regression_result(analyzer, specification, recommendation)
+    if method_id == "mcnemar":
+        return _mcnemar_result(analyzer, specification, recommendation)
+    if method_id == "point_biserial_correlation":
+        return _point_biserial_result(analyzer, specification, recommendation)
+    if method_id == "kendall_tau_b":
+        return _kendall_tau_b_result(analyzer, specification, recommendation)
+    if method_id == "partial_pearson_correlation":
+        return _partial_pearson_result(analyzer, specification, recommendation)
+    if method_id == "repeated_measures_anova":
+        return _repeated_measures_anova_result(analyzer, specification, recommendation)
+    if method_id == "friedman_test":
+        return _friedman_result(analyzer, specification, recommendation)
+    if method_id == "two_way_anova":
+        return _two_way_anova_result(analyzer, specification, recommendation)
+    if method_id == "intraclass_correlation":
+        return _icc_result(analyzer, specification, recommendation)
+    raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
 
 
 def execute_selected_method(
@@ -2202,46 +2265,12 @@ def execute_selected_method(
             "design": specification.design.value,
             "selection": "explicit_sensitivity_scenario",
         },
+        assumption_checks=tuple(
+            build_recommendation_assumptions(method_id, specification, capability)
+        ),
     )
     try:
-        if method_id == "linear_regression":
-            return _regression_result(analyzer, specification, explicit)
-        if method_id == "cronbach_alpha":
-            return _reliability_result(analyzer, specification, explicit)
-        if method_id in _GROUP_BACKENDS:
-            return _group_result(analyzer, specification, explicit)
-        if method_id == "one_sample_t":
-            return _one_sample_result(analyzer, specification, explicit)
-        if method_id == "paired_t":
-            return _paired_result(analyzer, specification, explicit)
-        if method_id == "wilcoxon_signed_rank":
-            return _wilcoxon_result(analyzer, specification, explicit)
-        if method_id == "pearson_correlation":
-            return _pearson_result(analyzer, specification, explicit)
-        if method_id == "spearman_correlation":
-            return _spearman_result(analyzer, specification, explicit)
-        if method_id == "pearson_chi_square":
-            return _categorical_result(analyzer, specification, explicit)
-        if method_id == "fisher_exact":
-            return _fisher_result(analyzer, specification, explicit)
-        if method_id == "logistic_regression":
-            return _logistic_regression_result(analyzer, specification, explicit)
-        if method_id == "mcnemar":
-            return _mcnemar_result(analyzer, specification, explicit)
-        if method_id == "point_biserial_correlation":
-            return _point_biserial_result(analyzer, specification, explicit)
-        if method_id == "kendall_tau_b":
-            return _kendall_tau_b_result(analyzer, specification, explicit)
-        if method_id == "partial_pearson_correlation":
-            return _partial_pearson_result(analyzer, specification, explicit)
-        if method_id == "repeated_measures_anova":
-            return _repeated_measures_anova_result(analyzer, specification, explicit)
-        if method_id == "friedman_test":
-            return _friedman_result(analyzer, specification, explicit)
-        if method_id == "two_way_anova":
-            return _two_way_anova_result(analyzer, specification, explicit)
-        if method_id == "intraclass_correlation":
-            return _icc_result(analyzer, specification, explicit)
-        raise InvalidTestError(f"No execution adapter exists for {method_id!r}.")
+        raw_result = _dispatch_method(analyzer, specification, explicit)
+        return _attach_level_disclosure(raw_result, specification)
     except PyAutoStatError as exc:
         return _unavailable(analyzer, specification, explicit, str(exc))

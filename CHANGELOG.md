@@ -20,9 +20,36 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 -   **Canonical method and quantity registry layer (PR-3, `method_registry.py`)**:
     -   *Capability*: Introduced a lightweight canonical registry layer (`MethodRegistration`, `QuantityDefinition`, `METHOD_REGISTRY`, `QUANTITY_REGISTRY`) and invariant validation (`validate_registry_invariants`).
-    -   *Integrity*: Centralized sensitivity quantities, sensitivity result shapes (`scalar` vs `coefficient_vector`), practical-significance quantity sets, and execution method tracking. Replaced duplicated sensitivity and practical-significance mappings, preventing metadata drift across contracts and backends.
+-   **Assumption metadata architecture and execution-diagnostic linkage (PR-4, `assumptions.py`, `recommendation.py`, `execution.py`)**:
+    -   *Capability*: Introduced canonical immutable `AssumptionCheck`, `AssessmentMode`, and `AssumptionStatus` records with post-execution reconciliation via `reconcile_assumptions`.
+    -   *Scientific Safeguards*: Formally distinguishes researcher design facts (e.g. observational independence), pre-execution data checks (e.g. expected cell counts), post-execution diagnostics (e.g. Shapiro-Wilk or Levene), and researcher domain review. Diagnostic non-rejection is never described as proving an assumption, and diagnostics never silently switch the recommended method.
+
+-   **Practical-significance canonical quantity expansion and validations (PR-6 Part C, `practical_significance.py`, `method_registry.py`)**:
+    -   *Capability*: Derived practical-significance quantity support directly from `QUANTITY_REGISTRY`. Safely expanded zero-centered quantities to `matched_pairs_rank_biserial`, `point_biserial_r`, `kendall_tau_b`, `partial_pearson_r`, `paired_proportion_difference`, and `kendalls_w`.
+    -   *Domain Validations*: Validated estimate and CI domain boundaries ($[-1, 1]$ for bounded correlations, $[0, 1]$ for Kendall's W). Documented deliberate exclusions (`odds_ratio` zero-centered vs ratio reference at 1, `coefficient_vector` without researcher-selected term, scale reliability requiring directional minimum-level semantics).
+
+-   **Alpha and confidence-level semantic independence (PR-6 Part D, `specifications.py`, `execution.py`)**:
+    -   *Capability*: Preserved independent researcher selection of `alpha` (hypothesis testing) and `confidence_level` (estimation intervals) in `AnalysisOptions`.
+    -   *Disclosure*: Added `levels_are_complementary` property. When non-complementary, attaches an advisory disclosure warning in analysis warnings and metadata without modifying computations or claiming mathematical equivalence.
 
 ### Fixed
+
+-   **Production runtime assertion removal and invariant hardening (PR-5 Part A, `src/pyautostat/`)**:
+    -   *Affected area*: All source modules under `src/pyautostat`.
+    -   *Correction*: Replaced all 44 production runtime `assert` statements with typed guards (`PyAutoStatError`, `InvalidDataError`, `UnsupportedPresentationError`), ensuring optimized Python execution (`python -O`) preserves identical public validation and internal invariant protection.
+
+-   **Design-aware missing-data preprocessing and alignment hardening (PR-5 Part B, `src/pyautostat/`)**:
+    -   *Affected area*: Group comparisons, one-sample t, paired tests, repeated measures, regression, correlation, categorical association, and scale reliability.
+    -   *Correction*: Hardened low-level numeric conversion to prevent silent dropping of missing data. Missingness handling occurs strictly at design-aware preprocessing layers, preserving paired unit alignment, complete repeated-measures units, and explicit excluded-row accounting. DataFrames with non-finite values (infinities) are strictly rejected rather than dropped.
+
+-   **StudyPlanner documentation precision and scope boundaries (PR-6 Part A, `study_planning.py`, `API_REFERENCE.md`, `docs/`)**:
+    -   *Affected area*: StudyPlanner public documentation and task guides.
+    -   *Correction*: Clarified that `StudyPlanner` is bounded strictly to four prospective mean planning operations (`independent_mean_power`, `independent_mean_precision`, `paired_mean_power`, `paired_mean_precision`). Eliminated broad power planning claims that could imply support for regression, ANOVA, correlation, proportions, or post-hoc power.
+
+-   **Statsmodels dependency upper bound strategy and forward-compatibility testing (PR-6 Part B, `pyproject.toml`, `.github/workflows/ci.yml`)**:
+    -   *Affected area*: Package dependencies and CI workflow.
+    -   *Correction*: Retained conservative production bound `statsmodels>=0.15,<0.16` after confirming no 0.16.x release is available on PyPI. Added a dedicated, non-blocking GitHub Actions forward-compatibility CI job (`statsmodels-forward-compat`) to continuously test against pre-release/newer statsmodels builds without exposing unvalidated version ranges to users.
+
 
 -   **Degenerate all-identical Mann-Whitney U test handling (`analyzer.py`)**:
     -   *Affected method/path*: `StatisticalAnalyzer.hypothesis_tests(..., test_type="mannwhitney")` and integrated `mann_whitney_u` execution.

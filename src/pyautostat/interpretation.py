@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from .exceptions import InvalidDataError
+from .exceptions import InvalidDataError, PyAutoStatError
 from .narrate import (
     _confidence_interval_width,
     assumption_grade,
@@ -1087,7 +1087,8 @@ def _two_way_anova_interpretation(result: AnalysisResult) -> InterpretationResul
 def _context(result: AnalysisResult) -> tuple[str, str | None]:
     """Return the method description and the verified group contrast, if any."""
     method = result.method_id
-    assert result.specification is not None
+    if result.specification is None:
+        raise PyAutoStatError("Internal invariant violated: analysis result has no specification.")
     question = result.specification.question
     if method == "one_sample_t":
         reference = question.reference_value
@@ -1867,7 +1868,8 @@ class InterpretationEngine:
                             "metadata.contrast",
                         )
                     if effect_value is not None:
-                        assert isinstance(effect, dict)
+                        if not isinstance(effect, dict):
+                            raise InvalidDataError("The effect measure record is invalid.")
                         definition = effect.get("definition")
                         d_text = effect_narrative(
                             str(effect.get("name")),
@@ -1899,7 +1901,8 @@ class InterpretationEngine:
                     direction = (
                         "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
                     )
-                    assert isinstance(effect, dict)
+                    if not isinstance(effect, dict):
+                        raise InvalidDataError("The effect measure record is invalid.")
                     definition = effect.get("definition")
                     effect_text = effect_narrative(
                         str(effect.get("name")),
@@ -1911,7 +1914,8 @@ class InterpretationEngine:
                     estimate is not None and effect_value is not None and method == "one_way_anova"
                 ):
                     direction = "positive" if estimate > 0 else "zero"
-                    assert isinstance(effect, dict)
+                    if not isinstance(effect, dict):
+                        raise InvalidDataError("The effect measure record is invalid.")
                     definition = effect.get("definition")
                     effect_text = effect_narrative(
                         str(effect.get("name")),
@@ -1922,7 +1926,8 @@ class InterpretationEngine:
                     estimate is not None and effect_value is not None and method == "kruskal_wallis"
                 ):
                     direction = "positive" if estimate > 0 else "zero"
-                    assert isinstance(effect, dict)
+                    if not isinstance(effect, dict):
+                        raise InvalidDataError("The effect measure record is invalid.")
                     definition = effect.get("definition")
                     effect_text = effect_narrative(
                         str(effect.get("name")),
@@ -1933,7 +1938,8 @@ class InterpretationEngine:
                     direction = (
                         "positive" if estimate > 0 else "negative" if estimate < 0 else "zero"
                     )
-                    assert isinstance(effect, dict)
+                    if not isinstance(effect, dict):
+                        raise InvalidDataError("The effect measure record is invalid.")
                     definition = effect.get("definition")
                     effect_text = effect_narrative(
                         str(effect.get("name")),
@@ -1942,7 +1948,8 @@ class InterpretationEngine:
                     )
                 elif estimate is not None and effect_value is not None:
                     direction = "positive" if estimate > 0 else "zero"
-                    assert isinstance(effect, dict)
+                    if not isinstance(effect, dict):
+                        raise InvalidDataError("The effect measure record is invalid.")
                     definition = effect.get("definition")
                     effect_text = effect_narrative(
                         str(effect.get("name")),

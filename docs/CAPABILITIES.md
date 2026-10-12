@@ -164,15 +164,17 @@ analysis-specific complete-case rules; no values are imputed and no outliers are
 
 ## Prospective study planning
 
-`StudyPlanner` supports two-sided prospective planning:
+`StudyPlanner` supports prospective independent- and paired-mean power/precision planning across four explicit operations (`independent_mean_power`, `independent_mean_precision`, `paired_mean_power`, `paired_mean_precision`):
 
-| Family | Power planning | Precision planning | Required researcher assumptions |
-| --- | --- | --- | --- |
-| Independent means | Bounded Welch noncentral-t approximation | Bounded Welch t half-width | Target difference for power, two SDs, alpha or confidence, and allocation ratio |
-| Paired means | Bounded paired noncentral-t calculation | Bounded paired t half-width | Target paired difference for power, paired-difference SD, and complete pairs |
+| Operation | Purpose | Required researcher assumptions |
+| --- | --- | --- |
+| `independent_mean_power` | Bounded Welch noncentral-t approximation | Target difference for power, two SDs, alpha, target power, and allocation ratio |
+| `independent_mean_precision` | Bounded Welch t half-width | Two SDs, confidence level, target half-width, and allocation ratio |
+| `paired_mean_power` | Bounded paired noncentral-t calculation | Target paired difference for power, paired-difference SD, alpha, and target power |
+| `paired_mean_precision` | Bounded paired t half-width | Paired-difference SD, confidence level, and target half-width |
 
 Planning does not derive anticipated effects from observed results and does not report automatic
-observed post-hoc power.
+observed post-hoc power. Generic power analysis for regression, correlation, ANOVA, proportions, reliability, ICC, or factorial designs is not supported.
 
 ## Research workflow capabilities
 

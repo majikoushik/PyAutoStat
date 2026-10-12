@@ -12,6 +12,12 @@ from .analysis_plan import (
     compare_plan_to_result,
 )
 from .analyzer import StatisticalAnalyzer
+from .assumptions import (
+    AssessmentMode,
+    AssumptionCheck,
+    AssumptionStatus,
+    reconcile_assumptions,
+)
 
 # ---------------------------------------------------------------------------
 # Level 3: Audit, reproducibility, completeness, and session snapshots
@@ -168,6 +174,10 @@ __all__ = [
     "compare_plan_to_result",
     "MeaningfulEffectThreshold",
     "PracticalSignificanceResult",
+    "AssumptionCheck",
+    "AssessmentMode",
+    "AssumptionStatus",
+    "reconcile_assumptions",
     "SensitivitySpecification",
     "SensitivityScenario",
     "SensitivityScenarioResult",

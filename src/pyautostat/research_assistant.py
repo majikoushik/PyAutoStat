@@ -1664,7 +1664,10 @@ class ResearchAssistant:
         if draft is not None and not isinstance(draft, QuestionDraft):
             raise InvalidDataError("draft must be a QuestionDraft.")
         selected_spec = draft.specification if draft is not None else specification
-        assert selected_spec is not None
+        if selected_spec is None:
+            raise PyAutoStatError(
+                "Internal invariant violated: validated execution has no analysis specification."
+            )
         result = execute_specification(self._analyzer, selected_spec)
         self._analysis_has_executed = result.method_id != "unselected"
         if self._ledger is not None:

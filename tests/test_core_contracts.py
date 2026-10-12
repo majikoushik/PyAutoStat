@@ -50,9 +50,15 @@ def test_assistant_reuses_analyzer_validation(bad):
 
 
 def test_legacy_exports_are_available():
-    assert len(pyautostat.__all__) == 105
-    assert len(set(pyautostat.__all__)) == 105
+    assert len(pyautostat.__all__) == 109
+    assert len(set(pyautostat.__all__)) == 109
     assert {"InsightEngine", "ReportGenerator"} <= set(pyautostat.__all__)
+    assert {
+        "AssumptionCheck",
+        "AssessmentMode",
+        "AssumptionStatus",
+        "reconcile_assumptions",
+    } <= set(pyautostat.__all__)
     for name in pyautostat.__all__:
         assert hasattr(pyautostat, name), f"Missing public export: {name}"
         assert getattr(pyautostat, name) is not None

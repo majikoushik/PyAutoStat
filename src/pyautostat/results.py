@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from .assumptions import AssumptionCheck
 from .exceptions import InvalidDataError
 from .specifications import SCHEMA_VERSION, AnalysisSpecification, _json_value
 
@@ -85,12 +86,15 @@ class Recommendation:
     alternatives: tuple[dict[str, Any], ...] = ()
     context: dict[str, Any] = field(default_factory=dict)
     questions: tuple[dict[str, Any], ...] = ()
+    assumption_checks: tuple[AssumptionCheck, ...] = ()
 
     def __post_init__(self) -> None:
         try:
             object.__setattr__(self, "status", RecommendationStatus(self.status))
         except ValueError as exc:
             raise InvalidDataError("status must be ready, needs_input, or unsupported.") from exc
+        if not isinstance(self.assumption_checks, tuple):
+            object.__setattr__(self, "assumption_checks", tuple(self.assumption_checks))
         if self.status is RecommendationStatus.READY and not self.method_id:
             raise InvalidDataError("method_id is required when recommendation status is ready.")
         if self.status is RecommendationStatus.NEEDS_INPUT and not self.missing_information:
@@ -126,6 +130,7 @@ class Recommendation:
                 "alternatives": self.alternatives,
                 "context": self.context,
                 "questions": self.questions,
+                "assumption_checks": [item.to_dict() for item in self.assumption_checks],
             }
         )
 
@@ -241,6 +246,16 @@ class AnalysisResult:
                 else None,
             }
         )
+
+    @property
+    def assumption_checks(self) -> tuple[AssumptionCheck, ...]:
+        """Return structured assumption records reconciled with recorded diagnostics."""
+        if self.recommendation is None:
+            return ()
+        base_checks = self.recommendation.assumption_checks
+        from .assumptions import reconcile_assumptions
+
+        return tuple(reconcile_assumptions(base_checks, self))
 
     @property
     def method_label(self) -> str:

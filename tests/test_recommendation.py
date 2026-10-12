@@ -74,7 +74,8 @@ def test_two_group_mean_targets_welch_and_explains_alternatives(comparison):
         item["key"] == "method" and item["value"] == "welch_t" for item in result.decision_trace
     )
     assert result.context["assumption_checks"][0]["status"] == "confirmed"
-    assert result.context["assumption_checks"][1]["status"] == "requires_review"
+    assert result.context["assumption_checks"][1]["status"] == "not_assessed"
+    assert result.context["assumption_checks"][2]["status"] == "requires_review"
 
 
 def test_skewed_data_do_not_change_a_mean_target():

@@ -126,8 +126,21 @@ class ResearchWorkflowResult:
                 "missing_information": [item.to_dict() for item in self.missing_information],
                 "blockers": self.blockers,
                 "warnings": self.warnings,
+                "assumption_checks": [item.to_dict() for item in self.assumption_checks],
             }
         )
+
+    @property
+    def assumption_checks(self) -> tuple[Any, ...]:
+        """Return structured assumption records, reconciled with execution diagnostics."""
+        if self.recommendation is None:
+            return ()
+        base_checks = self.recommendation.assumption_checks
+        if self.analysis is not None:
+            from .assumptions import reconcile_assumptions
+
+            return tuple(reconcile_assumptions(base_checks, self.analysis))
+        return base_checks
 
     def to_json(self) -> str:
         """Serialize without nonfinite JSON constants."""

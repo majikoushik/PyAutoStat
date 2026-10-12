@@ -172,7 +172,7 @@ Intended for researchers and data scientists who:
 
 Key interfaces:
 - **`StatisticalAnalyzer`**: The direct statistical calculation and profiling engine behind PyAutoStat. Provides direct access to t-tests, Mann-Whitney U, Welch ANOVA, Games-Howell, factorial ANOVA, repeated measures, OLS regression, and ICC.
-- **`StudyPlanner`**: Prospective power analysis and sample size planning prior to data collection.
+- **`StudyPlanner`**: Prospective independent- and paired-mean power/precision planning prior to data collection (supports exactly four operations: `independent_mean_power`, `independent_mean_precision`, `paired_mean_power`, `paired_mean_precision`; no observed or post-hoc power).
 - **`StatisticalAnalysisPlan`**: Pre-analysis plan specifications and adherence comparison (`compare_plan_to_result`).
 - **`SensitivitySpecification`**: Evaluation of same-estimand and different-estimand sensitivity scenarios.
 - **`MeaningfulEffectThreshold`**: Evaluation of empirical effect sizes against researcher-declared practical thresholds.
@@ -876,8 +876,14 @@ practical = assistant.practical_significance(
 print(practical.verdict)
 ```
 
-`MeaningfulEffectThreshold` supports signed `mean_difference`, `cohens_d`, `pearson_r`, and
-`rank_biserial` quantities and nonnegative `cramers_v`, `eta_squared`, and `epsilon_squared`.
+`MeaningfulEffectThreshold` supports signed `mean_difference`, `cohens_d`, `pearson_r`,
+`spearman_rho`, `rank_biserial`, `matched_pairs_rank_biserial`, `point_biserial_r`, `kendall_tau_b`,
+`partial_pearson_r`, and `paired_proportion_difference`, along with nonnegative `cramers_v`,
+`eta_squared`, `epsilon_squared`, and `kendalls_w`.
+Deliberate exclusions include:
+- `odds_ratio`: The current threshold contract is zero-centered; odds-ratio meaningfulness requires a reference-centered ratio contract around OR=1.
+- `coefficient_vector`: Practical thresholds require an explicit researcher-selected term rather than evaluating an unpartitioned vector.
+- Scale reliability coefficients (`cronbach_alpha`, `intraclass_correlation`): Reliability requires a directional minimum-level contract rather than a two-sided magnitude threshold.
 Magnitude must be finite and nonnegative. Directions are `two_sided`, `positive`, `negative`, or
 `nonnegative` as appropriate. `equivalence` and `noninferiority` are recognized only to return an
 explicit unsupported result; no TOST or noninferiority test is implemented. Unit and rationale are
@@ -980,7 +986,11 @@ print(recommendation.explain(diagnostics=result.metadata["diagnostics"]))
 
 Numeric association with no specified relationship target requests one clarification. A numeric/categorical association requests confirmation before changing the research objective. A paired mean question without a unit ID returns `needs_input`; compatible two-condition paired data select `paired_t`. Repeated and clustered designs return `unsupported`; an unknown essential design returns `needs_input`. A declared missing code still present among selected values blocks a finalized recommendation until the caller normalizes the data and rebuilds the assistant. The engine never recodes or excludes those values itself.
 
-`Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), and `questions` (question-builder-compatible clarification dictionaries). `required_assumptions` and `context.assumption_checks` disclose researcher-confirmed facts, checkable feasibility, and conditions requiring review. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the specification schema; existing explicit analyzer calls remain available to experts.
+`Recommendation` retains its version 1 envelope and original fields. Additive fields are `method_availability` (`runnable`, `coefficient_only`, or `unavailable`), `decision_trace` (ordered `{key, value, reason}` entries), `alternatives` (method ID, name, availability, reason), `context` (objective, target, design, selected analytical types, complete-case availability and relevant feasibility facts), `questions` (question-builder-compatible clarification dictionaries), and canonical `assumption_checks` (`tuple[AssumptionCheck, ...]`). `AssumptionCheck` records `assumption_id`, `description`, `assessment_mode`, `status`, `diagnostic_ids`, and `message`.
+- `AssessmentMode`: `researcher_design_fact` (for design facts such as observational independence; never proven from values), `pre_execution_data_check` (for data structures/counts verifiable before execution such as expected contingency frequencies), `post_execution_diagnostic` (for diagnostic tests such as Shapiro-Wilk or Levene; non-rejection does not prove normality or homoscedasticity), and `researcher_review` (for substantive domain conditions requiring researcher judgment).
+- `AssumptionStatus`: `confirmed`, `unresolved`, `checked`, `not_assessed`, `diagnostic_available`, `evidence_against`, `no_strong_evidence_against`, `requires_review`, and `not_applicable`.
+Recommendation-stage assumptions remain in pre-execution state (`not_assessed`, `confirmed`, `requires_review`). Post-execution execution diagnostics enrich these records via `reconcile_assumptions(assumption_checks, analysis_result)`. Diagnostics never silently switch the recommended method. Backward-compatible `context.assumption_checks` is derived directly from these canonical records.
+`AnalysisOptions` permits independent specification of `alpha` (governing hypothesis testing decisions) and `confidence_level` (governing interval calculations). When `confidence_level` and `alpha` are non-complementary (`math.isclose(confidence_level, 1 - alpha)` is False), PyAutoStat preserves both, emits an advisory warning disclosure in `warnings` and `metadata["inferential_levels"]`, and makes no claim that the hypothesis test and confidence interval represent interchangeable views of the same decision. `to_dict()` is JSON-compatible and includes no raw rows or invented p-values. The small `METHOD_CAPABILITIES` registry in `pyautostat.recommendation` documents actual backend availability. An explicit preferred-method override is deferred to avoid changing the specification schema; existing explicit analyzer calls remain available to experts.
 
 `recommendation.rationale_text` and `recommendation.explain(diagnostics=None)` derive a readable
 `RECOMMENDED TEST`, `WHY THIS TEST?`, context-specific `WHY NOT ...?`, and
@@ -1418,12 +1428,13 @@ paired = planner.paired_mean_precision(
 )
 ```
 
-`StudyPlanner` is standalone. It exposes `independent_mean_power`,
-`independent_mean_precision`, `paired_mean_power(target_mean_difference=...)`, and
-`paired_mean_precision`. Searches are bounded by `max_n` or `max_pairs` (default 100,000).
-`allocation_ratio` means `n2/n1`. Paired results use `required_pairs`; `total_required_n` is left
-unset so a pair count is not mistaken for raw rows. Inputs must be finite and scientifically
-valid. These functions never inspect an observed result and there is no observed-power API.
+`StudyPlanner` is standalone and intentionally bounded. It supports prospective independent- and paired-mean power/precision planning from researcher-supplied assumptions across exactly four public operations:
+- `independent_mean_power`: prospective power planning for independent two-group mean comparisons.
+- `independent_mean_precision`: prospective confidence-interval precision planning for independent two-group mean comparisons.
+- `paired_mean_power`: prospective power planning for two-condition paired mean comparisons.
+- `paired_mean_precision`: prospective precision planning for two-condition paired mean comparisons.
+
+`StudyPlanner` does not provide generic sample-size or power analysis for regression, correlation, ANOVA, proportions, reliability, ICC, or factorial designs. There is no observed-power or post-hoc power API. Searches are bounded by `max_n` or `max_pairs` (default 100,000). `allocation_ratio` means `n2/n1`. Paired results use `required_pairs`; `total_required_n` is left unset so a pair count is not mistaken for raw rows. Inputs must be finite and scientifically valid. These functions never inspect an observed result.
 
 For paired execution, pass `unit_id=` and optionally `condition_order=(first, second)` through
 `prepare_question()`, `run()`, or schema-3 `AnalysisSpecification`. Exactly two observed

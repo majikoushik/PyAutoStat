@@ -10,7 +10,9 @@ certify scientific truth, study quality, external preregistration, or data authe
 - `StatisticalAnalysisPlan` and `assistant.analysis_plan(...)` record the intended specification,
   hypotheses, alpha, and researcher-supplied decisions without proving external preregistration.
 - `StudyPlanner` and `assistant.study_planner()` support prospective independent- and paired-mean
-  planning from researcher-supplied assumptions. They do not compute observed post-hoc power.
+  planning across four operations (`independent_mean_power`, `independent_mean_precision`, `paired_mean_power`,
+  `paired_mean_precision`) from researcher-supplied assumptions. They do not compute observed post-hoc power and
+  do not provide generic sample-size planning for regression, correlation, ANOVA, or other designs.
 - `plan_adherence` and `assistant.plan_adherence(...)` compare a recorded plan with an executed
   result and make matches, deviations, and unknowns explicit.
 - [Robustness and practical significance](ROBUSTNESS_AND_PRACTICAL_SIGNIFICANCE.md) covers

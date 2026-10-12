@@ -27,3 +27,7 @@ class InvalidTestError(PyAutoStatError):
 
 class ReportError(PyAutoStatError):
     """Raised when a report cannot be rendered or written."""
+
+
+class UnsupportedPresentationError(PyAutoStatError):
+    """Raised when an object or statistical method is not supported by the presentation layer."""
