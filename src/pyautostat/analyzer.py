@@ -1609,8 +1609,13 @@ class StatisticalAnalyzer:
                         "diagnostic rejected this or was unavailable."
                     )
             else:
-                _, p_val = mannwhitneyu(group1, group2, alternative="two-sided")
-                stat = self._mann_whitney_u1(group1, group2)
+                pooled_obs = np.concatenate(group_data)
+                if np.unique(pooled_obs).size == 1:
+                    stat = self._mann_whitney_u1(group1, group2)
+                    p_val = 1.0
+                else:
+                    _, p_val = mannwhitneyu(group1, group2, alternative="two-sided")
+                    stat = self._mann_whitney_u1(group1, group2)
                 effect_size = self._rank_biserial(stat, len(group1), len(group2))
                 results = {
                     "test": "Mann-Whitney U",
@@ -1625,7 +1630,7 @@ class StatisticalAnalyzer:
                     },
                 }
                 if min(len(group1), len(group2)) < 10 and (
-                    np.unique(np.concatenate(group_data)).size < len(usable)
+                    np.unique(pooled_obs).size < len(usable)
                 ):
                     assumptions["warnings"].append(
                         "Small tied samples use an asymptotic Mann-Whitney p-value; "

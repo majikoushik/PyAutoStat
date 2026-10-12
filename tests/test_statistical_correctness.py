@@ -198,6 +198,15 @@ def test_mann_whitney_ties_u_and_rank_direction():
     assert tied_res["effect_size"]["value"] == pytest.approx(0.0)
     assert tied_res["p_value"] == pytest.approx(1.0)
 
+    # All values tied with unequal n: U=4.0, rank-biserial=0.0, p=1.0
+    unequal_tied = _groups([5, 5], [5, 5, 5, 5])
+    unequal_res = StatisticalAnalyzer(unequal_tied).hypothesis_tests(
+        "group", "value", "mannwhitney", bootstrap_samples=0
+    )
+    assert unequal_res["statistic"] == pytest.approx(4.0)
+    assert unequal_res["effect_size"]["value"] == pytest.approx(0.0)
+    assert unequal_res["p_value"] == pytest.approx(1.0)
+
     # Input immutability
     orig_equal = _groups([1, 2, 3], [1, 2, 3])
     pd.testing.assert_frame_equal(equal_frame, orig_equal)

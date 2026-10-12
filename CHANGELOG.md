@@ -9,6 +9,12 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+-   **Degenerate all-identical Mann-Whitney U test handling (`analyzer.py`)**:
+    -   *Affected method/path*: `StatisticalAnalyzer.hypothesis_tests(..., test_type="mannwhitney")` and integrated `mann_whitney_u` execution.
+    -   *Edge condition*: Two-group comparison where every pooled observed value across both groups is identical (e.g., $A = [5, 5, 5], B = [5, 5, 5]$).
+    -   *Previous failure*: Newer SciPy versions (1.14+) return a nonfinite (NaN) p-value due to zero tie-corrected rank variance in the normal approximation denominator, which PyAutoStat converted into an unhandled `InsufficientDataError`.
+    -   *Corrected behavior*: Deterministically handles the all-identical pooled observations edge case before backend dispatch, returning the theoretical midpoint statistic $U = n_1 n_2 / 2$, rank-biserial correlation $r_{\text{rb}} = 0.0$, and two-sided p-value $p = 1.0$. Ordinary tied-but-nondegenerate comparisons and backend error handling for genuine insufficiency remain completely unaffected.
+
 -   **Exception hierarchy consistency for presentation errors (`presentation/adapters/workflow.py`)**:
     -   *Affected area*: `UnsupportedPresentationError`, top-level exception exports.
     -   *Edge condition*: Client applications catching base `PyAutoStatError` to handle all package exceptions when presentation adapters encounter unsupported models or objects.
