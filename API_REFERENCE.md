@@ -821,15 +821,24 @@ method ID, the ordinary deterministic recommendation for that scenario specifica
 Student t and standard ANOVA require an explicit equal-population-variance assumption. No method
 is chosen from a p-value.
 
-`SensitivityResult.status` is governed by `SensitivityStatus` (`complete`, `partial`, or `unavailable`). Each scenario in `SensitivitySpecification.scenarios` is defined as a `SensitivityScenario`. Its `scenario_results` retain every supplied scenario in order as a `SensitivityScenarioResult` with execution status governed by `ScenarioStatus` (`completed`, `unavailable`, `incompatible`, or `failed`) and comparability governed by `Comparability` (`same_estimand`, `different_estimand`, `incompatible`, or `unavailable`). Each record includes actual method, stable estimate quantity, estimate, effect quantity/value, CI, p-value, sample/exclusion counts, contrast, warnings, error, and the aggregate `AnalysisResult` in memory. Serialization excludes the in-memory result object and source DataFrame.
+`SensitivityResult.status` is governed by `SensitivityStatus` (`complete`, `partial`, or `unavailable`). Each scenario in `SensitivitySpecification.scenarios` is defined as a `SensitivityScenario`. Its `scenario_results` retain every supplied scenario in order as a `SensitivityScenarioResult` with execution status governed by `ScenarioStatus` (`completed`, `unavailable`, `incompatible`, or `failed`) and comparability governed by `Comparability` (`same_estimand`, `different_estimand`, `incompatible`, or `unavailable`). Each record includes actual method, stable estimate quantity, estimate, effect quantity/value, CI, p-value, sample/exclusion counts, contrast, warnings, error, structured `estimates` (tuple of `SensitivityEstimate` records for coefficient-vector methods), and the aggregate `AnalysisResult` in memory. Serialization excludes the in-memory result object and source DataFrame. Serialized results follow schema version 2 (`SENSITIVITY_SCHEMA_VERSION = 2`), while specification serialization adheres to schema version 1.
+
+#### Scalar, regression, and reliability sensitivity workflows
+
+- **Scalar methods**: Welch t, Student t, Mann-Whitney U, Paired t, Wilcoxon, Pearson, Spearman, Kendall, One-way ANOVA, Kruskal-Wallis, Repeated-measures ANOVA, Friedman, Two-way ANOVA, and Point-biserial correlation map to scalar primary quantities (e.g. `mean_difference`, `rank_biserial_correlation`, `eta_squared`).
+- **Regression models (`linear_regression`, `logistic_regression`)**: Sensitivity analysis preserves term-level coefficient structures using immutable `SensitivityEstimate` records. The primary scalar fields (`primary_estimate`, `p_value`) remain `None` to avoid fabricating an arbitrary single scalar summary for a vector of coefficients. Each term is identified by stable key (e.g., `"Intercept"`, `"x"`), estimate (conditional mean effect for OLS, log-odds coefficient for logistic regression), standard error, confidence interval, p-value, and metadata.
+  - *Same-estimand comparability*: Comparing OLS with classical covariance versus OLS with HC3 robust covariance for the identical formula, predictors, and reference levels is classified as `Comparability.SAME_ESTIMAND`. Point estimates remain identical, while uncertainty (SE, CI, p-value) varies.
+  - *Model specification changes*: Altering predictors, reference levels, or outcomes changes the conditional estimand and is classified as `Comparability.DIFFERENT_ESTIMAND`. Unmatched terms between base and scenario models are explicitly recorded without position-based alignment or zero-imputation.
+- **Scale reliability (`cronbach_alpha`)**: Sensitivity analysis extracts the scalar Cronbach's alpha estimate (`estimate_quantity = "cronbach_alpha"`).
+  - *Same scale*: Scenarios retaining the identical item set are classified as `Comparability.SAME_ESTIMAND`.
+  - *Changed item set*: Comparing a scale against an item-deleted alternative (e.g., items A, B, C vs A, B, C, D) redefines the scale construct and is conservatively classified as `Comparability.DIFFERENT_ESTIMAND`.
+  - *Reverse scoring*: Researcher-declared reverse scoring is preserved with explicit scoring provenance.
 
 Same-estimand comparisons record estimate difference, direction, interval availability and
 descriptive overlap, sample-size change, and a relative change only when the base estimate is not
 near zero. Reversed group orientation is normalized in comparison fields with an explicit
 transformation note; raw scenario values remain unchanged. Different-estimand analyses, including
-Welch mean difference versus Mann–Whitney rank distribution, have no direct estimate-change
-calculation. There is no p-value ordering, scenario selection, robustness score, or automatic
-changed-data analysis.
+Welch mean difference versus Mann–Whitney rank distribution or changed regression model specifications, have no direct estimate-change calculation. There is no p-value ordering, scenario selection, robustness score, or automatic changed-data analysis.
 
 `sensitivity.verdict` and `sensitivity.compare()` provide deterministic plain-language decision
 consistency. The printable comparison retains every scenario and labels the comparable conclusion
@@ -839,6 +848,16 @@ specification's alpha and strict `p < alpha` rule. A mixed-estimand result expli
 direct numerical comparison. The `ROBUST` display label means only that the supplied comparable
 methods have the same recorded hypothesis decision; the accompanying qualification states that
 this does not establish general robustness, equivalence, or practical importance.
+
+#### Method and quantity registry (`pyautostat.method_registry`)
+
+The canonical registry layer centralizes cross-cutting method and quantity metadata to prevent drift across sensitivity, practical significance, execution, and capabilities:
+
+- `MethodRegistration`: Lightweight immutable record defining `method_id`, canonical `sensitivity_quantity`, `sensitivity_shape` (`"scalar"` or `"coefficient_vector"`), and linked `practical_significance_quantities`.
+- `QuantityDefinition`: Canonical quantity metadata defining `quantity`, `shape`, `domain`, `signed`, and `supports_practical_threshold`.
+- `METHOD_REGISTRY`: Canonical mapping of method IDs to `MethodRegistration`.
+- `QUANTITY_REGISTRY`: Canonical mapping of quantity identifiers to `QuantityDefinition`.
+- `validate_registry_invariants()`: Validates cross-registry integrity across contracts, capabilities, execution, and sensitivity.
 
 ### Practical significance
 

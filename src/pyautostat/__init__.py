@@ -73,6 +73,15 @@ from .interpretation import (
 # Level 3: Structured results, specifications, and method contracts
 # ---------------------------------------------------------------------------
 from .method_contracts import METHOD_CONTRACTS, MethodContract
+from .method_registry import (
+    MethodRegistration,
+    QuantityDefinition,
+    get_method_registration,
+    get_quantity_definition,
+    list_method_registrations,
+    list_quantity_definitions,
+    validate_registry_invariants,
+)
 from .narrate import (
     assumption_grade,
     coefficient_of_variation_narrative,
@@ -124,6 +133,7 @@ from .results import (
 from .sensitivity import (
     Comparability,
     ScenarioStatus,
+    SensitivityEstimate,
     SensitivityResult,
     SensitivityScenario,
     SensitivityScenarioResult,
@@ -161,6 +171,7 @@ __all__ = [
     "SensitivitySpecification",
     "SensitivityScenario",
     "SensitivityScenarioResult",
+    "SensitivityEstimate",
     "SensitivityResult",
     "SensitivityStatus",
     "ScenarioStatus",
@@ -183,6 +194,13 @@ __all__ = [
     "MethodCapability",
     "MethodContract",
     "METHOD_CONTRACTS",
+    "MethodRegistration",
+    "QuantityDefinition",
+    "get_method_registration",
+    "get_quantity_definition",
+    "list_method_registrations",
+    "list_quantity_definitions",
+    "validate_registry_invariants",
     # Level 3: Audit, reproducibility, completeness, and session snapshots
     "DecisionLedger",
     "AuditFinding",

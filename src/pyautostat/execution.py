@@ -2196,6 +2196,7 @@ def execute_selected_method(
             },
         ),
         context={
+            **ordinary.context,
             "objective": objective,
             "estimand": question.estimand,
             "design": specification.design.value,

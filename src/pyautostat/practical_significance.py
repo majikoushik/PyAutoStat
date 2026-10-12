@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .exceptions import InvalidDataError
+from .method_registry import QUANTITY_REGISTRY
 from .narrate import interval_verdict
 from .results import AnalysisResult, AnalysisStatus
 from .sensitivity import estimate_quantity
@@ -15,13 +16,11 @@ from .specifications import _json_value
 
 PRACTICAL_SIGNIFICANCE_SCHEMA_VERSION = 1
 SIGNED_QUANTITIES = {
-    "mean_difference",
-    "cohens_d",
-    "pearson_r",
-    "spearman_rho",
-    "rank_biserial",
+    q for q, d in QUANTITY_REGISTRY.items() if d.supports_practical_threshold and d.signed is True
 }
-NONNEGATIVE_QUANTITIES = {"cramers_v", "eta_squared", "epsilon_squared", "partial_eta_squared"}
+NONNEGATIVE_QUANTITIES = {
+    q for q, d in QUANTITY_REGISTRY.items() if d.supports_practical_threshold and d.signed is False
+}
 SUPPORTED_QUANTITIES = SIGNED_QUANTITIES | NONNEGATIVE_QUANTITIES
 _DIRECTIONS = {"two_sided", "positive", "negative", "nonnegative"}
 _FORMAL_REQUESTS = {"equivalence", "noninferiority"}

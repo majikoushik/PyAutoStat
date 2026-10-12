@@ -7,6 +7,21 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+-   **Coefficient-level integrated sensitivity analysis for regression models (PR-1, `sensitivity.py`, `research_assistant.py`)**:
+    -   *Capability*: Enabled sensitivity analysis for `linear_regression` and `logistic_regression` without collapsing coefficient vectors into a single arbitrary scalar.
+    -   *Architecture*: Introduced `SensitivityEstimate` frozen dataclass for term-level estimates, standard errors, confidence intervals, p-values, and model metadata. Extended `SensitivityScenarioResult` with structured `estimates` tuple. Updated `SENSITIVITY_SCHEMA_VERSION = 2`.
+    -   *Comparability*: Preserves strict estimand boundaries—identical models comparing classical OLS vs HC3 robust standard errors are classified as `SAME_ESTIMAND` (estimates are identical while uncertainty differs). Model specification changes (adding/removing predictors, changing reference levels, altering outcome/event coding) are conservatively classified as `DIFFERENT_ESTIMAND`. Unmatched terms are explicitly recorded in comparison outputs.
+
+-   **Scale reliability integrated sensitivity analysis for Cronbach's alpha (PR-2, `sensitivity.py`, `research_assistant.py`)**:
+    -   *Capability*: Removed blocking exceptions to enable sensitivity analysis for `cronbach_alpha` using canonical scalar quantity `cronbach_alpha`.
+    -   *Comparability*: Scenarios evaluating the identical declared item set are classified as `SAME_ESTIMAND`. Scenarios with changed item sets (e.g., item deletion) define different measurement constructs and are conservatively classified as `DIFFERENT_ESTIMAND`. Researcher-declared reverse scoring is preserved with explicit provenance.
+
+-   **Canonical method and quantity registry layer (PR-3, `method_registry.py`)**:
+    -   *Capability*: Introduced a lightweight canonical registry layer (`MethodRegistration`, `QuantityDefinition`, `METHOD_REGISTRY`, `QUANTITY_REGISTRY`) and invariant validation (`validate_registry_invariants`).
+    -   *Integrity*: Centralized sensitivity quantities, sensitivity result shapes (`scalar` vs `coefficient_vector`), practical-significance quantity sets, and execution method tracking. Replaced duplicated sensitivity and practical-significance mappings, preventing metadata drift across contracts and backends.
+
 ### Fixed
 
 -   **Degenerate all-identical Mann-Whitney U test handling (`analyzer.py`)**:

@@ -1714,17 +1714,6 @@ class ResearchAssistant:
             raise InvalidDataError("sensitivity_analysis requires a result with its specification.")
         if result.status.value != "available":
             raise InvalidDataError("sensitivity_analysis requires an available base result.")
-        if result.method_id in {"linear_regression", "logistic_regression"}:
-            raise InvalidDataError(
-                "Integrated regression sensitivity is not yet supported. Run separate explicit "
-                "classical and HC3 specifications and compare the coefficient-level records; "
-                "the current scalar sensitivity contract cannot represent a coefficient vector."
-            )
-        if result.method_id == "cronbach_alpha":
-            raise InvalidDataError(
-                "Integrated sensitivity is not supported for scale reliability; run separately "
-                "declared scoring or item-set specifications and compare their complete records."
-            )
         if not isinstance(scenarios, (list, tuple)) or not scenarios:
             raise InvalidDataError("scenarios must be a non-empty list or tuple.")
         if any(not isinstance(item, SensitivitySpecification) for item in scenarios):
@@ -1878,14 +1867,21 @@ class ResearchAssistant:
                             "comparison."
                         )
                     values = scenario_values(analysis)
-                    missing_numerical = [
-                        label
+                    missing_numerical: list[str] = []
+                    if values.get("estimate_quantity") == "coefficient_vector":
+                        estimates = values.get("estimates", ())
+                        if not estimates or any(est.estimate is None for est in estimates):
+                            missing_numerical.append("coefficient estimates")
+                    elif values.get("estimate_quantity") == "cronbach_alpha":
+                        if values.get("primary_estimate") is None:
+                            missing_numerical.append("primary estimate")
+                    else:
                         for label, value in (
-                            ("primary estimate", values["primary_estimate"]),
-                            ("p-value", values["p_value"]),
-                        )
-                        if value is None
-                    ]
+                            ("primary estimate", values.get("primary_estimate")),
+                            ("p-value", values.get("p_value")),
+                        ):
+                            if value is None:
+                                missing_numerical.append(label)
                     if missing_numerical:
                         reason = (
                             "Scenario returned no finite "
@@ -2359,12 +2355,13 @@ def _scenario_incompatibility(
     left, right = base.question, scenario.question
     if left.objective != right.objective:
         return "The scenario changes the research objective."
-    if (
-        left.outcome != right.outcome
-        or left.predictor != right.predictor
-        or left.predictors != right.predictors
-        or left.items != right.items
-    ):
+    if left.outcome != right.outcome or left.predictor != right.predictor:
+        return "The scenario changes the outcome or predictor role."
+    is_regression = left.objective in (Objective.REGRESSION, "regression")
+    if not is_regression and left.predictors != right.predictors:
+        return "The scenario changes the outcome or predictor role."
+    is_reliability = left.objective in (Objective.RELIABILITY, "reliability")
+    if not is_reliability and left.items != right.items:
         return "The scenario changes the outcome or predictor role."
     if base.design != scenario.design:
         return (

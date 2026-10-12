@@ -277,13 +277,23 @@ def test_regression_language_is_noncausal_and_not_predictive_accuracy(continuous
     assert "causes y" not in text
 
 
-def test_scalar_sensitivity_contract_rejects_regression_vector(continuous_frame):
+def test_regression_sensitivity_analysis_supported(continuous_frame):
+    from dataclasses import replace
+
+    from pyautostat import SensitivitySpecification
+
     workflow = _run(continuous_frame, ["x", "z"], {"x": "continuous", "z": "continuous"})
-    with pytest.raises(InvalidDataError, match="coefficient vector"):
-        ResearchAssistant(continuous_frame).sensitivity_analysis(
-            workflow.analysis,
-            scenarios=(),
-        )
+    hc3_spec = replace(
+        workflow.analysis.specification,
+        options=replace(workflow.analysis.specification.options, covariance_type="HC3"),
+    )
+    scenario = SensitivitySpecification("hc3", hc3_spec, method_id="linear_regression")
+    sensitivity = ResearchAssistant(continuous_frame).sensitivity_analysis(
+        workflow.analysis,
+        scenarios=[scenario],
+    )
+    assert sensitivity.status.value == "complete"
+    assert len(sensitivity.scenario_results[0].estimates) == 3
 
 
 def test_regression_plan_and_session_preserve_model_identity(continuous_frame):
