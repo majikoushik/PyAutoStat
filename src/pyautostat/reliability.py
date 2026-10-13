@@ -146,7 +146,7 @@ def calculate_reliability(
         item
         for item in items
         if not pd.api.types.is_numeric_dtype(frame[item])
-        or pd.api.types.is_bool_dtype(frame[item])
+        or pd.api.types.is_bool_dtype(frame[item].dtype)
         or pd.api.types.is_complex_dtype(frame[item])
     ]
     if invalid_numeric_items:

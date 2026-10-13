@@ -67,6 +67,7 @@ privacy boundaries, serialization, documentation, and release validation.
     -   Added consistent finite probability, positive bootstrap-count, and nonnegative random-seed validation to direct regression, logistic, reliability, repeated-measures, and serialized option paths.
     -   Stabilized two-way ANOVA, repeated-measures ANOVA, and ICC scale handling so nonrepresentable sums of squares fail with actionable rescaling guidance without leaking NumPy overflow warnings or nonfinite JSON values.
     -   Converted extreme-scale profiling and independent-mean interval failures into structured warnings or actionable rescaling errors, preventing raw NumPy runtime warnings from escaping public analysis calls.
+    -   Restored pandas 1.4 compatibility for categorical and Boolean dtype detection by passing stable dtype objects to pandas type predicates instead of Series objects.
     -   Represented zero-denominator ICC F tests explicitly as positive-infinity or unavailable states instead of serializing infinities; identical-rater data no longer reports an undefined rater-effect test as significant.
     -   Synchronized documented objective/design values, the 109-export API count, numerical-validation provenance wording, minimum pandas-floor CI, and strict reference-validation CI coverage.
 

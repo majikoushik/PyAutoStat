@@ -434,7 +434,7 @@ def prepare_question(
         entry_type = entry.get("type")
         if entry_type in ("continuous", "discrete") and (
             not pd.api.types.is_numeric_dtype(frame[column])
-            or pd.api.types.is_bool_dtype(frame[column])
+            or pd.api.types.is_bool_dtype(frame[column].dtype)
             or pd.api.types.is_complex_dtype(frame[column])
         ):
             raise InvalidDataError(
@@ -444,7 +444,7 @@ def prepare_question(
                 f"`variable_types={{'{column}': '<type>'}}` to its scientific meaning; values "
                 "were not coerced."
             )
-        if entry_type == "boolean" and not pd.api.types.is_bool_dtype(frame[column]):
+        if entry_type == "boolean" and not pd.api.types.is_bool_dtype(frame[column].dtype):
             raise InvalidDataError(
                 f"Column {column!r} is declared 'boolean', but its pandas dtype is "
                 f"{str(frame[column].dtype)!r}. Correct the source data or change "
@@ -954,7 +954,7 @@ def prepare_question(
         observed = frame[column].dropna()
         if observed.nunique() != 2:
             return None
-        if pd.api.types.is_bool_dtype(observed):
+        if pd.api.types.is_bool_dtype(observed.dtype):
             return True
         declared = dictionary.get(column, {}).get("type")
         values = set(observed.tolist())

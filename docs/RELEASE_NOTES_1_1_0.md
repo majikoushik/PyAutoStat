@@ -33,7 +33,8 @@ Corrections include:
   result, bundle, or session records;
 - binding sensitivity execution to the source dataset fingerprint; and
 - converting extreme-scale profiling failures into structured warnings or actionable rescaling
-  errors instead of leaking raw numerical warnings or nonfinite JSON values.
+  errors instead of leaking raw numerical warnings or nonfinite JSON values; and
+- preserving categorical and Boolean dtype detection on the supported pandas 1.4 minimum stack.
 
 ## Compatibility
 

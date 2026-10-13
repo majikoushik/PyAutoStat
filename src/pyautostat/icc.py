@@ -225,7 +225,7 @@ def icc_panel(
     outcome_series = frame[value_col]
     if (
         not pd.api.types.is_numeric_dtype(outcome_series)
-        or pd.api.types.is_bool_dtype(outcome_series)
+        or pd.api.types.is_bool_dtype(outcome_series.dtype)
         or pd.api.types.is_complex_dtype(outcome_series)
     ):
         raise InsufficientDataError(

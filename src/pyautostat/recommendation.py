@@ -582,7 +582,7 @@ def _numeric(values: pd.Series) -> np.ndarray | None:
     """
     if (
         not pd.api.types.is_numeric_dtype(values)
-        or pd.api.types.is_bool_dtype(values)
+        or pd.api.types.is_bool_dtype(values.dtype)
         or pd.api.types.is_complex_dtype(values)
     ):
         return None

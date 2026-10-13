@@ -123,15 +123,15 @@ def detect_column_types(df: pd.DataFrame) -> dict:
             types[col] = result("empty", "Column has no non-null values.")
             continue
 
-        if pd.api.types.is_bool_dtype(series):
+        if pd.api.types.is_bool_dtype(series.dtype):
             types[col] = result("boolean")
             continue
 
-        if pd.api.types.is_datetime64_any_dtype(series):
+        if pd.api.types.is_datetime64_any_dtype(series.dtype):
             types[col] = result("datetime")
             continue
 
-        if pd.api.types.is_numeric_dtype(series):
+        if pd.api.types.is_numeric_dtype(series.dtype):
             n_unique = series.nunique()
             is_integer_like = (series == series.round()).all() if series.notna().all() else False
             if is_integer_like and n_unique <= _LOW_CARDINALITY_MAX_UNIQUE:
@@ -144,7 +144,7 @@ def detect_column_types(df: pd.DataFrame) -> dict:
                 types[col] = result("continuous")
             continue
 
-        if pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series):
+        if pd.api.types.is_object_dtype(series.dtype) or pd.api.types.is_string_dtype(series.dtype):
             sample = series.head(_DATE_PARSE_SAMPLE_SIZE)
             text_sample = sample.map(str)
             for detected_type, pattern in (

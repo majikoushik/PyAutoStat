@@ -173,7 +173,7 @@ def two_way_anova(
 
     if (
         not pd.api.types.is_numeric_dtype(usable[outcome])
-        or pd.api.types.is_bool_dtype(usable[outcome])
+        or pd.api.types.is_bool_dtype(usable[outcome].dtype)
         or pd.api.types.is_complex_dtype(usable[outcome])
     ):
         raise InvalidDataError(f"'{outcome}' must be a real numeric column.")

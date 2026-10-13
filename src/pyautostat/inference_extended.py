@@ -67,7 +67,7 @@ def _column(frame: pd.DataFrame, name: str, *, numeric: bool = False) -> pd.Seri
     series = frame[name]
     if numeric and (
         not pd.api.types.is_numeric_dtype(series)
-        or pd.api.types.is_bool_dtype(series)
+        or pd.api.types.is_bool_dtype(series.dtype)
         or pd.api.types.is_complex_dtype(series)
     ):
         raise InvalidDataError(f"{name!r} must be a real numeric column.")

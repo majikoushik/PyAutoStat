@@ -357,20 +357,20 @@ class DatasetProfiler:
             evidence = [f"pandas dtype: {series.dtype}", f"legacy hint: {observed}"]
             if nonmissing.empty:
                 suggested = "unknown"
-            elif pd.api.types.is_bool_dtype(series):
+            elif pd.api.types.is_bool_dtype(series.dtype):
                 suggested = "boolean"
-            elif pd.api.types.is_datetime64_any_dtype(series):
+            elif pd.api.types.is_datetime64_any_dtype(series.dtype):
                 suggested = "datetime"
             elif isinstance(series.dtype, pd.CategoricalDtype):
                 suggested = "ordinal_categorical" if series.dtype.ordered else "nominal_categorical"
-            elif pd.api.types.is_numeric_dtype(series):
+            elif pd.api.types.is_numeric_dtype(series.dtype):
                 if role == "identifier" and len(nonmissing) >= 3 and _safe_is_unique(nonmissing):
                     suggested = "identifier"
                     evidence.append("identifier-like name and all observed values unique")
                 elif observed == "categorical_numeric":
                     suggested = "discrete_numerical"
                     evidence.append("few integer values; a category or rating is also possible")
-                elif pd.api.types.is_integer_dtype(series):
+                elif pd.api.types.is_integer_dtype(series.dtype):
                     suggested = "discrete_numerical"
                 else:
                     suggested = "continuous_numerical"
@@ -416,10 +416,10 @@ class DatasetProfiler:
         summaries = {}
         for col, info in variables.items():
             is_categorical_dtype = (
-                pd.api.types.is_object_dtype(self.frame[col])
-                or pd.api.types.is_string_dtype(self.frame[col])
+                pd.api.types.is_object_dtype(self.frame[col].dtype)
+                or pd.api.types.is_string_dtype(self.frame[col].dtype)
                 or isinstance(self.frame[col].dtype, pd.CategoricalDtype)
-                or pd.api.types.is_bool_dtype(self.frame[col])
+                or pd.api.types.is_bool_dtype(self.frame[col].dtype)
             )
             if not is_categorical_dtype and info["suggested_type"] not in {
                 "nominal_categorical",

@@ -73,7 +73,7 @@ def build_design_matrix(
     if (
         outcome_type != "continuous_numerical"
         or not pd.api.types.is_numeric_dtype(usable[outcome])
-        or pd.api.types.is_bool_dtype(usable[outcome])
+        or pd.api.types.is_bool_dtype(usable[outcome].dtype)
         or pd.api.types.is_complex_dtype(usable[outcome])
     ):
         raise InvalidDataError("Guided OLS regression requires a continuous numerical outcome.")
@@ -107,7 +107,7 @@ def build_design_matrix(
         if kind in _NUMERIC_TYPES:
             if (
                 not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
+                or pd.api.types.is_bool_dtype(series.dtype)
                 or pd.api.types.is_complex_dtype(series)
             ):
                 raise InvalidDataError(

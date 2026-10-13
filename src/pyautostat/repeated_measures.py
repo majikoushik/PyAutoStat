@@ -142,7 +142,7 @@ def repeated_panel(
 
     if numeric and (
         not pd.api.types.is_numeric_dtype(usable[value_col])
-        or pd.api.types.is_bool_dtype(usable[value_col])
+        or pd.api.types.is_bool_dtype(usable[value_col].dtype)
         or pd.api.types.is_complex_dtype(usable[value_col])
     ):
         raise InvalidTestError(

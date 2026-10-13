@@ -54,7 +54,7 @@ def _groups(frame: pd.DataFrame, group_col: str, value_col: str) -> dict[str, An
         raise InvalidTestError("group_col and value_col must name different columns.")
     if (
         not pd.api.types.is_numeric_dtype(frame[value_col])
-        or pd.api.types.is_bool_dtype(frame[value_col])
+        or pd.api.types.is_bool_dtype(frame[value_col].dtype)
         or pd.api.types.is_complex_dtype(frame[value_col])
     ):
         raise InvalidTestError(f"'{value_col}' must be a real numeric column.")

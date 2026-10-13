@@ -583,7 +583,7 @@ def partial_pearson_correlation(
             raise ColumnNotFoundError(f"Column {col!r} does not exist.")
         if (
             not pd.api.types.is_numeric_dtype(frame[col])
-            or pd.api.types.is_bool_dtype(frame[col])
+            or pd.api.types.is_bool_dtype(frame[col].dtype)
             or pd.api.types.is_complex_dtype(frame[col])
         ):
             raise InvalidDataError(f"Column {col!r} must be numeric for partial correlation.")
