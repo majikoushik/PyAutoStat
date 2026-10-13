@@ -58,6 +58,7 @@ def test_capability_documents_are_consolidated_and_indexed():
         "MIGRATION_TO_1_0.md",
         "PUBLIC_API_1_0.md",
         "RELEASE_NOTES_1_0_0.md",
+        "RELEASE_NOTES_1_1_0.md",
     ):
         assert (ROOT / "docs" / current).is_file()
     for superseded in (
@@ -145,6 +146,7 @@ def test_changelog_release_history_integrity():
     """Verify that CHANGELOG.md preserves released history without unreleased contamination."""
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## [Unreleased]" in changelog
+    assert "## [1.1.0] - 2026-10-13" in changelog
     assert "## [1.0.0] - 2026-10-09" in changelog
     assert "## [0.3.0] - 2026-09-27" in changelog
 

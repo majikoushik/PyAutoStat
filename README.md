@@ -243,7 +243,7 @@ responsible for design, measurement meaning, sampling assumptions, and external 
 
 ## Project status
 
-PyAutoStat is version **1.0.0** and has a stable public 1.x compatibility commitment. Documented
+PyAutoStat is version **1.1.0** and has a stable public 1.x compatibility commitment. Documented
 top-level exports and stable serialized contracts follow the compatibility and deprecation policy;
 compatible additions and scientifically necessary corrections remain possible. Stable software
 does not imply universal statistical coverage, APA certification, guaranteed publication
@@ -279,7 +279,7 @@ instructions before proposing statistical behavior changes.
 If you use PyAutoStat in research, cite the software version and repository. A generic form is:
 
 ```text
-PyAutoStat contributors. PyAutoStat (version 1.0.0) [Computer software].
+PyAutoStat contributors. PyAutoStat (version 1.1.0) [Computer software].
 https://github.com/majikoushik/PyAutoStat
 ```
 

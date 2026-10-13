@@ -116,6 +116,8 @@ preregistration, certify study quality, or establish causality.
 
 - [Migration to 1.0](MIGRATION_TO_1_0.md): canonical workflows, compatibility surfaces, and
   serialization guidance for existing users.
+- [Release notes 1.1.0](RELEASE_NOTES_1_1_0.md): backward-compatible capabilities, independent
+  audit remediation, and release validation.
 - [Release notes 1.0.0](RELEASE_NOTES_1_0_0.md): stable-release scope, validation, reporting, and
   known boundaries.
 - [Changelog](../CHANGELOG.md): chronological software changes.

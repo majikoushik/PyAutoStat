@@ -36,7 +36,7 @@ from pyautostat import AnalysisOptions, ResearchAssistant, StudyPlanner, show
 
 module_path = Path(pyautostat.__file__).resolve()
 assert module_path.is_relative_to(Path(sys.prefix).resolve()), module_path
-assert pyautostat.__version__ == "1.0.0"
+assert pyautostat.__version__ == "1.1.0"
 
 readme_frame = pd.DataFrame(
     {
