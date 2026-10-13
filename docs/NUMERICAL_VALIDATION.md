@@ -222,21 +222,19 @@ No deferred quantity is certified as independently validated.
 
 ## 11. Environment and Provenance Metadata
 
-The validation foundation was verified under the following authoritative environment:
+The committed validation summary records the exact environment and repository state used for its
+most recent generation. The following baselines define the validation programme; consult
+`validation/reference_validation_summary.json` for the generated package version, current
+revision, worktree state, dependency versions, and content fingerprint:
 
 - **Repository**: `majikoushik/PyAutoStat`
-- **Package Version**: `1.0.0`
 - **Numerical Implementation Baseline Commit**: `817bb9c5454c266462a457690f3673099546b49f` (head commit establishing authoritative statistical calculation source)
 - **Validation Framework Baseline Commit**: `8fce4e9087236446eb4238387ffc04a9e33930c4` (initial validation foundation head)
-- **Validation Framework Current Revision**: `2113a7e6a0bc589ce2b3c51d922238bc354eb702` (head commit of expanded validation framework)
-- **Source Code Invariance Status**: Evaluated dynamically via Git worktree inspection against `numerical_source_baseline_sha`; confirmed `unchanged` across all 13 statistical runtime source files.
-- **Python Version**: `3.12.7` (64-bit AMD64)
-- **NumPy Version**: `2.2.6`
-- **pandas Version**: `3.0.6`
-- **SciPy Version**: `1.13.0`
-- **statsmodels Version**: `0.15.0`
-- **External Packages**: `rpy2` (Not installed), `pingouin` (Not installed)
-- **Verification Date**: `2026-10-08`
+- **Source Code Invariance Status**: Evaluated dynamically via Git worktree inspection against `numerical_source_baseline_sha` across all statistical runtime source files.
+
+For release evidence, regenerate the manifest from the clean release checkout. A summary with
+`git_worktree_dirty: true` is development evidence and must not be represented as a clean release
+attestation.
 
 ---
 

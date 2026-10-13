@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 import warnings
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
@@ -216,10 +217,22 @@ def fit_logit(
     * **Audit**: all numerical sources identified.
     * **Reproducibility**: deterministic MLE; no stochastic components.
     """
-    if not 0 < confidence_level < 1:
-        raise InvalidDataError("confidence_level must be strictly between 0 and 1.")
-    if not 0 < alpha < 1:
-        raise InvalidDataError("alpha must be strictly between 0 and 1.")
+    if (
+        isinstance(confidence_level, bool)
+        or not isinstance(confidence_level, Real)
+        or not math.isfinite(confidence_level)
+        or not 0 < confidence_level < 1
+    ):
+        raise InvalidDataError("confidence_level must be a finite number strictly between 0 and 1.")
+    if (
+        isinstance(alpha, bool)
+        or not isinstance(alpha, Real)
+        or not math.isfinite(alpha)
+        or not 0 < alpha < 1
+    ):
+        raise InvalidDataError("alpha must be a finite number strictly between 0 and 1.")
+    confidence_level = float(confidence_level)
+    alpha = float(alpha)
     if covariance_type not in {"classical", "HC3"}:
         raise InvalidDataError("covariance_type must be 'classical' or 'HC3'.")
 
@@ -530,22 +543,30 @@ def partial_pearson_correlation(
     dict
         JSON-safe result record.
     """
-    if not 0 < confidence_level < 1:
-        raise InvalidDataError("confidence_level must be strictly between 0 and 1.")
+    if (
+        isinstance(confidence_level, bool)
+        or not isinstance(confidence_level, Real)
+        or not math.isfinite(confidence_level)
+        or not 0 < confidence_level < 1
+    ):
+        raise InvalidDataError("confidence_level must be a finite number strictly between 0 and 1.")
     if not controls:
         raise InvalidDataError("At least one control variable is required.")
     if len(set(controls)) != len(controls):
         raise InvalidDataError("Control variables must not contain duplicates.")
     if (
         isinstance(bootstrap_samples, bool)
-        or not isinstance(bootstrap_samples, int)
+        or not isinstance(bootstrap_samples, Integral)
         or bootstrap_samples < 100
     ):
         raise InvalidDataError("bootstrap_samples must be an integer of at least 100.")
     if random_state is not None and (
-        isinstance(random_state, bool) or not isinstance(random_state, int) or random_state < 0
+        isinstance(random_state, bool) or not isinstance(random_state, Integral) or random_state < 0
     ):
         raise InvalidDataError("random_state must be a nonnegative integer or None.")
+    confidence_level = float(confidence_level)
+    bootstrap_samples = int(bootstrap_samples)
+    random_state = None if random_state is None else int(random_state)
     if first == second:
         raise InvalidDataError("The two primary variables must be different columns.")
     overlap = {first, second} & set(controls)
@@ -560,7 +581,11 @@ def partial_pearson_correlation(
             from .exceptions import ColumnNotFoundError
 
             raise ColumnNotFoundError(f"Column {col!r} does not exist.")
-        if not pd.api.types.is_numeric_dtype(frame[col]):
+        if (
+            not pd.api.types.is_numeric_dtype(frame[col])
+            or pd.api.types.is_bool_dtype(frame[col])
+            or pd.api.types.is_complex_dtype(frame[col])
+        ):
             raise InvalidDataError(f"Column {col!r} must be numeric for partial correlation.")
 
     usable = frame[all_cols].dropna()

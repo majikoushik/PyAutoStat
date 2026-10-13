@@ -10,7 +10,7 @@ from typing import Any
 
 from .. import __version__
 from ..exceptions import ReportError
-from ..research_report import ResearchReport
+from ..research_report import ResearchReport, _identifier_safe_analysis
 from ..results import AnalysisResult
 from ..workflow import ResearchWorkflowResult
 from .manifest import (
@@ -442,7 +442,9 @@ class BundleAssembler:
                     )
                 elif self.analysis is not None:
                     json_bytes = json.dumps(
-                        self.analysis.to_dict(), indent=2, ensure_ascii=False
+                        _identifier_safe_analysis(self.analysis.to_dict()),
+                        indent=2,
+                        ensure_ascii=False,
                     ).encode("utf-8")
                     add_file(
                         "pyautostat_bundle/data/analysis.json",
@@ -465,7 +467,7 @@ class BundleAssembler:
         """Assemble already-recorded execution provenance without recalculation."""
         # 1. Authoritative analysis dictionary
         if self.analysis is not None:
-            an_dict = self.analysis.to_dict()
+            an_dict = _identifier_safe_analysis(self.analysis.to_dict())
             an_bytes = json.dumps(an_dict, indent=2, ensure_ascii=False).encode("utf-8")
             add_file(
                 "pyautostat_bundle/provenance/analysis.json", "analysis_record", "json", an_bytes
@@ -473,7 +475,7 @@ class BundleAssembler:
         elif self.report is not None:
             source_res = getattr(self.report, "_source_result", None)
             if source_res is not None and hasattr(source_res, "to_dict"):
-                an_dict = source_res.to_dict()
+                an_dict = _identifier_safe_analysis(source_res.to_dict())
                 an_bytes = json.dumps(an_dict, indent=2, ensure_ascii=False).encode("utf-8")
                 add_file(
                     "pyautostat_bundle/provenance/analysis.json",

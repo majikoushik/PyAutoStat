@@ -560,12 +560,20 @@ def test_non_analysis_targets_docx(welch_workflow):
     assert b_plan.startswith(b"PK")
 
     # 5. Sensitivity analysis
+    base_res = ra.run(
+        objective="compare_groups",
+        outcome="score",
+        predictor="group",
+        estimand="mean",
+        design="independent",
+        variable_types={"score": "continuous", "group": "nominal"},
+    )
     sens = ra.sensitivity_analysis(
-        welch_workflow.analysis,
+        base_res.analysis,
         scenarios=[
             SensitivitySpecification(
                 "equal_var",
-                welch_workflow.analysis.specification,
+                base_res.analysis.specification,
                 method_id="student_t",
                 assumptions=("Equal population variances",),
             )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,7 +12,11 @@ from .completeness import ReportingCompletenessResult
 from .exceptions import InvalidDataError
 from .practical_significance import PracticalSignificanceResult
 from .recommendation import METHOD_CAPABILITIES
-from .research_report import REPORT_STYLES
+from .research_report import (
+    REPORT_STYLES,
+    _identifier_safe_analysis,
+    _omit_identifier_profile_details,
+)
 from .sensitivity import SensitivityResult
 from .specifications import _json_value
 from .study_planning import STUDY_PLANNING_CAPABILITIES, StudyPlanningResult
@@ -89,7 +94,19 @@ def build_session_snapshot(
     for name, value, expected in expected_types:
         if value is not None and not isinstance(value, expected):
             raise InvalidDataError(f"{name} has an invalid session snapshot type.")
-    workflow_payload = workflow.to_dict()
+    workflow_payload = deepcopy(workflow.to_dict())
+    analysis_payload = workflow_payload.get("analysis")
+    if isinstance(analysis_payload, dict):
+        workflow_payload["analysis"] = _identifier_safe_analysis(analysis_payload)
+    profile_payload = workflow_payload.get("profile")
+    specification_payload = workflow_payload.get("specification")
+    declaration = (
+        specification_payload.get("data_dictionary")
+        if isinstance(specification_payload, dict)
+        else None
+    )
+    if isinstance(profile_payload, dict):
+        _omit_identifier_profile_details(profile_payload, declaration)
     questions = workflow_payload.get("draft", {}).get("questions", [])
     blockers = list(workflow_payload.get("blockers", []))
     warnings = list(workflow_payload.get("warnings", []))

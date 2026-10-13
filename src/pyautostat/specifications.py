@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import Enum
+from numbers import Integral
 from typing import Any
 
 from .exceptions import InvalidDataError
@@ -193,9 +194,8 @@ class ResearchQuestion:
             object.__setattr__(self, "controls", checked_controls)
         if self.event_level is not None:
             checked_event = _json_value(self.event_level, "event_level")
-            if isinstance(checked_event, (list, dict)):
+            if checked_event is None or isinstance(checked_event, (list, dict)):
                 raise InvalidDataError("event_level must be a non-missing JSON scalar value.")
-            object.__setattr__(self, "event_level", checked_event)
         if self.predictor is not None and self.predictors is not None:
             if self.predictors != (self.predictor,):
                 raise InvalidDataError(
@@ -286,9 +286,13 @@ class AnalysisOptions:
         _probability(self.alpha, "alpha")
         _probability(self.confidence_level, "confidence_level")
         if self.random_seed is not None and (
-            isinstance(self.random_seed, bool) or not isinstance(self.random_seed, int)
+            isinstance(self.random_seed, bool)
+            or not isinstance(self.random_seed, Integral)
+            or self.random_seed < 0
         ):
-            raise InvalidDataError("random_seed must be an integer or None.")
+            raise InvalidDataError("random_seed must be a nonnegative integer or None.")
+        if self.random_seed is not None:
+            object.__setattr__(self, "random_seed", int(self.random_seed))
         if self.covariance_type not in {"classical", "HC3"}:
             raise InvalidDataError("covariance_type must be 'classical' or 'HC3'.")
         if self.sum_of_squares not in {"type2", "type3"}:
@@ -312,11 +316,14 @@ class AnalysisOptions:
             checked = _json_value(self.reference_levels, "reference_levels")
             if any(value is None or isinstance(value, (list, dict)) for value in checked.values()):
                 raise InvalidDataError("Each categorical reference must be a non-missing scalar.")
-            object.__setattr__(self, "reference_levels", checked)
-        if isinstance(self.bootstrap_samples, bool) or not isinstance(self.bootstrap_samples, int):
+            object.__setattr__(self, "reference_levels", self.reference_levels.copy())
+        if isinstance(self.bootstrap_samples, bool) or not isinstance(
+            self.bootstrap_samples, Integral
+        ):
             raise InvalidDataError("bootstrap_samples must be a positive integer.")
         if self.bootstrap_samples < 1:
             raise InvalidDataError("bootstrap_samples must be a positive integer.")
+        object.__setattr__(self, "bootstrap_samples", int(self.bootstrap_samples))
         if self.reverse_scoring is not None:
             if not isinstance(self.reverse_scoring, dict):
                 raise InvalidDataError("reverse_scoring must map item names to (lower, upper).")
@@ -430,25 +437,29 @@ class AnalysisSpecification:
         if self.condition_order is not None:
             if not isinstance(self.condition_order, (list, tuple)):
                 raise InvalidDataError("condition_order must be a sequence of condition labels.")
-            checked = tuple(_json_value(item, "condition_order") for item in self.condition_order)
-            if any(item is None or isinstance(item, (list, dict)) for item in checked):
+            order = tuple(self.condition_order)
+            serialized = tuple(_json_value(item, "condition_order") for item in order)
+            if any(item is None or isinstance(item, (list, dict)) for item in serialized):
                 raise InvalidDataError(
                     "condition_order labels must be non-missing JSON scalar values."
                 )
-            if len(set(checked)) != len(checked):
+            if len(set(serialized)) != len(serialized):
                 raise InvalidDataError("condition_order labels must be distinct.")
             if self.design is StudyDesign.REPEATED:
-                if len(checked) < 3:
+                if len(order) < 3:
                     raise InvalidDataError(
                         "Repeated-measures design requires at least three condition labels "
                         "in condition_order."
                     )
             else:
-                if len(checked) != 2:
+                if len(order) != 2:
                     raise InvalidDataError(
                         "condition_order must contain exactly two condition labels."
                     )
-            object.__setattr__(self, "condition_order", checked)
+            # Preserve the semantic labels in memory. ``to_dict`` performs the JSON
+            # conversion at the serialization boundary; converting here would make a
+            # Timestamp cease to match the exact observed datetime level.
+            object.__setattr__(self, "condition_order", order)
         if self.condition_order is not None and self.unit_id is None:
             raise InvalidDataError(
                 "condition_order requires an explicit unit_id identifying the "

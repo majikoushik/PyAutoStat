@@ -14,6 +14,14 @@ from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidTestE
 from .uncertainty import dunn_pairwise_rank_biserial_bootstrap_ci
 
 
+def _label(value: Any) -> str | int | float | bool:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        raise InvalidTestError("Group labels must be finite.")
+    return value if isinstance(value, (str, int, float, bool)) else str(value)
+
+
 def _confidence_level(value: Any) -> float:
     if (
         isinstance(value, bool)
@@ -44,7 +52,11 @@ def _groups(frame: pd.DataFrame, group_col: str, value_col: str) -> dict[str, An
             raise ColumnNotFoundError(f"'{name}' is not a column in this DataFrame.")
     if group_col == value_col:
         raise InvalidTestError("group_col and value_col must name different columns.")
-    if not pd.api.types.is_numeric_dtype(frame[value_col]):
+    if (
+        not pd.api.types.is_numeric_dtype(frame[value_col])
+        or pd.api.types.is_bool_dtype(frame[value_col])
+        or pd.api.types.is_complex_dtype(frame[value_col])
+    ):
         raise InvalidTestError(f"'{value_col}' must be a real numeric column.")
     usable = frame[[group_col, value_col]].dropna()
     labels = list(pd.unique(usable[group_col]))
@@ -77,13 +89,15 @@ def _groups(frame: pd.DataFrame, group_col: str, value_col: str) -> dict[str, An
     summaries = []
     for label, raw, scaled in zip(labels, values, normalized, strict=True):
         summary = {
-            "group": label,
+            "group": _label(label),
             "sample_size": int(len(raw)),
             "mean": float(np.mean(scaled) * scale + reference),
             "standard_deviation": float(np.std(scaled, ddof=1) * scale),
             "median": float(np.median(scaled) * scale + reference),
         }
-        if not all(math.isfinite(summary[key]) for key in ("mean", "standard_deviation", "median")):
+        if not all(
+            math.isfinite(float(summary[key])) for key in ("mean", "standard_deviation", "median")
+        ):
             raise InsufficientDataError(
                 "A group summary is nonfinite at this numerical scale; rescale the outcome."
             )
@@ -142,14 +156,16 @@ def _pair_record(
     degrees_of_freedom: float | None,
     alpha: float,
 ) -> dict[str, Any]:
+    first_label = _label(first)
+    second_label = _label(second)
     return {
         "procedure": procedure,
-        "group1": first,
-        "group2": second,
+        "group1": first_label,
+        "group2": second_label,
         "contrast": {
             "definition": "first group minus second group",
-            "first_group": first,
-            "second_group": second,
+            "first_group": first_label,
+            "second_group": second_label,
         },
         "estimate_name": estimate_name,
         "estimate": float(estimate),
@@ -245,7 +261,7 @@ def games_howell(
         )
     return {
         "procedure": "Games-Howell",
-        "group_order": labels,
+        "group_order": [_label(item) for item in labels],
         "group_summaries": grouped["summaries"],
         "comparisons": records,
         "comparison_count": count,
@@ -301,7 +317,7 @@ def welch_anova(
         "statistic": statistic,
         "p_value": p_value,
         "degrees_of_freedom": [df1, df2],
-        "groups": labels,
+        "groups": [_label(item) for item in labels],
         "group_summaries": grouped["summaries"],
         "effect_size": {
             "name": "global standardized effect",
@@ -404,7 +420,7 @@ def tukey_hsd(
         )
     return {
         "procedure": "Tukey HSD (Tukey-Kramer for unequal sample sizes)",
-        "group_order": labels,
+        "group_order": [_label(item) for item in labels],
         "group_summaries": grouped["summaries"],
         "comparisons": records,
         "comparison_count": count,
@@ -504,7 +520,7 @@ def dunn(
         )
     return {
         "procedure": "Dunn test",
-        "group_order": labels,
+        "group_order": [_label(item) for item in labels],
         "group_summaries": grouped["summaries"],
         "comparisons": records,
         "comparison_count": count,

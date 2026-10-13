@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
@@ -69,7 +70,12 @@ def build_design_matrix(
     if len(usable) < 3:
         raise InsufficientDataError("Regression requires at least three complete cases.")
     outcome_type = variable_types.get(outcome)
-    if outcome_type != "continuous_numerical" or not pd.api.types.is_numeric_dtype(usable[outcome]):
+    if (
+        outcome_type != "continuous_numerical"
+        or not pd.api.types.is_numeric_dtype(usable[outcome])
+        or pd.api.types.is_bool_dtype(usable[outcome])
+        or pd.api.types.is_complex_dtype(usable[outcome])
+    ):
         raise InvalidDataError("Guided OLS regression requires a continuous numerical outcome.")
     y = np.asarray(usable[outcome], dtype=float)
     if not np.isfinite(y).all():
@@ -99,7 +105,11 @@ def build_design_matrix(
         kind = variable_types.get(predictor)
         series = usable[predictor]
         if kind in _NUMERIC_TYPES:
-            if not pd.api.types.is_numeric_dtype(series):
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+                or pd.api.types.is_complex_dtype(series)
+            ):
                 raise InvalidDataError(
                     f"Predictor {predictor!r} is declared numerical but is not numeric."
                 )
@@ -231,6 +241,34 @@ def fit_ols(
     random_state: int | None = 0,
 ) -> dict[str, Any]:
     """Fit OLS once and return strict JSON-ready coefficients and diagnostics."""
+    if (
+        isinstance(confidence_level, bool)
+        or not isinstance(confidence_level, Real)
+        or not math.isfinite(confidence_level)
+        or not 0 < confidence_level < 1
+    ):
+        raise InvalidDataError("confidence_level must be a finite number strictly between 0 and 1.")
+    if (
+        isinstance(alpha, bool)
+        or not isinstance(alpha, Real)
+        or not math.isfinite(alpha)
+        or not 0 < alpha < 1
+    ):
+        raise InvalidDataError("alpha must be a finite number strictly between 0 and 1.")
+    if (
+        isinstance(bootstrap_samples, bool)
+        or not isinstance(bootstrap_samples, Integral)
+        or bootstrap_samples < 1
+    ):
+        raise InvalidDataError("bootstrap_samples must be a positive integer.")
+    if random_state is not None and (
+        isinstance(random_state, bool) or not isinstance(random_state, Integral) or random_state < 0
+    ):
+        raise InvalidDataError("random_state must be a nonnegative integer or None.")
+    confidence_level = float(confidence_level)
+    alpha = float(alpha)
+    bootstrap_samples = int(bootstrap_samples)
+    random_state = None if random_state is None else int(random_state)
     covariance = covariance_type.upper()
     if covariance not in {"CLASSICAL", "HC3"}:
         raise InvalidDataError("covariance_type must be 'classical' or 'HC3'.")

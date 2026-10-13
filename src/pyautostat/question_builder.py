@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any, cast
 
@@ -27,6 +27,7 @@ from .usability import (
     invalid_level_message,
     level_in,
     missing_column_message,
+    resolve_level,
 )
 
 
@@ -431,12 +432,15 @@ def prepare_question(
             dictionary = validate_data_dictionary(frame, candidate)
     for column, entry in dictionary.items():
         entry_type = entry.get("type")
-        if entry_type in ("continuous", "discrete") and not pd.api.types.is_numeric_dtype(
-            frame[column]
+        if entry_type in ("continuous", "discrete") and (
+            not pd.api.types.is_numeric_dtype(frame[column])
+            or pd.api.types.is_bool_dtype(frame[column])
+            or pd.api.types.is_complex_dtype(frame[column])
         ):
             raise InvalidDataError(
                 f"Column {column!r} is declared {entry_type!r}, but its pandas dtype is "
-                f"{str(frame[column].dtype)!r}, not numeric. Correct the source data or change "
+                f"{str(frame[column].dtype)!r}, not numeric for a real-valued role. Correct "
+                "the source data or change "
                 f"`variable_types={{'{column}': '<type>'}}` to its scientific meaning; values "
                 "were not coerced."
             )
@@ -531,6 +535,9 @@ def prepare_question(
                     invalid_conditions, question.predictor, observed_conditions
                 )
             )
+        selected_condition_order = tuple(
+            resolve_level(value, observed_conditions) for value in selected_condition_order
+        )
     spec = AnalysisSpecification(
         question=question,
         design=selected_design,
@@ -608,6 +615,9 @@ def prepare_question(
                             levels,
                         )
                     )
+                resolved_references[predictor_name] = resolve_level(
+                    resolved_references[predictor_name], levels
+                )
             elif levels:
                 resolved_references[predictor_name] = _regression_label(levels[0])
         regression_options = AnalysisOptions(
@@ -1011,6 +1021,8 @@ def prepare_question(
             raise InvalidDataError(
                 invalid_level_message("event_level", question.event_level, event_variable, levels)
             )
+        question = replace(question, event_level=resolve_level(question.event_level, levels))
+        spec = replace(spec, question=question)
     for column in selected:
         observed = frame[column].dropna()
         info = hints[column]

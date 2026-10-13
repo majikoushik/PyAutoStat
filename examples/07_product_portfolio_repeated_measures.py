@@ -54,7 +54,7 @@ def main() -> None:
     assistant = ResearchAssistant(long_frame)
 
     # 2. Run guided repeated-measures distribution comparison
-    b_samples = resolve_bootstrap_samples(default=499, fast_count=50)
+    b_samples = resolve_bootstrap_samples(default=499, fast_count=100)
     workflow = assistant.run(
         objective="compare_groups",
         outcome="monthly_spend",

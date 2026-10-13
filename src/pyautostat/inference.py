@@ -35,7 +35,11 @@ def _column(frame: pd.DataFrame, name: str, *, numeric: bool = False) -> pd.Seri
     if name not in frame.columns:
         raise ColumnNotFoundError(f"'{name}' is not a column in this DataFrame.")
     series = frame[name]
-    if numeric and not pd.api.types.is_numeric_dtype(series):
+    if numeric and (
+        not pd.api.types.is_numeric_dtype(series)
+        or pd.api.types.is_bool_dtype(series)
+        or pd.api.types.is_complex_dtype(series)
+    ):
         raise InvalidTestError(f"'{name}' must be a real numeric column.")
     return series
 
@@ -65,6 +69,14 @@ def _bootstrap_options(samples: Any, random_state: Any) -> tuple[int, int | None
     ):
         raise InvalidTestError("random_state must be a nonnegative integer or None.")
     return int(samples), None if random_state is None else int(random_state)
+
+
+def _label(value: Any) -> str | int | float | bool:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        raise InvalidTestError("Condition labels must be finite.")
+    return value if isinstance(value, (str, int, float, bool)) else str(value)
 
 
 def _finite_numeric(series: pd.Series, name: str) -> np.ndarray:
@@ -324,7 +336,13 @@ def paired_wilcoxon(
             "no exactness claim is made."
         ),
         "warnings": [str(item.message) for item in caught],
-        **pairs,
+        "condition_order": [_label(item) for item in pairs["condition_order"]],
+        "complete_pairs": int(pairs["complete_pairs"]),
+        "analyzed_rows": int(pairs["analyzed_rows"]),
+        "excluded_rows": int(pairs["excluded_rows"]),
+        "total_units": int(pairs["total_units"]),
+        "incomplete_units": int(pairs["incomplete_units"]),
+        "missing_unit_rows": int(pairs["missing_unit_rows"]),
     }
 
 

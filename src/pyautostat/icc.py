@@ -118,6 +118,14 @@ SUPPORTED_DEFINITIONS = {"absolute_agreement", "consistency"}
 SUPPORTED_UNITS = {"single", "average"}
 
 
+def _label(value: Any) -> str | int | float | bool:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        raise InvalidDataError("Target and rater labels must be finite.")
+    return value if isinstance(value, (str, int, float, bool)) else str(value)
+
+
 def _check_probability(value: Any, name: str) -> float:
     if (
         isinstance(value, bool)
@@ -211,8 +219,20 @@ def icc_panel(
             "are not supported; observations must not be silently averaged."
         )
 
-    # Ensure outcome is numeric
-    outcome_series = pd.to_numeric(frame[value_col], errors="coerce")
+    # Require an actual real-numeric dtype. Coercing arbitrary objects here can
+    # silently turn an invalid rating (for example ``"bad"``) into a missing
+    # cell and then exclude the whole target under the complete-panel policy.
+    outcome_series = frame[value_col]
+    if (
+        not pd.api.types.is_numeric_dtype(outcome_series)
+        or pd.api.types.is_bool_dtype(outcome_series)
+        or pd.api.types.is_complex_dtype(outcome_series)
+    ):
+        raise InsufficientDataError(
+            "Intraclass correlation requires at least 2 complete targets with finite real "
+            f"numeric ratings; {value_col!r} is not a real numeric column. Values are not "
+            "coerced or recoded automatically."
+        )
     valid_rows_mask = frame[target_col].notna() & frame[rater_col].notna() & outcome_series.notna()
 
     clean_subset = frame.loc[valid_rows_mask].copy()
@@ -273,7 +293,7 @@ def icc_panel(
         "original_targets": len(raw_targets),
         "retained_targets": n_retained_targets,
         "excluded_targets": excluded_targets,
-        "raters": sorted_raters,
+        "raters": [_label(item) for item in sorted_raters],
         "complete_panel_cells": analyzed_rows,
     }
 
@@ -290,23 +310,76 @@ def icc_panel(
 def icc_anova_components(matrix: np.ndarray) -> dict[str, Any]:
     """Compute ANOVA components and mean squares for complete n x k matrix."""
     n, k = matrix.shape
-    grand_mean = float(np.mean(matrix))
-    target_means = np.mean(matrix, axis=1)
-    rater_means = np.mean(matrix, axis=0)
-
-    ss_total = float(np.sum((matrix - grand_mean) ** 2))
-    ss_targets = float(k * np.sum((target_means - grand_mean) ** 2))
-    ss_raters = float(n * np.sum((rater_means - grand_mean) ** 2))
-    ss_error = float(ss_total - ss_targets - ss_raters)
-
-    # Numerical precision cleanup for exact additive models
-    if abs(ss_error) < 1e-12:
-        ss_error = 0.0
-
-    if ss_total <= 0.0:
+    absolute_scale = float(np.max(np.abs(matrix)))
+    if not math.isfinite(absolute_scale):
+        raise InvalidDataError("Ratings must contain only finite real numeric values.")
+    if absolute_scale == 0.0:
         raise InvalidDataError(
             "Total variance across all ratings is zero; intraclass correlation is undefined for "
             "constant data."
+        )
+
+    # ICC is translation- and scale-invariant, but its public ANOVA table is
+    # expressed in the original squared units.  Normalize before centering so
+    # opposite-sign extreme values cannot overflow during subtraction.
+    normalized = matrix / absolute_scale
+    centered = normalized - normalized[0, 0]
+    relative_scale = float(np.max(np.abs(centered)))
+    if not math.isfinite(relative_scale) or relative_scale == 0.0:
+        raise InvalidDataError(
+            "Total variance across all ratings is zero; intraclass correlation is undefined for "
+            "constant data."
+        )
+    outcome_scale = absolute_scale * relative_scale
+    scale_squared = outcome_scale * outcome_scale
+    if not math.isfinite(outcome_scale) or not math.isfinite(scale_squared) or scale_squared == 0.0:
+        raise InsufficientDataError(
+            "The rating scale cannot produce finite sums of squares in float64; rescale the "
+            "ratings before intraclass correlation analysis."
+        )
+
+    working = centered / relative_scale
+    grand_working = float(np.mean(working))
+    target_means_working = np.mean(working, axis=1)
+    rater_means_working = np.mean(working, axis=0)
+
+    ss_total_scaled = float(np.sum((working - grand_working) ** 2))
+    ss_targets_scaled = float(k * np.sum((target_means_working - grand_working) ** 2))
+    ss_raters_scaled = float(n * np.sum((rater_means_working - grand_working) ** 2))
+    residuals = (
+        working
+        - target_means_working[:, np.newaxis]
+        - rater_means_working[np.newaxis, :]
+        + grand_working
+    )
+    ss_error_scaled = float(np.sum(residuals**2))
+    if ss_total_scaled <= 0.0:
+        raise InvalidDataError(
+            "Total variance across all ratings is zero; intraclass correlation is undefined for "
+            "constant data."
+        )
+    roundoff_tolerance = np.finfo(float).eps * max(1.0, ss_total_scaled) * max(1, n * k) * 16.0
+    if ss_raters_scaled <= roundoff_tolerance:
+        ss_raters_scaled = 0.0
+    if ss_error_scaled <= roundoff_tolerance:
+        ss_error_scaled = 0.0
+
+    ss_total = ss_total_scaled * scale_squared
+    ss_targets = ss_targets_scaled * scale_squared
+    ss_raters = ss_raters_scaled * scale_squared
+    ss_error = ss_error_scaled * scale_squared
+
+    grand_mean = float(matrix[0, 0] + outcome_scale * grand_working)
+    target_means = matrix[0, 0] + outcome_scale * target_means_working
+    rater_means = matrix[0, 0] + outcome_scale * rater_means_working
+    reported = np.asarray(
+        [grand_mean, ss_total, ss_targets, ss_raters, ss_error, *target_means, *rater_means],
+        dtype=float,
+    )
+    if not np.isfinite(reported).all():
+        raise InsufficientDataError(
+            "Intraclass correlation summaries are nonfinite at the observed rating scale; "
+            "rescale the ratings before analysis."
         )
 
     df_targets = n - 1
@@ -441,17 +514,36 @@ def compute_icc_f_test(
         df2 = anova["df_error"]
 
     if ms_den <= 0.0:
-        f_stat = float("inf") if ms_num > 0.0 else float("nan")
-        p_val = 0.0 if ms_num > 0.0 else float("nan")
+        if ms_num > 0.0:
+            f_stat: float | None = None
+            p_val: float | None = 0.0
+            status = "positive_infinity"
+            reason = "The denominator mean square is zero while the numerator is positive."
+        else:
+            f_stat = None
+            p_val = None
+            status = "unavailable"
+            reason = "Both numerator and denominator mean squares are zero."
     else:
-        f_stat = float(ms_num / ms_den)
-        p_val = float(stats.f.sf(f_stat, df1, df2))
+        candidate = float(ms_num / ms_den)
+        if math.isfinite(candidate):
+            f_stat = candidate
+            p_val = float(stats.f.sf(f_stat, df1, df2))
+            status = "available"
+            reason = None
+        else:
+            f_stat = None
+            p_val = 0.0
+            status = "positive_infinity"
+            reason = "The mean-square ratio exceeds the finite float64 range."
 
     return {
         "statistic": f_stat,
         "df1": df1,
         "df2": df2,
         "p_value": p_val,
+        "status": status,
+        "reason": reason,
         "null_hypothesis": "Population ICC is zero (target variance is zero).",
         "alternative_hypothesis": "Population ICC is greater than zero.",
     }
@@ -739,6 +831,11 @@ def intraclass_correlation(
 
     anova = icc_anova_components(matrix)
     estimate = compute_icc_estimate(variant, n_targets, n_raters, anova)
+    if not math.isfinite(estimate):
+        raise InsufficientDataError(
+            "The intraclass correlation estimate is nonfinite; rescale or review the rating "
+            "design before analysis."
+        )
     f_test = compute_icc_f_test(variant, n_targets, n_raters, anova)
     ci = compute_icc_ci(variant, n_targets, n_raters, anova, estimate, conf_level)
 
@@ -747,7 +844,9 @@ def intraclass_correlation(
     for var_key in ("icc_1_1", "icc_1_k", "icc_2_1", "icc_2_k", "icc_3_1", "icc_3_k"):
         var_meta = ICC_VARIANTS[var_key]
         try:
-            var_est: float | None = compute_icc_estimate(var_key, n_targets, n_raters, anova)
+            var_est = compute_icc_estimate(var_key, n_targets, n_raters, anova)
+            if not math.isfinite(var_est):
+                raise InvalidDataError("The auxiliary ICC estimate is nonfinite.")
             var_f: dict[str, Any] | None = compute_icc_f_test(var_key, n_targets, n_raters, anova)
             var_ci: dict[str, Any] | None = (
                 compute_icc_ci(var_key, n_targets, n_raters, anova, var_est, conf_level)
@@ -761,6 +860,8 @@ def intraclass_correlation(
                 "df1": None,
                 "df2": None,
                 "p_value": None,
+                "status": "unavailable",
+                "reason": "The auxiliary ICC variant is undefined for these mean squares.",
                 "null_hypothesis": "Population ICC is zero (target variance is zero).",
                 "alternative_hypothesis": "Population ICC is greater than zero.",
             }
@@ -830,14 +931,32 @@ def intraclass_correlation(
     )
 
     # Rater test
-    f_rater = (
-        float(anova["ms_raters"] / anova["ms_error"]) if anova["ms_error"] > 0 else float("inf")
-    )
-    p_rater = (
-        float(stats.f.sf(f_rater, anova["df_raters"], anova["df_error"]))
-        if anova["ms_error"] > 0
-        else 0.0
-    )
+    if anova["ms_error"] > 0:
+        candidate_rater = float(anova["ms_raters"] / anova["ms_error"])
+        if math.isfinite(candidate_rater):
+            f_rater: float | None = candidate_rater
+            p_rater: float | None = float(
+                stats.f.sf(f_rater, anova["df_raters"], anova["df_error"])
+            )
+            rater_test_status = "available"
+            rater_test_reason = None
+        else:
+            f_rater = None
+            p_rater = 0.0
+            rater_test_status = "positive_infinity"
+            rater_test_reason = "The rater mean-square ratio exceeds the finite float64 range."
+    elif anova["ms_raters"] > 0:
+        f_rater = None
+        p_rater = 0.0
+        rater_test_status = "positive_infinity"
+        rater_test_reason = (
+            "The residual mean square is zero while the rater mean square is positive."
+        )
+    else:
+        f_rater = None
+        p_rater = None
+        rater_test_status = "unavailable"
+        rater_test_reason = "Both rater and residual mean squares are zero."
 
     return {
         "method_id": "intraclass_correlation",
@@ -856,6 +975,8 @@ def intraclass_correlation(
             "df1": anova["df_raters"],
             "df2": anova["df_error"],
             "p_value": p_rater,
+            "status": rater_test_status,
+            "reason": rater_test_reason,
         },
         "n_targets": n_targets,
         "n_raters": n_raters,

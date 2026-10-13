@@ -391,7 +391,7 @@ def _group_result(
             estimand=target,
             equal_var=equal_var,
             confidence_level=specification.options.confidence_level,
-            bootstrap_samples=499,
+            bootstrap_samples=specification.options.bootstrap_samples,
             random_state=effective_seed,
             alpha=specification.options.alpha,
         )
@@ -511,7 +511,7 @@ def _group_result(
             "pairwise_method": raw.get("pairwise_method"),
             "multiplicity_control": raw.get("multiplicity_control"),
             "pairwise_comparison_count": len(pairwise) if isinstance(pairwise, list) else 0,
-            "bootstrap_default_resamples": 499,
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
             "effective_random_seed": effective_seed,
         },
         specification=specification,
@@ -938,7 +938,7 @@ def _spearman_result(
         first,
         second,
         confidence_level=specification.options.confidence_level,
-        bootstrap_samples=499,
+        bootstrap_samples=specification.options.bootstrap_samples,
         random_state=effective_seed,
     )
     rho = _number(raw["statistic"], "Spearman rho")
@@ -992,7 +992,7 @@ def _spearman_result(
                 "ties": _json_safe(raw["ties"]),
                 "independent_observational_pairs": "Declared design; not verified from values.",
             },
-            "bootstrap_default_resamples": 499,
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
             "effective_random_seed": effective_seed,
         },
         specification=specification,
@@ -1015,7 +1015,7 @@ def _categorical_result(
         predictor,
         outcome,
         confidence_level=specification.options.confidence_level,
-        bootstrap_samples=499,
+        bootstrap_samples=specification.options.bootstrap_samples,
         random_state=effective_seed,
     )
     statistic = _number(raw.get("statistic"), "chi-square statistic")
@@ -1079,7 +1079,7 @@ def _categorical_result(
             "null_quantity": "Cramer's V",
             "alternative_hypothesis": "association",
             "diagnostics": _json_safe(assumptions),
-            "bootstrap_default_resamples": 499,
+            "bootstrap_default_resamples": specification.options.bootstrap_samples,
             "effective_random_seed": effective_seed,
         },
         specification=specification,
@@ -1985,9 +1985,13 @@ def _icc_result(
     ci = raw["confidence_interval"]
     f_test = raw["f_test"]
     f_stat = (
-        _number(f_test["statistic"], "F statistic") if f_test["statistic"] != float("inf") else 0.0
+        None if f_test.get("statistic") is None else _number(f_test["statistic"], "F statistic")
     )
-    p_val = _number(f_test["p_value"], "p-value", probability=True)
+    p_val = (
+        None
+        if f_test.get("p_value") is None
+        else _number(f_test["p_value"], "p-value", probability=True)
+    )
     dfs = _degrees([f_test["df1"], f_test["df2"]], "intraclass_correlation")
 
     effect_size_record = {

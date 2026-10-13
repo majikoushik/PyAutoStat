@@ -45,6 +45,23 @@ Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+-   **Independent audit remediation**:
+    -   Removed participant identifier values from session snapshots and research-bundle analysis provenance while preserving the unsanitized in-memory analysis result for explicit local inspection.
+    -   Honored the declared `bootstrap_samples` value in group-comparison, Spearman, and categorical-association workflows and added an audit consistency check for recorded resample configuration.
+    -   Bound `AnalysisResult` records produced by `ResearchAssistant` to a dataset fingerprint and rejected sensitivity execution when the base and current DataFrames do not match.
+    -   Corrected the legacy `StatisticalAnalyzer.hypothesis_tests()` narrative to use the caller's alpha and aligned diagnostic equality with the documented strict `p < alpha` rule.
+    -   Recorded warning-producing or nonfinite two-way ANOVA diagnostics as unavailable instead of rejected, while preventing raw SciPy warnings from escaping.
+    -   Preserved datetime category labels in memory and resolved ISO-serialized labels back to exact observed levels for condition order, event levels, and regression reference levels.
+    -   Preserved raw category objects for point-biserial, McNemar, and two-way ANOVA computation while converting date/datetime and other non-JSON labels only in public output records; direct repeated-measures, multigroup, paired-Wilcoxon, and ICC results are now strict-JSON serializable.
+    -   Removed analyzed value arrays from the direct paired-Wilcoxon result so the public calculation record retains aggregate pair accounting without exposing participant-level data.
+    -   Rejected Boolean and complex columns where a real quantitative outcome, predictor, control, or reliability score is required instead of silently treating Boolean coding as continuous measurement.
+    -   Rejected nonnumeric ICC and repeated-measures outcomes without coercing invalid values to missing observations and excluding affected units or targets.
+    -   Added consistent finite probability, positive bootstrap-count, and nonnegative random-seed validation to direct regression, logistic, reliability, repeated-measures, and serialized option paths.
+    -   Stabilized two-way ANOVA, repeated-measures ANOVA, and ICC scale handling so nonrepresentable sums of squares fail with actionable rescaling guidance without leaking NumPy overflow warnings or nonfinite JSON values.
+    -   Converted extreme-scale profiling and independent-mean interval failures into structured warnings or actionable rescaling errors, preventing raw NumPy runtime warnings from escaping public analysis calls.
+    -   Represented zero-denominator ICC F tests explicitly as positive-infinity or unavailable states instead of serializing infinities; identical-rater data no longer reports an undefined rater-effect test as significant.
+    -   Synchronized documented objective/design values, the 109-export API count, numerical-validation provenance wording, minimum pandas-floor CI, and strict reference-validation CI coverage.
+
 -   **Production runtime assertion removal and invariant hardening (PR-5 Part A, `src/pyautostat/`)**:
     -   *Affected area*: All source modules under `src/pyautostat`.
     -   *Correction*: Replaced all 44 production runtime `assert` statements with typed guards (`PyAutoStatError`, `InvalidDataError`, `UnsupportedPresentationError`), ensuring optimized Python execution (`python -O`) preserves identical public validation and internal invariant protection.

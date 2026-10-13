@@ -559,7 +559,8 @@ fit rather than out-of-sample predictive accuracy.
 The expert method
 `StatisticalAnalyzer.linear_regression(outcome, predictors, *, variable_types,
 covariance_type="classical", reference_levels=None, data_dictionary=None,
-confidence_level=.95, alpha=.05)` returns the same validated numerical schema. The guided path is
+confidence_level=.95, alpha=.05, bootstrap_samples=499, random_state=0)` returns the same
+validated numerical schema. The guided path is
 preferred when reports, interpretation, audit, replay, and session records are needed.
 The existing sensitivity comparison contract is scalar, so it does not currently compare a full
 regression coefficient vector. Run separately declared classical and HC3 specifications instead;
@@ -685,7 +686,7 @@ The workflow supports all six canonical Shrout & Fleiss (1979) / McGraw & Wong (
 - Canonical report tables include `icc_summary`, `icc_anova_table`, `icc_variance_components`, and `icc_all_variants`.
 - See the comprehensive [ICC Guide](docs/ICC_GUIDE.md) for full formulas, variance components, and reporting recommendations.
 
-Expert method `StatisticalAnalyzer.intraclass_correlation(target, rater, value, *, model="two_way_random", definition="absolute_agreement", unit="single", confidence_level=0.95, alpha=0.05, include_all_variants=True)` (with alias `.icc(...)`) returns the validated numerical dictionary.
+Expert method `StatisticalAnalyzer.intraclass_correlation(target, rater, value, *, model="two_way_random", definition="absolute_agreement", unit="single", confidence_level=0.95, alpha=0.05)` (with alias `.icc(...)`) returns the validated numerical dictionary, including the six canonical variants in its `all_variants` diagnostic field.
 
 ### Repeated-measures analysis (3+ conditions)
 
@@ -726,8 +727,8 @@ analysis uses a complete-case panel across all declared conditions; missingness 
   and Holm multiplicity adjustment.
 
 The expert methods `StatisticalAnalyzer.repeated_measures_anova(...)` and
-`StatisticalAnalyzer.friedman_test(...)` accept long-form DataFrames or pre-extracted panels and
-return the same validated schemas. Two-condition paired designs continue to route through
+`StatisticalAnalyzer.friedman_test(...)` operate on the analyzer's long-form DataFrame, construct
+the declared complete-unit panel internally, and return the same validated schemas. Two-condition paired designs continue to route through
 `paired_t` or `wilcoxon_signed_rank`.
 
 ### Two-way factorial ANOVA
@@ -814,7 +815,11 @@ print(sensitivity.compare())
 ```
 
 `sensitivity_analysis(result, *, scenarios) -> SensitivityResult` requires an available base
-result and a nonempty ordered list of uniquely named `SensitivitySpecification` records. A
+result produced by `ResearchAssistant` on the same DataFrame content and row/column order as the
+assistant executing the scenarios. This contract is verified from the dataset fingerprint stored
+with the base result; a missing, unavailable, or different fingerprint is rejected rather than
+labelled as a same-data comparison. The call also requires a nonempty ordered list of uniquely
+named `SensitivitySpecification` records. A
 scenario stores an `AnalysisSpecification`, optional explicit `method_id`, rationale,
 `planning_status` (`planned`, `exploratory`, or `unknown`), and explicit assumptions. With no
 method ID, the ordinary deterministic recommendation for that scenario specification is used.
@@ -929,8 +934,8 @@ restored = AnalysisSpecification.from_dict(saved)
 rechecked = assistant.prepare_question(specification=restored)
 ```
 
-`prepare_question()` accepts optional `objective` (an `Objective` enum value or string, such as `compare_groups`, `test_association`, or `estimate_reliability`), `outcome`, `predictor`, `predictors`, `items`,
-`controls`, `design` (a `StudyDesign` enum value or string: `independent`, `paired`, `repeated_measures`, or `factorial`), `estimand`, `event_level`, `association_measure`, `description`, `options`,
+`prepare_question()` accepts optional `objective` (an `Objective` enum value or one of `descriptive`, `compare_groups`, `compare_reference`, `association`, `regression`, or `reliability`), `outcome`, `predictor`, `predictors`, `items`,
+`controls`, `design` (a `StudyDesign` enum value or one of `unknown`, `independent`, `paired`, `repeated`, or `clustered`), `estimand`, `event_level`, `association_measure`, `description`, `options`,
 `data_dictionary`, `variable_types`, and `specification`. For comparison, `predictor` names the
 group or condition column. For association it names the second variable. `controls` is restricted
 to association requests, while `predictors` is restricted to regression. A descriptive request
@@ -1061,7 +1066,14 @@ Tukey-Kramer use `scipy.stats.studentized_range`; Dunn applies the pooled-rank t
 the central Holm adjustment helper. All preserve first-observed group order and reject incomplete,
 nonfinite, or unsupported variance cases explicitly.
 
-Group and categorical effect intervals use the existing 499-resample bootstrap with effective seed 0 when no seed was specified; this default and any explicit seed are recorded in metadata and diagnostics. The specification's alpha and confidence level remain available through `result.specification.options`; alpha is not used to alter the numerical p-value. No missing rows are imputed, no outliers are removed, and declared missing codes still block execution until normalized externally. JSON export is `json.dumps(result.to_dict(), allow_nan=False)`.
+Guided group, Spearman, and categorical effect intervals use the specification's
+`options.bootstrap_samples` value (499 by default), with effective seed 0 when no seed was
+specified. The configured count and effective seed are recorded in metadata and diagnostics and
+checked by the result auditor. The specification's alpha and confidence level remain available
+through `result.specification.options`; alpha is not used to alter the numerical p-value. No
+missing rows are imputed, no outliers are removed, and declared missing codes still block
+execution until normalized externally. JSON export is
+`json.dumps(result.to_dict(), allow_nan=False)`.
 
 ### Result ergonomics, primary views, and APA-oriented statements
 
@@ -1283,14 +1295,16 @@ analysis = analyzer.analyze_all()
 Direct basic-inference methods are:
 
 - `one_sample_t_test(value_col, reference_value, *, confidence_level=.95)`;
-- `paired_wilcoxon(unit_id, condition_col, value_col, *, condition_order=None)`;
+- `paired_wilcoxon(unit_id, condition_col, value_col, *, condition_order=None,
+  confidence_level=.95, bootstrap_samples=499, random_state=0)`;
 - `spearman_correlation(first, second, *, confidence_level=.95, bootstrap_samples=499,
   random_state=0)`;
 - `two_way_anova(outcome, factor_a, factor_b, *, sum_of_squares="type2", alpha=0.05, confidence_level=0.95)`; and
 - `fisher_exact(row_variable, column_variable)` for 2x2 tables only.
 
 All exclude missing rows transparently and never mutate the input. Paired Wilcoxon constructs
-pairs by unit ID, never row order. Fisher retains level order with its observed table. The
+pairs by unit ID, never row order; its public result contains aggregate pair accounting but no
+analyzed value arrays or unit identifiers. Fisher retains level order with its observed table. The
 profile-wide Spearman matrix remains descriptive and separate from two-variable inference.
 
 `df` must be a nonempty pandas DataFrame with unique, nonempty string column names and scalar values. Numeric values must be finite and real; missing values are allowed. The analyzer copies the DataFrame and exposes `df`, `numeric_cols`, `categorical_cols`, and `all_results`.

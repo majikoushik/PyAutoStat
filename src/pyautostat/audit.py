@@ -18,6 +18,7 @@ from .research_report import ResearchReport, build_research_report
 from .results import AnalysisResult
 from .sensitivity import SensitivityResult
 from .specifications import _json_value
+from .usability import level_matches
 
 
 @dataclass(frozen=True)
@@ -194,12 +195,30 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
             recommendation.method_id if recommendation is not None else None,
             findings,
         )
+    recorded_resamples = source.metadata.get("bootstrap_default_resamples")
+    if (
+        recorded_resamples is not None
+        and recorded_resamples != specification.options.bootstrap_samples
+    ):
+        _mismatch(
+            "analysis.metadata.bootstrap_default_resamples",
+            specification.options.bootstrap_samples,
+            recorded_resamples,
+            findings,
+        )
     values = source.values
     p_value = values.get("p_value")
     allowed_missing_p_value = (
-        source.method_id == "one_sample_t"
-        and values.get("effect_size", {}).get("status") == "unavailable_zero_variance"
-    ) or source.method_id == "cronbach_alpha"
+        (
+            source.method_id == "one_sample_t"
+            and values.get("effect_size", {}).get("status") == "unavailable_zero_variance"
+        )
+        or source.method_id == "cronbach_alpha"
+        or (
+            source.method_id == "intraclass_correlation"
+            and values.get("f_test", {}).get("status") == "unavailable"
+        )
+    )
     valid_p_value = (
         isinstance(p_value, (int, float))
         and not isinstance(p_value, bool)
@@ -217,6 +236,10 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
         or (
             source.method_id == "fisher_exact"
             and source.metadata.get("odds_ratio_status") in {"positive_infinity", "undefined"}
+        )
+        or (
+            source.method_id == "intraclass_correlation"
+            and values.get("f_test", {}).get("status") in {"positive_infinity", "unavailable"}
         )
         or source.method_id == "cronbach_alpha"
     )
@@ -689,7 +712,7 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
         design = values.get("design_matrix")
         fit = values.get("model_fit")
         diagnostics = values.get("diagnostics")
-        if values.get("event_level") != question.event_level:
+        if not level_matches(question.event_level, values.get("event_level")):
             _mismatch(
                 "analysis.values.event_level",
                 question.event_level,
@@ -880,7 +903,7 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                     expected, actual, rel_tol=1e-10, abs_tol=1e-12
                 ):
                     _mismatch(f"analysis.values.{path}", expected, actual, findings)
-        if values.get("event_level") != question.event_level:
+        if not level_matches(question.event_level, values.get("event_level")):
             _mismatch(
                 "analysis.values.event_level",
                 question.event_level,
@@ -888,7 +911,15 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
                 findings,
             )
         expected_order = list(specification.condition_order or ())
-        if values.get("condition_order") != expected_order:
+        recorded_order = values.get("condition_order")
+        if (
+            not isinstance(recorded_order, list)
+            or len(recorded_order) != len(expected_order)
+            or any(
+                not level_matches(expected, actual)
+                for expected, actual in zip(expected_order, recorded_order, strict=True)
+            )
+        ):
             _mismatch(
                 "analysis.values.condition_order",
                 expected_order,
@@ -938,7 +969,7 @@ def _method_contract_findings(source: AnalysisResult) -> tuple[AuditFinding, ...
             coding = values.get("binary_encoding")
             if (
                 not isinstance(coding, dict)
-                or coding.get("positive_level") != question.event_level
+                or not level_matches(question.event_level, coding.get("positive_level"))
                 or coding.get("negative_level") == coding.get("positive_level")
             ):
                 _mismatch("analysis.values.binary_encoding", question.event_level, coding, findings)

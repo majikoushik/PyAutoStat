@@ -580,7 +580,11 @@ def _numeric(values: pd.Series) -> np.ndarray | None:
     Infinities (+inf, -inf) are not treated as missing values; they cause this helper
     to return None so that nonfinite data is caught and rejected by finite-data safeguards.
     """
-    if not pd.api.types.is_numeric_dtype(values):
+    if (
+        not pd.api.types.is_numeric_dtype(values)
+        or pd.api.types.is_bool_dtype(values)
+        or pd.api.types.is_complex_dtype(values)
+    ):
         return None
     try:
         result = np.asarray(values, dtype=float)

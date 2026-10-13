@@ -7,6 +7,7 @@ from difflib import get_close_matches
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 COLUMN_DISPLAY_LIMIT = 12
 LEVEL_DISPLAY_LIMIT = 10
@@ -14,14 +15,46 @@ LEVEL_DISPLAY_LIMIT = 10
 
 def level_matches(requested: Any, observed: Any) -> bool:
     """Check if requested level matches observed level, strictly preserving bool vs int identity."""
-    if isinstance(requested, bool) != isinstance(observed, (bool, np.bool_)):
+    if isinstance(requested, (bool, np.bool_)) != isinstance(observed, (bool, np.bool_)):
         return False
-    return bool(requested == observed)
+    try:
+        matched = requested == observed
+        if not isinstance(matched, (np.ndarray, pd.Series)) and not pd.isna(matched):
+            if bool(matched):
+                return True
+    except (TypeError, ValueError):
+        pass
+
+    # JSON specifications represent date/datetime labels with ISO text. Resolve
+    # that representation only when the observed value is genuinely temporal;
+    # ordinary string and numeric categories retain strict identity semantics.
+    observed_temporal = (
+        isinstance(observed, (pd.Timestamp, np.datetime64))
+        or type(observed).__module__ == "datetime"
+    )
+    requested_temporal = (
+        isinstance(requested, (pd.Timestamp, np.datetime64))
+        or type(requested).__module__ == "datetime"
+    )
+    if not (observed_temporal or requested_temporal):
+        return False
+    try:
+        return bool(pd.Timestamp(requested) == pd.Timestamp(observed))
+    except (TypeError, ValueError, OverflowError):
+        return False
 
 
 def level_in(requested: Any, levels: Iterable[Any]) -> bool:
     """Check if requested level is in levels, strictly preserving bool vs int identity."""
     return any(level_matches(requested, level) for level in levels)
+
+
+def resolve_level(requested: Any, levels: Iterable[Any]) -> Any:
+    """Return the exact observed object matching a declared or serialized level."""
+    for level in levels:
+        if level_matches(requested, level):
+            return level
+    raise ValueError(f"No observed level matches {requested!r}.")
 
 
 SUPPORTED_VARIABLE_TYPES = (

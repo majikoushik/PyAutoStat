@@ -114,7 +114,7 @@ Essential design facts are still never guessed. An unresolved request returns st
 
 ## Public export cleanup
 
-No top-level exports were removed for 1.0. All 97 names in `pyautostat.__all__` are frozen at their
+No top-level exports were removed for 1.0. All 109 names in `pyautostat.__all__` are frozen at their
 documented tier. Low-level narration, detection, contract, and capability helpers were retained
 because they were already documented and used by tests or integration surfaces.
 

@@ -13,7 +13,7 @@ from scipy import stats
 
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidDataError
 from .inference import paired_values
-from .usability import invalid_level_message
+from .usability import invalid_level_message, level_matches
 
 
 def _label(value: Any) -> str | int | float | bool:
@@ -65,7 +65,11 @@ def _column(frame: pd.DataFrame, name: str, *, numeric: bool = False) -> pd.Seri
     if name not in frame.columns:
         raise ColumnNotFoundError(f"{name!r} is not a column in this DataFrame.")
     series = frame[name]
-    if numeric and not pd.api.types.is_numeric_dtype(series):
+    if numeric and (
+        not pd.api.types.is_numeric_dtype(series)
+        or pd.api.types.is_bool_dtype(series)
+        or pd.api.types.is_complex_dtype(series)
+    ):
         raise InvalidDataError(f"{name!r} must be a real numeric column.")
     return series
 
@@ -86,12 +90,27 @@ def _binary_levels(values: np.ndarray, event_level: Any, variable: str) -> tuple
         raise InsufficientDataError(
             f"{variable!r} must have exactly two usable levels; {len(levels)} were found."
         )
-    matches = [value for value in levels if value == event_level]
+    matches = [value for value in levels if level_matches(event_level, value)]
     if not matches:
         raise InvalidDataError(invalid_level_message("event_level", event_level, variable, levels))
     event = matches[0]
-    non_event = next(value for value in levels if value != event)
-    return _label(non_event), _label(event)
+    non_event = next(value for value in levels if not level_matches(event, value))
+    # Return the exact observed objects for numerical coding. Display conversion
+    # happens only when the JSON-ready result is assembled; converting a Python
+    # date here, for example, would turn it into text that no longer equals the
+    # source observations.
+    return non_event, event
+
+
+def _distinct_level_keys(first: Any, second: Any) -> tuple[str, str]:
+    """Return stable display keys without collapsing distinct typed levels."""
+    first_key, second_key = str(_label(first)), str(_label(second))
+    if first_key != second_key:
+        return first_key, second_key
+    return (
+        f"{type(first).__name__}:{first_key!r}",
+        f"{type(second).__name__}:{second_key!r}",
+    )
 
 
 def _bootstrap_interval(
@@ -178,9 +197,18 @@ def mcnemar_test(
         matched_or, matched_status = float(b / c), "finite"
     order = pairs["condition_order"]
     order_labels = [_label(value) for value in order]
+    event_label, non_event_label = _label(event), _label(non_event)
     table = {
-        "rows": {"condition": order_labels[0], "event": event, "non_event": non_event},
-        "columns": {"condition": order_labels[1], "event": event, "non_event": non_event},
+        "rows": {
+            "condition": order_labels[0],
+            "event": event_label,
+            "non_event": non_event_label,
+        },
+        "columns": {
+            "condition": order_labels[1],
+            "event": event_label,
+            "non_event": non_event_label,
+        },
         "first_event_second_event": a,
         "first_event_second_non_event": b,
         "first_non_event_second_event": c,
@@ -198,8 +226,8 @@ def mcnemar_test(
         "method": "exact binomial McNemar",
         "alternative": "two-sided",
         "transition_table": table,
-        "event_level": event,
-        "non_event_level": non_event,
+        "event_level": event_label,
+        "non_event_level": non_event_label,
         "condition_order": order_labels,
         "first_event_proportion": first_rate,
         "second_event_proportion": second_rate,
@@ -270,6 +298,8 @@ def point_biserial_correlation(
     interval = _bootstrap_interval(estimates, level, requested, seed, "point-biserial r")
     group_0 = continuous[encoded == 0]
     group_1 = continuous[encoded == 1]
+    negative_label, positive_label = _label(negative), _label(positive)
+    negative_key, positive_key = _distinct_level_keys(negative, positive)
     warning_messages = (
         [] if interval is not None else ["Point-biserial bootstrap interval is unavailable."]
     )
@@ -286,16 +316,18 @@ def point_biserial_correlation(
             "confidence_interval": interval,
         },
         "binary_encoding": {
-            "level_0": negative,
-            "level_1": positive,
-            "negative_level": negative,
-            "positive_level": positive,
-            "encoding_note": f"0 = {negative!r}; 1 = declared positive level {positive!r}.",
+            "level_0": negative_label,
+            "level_1": positive_label,
+            "negative_level": negative_label,
+            "positive_level": positive_label,
+            "encoding_note": (
+                f"0 = {negative_label!r}; 1 = declared positive level {positive_label!r}."
+            ),
         },
-        "group_sizes": {str(negative): int(len(group_0)), str(positive): int(len(group_1))},
+        "group_sizes": {negative_key: int(len(group_0)), positive_key: int(len(group_1))},
         "group_means": {
-            str(negative): float(np.mean(group_0)),
-            str(positive): float(np.mean(group_1)),
+            negative_key: float(np.mean(group_0)),
+            positive_key: float(np.mean(group_1)),
         },
         "sample_size": n,
         "excluded_rows": int(len(frame) - n),

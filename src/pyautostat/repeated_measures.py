@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import math
 from itertools import combinations
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
@@ -21,6 +22,40 @@ from .uncertainty import (
     repeated_measures_partial_eta_squared_ci,
 )
 from .usability import invalid_condition_order_message, observed_levels
+
+
+def _probability(value: Any, name: str) -> float:
+    number = float(value) if isinstance(value, Real) and not isinstance(value, bool) else math.nan
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, Real)
+        or not math.isfinite(number)
+        or not 0 < number < 1
+    ):
+        raise InvalidTestError(f"{name} must be a finite number strictly between 0 and 1.")
+    return number
+
+
+def _bootstrap_options(bootstrap_samples: Any, random_state: Any) -> tuple[int, int | None]:
+    if (
+        isinstance(bootstrap_samples, bool)
+        or not isinstance(bootstrap_samples, Integral)
+        or bootstrap_samples < 1
+    ):
+        raise InvalidTestError("bootstrap_samples must be a positive integer.")
+    if random_state is not None and (
+        isinstance(random_state, bool) or not isinstance(random_state, Integral) or random_state < 0
+    ):
+        raise InvalidTestError("random_state must be a nonnegative integer or None.")
+    return int(bootstrap_samples), None if random_state is None else int(random_state)
+
+
+def _label(value: Any) -> str | int | float | bool:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        raise InvalidTestError("Condition labels must be finite.")
+    return value if isinstance(value, (str, int, float, bool)) else str(value)
 
 
 def _helmert_contrasts(k: int) -> np.ndarray:
@@ -105,13 +140,15 @@ def repeated_panel(
             "per declared condition."
         )
 
-    if numeric and not pd.api.types.is_numeric_dtype(usable[value_col]):
-        try:
-            usable[value_col] = pd.to_numeric(usable[value_col])
-        except (ValueError, TypeError) as exc:
-            raise InvalidTestError(
-                f"Outcome column {value_col!r} must contain real numeric values."
-            ) from exc
+    if numeric and (
+        not pd.api.types.is_numeric_dtype(usable[value_col])
+        or pd.api.types.is_bool_dtype(usable[value_col])
+        or pd.api.types.is_complex_dtype(usable[value_col])
+    ):
+        raise InvalidTestError(
+            f"Outcome column {value_col!r} must contain real numeric values; values are not "
+            "coerced or recoded automatically."
+        )
 
     pivot = usable.pivot(index=unit_id, columns=condition_col, values=value_col)
     complete = pivot.dropna(subset=order)
@@ -127,9 +164,17 @@ def repeated_panel(
     if numeric and not np.isfinite(panel_values).all():
         raise InvalidTestError("Repeated panel contains nonfinite outcome values.")
 
+    numeric_scale = 1.0
+    normalized_panel: np.ndarray | None = None
     if numeric:
-        ptp = float(np.ptp(panel_values))
-        if not math.isfinite(ptp) or ptp == 0.0:
+        numeric_scale = float(np.max(np.abs(panel_values)))
+        if not math.isfinite(numeric_scale):
+            raise InvalidTestError("Repeated panel contains nonfinite outcome values.")
+        normalized_panel = (
+            panel_values / numeric_scale if numeric_scale > 0.0 else panel_values.copy()
+        )
+        normalized_range = float(np.ptp(normalized_panel))
+        if normalized_range == 0.0:
             raise InsufficientDataError(
                 "Repeated-measures analysis requires variability in the outcome variable."
             )
@@ -140,16 +185,31 @@ def repeated_panel(
 
     condition_summaries = []
     for j, cond_label in enumerate(order):
-        col_vals = panel_values[:, j]
         if numeric:
-            mean_val = float(np.mean(col_vals))
-            sd_val = float(np.std(col_vals, ddof=1)) if n_complete > 1 else 0.0
-            med_val = float(np.median(col_vals))
-            q25 = float(np.percentile(col_vals, 25))
-            q75 = float(np.percentile(col_vals, 75))
-            iqr_val = float(q75 - q25)
+            if normalized_panel is None:
+                raise InvalidTestError(
+                    "Internal repeated-panel normalization is unavailable for a numeric outcome."
+                )
+            normalized_col = normalized_panel[:, j]
+            mean_val = float(np.mean(normalized_col) * numeric_scale)
+            sd_val = (
+                float(np.std(normalized_col, ddof=1) * numeric_scale) if n_complete > 1 else 0.0
+            )
+            med_val = float(np.median(normalized_col) * numeric_scale)
+            q25_normalized = float(np.percentile(normalized_col, 25))
+            q75_normalized = float(np.percentile(normalized_col, 75))
+            q25 = float(q25_normalized * numeric_scale)
+            q75 = float(q75_normalized * numeric_scale)
+            iqr_val = float((q75_normalized - q25_normalized) * numeric_scale)
+            if not all(
+                math.isfinite(value) for value in (mean_val, sd_val, med_val, q25, q75, iqr_val)
+            ):
+                raise InsufficientDataError(
+                    "Repeated-measures summaries are nonfinite at the observed outcome scale; "
+                    "rescale the outcome before analysis."
+                )
             summary = {
-                "condition": cond_label,
+                "condition": _label(cond_label),
                 "n": n_complete,
                 "mean": mean_val,
                 "standard_deviation": sd_val,
@@ -160,7 +220,7 @@ def repeated_panel(
             }
         else:
             summary = {
-                "condition": cond_label,
+                "condition": _label(cond_label),
                 "n": n_complete,
             }
         condition_summaries.append(summary)
@@ -196,10 +256,9 @@ def friedman_test(
     random_state: int | None = 0,
 ) -> dict[str, Any]:
     """Execute the Friedman repeated-rank omnibus test with complete Wilcoxon-Holm follow-up."""
-    if not 0 < alpha < 1:
-        raise InvalidTestError("alpha must be strictly between 0 and 1.")
-    if not 0 < confidence_level < 1:
-        raise InvalidTestError("confidence_level must be strictly between 0 and 1.")
+    alpha = _probability(alpha, "alpha")
+    confidence_level = _probability(confidence_level, "confidence_level")
+    bootstrap_samples, random_state = _bootstrap_options(bootstrap_samples, random_state)
 
     panel_info = repeated_panel(
         frame,
@@ -212,6 +271,7 @@ def friedman_test(
     panel = panel_info["panel"]
     n = panel_info["complete_units"]
     order = panel_info["condition_order"]
+    display_order = [_label(item) for item in order]
     k = panel_info["condition_count"]
 
     columns = [panel[:, j] for j in range(k)]
@@ -231,8 +291,8 @@ def friedman_test(
     pair_combos = list(combinations(range(k), 2))
 
     for i, j in pair_combos:
-        first_cond = order[i]
-        second_cond = order[j]
+        first_cond = display_order[i]
+        second_cond = display_order[j]
         diff = panel[:, i] - panel[:, j]
         nonzero = diff[diff != 0]
 
@@ -373,8 +433,8 @@ def friedman_test(
             ),
             "confidence_interval": w_ci,
         },
-        "conditions": order,
-        "condition_order": order,
+        "conditions": display_order,
+        "condition_order": display_order,
         "condition_count": k,
         "condition_summaries": panel_info["condition_summaries"],
         "pairwise_comparisons": pair_records,
@@ -424,10 +484,8 @@ def repeated_measures_anova(
     confidence_level: float = 0.95,
 ) -> dict[str, Any]:
     """Execute repeated-measures ANOVA with Mauchly's sphericity and GG correction."""
-    if not 0 < alpha < 1:
-        raise InvalidTestError("alpha must be strictly between 0 and 1.")
-    if not 0 < confidence_level < 1:
-        raise InvalidTestError("confidence_level must be strictly between 0 and 1.")
+    alpha = _probability(alpha, "alpha")
+    confidence_level = _probability(confidence_level, "confidence_level")
 
     panel_info = repeated_panel(
         frame,
@@ -440,21 +498,52 @@ def repeated_measures_anova(
     panel = panel_info["panel"]
     n = panel_info["complete_units"]
     order = panel_info["condition_order"]
+    display_order = [_label(item) for item in order]
     k = panel_info["condition_count"]
 
     if n <= 2:
         raise InsufficientDataError("Repeated-measures ANOVA requires at least 3 complete units.")
 
-    grand_mean = float(np.mean(panel))
-    unit_means = np.mean(panel, axis=1)  # shape (n,)
-    cond_means = np.mean(panel, axis=0)  # shape (k,)
+    absolute_scale = float(np.max(np.abs(panel)))
+    normalized = panel / absolute_scale
+    centered = normalized - normalized[0, 0]
+    relative_scale = float(np.max(np.abs(centered)))
+    outcome_scale = absolute_scale * relative_scale
+    scale_squared = outcome_scale * outcome_scale
+    if not math.isfinite(outcome_scale) or not math.isfinite(scale_squared) or scale_squared == 0.0:
+        raise InsufficientDataError(
+            "The outcome scale cannot produce finite sums of squares in float64; rescale the "
+            "outcome before repeated-measures ANOVA."
+        )
 
-    ss_total = float(np.sum((panel - grand_mean) ** 2))
-    ss_subject = float(k * np.sum((unit_means - grand_mean) ** 2))
-    ss_condition = float(n * np.sum((cond_means - grand_mean) ** 2))
-    ss_error = float(
-        np.sum((panel - cond_means[np.newaxis, :] - unit_means[:, np.newaxis] + grand_mean) ** 2)
+    model_panel = centered / relative_scale
+    grand_mean_scaled = float(np.mean(model_panel))
+    unit_means_scaled = np.mean(model_panel, axis=1)  # shape (n,)
+    cond_means_scaled = np.mean(model_panel, axis=0)  # shape (k,)
+
+    ss_total_scaled = float(np.sum((model_panel - grand_mean_scaled) ** 2))
+    ss_subject_scaled = float(k * np.sum((unit_means_scaled - grand_mean_scaled) ** 2))
+    ss_condition_scaled = float(n * np.sum((cond_means_scaled - grand_mean_scaled) ** 2))
+    ss_error_scaled = float(
+        np.sum(
+            (
+                model_panel
+                - cond_means_scaled[np.newaxis, :]
+                - unit_means_scaled[:, np.newaxis]
+                + grand_mean_scaled
+            )
+            ** 2
+        )
     )
+    ss_total = ss_total_scaled * scale_squared
+    ss_subject = ss_subject_scaled * scale_squared
+    ss_condition = ss_condition_scaled * scale_squared
+    ss_error = ss_error_scaled * scale_squared
+    if not all(math.isfinite(value) for value in (ss_total, ss_subject, ss_condition, ss_error)):
+        raise InsufficientDataError(
+            "Repeated-measures sums of squares are nonfinite at the observed outcome scale; "
+            "rescale the outcome before analysis."
+        )
 
     df_condition = k - 1
     df_error = (n - 1) * (k - 1)
@@ -476,7 +565,7 @@ def repeated_measures_anova(
     partial_eta_sq = float(min(1.0, max(0.0, partial_eta_sq)))
 
     # Sphericity evaluation via orthonormal Helmert contrasts
-    cov_matrix = np.cov(panel, rowvar=False, ddof=1)
+    cov_matrix = np.cov(model_panel, rowvar=False, ddof=1)
     m_helmert = _helmert_contrasts(k)
     sigma_c = m_helmert.T @ cov_matrix @ m_helmert  # shape (k-1, k-1)
 
@@ -569,11 +658,17 @@ def repeated_measures_anova(
     t_crit = float(stats.t.ppf((1.0 + confidence_level) / 2.0, df=n - 1))
 
     for i, j in pair_combos:
-        first_cond = order[i]
-        second_cond = order[j]
+        first_cond = display_order[i]
+        second_cond = display_order[j]
         diff = panel[:, i] - panel[:, j]
-        diff_mean = float(np.mean(diff))
-        diff_sd = float(np.std(diff, ddof=1)) if n > 1 else 0.0
+        diff_scale = float(np.max(np.abs(diff)))
+        if diff_scale > 0.0:
+            normalized_diff = diff / diff_scale
+            diff_mean = float(np.mean(normalized_diff) * diff_scale)
+            diff_sd = float(np.std(normalized_diff, ddof=1) * diff_scale) if n > 1 else 0.0
+        else:
+            diff_mean = 0.0
+            diff_sd = 0.0
         se = float(diff_sd / math.sqrt(n)) if n > 0 else 0.0
 
         if diff_sd > 0 and se > 0 and math.isfinite(diff_sd) and math.isfinite(se):
@@ -699,7 +794,7 @@ def repeated_measures_anova(
         "primary_p_value": primary_p,
         "p_value": primary_p,
         "complete_units": n,
-        "conditions": order,
+        "conditions": display_order,
         "primary_degrees_of_freedom": {
             "numerator": primary_df_num,
             "denominator": primary_df_den,
@@ -766,7 +861,7 @@ def repeated_measures_anova(
         "primary_inference": "greenhouse_geisser"
         if correction_applied == "Greenhouse-Geisser"
         else "uncorrected",
-        "condition_order": order,
+        "condition_order": display_order,
         "condition_count": k,
         "condition_summaries": panel_info["condition_summaries"],
         "pairwise_comparisons": pair_records,

@@ -328,7 +328,7 @@ def is_fast_mode() -> bool:
     )
 
 
-def resolve_bootstrap_samples(default: int = 499, fast_count: int = 50) -> int:
+def resolve_bootstrap_samples(default: int = 499, fast_count: int = 100) -> int:
     """Return appropriate bootstrap sample count depending on active mode."""
     return fast_count if is_fast_mode() else default
 

@@ -1669,6 +1669,13 @@ class ResearchAssistant:
                 "Internal invariant violated: validated execution has no analysis specification."
             )
         result = execute_specification(self._analyzer, selected_spec)
+        try:
+            execution_fingerprint = dataset_fingerprint(self._analyzer.df)
+        except InvalidDataError:
+            execution_fingerprint = None
+        result_metadata = dict(result.metadata)
+        result_metadata["dataset_fingerprint"] = execution_fingerprint
+        result = replace(result, metadata=result_metadata)
         self._analysis_has_executed = result.method_id != "unselected"
         if self._ledger is not None:
             references = {"analysis": content_reference("analysis", result.to_dict())}
@@ -1735,6 +1742,22 @@ class ResearchAssistant:
         except InvalidDataError as exc:
             fingerprint = None
             fingerprint_warning = f"Dataset fingerprint unavailable: {exc}"
+        base_fingerprint = result.metadata.get("dataset_fingerprint")
+        if base_fingerprint is None:
+            raise InvalidDataError(
+                "The base result has no dataset fingerprint, so same-DataFrame sensitivity "
+                "cannot be verified. Re-run the base analysis with this ResearchAssistant."
+            )
+        if fingerprint is None:
+            raise InvalidDataError(
+                "The current dataset cannot be fingerprinted, so same-DataFrame sensitivity "
+                "cannot be verified."
+            )
+        if base_fingerprint != fingerprint:
+            raise InvalidDataError(
+                "The base result dataset fingerprint does not match this assistant's dataset; "
+                "sensitivity scenarios must use the same DataFrame content and order."
+            )
         base_reference = content_reference("analysis", result.to_dict())
         plan = [item.to_dict() for item in scenarios]
         if self._ledger is not None:

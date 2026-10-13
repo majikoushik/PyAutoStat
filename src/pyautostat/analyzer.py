@@ -78,6 +78,22 @@ def _finite_or_none(value):
     return number if np.isfinite(number) else None
 
 
+def _quiet_numeric(function):
+    """Evaluate expected-to-fail arithmetic without leaking NumPy runtime warnings."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        with np.errstate(all="ignore"):
+            return function()
+
+
+def _label(value: Any) -> str | int | float | bool:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not np.isfinite(value):
+        raise InvalidDataError("Group labels must be finite.")
+    return value if isinstance(value, (str, int, float, bool)) else str(value)
+
+
 def _advisory_normaltest_warning(item, sample_size):
     """Recognize SciPy's small-sample kurtosis approximation warning only."""
     message = str(item.message).lower()
@@ -288,7 +304,12 @@ class StatisticalAnalyzer:
             if col_data.empty:
                 continue
             try:
-                counts, edges = np.histogram(np.asarray(col_data, dtype=float), bins=bins)
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", RuntimeWarning)
+                    with np.errstate(all="ignore"):
+                        counts, edges = np.histogram(np.asarray(col_data, dtype=float), bins=bins)
+                if caught or not np.isfinite(edges).all():
+                    raise ValueError("bin edges are not finite at this numeric scale")
             except (ValueError, OverflowError) as exc:
                 self._add_warning(
                     "undefined_result",
@@ -327,30 +348,39 @@ class StatisticalAnalyzer:
 
         for col in self._profile_numeric_cols:
             col_data = self.df[col].dropna()
-            mean = _finite_or_none(col_data.mean())
-            std = _finite_or_none(col_data.std())
-            quantile_values = col_data.quantile(
-                list(self._profile_quantiles), interpolation="linear"
+            mean = _finite_or_none(_quiet_numeric(col_data.mean))
+            std = _finite_or_none(_quiet_numeric(col_data.std))
+            quantile_values = _quiet_numeric(
+                lambda values=col_data: values.quantile(
+                    list(self._profile_quantiles), interpolation="linear"
+                )
             )
             percentiles = {
                 _quantile_key(quantile): _finite_or_none(quantile_values.loc[quantile])
                 for quantile in self._profile_quantiles
             }
             cv = _coefficient_of_variation(col_data, mean, std)
+            q1 = _finite_or_none(_quiet_numeric(lambda values=col_data: values.quantile(0.25)))
+            q3 = _finite_or_none(_quiet_numeric(lambda values=col_data: values.quantile(0.75)))
+            iqr = (
+                _finite_or_none(_quiet_numeric(lambda upper=q3, lower=q1: upper - lower))
+                if q1 is not None and q3 is not None
+                else None
+            )
 
             stats_dict[col] = {
                 "count": len(col_data),
                 "mean": mean,
-                "median": _finite_or_none(col_data.median()),
+                "median": _finite_or_none(_quiet_numeric(col_data.median)),
                 "std": std,
-                "variance": _finite_or_none(col_data.var()),
+                "variance": _finite_or_none(_quiet_numeric(col_data.var)),
                 "min": _finite_or_none(col_data.min()),
-                "q1": _finite_or_none(col_data.quantile(0.25)),
-                "q3": _finite_or_none(col_data.quantile(0.75)),
+                "q1": q1,
+                "q3": q3,
                 "max": _finite_or_none(col_data.max()),
-                "iqr": _finite_or_none(col_data.quantile(0.75) - col_data.quantile(0.25)),
-                "skewness": _finite_or_none(col_data.skew()),
-                "kurtosis": _finite_or_none(col_data.kurtosis()),
+                "iqr": iqr,
+                "skewness": _finite_or_none(_quiet_numeric(col_data.skew)),
+                "kurtosis": _finite_or_none(_quiet_numeric(col_data.kurtosis)),
                 "percentiles": percentiles,
                 "percentile_method": "pandas linear interpolation",
                 "coefficient_of_variation": cv["percent"],
@@ -480,15 +510,15 @@ class StatisticalAnalyzer:
                     _sw_verdict = (
                         f"Normality not rejected (p = {p_value:.4g}). "
                         "This does not prove normality."
-                        if p_value > 0.05
+                        if p_value >= 0.05
                         else f"Normality rejected (p = {p_value:.4g}). "
                         "The data distribution departs significantly from normal."
                     )
                     tests["shapiro_wilk"] = {
                         "statistic": float(stat),
                         "p_value": float(p_value),
-                        "is_normal": bool(p_value > 0.05),  # Legacy screening flag.
-                        "status": "not_rejected" if p_value > 0.05 else "rejected",
+                        "is_normal": bool(p_value >= 0.05),  # Legacy screening flag.
+                        "status": "not_rejected" if p_value >= 0.05 else "rejected",
                         "reference_alpha": 0.05,
                         "verdict": _sw_verdict,
                     }
@@ -511,15 +541,15 @@ class StatisticalAnalyzer:
                     _dag_verdict = (
                         f"Normality not rejected (p = {p_value:.4g}). "
                         "This does not prove normality."
-                        if p_value > 0.05
+                        if p_value >= 0.05
                         else f"Normality rejected (p = {p_value:.4g}). "
                         "The data distribution departs significantly from normal."
                     )
                     tests["d_agostino_pearson"] = {
                         "statistic": float(stat),
                         "p_value": float(p_value),
-                        "is_normal": bool(p_value > 0.05),  # Legacy screening flag.
-                        "status": "not_rejected" if p_value > 0.05 else "rejected",
+                        "is_normal": bool(p_value >= 0.05),  # Legacy screening flag.
+                        "status": "not_rejected" if p_value >= 0.05 else "rejected",
                         "reference_alpha": 0.05,
                         "verdict": _dag_verdict,
                     }
@@ -753,11 +783,15 @@ class StatisticalAnalyzer:
             positions = np.flatnonzero(self.df[col].notna().to_numpy())
 
             # IQR Method
-            Q1 = col_data.quantile(0.25)
-            Q3 = col_data.quantile(0.75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
+            Q1 = _quiet_numeric(lambda values=col_data: values.quantile(0.25))
+            Q3 = _quiet_numeric(lambda values=col_data: values.quantile(0.75))
+            IQR = _quiet_numeric(lambda upper=Q3, lower=Q1: upper - lower)
+            lower_bound = _quiet_numeric(
+                lambda lower_quartile=Q1, spread=IQR: lower_quartile - 1.5 * spread
+            )
+            upper_bound = _quiet_numeric(
+                lambda upper_quartile=Q3, spread=IQR: upper_quartile + 1.5 * spread
+            )
             bounds_valid = np.isfinite(lower_bound) and np.isfinite(upper_bound)
             iqr_outliers = (
                 int(((col_data < lower_bound) | (col_data > upper_bound)).sum())
@@ -822,10 +856,20 @@ class StatisticalAnalyzer:
                 )
 
             # Modified Z-score (using MAD)
-            median = col_data.median()
-            mad = np.median(np.abs(col_data - median))
+            median = _quiet_numeric(col_data.median)
+            mad = _quiet_numeric(
+                lambda values=col_data, center=median: np.median(np.abs(values - center))
+            )
             mad_valid = mad != 0 and np.isfinite(mad)
-            modified_z = 0.6745 * (col_data - median) / mad if mad_valid else None
+            modified_z = (
+                _quiet_numeric(
+                    lambda values=col_data, center=median, scale=mad: (
+                        0.6745 * (values - center) / scale
+                    )
+                )
+                if mad_valid
+                else None
+            )
             mad_outliers = int((np.abs(modified_z) > 3.5).sum()) if mad_valid else None
             if not mad_valid:
                 self._add_warning(
@@ -931,9 +975,13 @@ class StatisticalAnalyzer:
                 )
 
             distributions[col] = {
-                "skewness_interpretation": self._interpret_skewness(col_data.skew()),
-                "kurtosis_interpretation": self._interpret_kurtosis(col_data.kurtosis()),
-                "range": _finite_or_none(col_data.max() - col_data.min()),
+                "skewness_interpretation": self._interpret_skewness(_quiet_numeric(col_data.skew)),
+                "kurtosis_interpretation": self._interpret_kurtosis(
+                    _quiet_numeric(col_data.kurtosis)
+                ),
+                "range": _finite_or_none(
+                    _quiet_numeric(lambda values=col_data: values.max() - values.min())
+                ),
                 "is_bimodal": bimodal,
             }
 
@@ -968,7 +1016,12 @@ class StatisticalAnalyzer:
     @staticmethod
     def _test_bimodality(data):
         """Simple histogram peak heuristic; not a formal bimodality test."""
-        hist, _ = np.histogram(data, bins=30)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", RuntimeWarning)
+            with np.errstate(all="ignore"):
+                hist, edges = np.histogram(data, bins=30)
+        if caught or not np.isfinite(edges).all():
+            raise ValueError("histogram bins are not finite at this numeric scale")
         peaks = sum(
             1 for i in range(1, len(hist) - 1) if hist[i] > hist[i - 1] and hist[i] > hist[i + 1]
         )
@@ -1477,6 +1530,7 @@ class StatisticalAnalyzer:
 
         usable = self.df[[group_col, value_col]].dropna()
         groups = usable[group_col].unique()
+        display_groups = [_label(item) for item in groups]
 
         if len(groups) < 2:
             raise InsufficientGroupsError(
@@ -1531,13 +1585,13 @@ class StatisticalAnalyzer:
             "levene_p_value": p_levene,
             "normality": [
                 {
-                    "group": group,
+                    "group": _label(group),
                     "sample_size": len(values),
                     "test": test_name,
                     "p_value": p,
                     "status": "unknown"
                     if p is None
-                    else ("not_rejected" if p > 0.05 else "rejected"),
+                    else ("not_rejected" if p >= 0.05 else "rejected"),
                 }
                 for group, values, (test_name, p) in zip(
                     groups, group_data, normality_results, strict=True
@@ -1546,7 +1600,7 @@ class StatisticalAnalyzer:
             "equal_variance_status": (
                 "unknown"
                 if p_levene is None
-                else ("not_rejected" if p_levene > 0.05 else "rejected")
+                else ("not_rejected" if p_levene >= 0.05 else "rejected")
             ),
             "diagnostic_alpha": 0.05,
             "independent_observations": "Required; cannot be verified from numerical values.",
@@ -1571,7 +1625,10 @@ class StatisticalAnalyzer:
                 )
 
             if test_type == "ttest":
-                if np.var(group1) == 0 and np.var(group2) == 0:
+                with np.errstate(all="ignore"):
+                    variance1 = np.var(group1)
+                    variance2 = np.var(group2)
+                if variance1 == 0 and variance2 == 0:
                     raise InsufficientDataError(
                         "A t-test needs numerically representable within-group variation. "
                         "Review constant or extremely small-scale observations."
@@ -1591,7 +1648,7 @@ class StatisticalAnalyzer:
                     "test": "t-test",
                     "statistic": float(stat),
                     "p_value": float(p_val),
-                    "groups": [groups[0], groups[1]],
+                    "groups": display_groups,
                     "equal_variance": bool(equal_var),
                     "degrees_of_freedom": mean_interval["degrees_of_freedom"],
                     "mean_difference": float(np.mean(group1) - np.mean(group2)),
@@ -1621,7 +1678,7 @@ class StatisticalAnalyzer:
                     "test": "Mann-Whitney U",
                     "statistic": float(stat),
                     "p_value": float(p_val),
-                    "groups": [groups[0], groups[1]],
+                    "groups": display_groups,
                     "assumptions": assumptions,
                     "effect_size": {
                         "name": "rank-biserial correlation",
@@ -1667,7 +1724,7 @@ class StatisticalAnalyzer:
                     "test": "One-way ANOVA",
                     "statistic": float(stat),
                     "p_value": float(p_val),
-                    "groups": list(groups),
+                    "groups": display_groups,
                     "degrees_of_freedom": [len(groups) - 1, n_total - len(groups)],
                     "assumptions": assumptions,
                     "effect_size": {
@@ -1708,7 +1765,7 @@ class StatisticalAnalyzer:
                     "test": "Kruskal-Wallis",
                     "statistic": float(stat),
                     "p_value": float(p_val),
-                    "groups": list(groups),
+                    "groups": display_groups,
                     "degrees_of_freedom": len(groups) - 1,
                     "assumptions": assumptions,
                     "effect_size": {
@@ -1750,7 +1807,7 @@ class StatisticalAnalyzer:
         results["excluded_rows"] = len(self.df) - len(usable)
         results["group_sizes"] = [
             {"group": group, "size": len(values)}
-            for group, values in zip(groups, group_data, strict=True)
+            for group, values in zip(display_groups, group_data, strict=True)
         ]
         if test_type in ("ttest", "anova"):
             if any(p is None or p <= 0.05 for p in normality_p_values):
@@ -1778,11 +1835,13 @@ class StatisticalAnalyzer:
                 "Effect-size interval unavailable: fewer than half of requested bootstrap "
                 "resamples were valid (minimum 50)."
             )
-        results["interpretation"] = self._build_interpretation_sentence(results, confidence_level)
+        results["interpretation"] = self._build_interpretation_sentence(
+            results, confidence_level, float(alpha)
+        )
         return results
 
     @staticmethod
-    def _build_interpretation_sentence(results: dict, confidence_level: float) -> str:
+    def _build_interpretation_sentence(results: dict, confidence_level: float, alpha: float) -> str:
         """Assemble a plain-English interpretation from values already in the result dict.
 
         This is purely a display helper — no new statistics are calculated. It reads
@@ -1796,7 +1855,6 @@ class StatisticalAnalyzer:
             for the mean difference is 0.64 to 14.02.
         """
         parts: list[str] = []
-        alpha = 0.05
         p_val = results.get("p_value")
         test_name = results.get("test", "The test")
         if p_val is not None and np.isfinite(p_val):
@@ -1859,11 +1917,13 @@ class StatisticalAnalyzer:
     def _cohens_d(group1, group2):
         """Cohen's d using the pooled standard deviation."""
         n1, n2 = len(group1), len(group2)
-        var1, var2 = np.var(group1, ddof=1), np.var(group2, ddof=1)
-        pooled_std = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
+        with np.errstate(all="ignore"):
+            var1, var2 = np.var(group1, ddof=1), np.var(group2, ddof=1)
+            pooled_std = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
         if pooled_std == 0:
             return float("nan")
-        return float((np.mean(group1) - np.mean(group2)) / pooled_std)
+        with np.errstate(all="ignore"):
+            return float((np.mean(group1) - np.mean(group2)) / pooled_std)
 
     @classmethod
     def _effect_size_ci(cls, group_data, test_type, confidence_level, samples, random_state):
@@ -1908,26 +1968,39 @@ class StatisticalAnalyzer:
     def _mean_difference_ci(group1, group2, equal_var, confidence=0.95):
         """Confidence interval for the difference in means (group1 - group2)."""
         n1, n2 = len(group1), len(group2)
-        mean_diff = float(np.mean(group1) - np.mean(group2))
-        var1, var2 = np.var(group1, ddof=1), np.var(group2, ddof=1)
+        with np.errstate(all="ignore"):
+            mean_diff = float(np.mean(group1) - np.mean(group2))
+            var1, var2 = np.var(group1, ddof=1), np.var(group2, ddof=1)
+        if not np.isfinite(mean_diff) or not np.isfinite(var1) or not np.isfinite(var2):
+            raise InsufficientDataError(
+                "The mean-difference confidence interval is unavailable at this numeric "
+                "scale; rescale the outcome."
+            )
         alpha = 1 - confidence
 
-        if equal_var:
-            pooled_var = ((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2)
-            se = np.sqrt(pooled_var * (1 / n1 + 1 / n2))
-            df = n1 + n2 - 2
-        else:
-            u1 = var1 / n1
-            u2 = var2 / n2
-            se = np.sqrt(u1 + u2)
-            max_u = max(u1, u2)
-            if max_u > 0:
-                w1 = u1 / max_u
-                w2 = u2 / max_u
-                denom = (w1**2) / (n1 - 1) + (w2**2) / (n2 - 1)
-                df = ((w1 + w2) ** 2) / denom if denom > 0 else float(n1 + n2 - 2)
+        with np.errstate(all="ignore"):
+            if equal_var:
+                pooled_var = ((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2)
+                se = np.sqrt(pooled_var * (1 / n1 + 1 / n2))
+                df = n1 + n2 - 2
             else:
-                df = float(n1 + n2 - 2)
+                u1 = var1 / n1
+                u2 = var2 / n2
+                se = np.sqrt(u1 + u2)
+                max_u = max(u1, u2)
+                if max_u > 0:
+                    w1 = u1 / max_u
+                    w2 = u2 / max_u
+                    denom = (w1**2) / (n1 - 1) + (w2**2) / (n2 - 1)
+                    df = ((w1 + w2) ** 2) / denom if denom > 0 else float(n1 + n2 - 2)
+                else:
+                    df = float(n1 + n2 - 2)
+
+        if not np.isfinite(se) or not np.isfinite(df) or df <= 0:
+            raise InsufficientDataError(
+                "The mean-difference confidence interval is unavailable at this numeric "
+                "scale; rescale the outcome."
+            )
 
         margin = stats.t.ppf(1 - alpha / 2, df) * se
         return {

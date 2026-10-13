@@ -165,7 +165,17 @@ Fisher exact. Larger sparse tables remain blocked and categories are never colla
 
 Group sample size is the backend's complete-case count for outcome and group; excluded rows are original rows minus that count. Pearson and Spearman use complete observation pairs; chi-square and Fisher use the observed table total. Backend first-observed category order is retained. Two-group and paired contrasts are first minus second; one-sample t is observed mean minus reference. Analytical t intervals are labeled with their raw mean-difference quantities. Bootstrap effect intervals are labeled with their own metrics and never relabeled as raw differences. Spearman's rho interval uses paired-observation resampling. Pearson reports a Fisher-z asymptotic normal confidence interval for n > 3. Paired Wilcoxon provides a matched-pairs rank-biserial percentile bootstrap interval. Fisher exact reports an asymptotic log-Wald confidence interval for the sample odds ratio when all contingency cells are positive (and explicitly declares it unavailable when any cell is zero, avoiding ad-hoc continuity corrections). The stored alpha is an interpretation threshold; it does not change the calculated p-value.
 
-The guided path requests 499 backend bootstrap resamples with effective seed 0 by default, or the specification's seed when provided. Both settings and valid-resample counts are recorded; a backend-unavailable interval remains `None` with its warning. The engine checks core statistics, p-values, effect estimates, interval bounds and confidence level before marking an analysis available. A known backend numerical failure returns an unavailable result with the originating specification and recommendation. These checks do not prove statistical assumptions. The separate provenance auditor checks recorded results against reports and exports without recalculating the analysis. Existing extreme-scale analyzer warnings remain possible; further numerical stabilization is outside this completion.
+The guided path requests the specification's configured number of backend bootstrap resamples
+(499 by default), with effective seed 0 unless the specification supplies a seed. The requested
+count, effective seed, and valid-resample counts are recorded; a backend-unavailable interval
+remains `None` with its warning. The result auditor verifies that the recorded default resample
+configuration agrees with the specification. The engine checks core statistics, p-values, effect
+estimates, interval bounds and confidence level before marking an analysis available. A known
+backend numerical failure returns an unavailable result with the originating specification and
+recommendation. These checks do not prove statistical assumptions. The separate provenance
+auditor checks recorded results against reports and exports without recalculating the analysis.
+Existing extreme-scale analyzer warnings remain possible; further numerical stabilization is
+outside this completion.
 
 ## Interpretation policy
 

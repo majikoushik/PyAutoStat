@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import warnings as warning_control
 from itertools import combinations
 from typing import Any
 
@@ -14,6 +15,47 @@ from scipy import stats
 from .exceptions import ColumnNotFoundError, InsufficientDataError, InvalidDataError
 from .multigroup import adjust_pvalues
 from .uncertainty import two_way_anova_partial_eta_squared_ci
+
+
+def _diagnostic_record(calculation: Any, label: str) -> tuple[dict[str, Any], str | None]:
+    """Run an advisory diagnostic without leaking or misclassifying backend warnings."""
+    try:
+        with warning_control.catch_warnings(record=True) as caught:
+            warning_control.simplefilter("always")
+            statistic, p_value = calculation()
+    except Exception:
+        return (
+            {
+                "statistic": None,
+                "p_value": None,
+                "verdict": "unknown",
+                "reason": "Backend diagnostic calculation failed.",
+            },
+            f"{label} diagnostic was unavailable because its backend calculation failed.",
+        )
+    if caught or not (math.isfinite(float(statistic)) and math.isfinite(float(p_value))):
+        reason = (
+            "Backend emitted a numerical warning."
+            if caught
+            else "Backend returned a nonfinite result."
+        )
+        return (
+            {
+                "statistic": None,
+                "p_value": None,
+                "verdict": "unknown",
+                "reason": reason,
+            },
+            f"{label} diagnostic was unavailable: {reason.lower()}",
+        )
+    return (
+        {
+            "statistic": float(statistic),
+            "p_value": float(p_value),
+            "verdict": "fail_to_reject" if float(p_value) >= 0.05 else "reject",
+        },
+        None,
+    )
 
 
 def _check_level(value: Any) -> float:
@@ -52,13 +94,11 @@ def _extract_levels(series: pd.Series) -> list[Any]:
     if isinstance(series.dtype, pd.CategoricalDtype):
         ordered = [item for item in series.cat.categories if item in observed]
         ordered.extend(item for item in observed if item not in ordered)
-        return [_label(item) for item in ordered]
+        return ordered
     try:
-        sorted_observed = sorted(observed)
-        return [_label(item) for item in sorted_observed]
+        return sorted(observed)
     except TypeError:
-        sorted_observed = sorted(observed, key=lambda x: str(x))
-        return [_label(item) for item in sorted_observed]
+        return sorted(observed, key=lambda x: str(x))
 
 
 def _build_sum_contrasts(series: pd.Series, levels: list[Any]) -> np.ndarray:
@@ -131,7 +171,11 @@ def two_way_anova(
             f"Two-way ANOVA requires at least 4 complete cases; {analyzed_rows} were found."
         )
 
-    if not pd.api.types.is_numeric_dtype(usable[outcome]):
+    if (
+        not pd.api.types.is_numeric_dtype(usable[outcome])
+        or pd.api.types.is_bool_dtype(usable[outcome])
+        or pd.api.types.is_complex_dtype(usable[outcome])
+    ):
         raise InvalidDataError(f"'{outcome}' must be a real numeric column.")
 
     try:
@@ -142,8 +186,24 @@ def two_way_anova(
     if not np.isfinite(y).all():
         raise InvalidDataError(f"'{outcome}' contains nonfinite values.")
 
-    if float(np.ptp(y)) == 0.0:
+    reference = float(y[0])
+    with np.errstate(over="ignore", invalid="ignore"):
+        centered = y - reference
+        scale = float(np.max(np.abs(centered)))
+    if not math.isfinite(scale):
+        raise InsufficientDataError(
+            "The outcome range cannot be represented safely; rescale the outcome before "
+            "two-way ANOVA."
+        )
+    if scale == 0.0:
         raise InsufficientDataError(f"Outcome '{outcome}' is constant across all usable rows.")
+    scale_squared = scale * scale
+    if not math.isfinite(scale_squared) or scale_squared == 0.0:
+        raise InsufficientDataError(
+            "The outcome scale cannot produce finite sums of squares; rescale the outcome "
+            "before two-way ANOVA."
+        )
+    model_y = centered / scale
 
     # Factor levels
     levels_a = _extract_levels(usable[factor_a])
@@ -166,18 +226,20 @@ def two_way_anova(
     cell_values: list[np.ndarray] = []
     cell_summaries: list[dict[str, Any]] = []
     empty_cells: list[dict[str, Any]] = []
+    cell_map: dict[tuple[Any, Any], dict[str, Any]] = {}
 
     for a_lvl in levels_a:
         for b_lvl in levels_b:
             mask = (usable[factor_a] == a_lvl) & (usable[factor_b] == b_lvl)
             cell_y = y[mask]
+            model_cell_y = model_y[mask]
             count = len(cell_y)
             if count == 0:
-                empty_cells.append({"factor_a": a_lvl, "factor_b": b_lvl})
+                empty_cells.append({"factor_a": _label(a_lvl), "factor_b": _label(b_lvl)})
                 cell_summaries.append(
                     {
-                        "factor_a": a_lvl,
-                        "factor_b": b_lvl,
+                        "factor_a": _label(a_lvl),
+                        "factor_b": _label(b_lvl),
                         "sample_size": 0,
                         "mean": None,
                         "standard_deviation": None,
@@ -185,23 +247,28 @@ def two_way_anova(
                     }
                 )
             else:
-                cell_values.append(cell_y)
-                mean_val = float(np.mean(cell_y))
-                sd_val = float(np.std(cell_y, ddof=1)) if count > 1 else 0.0
-                se_val = float(sd_val / math.sqrt(count)) if count > 0 else None
-                cell_summaries.append(
-                    {
-                        "factor_a": a_lvl,
-                        "factor_b": b_lvl,
-                        "factor_a_level": a_lvl,
-                        "factor_b_level": b_lvl,
-                        "sample_size": count,
-                        "n": count,
-                        "mean": mean_val,
-                        "standard_deviation": sd_val,
-                        "standard_error": se_val,
-                    }
-                )
+                cell_values.append(model_cell_y)
+                mean_val = float(np.mean(model_cell_y) * scale + reference)
+                sd_val = float(np.std(model_cell_y, ddof=1) * scale) if count > 1 else 0.0
+                se_val = float(sd_val / math.sqrt(count))
+                if not all(math.isfinite(value) for value in (mean_val, sd_val, se_val)):
+                    raise InsufficientDataError(
+                        "A factorial cell summary cannot be represented safely; rescale the "
+                        "outcome before two-way ANOVA."
+                    )
+                summary = {
+                    "factor_a": _label(a_lvl),
+                    "factor_b": _label(b_lvl),
+                    "factor_a_level": _label(a_lvl),
+                    "factor_b_level": _label(b_lvl),
+                    "sample_size": count,
+                    "n": count,
+                    "mean": mean_val,
+                    "standard_deviation": sd_val,
+                    "standard_error": se_val,
+                }
+                cell_summaries.append(summary)
+                cell_map[(a_lvl, b_lvl)] = summary
 
     if empty_cells:
         cell_desc = ", ".join(f"({c['factor_a']!r}, {c['factor_b']!r})" for c in empty_cells)
@@ -235,8 +302,8 @@ def two_way_anova(
     X_b_only = np.hstack([const, XB])
 
     # Fit OLS models
-    model_full = sm.OLS(y, X_full).fit()
-    ss_error = float(model_full.ssr)
+    model_full = sm.OLS(model_y, X_full).fit()
+    ss_error = float(model_full.ssr) * scale_squared
     ms_error = ss_error / df_residual
     rmse = math.sqrt(ms_error) if ms_error >= 0.0 else 0.0
 
@@ -251,13 +318,13 @@ def two_way_anova(
 
     # Terms calculation
     if sum_of_squares == "type2":
-        model_add = sm.OLS(y, X_add).fit()
-        model_a = sm.OLS(y, X_a_only).fit()
-        model_b = sm.OLS(y, X_b_only).fit()
+        model_add = sm.OLS(model_y, X_add).fit()
+        model_a = sm.OLS(model_y, X_a_only).fit()
+        model_b = sm.OLS(model_y, X_b_only).fit()
 
-        ss_a = max(0.0, float(model_b.ssr - model_add.ssr))
-        ss_b = max(0.0, float(model_a.ssr - model_add.ssr))
-        ss_ab = max(0.0, float(model_add.ssr - model_full.ssr))
+        ss_a = max(0.0, float(model_b.ssr - model_add.ssr) * scale_squared)
+        ss_b = max(0.0, float(model_a.ssr - model_add.ssr) * scale_squared)
+        ss_ab = max(0.0, float(model_add.ssr - model_full.ssr) * scale_squared)
 
         ms_a = ss_a / df_a
         f_a = ms_a / ms_error
@@ -373,9 +440,8 @@ def two_way_anova(
     ]
 
     # Estimated marginal means (unweighted least-squares means)
-    cell_map = {(c["factor_a"], c["factor_b"]): c for c in cell_summaries}
-
     emm_a = []
+    emm_a_values: dict[Any, float] = {}
     for a_lvl in levels_a:
         means = [cell_map[(a_lvl, b_lvl)]["mean"] for b_lvl in levels_b]
         emm_val = float(np.mean(means))
@@ -384,11 +450,18 @@ def two_way_anova(
             1.0 / cell_map[(a_lvl, b_lvl)]["sample_size"] for b_lvl in levels_b
         )
         se_emm = math.sqrt(var_emm) if var_emm > 0.0 else 0.0
+        emm_a_values[a_lvl] = emm_val
         emm_a.append(
-            {"factor": factor_a, "level": a_lvl, "estimate": emm_val, "standard_error": se_emm}
+            {
+                "factor": factor_a,
+                "level": _label(a_lvl),
+                "estimate": emm_val,
+                "standard_error": se_emm,
+            }
         )
 
     emm_b = []
+    emm_b_values: dict[Any, float] = {}
     for b_lvl in levels_b:
         means = [cell_map[(a_lvl, b_lvl)]["mean"] for a_lvl in levels_a]
         emm_val = float(np.mean(means))
@@ -396,8 +469,14 @@ def two_way_anova(
             1.0 / cell_map[(a_lvl, b_lvl)]["sample_size"] for a_lvl in levels_a
         )
         se_emm = math.sqrt(var_emm) if var_emm > 0.0 else 0.0
+        emm_b_values[b_lvl] = emm_val
         emm_b.append(
-            {"factor": factor_b, "level": b_lvl, "estimate": emm_val, "standard_error": se_emm}
+            {
+                "factor": factor_b,
+                "level": _label(b_lvl),
+                "estimate": emm_val,
+                "standard_error": se_emm,
+            }
         )
 
     # Follow-ups
@@ -421,10 +500,10 @@ def two_way_anova(
                     "contrast_id": f"{a1}_vs_{a2}_at_{b_lvl}",
                     "family": f"Simple effects of {factor_a} within {factor_b}",
                     "family_type": "simple_a_within_b",
-                    "condition": b_lvl,
-                    "conditioning_level": b_lvl,
-                    "first": a1,
-                    "second": a2,
+                    "condition": _label(b_lvl),
+                    "conditioning_level": _label(b_lvl),
+                    "first": _label(a1),
+                    "second": _label(a2),
                     "contrast": f"{a1} minus {a2} at {factor_b}={b_lvl}",
                     "estimate": diff,
                     "standard_error": se,
@@ -468,10 +547,10 @@ def two_way_anova(
                     "contrast_id": f"{b1}_vs_{b2}_at_{a_lvl}",
                     "family": f"Simple effects of {factor_b} within {factor_a}",
                     "family_type": "simple_b_within_a",
-                    "condition": a_lvl,
-                    "conditioning_level": a_lvl,
-                    "first": b1,
-                    "second": b2,
+                    "condition": _label(a_lvl),
+                    "conditioning_level": _label(a_lvl),
+                    "first": _label(b1),
+                    "second": _label(b2),
                     "contrast": f"{b1} minus {b2} at {factor_a}={a_lvl}",
                     "estimate": diff,
                     "standard_error": se,
@@ -502,8 +581,8 @@ def two_way_anova(
     marginal_a_raw_p: list[float] = []
     for a1, a2 in combinations(levels_a, 2):
         # Difference in EMMs:
-        m1 = next(item["estimate"] for item in emm_a if item["level"] == a1)
-        m2 = next(item["estimate"] for item in emm_a if item["level"] == a2)
+        m1 = emm_a_values[a1]
+        m2 = emm_a_values[a2]
         diff = m1 - m2
         # Variance = (MSE / J^2) * sum_j (1/n_1j + 1/n_2j)
         var_diff = (ms_error / (num_levels_b**2)) * sum(
@@ -521,8 +600,8 @@ def two_way_anova(
                 "family": f"Marginal means for {factor_a}",
                 "family_type": "marginal_a",
                 "condition": None,
-                "first": a1,
-                "second": a2,
+                "first": _label(a1),
+                "second": _label(a2),
                 "contrast": f"{a1} minus {a2} (marginal mean)",
                 "estimate": diff,
                 "standard_error": se,
@@ -552,8 +631,8 @@ def two_way_anova(
     marginal_b_records = []
     marginal_b_raw_p: list[float] = []
     for b1, b2 in combinations(levels_b, 2):
-        m1 = next(item["estimate"] for item in emm_b if item["level"] == b1)
-        m2 = next(item["estimate"] for item in emm_b if item["level"] == b2)
+        m1 = emm_b_values[b1]
+        m2 = emm_b_values[b2]
         diff = m1 - m2
         var_diff = (ms_error / (num_levels_a**2)) * sum(
             1.0 / cell_map[(a_lvl, b1)]["sample_size"] + 1.0 / cell_map[(a_lvl, b2)]["sample_size"]
@@ -570,8 +649,8 @@ def two_way_anova(
                 "family": f"Marginal means for {factor_b}",
                 "family_type": "marginal_b",
                 "condition": None,
-                "first": b1,
-                "second": b2,
+                "first": _label(b1),
+                "second": _label(b2),
                 "contrast": f"{b1} minus {b2} (marginal mean)",
                 "estimate": diff,
                 "standard_error": se,
@@ -658,36 +737,31 @@ def two_way_anova(
 
     # Normality diagnostic (Shapiro-Wilk for small sample, normaltest for larger)
     normality_diag: dict[str, Any] = {}
+    diagnostic_warnings: list[str] = []
     if 3 <= analyzed_rows <= 5000:
-        s_stat, s_p = stats.shapiro(residuals)
-        normality_diag["shapiro_wilk"] = {
-            "statistic": float(s_stat),
-            "p_value": float(s_p),
-            "verdict": "fail_to_reject" if s_p >= 0.05 else "reject",
-        }
+        record, diagnostic_warning = _diagnostic_record(
+            lambda: stats.shapiro(residuals), "Shapiro-Wilk"
+        )
+        normality_diag["shapiro_wilk"] = record
+        if diagnostic_warning is not None:
+            diagnostic_warnings.append(diagnostic_warning)
     if analyzed_rows >= 8:
-        try:
-            n_stat, n_p = stats.normaltest(residuals)
-            normality_diag["dagostino_pearson"] = {
-                "statistic": float(n_stat),
-                "p_value": float(n_p),
-                "verdict": "fail_to_reject" if n_p >= 0.05 else "reject",
-            }
-        except Exception:
-            pass
+        record, diagnostic_warning = _diagnostic_record(
+            lambda: stats.normaltest(residuals), "D'Agostino-Pearson"
+        )
+        normality_diag["dagostino_pearson"] = record
+        if diagnostic_warning is not None:
+            diagnostic_warnings.append(diagnostic_warning)
 
     # Homoscedasticity diagnostic across cells (Levene / Brown-Forsythe)
     homoscedasticity_diag: dict[str, Any] = {}
     if len(cell_values) >= 2 and all(len(c) >= 2 for c in cell_values):
-        try:
-            l_stat, l_p = stats.levene(*cell_values, center="median")
-            homoscedasticity_diag["levene_median"] = {
-                "statistic": float(l_stat),
-                "p_value": float(l_p),
-                "verdict": "fail_to_reject" if l_p >= 0.05 else "reject",
-            }
-        except Exception:
-            pass
+        record, diagnostic_warning = _diagnostic_record(
+            lambda: stats.levene(*cell_values, center="median"), "Levene-Brown-Forsythe"
+        )
+        homoscedasticity_diag["levene_median"] = record
+        if diagnostic_warning is not None:
+            diagnostic_warnings.append(diagnostic_warning)
 
     diagnostics = {
         "residual_sample_size": analyzed_rows,
@@ -705,7 +779,7 @@ def two_way_anova(
     }
 
     # Warnings & limitations
-    warnings: list[str] = []
+    warnings: list[str] = list(diagnostic_warnings)
     cell_sizes = [c["sample_size"] for c in cell_summaries]
     is_balanced = len(set(cell_sizes)) == 1
 
@@ -743,8 +817,8 @@ def two_way_anova(
         "outcome": outcome,
         "factor_a": factor_a,
         "factor_b": factor_b,
-        "factor_a_levels": levels_a,
-        "factor_b_levels": levels_b,
+        "factor_a_levels": [_label(level) for level in levels_a],
+        "factor_b_levels": [_label(level) for level in levels_b],
         "sample": {
             "original_rows": original_rows,
             "analyzed_rows": analyzed_rows,

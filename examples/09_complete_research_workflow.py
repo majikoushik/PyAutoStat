@@ -76,7 +76,7 @@ def run_independent_workflow(
     assistant.enable_tracking()
     assistant.declare_planning("planned", reason="Declared before the numerical analysis.")
 
-    b_samples = resolve_bootstrap_samples(default=499, fast_count=50) if fast_mode else 499
+    b_samples = resolve_bootstrap_samples(default=499, fast_count=100) if fast_mode else 499
 
     # Incomplete specification: design omitted intentionally
     incomplete = assistant.run(
@@ -250,7 +250,7 @@ def run_paired_workflow(full_data: pd.DataFrame, fast_mode: bool = False) -> Non
         }
     )
 
-    b_samples = resolve_bootstrap_samples(default=499, fast_count=50) if fast_mode else 499
+    b_samples = resolve_bootstrap_samples(default=499, fast_count=100) if fast_mode else 499
 
     paired = ResearchAssistant(paired_frame).run(
         objective="compare_groups",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
@@ -122,27 +123,36 @@ def calculate_reliability(
         raise InvalidDataError("Reliability item names must be nonempty strings.")
     if (
         isinstance(confidence_level, bool)
-        or not isinstance(confidence_level, (int, float))
+        or not isinstance(confidence_level, Real)
         or not math.isfinite(confidence_level)
         or not 0 < confidence_level < 1
     ):
         raise InvalidDataError("confidence_level must be strictly between zero and one.")
-    if isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int):
+    if isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, Integral):
         raise InvalidDataError("bootstrap_samples must be a positive integer.")
     if bootstrap_samples < 1:
         raise InvalidDataError("bootstrap_samples must be a positive integer.")
     if random_state is not None and (
-        isinstance(random_state, bool) or not isinstance(random_state, int)
+        isinstance(random_state, bool) or not isinstance(random_state, Integral) or random_state < 0
     ):
-        raise InvalidDataError("random_state must be an integer or None.")
+        raise InvalidDataError("random_state must be a nonnegative integer or None.")
+    confidence_level = float(confidence_level)
+    bootstrap_samples = int(bootstrap_samples)
+    random_state = None if random_state is None else int(random_state)
     missing_columns = [item for item in items if item not in frame.columns]
     if missing_columns:
         raise InvalidDataError(f"Reliability items do not exist: {missing_columns!r}.")
-    if any(not pd.api.types.is_numeric_dtype(frame[item]) for item in items):
-        nonnumeric = [item for item in items if not pd.api.types.is_numeric_dtype(frame[item])]
+    invalid_numeric_items = [
+        item
+        for item in items
+        if not pd.api.types.is_numeric_dtype(frame[item])
+        or pd.api.types.is_bool_dtype(frame[item])
+        or pd.api.types.is_complex_dtype(frame[item])
+    ]
+    if invalid_numeric_items:
         raise InvalidDataError(
             "Reliability items require explicit numeric scores; no label scoring is inferred. "
-            f"Non-numeric items: {nonnumeric!r}."
+            f"Non-real-numeric items: {invalid_numeric_items!r}."
         )
     if reverse_scoring is not None and not isinstance(reverse_scoring, dict):
         raise InvalidDataError("reverse_scoring must map item names to (lower, upper).")

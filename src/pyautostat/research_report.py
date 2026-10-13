@@ -275,11 +275,11 @@ def _write_bytes(path: str | Path, content: bytes, *, overwrite: bool) -> Path:
     return _write_binary(path, content, ".pdf", "PDF", overwrite=overwrite)
 
 
-def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
-    """Remove individual identifier labels from a descriptive report copy."""
-    if analysis["method_id"] != "dataset_profile":
-        return False
-    profile = analysis["values"].get("profile")
+def _omit_identifier_profile_details(
+    profile: dict[str, Any] | None,
+    declaration: dict[str, Any] | None = None,
+) -> bool:
+    """Remove individual identifier labels from a copied profile payload."""
     if not isinstance(profile, dict):
         return False
     identifiers = {
@@ -295,7 +295,7 @@ def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
         and summary["nonmissing_count"] >= 3
         and summary.get("observed_categories") == summary["nonmissing_count"]
     )
-    declaration = analysis["specification"].get("data_dictionary") or {}
+    declaration = declaration or {}
     identifiers.update(
         name
         for name, details in declaration.items()
@@ -308,6 +308,24 @@ def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
             if isinstance(dictionary, dict) and name in dictionary:
                 dictionary[name] = {"type": "identifier", "report_note": "Details omitted."}
     return bool(identifiers)
+
+
+def _omit_identifier_details(analysis: dict[str, Any]) -> bool:
+    """Remove individual identifier labels from a descriptive analysis copy."""
+    if analysis.get("method_id") != "dataset_profile":
+        return False
+    values = analysis.get("values", {})
+    specification = analysis.get("specification", {})
+    profile = values.get("profile") if isinstance(values, dict) else None
+    declaration = specification.get("data_dictionary") if isinstance(specification, dict) else None
+    return _omit_identifier_profile_details(profile, declaration)
+
+
+def _identifier_safe_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Return a deep-copied analysis payload safe for snapshots and bundles."""
+    safe = deepcopy(analysis)
+    _omit_identifier_details(safe)
+    return safe
 
 
 class ResearchReport:
